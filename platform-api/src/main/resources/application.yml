@@ -9,6 +9,7 @@ spring:
       - classpath:application-test-design.yml
       - classpath:application-execution.yml
       - classpath:application-test-data.yml
+      - classpath:application-reporting.yml
       - classpath:application-events.yml
   application:
     name: platform-api

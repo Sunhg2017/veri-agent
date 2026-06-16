@@ -19,6 +19,7 @@ class PasswordChangeRequiredPolicyTest {
         assertThat(policy.allows(request("GET", "/api/v1/auth/me"))).isTrue();
         assertThat(policy.allows(request("POST", "/api/v1/auth/change-password"))).isTrue();
         assertThat(policy.allows(request("GET", "/api/v1/execution/health"))).isTrue();
+        assertThat(policy.allows(request("GET", "/api/v1/reports/health"))).isTrue();
         assertThat(policy.allows(request("GET", "/swagger-ui/index.html"))).isTrue();
         assertThat(policy.allows(request("GET", "/api/v1/management/departments"))).isFalse();
     }

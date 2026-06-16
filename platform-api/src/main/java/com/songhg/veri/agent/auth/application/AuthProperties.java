@@ -50,6 +50,7 @@ public record AuthProperties(
                     allow("GET", "/api/v1/asset/health", PasswordChangePathMatch.EXACT),
                     allow("GET", "/api/v1/document-input/health", PasswordChangePathMatch.EXACT),
                     allow("GET", "/api/v1/execution/health", PasswordChangePathMatch.EXACT),
+                    allow("GET", "/api/v1/reports/health", PasswordChangePathMatch.EXACT),
                     allow("GET", "/api/v1/auth/me", PasswordChangePathMatch.EXACT),
                     allow("POST", "/api/v1/auth/login", PasswordChangePathMatch.EXACT),
                     allow("POST", "/api/v1/auth/refresh", PasswordChangePathMatch.EXACT),

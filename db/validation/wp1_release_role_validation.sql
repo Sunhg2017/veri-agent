@@ -33,6 +33,17 @@ tables as (
     join schema_exists s on s.oid = c.relnamespace
     where c.relkind in ('r', 'p', 'v', 'm')
 ),
+wp10_report_tables as (
+    select t.oid, t.relname
+    from tables t
+    where t.relname in (
+        'report_execution_report',
+        'report_evidence_manifest',
+        'report_failure_diagnosis',
+        'report_defect_draft',
+        'report_export_manifest'
+    )
+),
 owned_by_app_or_readonly as (
     select c.relname
     from pg_class c
@@ -273,6 +284,42 @@ checks as (
             else 'FAIL'
         end as status,
         'runtime role may append and read WP5 release readiness approval notes but must not UPDATE/DELETE/TRUNCATE note records' as details
+    union all
+    select
+        'release.wp10_reporting_tables.runtime_access' as check_name,
+        case
+            when not exists (select 1 from app_role_exists) then 'FAIL'
+            when (select count(*) from wp10_report_tables) <> 5 then 'FAIL'
+            when exists (
+                select 1
+                from wp10_report_tables t
+                where not coalesce(has_table_privilege((select app_role from settings), t.oid, 'SELECT'), false)
+                   or not coalesce(has_table_privilege((select app_role from settings), t.oid, 'INSERT'), false)
+                   or not coalesce(has_table_privilege((select app_role from settings), t.oid, 'UPDATE'), false)
+                   or coalesce(has_table_privilege((select app_role from settings), t.oid, 'DELETE'), false)
+                   or coalesce(has_table_privilege((select app_role from settings), t.oid, 'TRUNCATE'), false)
+            ) then 'FAIL'
+            else 'PASS'
+        end as status,
+        'runtime role may create/update WP10 aggregate report metadata but must not DELETE/TRUNCATE reporting tables' as details
+    union all
+    select
+        'release.wp10_reporting_tables.readonly_access' as check_name,
+        case
+            when not exists (select 1 from readonly_role_exists) then 'FAIL'
+            when (select count(*) from wp10_report_tables) <> 5 then 'FAIL'
+            when exists (
+                select 1
+                from wp10_report_tables t
+                where not coalesce(has_table_privilege((select readonly_role from settings), t.oid, 'SELECT'), false)
+                   or coalesce(has_table_privilege((select readonly_role from settings), t.oid, 'INSERT'), false)
+                   or coalesce(has_table_privilege((select readonly_role from settings), t.oid, 'UPDATE'), false)
+                   or coalesce(has_table_privilege((select readonly_role from settings), t.oid, 'DELETE'), false)
+                   or coalesce(has_table_privilege((select readonly_role from settings), t.oid, 'TRUNCATE'), false)
+            ) then 'FAIL'
+            else 'PASS'
+        end as status,
+        'readonly role may SELECT WP10 aggregate report metadata but must not write reporting tables' as details
     union all
     select
         'release.readonly_role.no_table_dml' as check_name,

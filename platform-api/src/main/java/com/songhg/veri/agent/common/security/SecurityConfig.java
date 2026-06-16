@@ -12,6 +12,7 @@ import com.songhg.veri.agent.execution.config.ExecutionProperties;
 import com.songhg.veri.agent.integration.application.PlatformIntegrationProperties;
 import com.songhg.veri.agent.management.config.ManagementProperties;
 import com.songhg.veri.agent.modelaccess.config.ModelAccessProperties;
+import com.songhg.veri.agent.reporting.config.ReportingProperties;
 import com.songhg.veri.agent.testdesign.config.TestDesignProperties;
 import com.songhg.veri.agent.testdata.config.TestDataProperties;
 import jakarta.servlet.DispatcherType;
@@ -47,6 +48,7 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
         ApiAutomationProperties.class,
         ExecutionProperties.class,
         TestDataProperties.class,
+        ReportingProperties.class,
         SecretProviderProperties.class,
         AuditRetentionProperties.class,
         ManagementProperties.class,
@@ -93,6 +95,7 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/api/v1/api-automation/health").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/v1/execution/health").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/v1/test-data/health").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/v1/reports/health").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/v1/document-input/webhooks/**").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/v1/execution/webhooks/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/v1/examples/**").permitAll()

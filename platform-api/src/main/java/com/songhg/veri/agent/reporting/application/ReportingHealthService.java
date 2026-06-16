@@ -1,0 +1,77 @@
+package com.songhg.veri.agent.reporting.application;
+
+import com.songhg.veri.agent.reporting.application.view.ReportingHealthResponse;
+import com.songhg.veri.agent.reporting.config.ReportingProperties;
+import java.util.List;
+import java.util.Map;
+import org.springframework.stereotype.Service;
+
+@Service
+public class ReportingHealthService {
+
+    private final ReportingProperties properties;
+
+    public ReportingHealthService(ReportingProperties properties) {
+        this.properties = properties;
+    }
+
+    /**
+     * Publishes WP10 M1 readiness and safety boundaries without exposing provider, prompt or evidence details.
+     */
+    public ReportingHealthResponse health() {
+        return new ReportingHealthResponse(
+                "reporting",
+                "UP",
+                properties.enabled(),
+                properties.generateEnabled(),
+                properties.diagnosisEnabled(),
+                properties.defectDraftEnabled(),
+                properties.exportEnabled(),
+                properties.effectiveMaxEvidenceItems(),
+                properties.effectiveMaxDiagnosisContextChars(),
+                properties.effectiveMaxExportMarkdownChars(),
+                properties.effectiveSchemaVersion(),
+                properties.effectiveFieldSetVersion(),
+                Map.ofEntries(
+                        Map.entry("foundationReady", true),
+                        Map.entry("permissionSeedReady", true),
+                        Map.entry("databaseSchemaReady", true),
+                        Map.entry("moduleSkeletonReady", true),
+                        Map.entry("healthApiReady", true),
+                        Map.entry("reportGenerationReady", false),
+                        Map.entry("evidenceAggregationReady", false),
+                        Map.entry("failureClassifierReady", false),
+                        Map.entry("aiDiagnosisReady", false),
+                        Map.entry("defectDraftReady", false),
+                        Map.entry("exportSummaryReady", false),
+                        Map.entry("crossWpDirectTableReadAllowed", false),
+                        Map.entry("rawRunnerArtifactStored", false),
+                        Map.entry("requestResponseBodyStored", false),
+                        Map.entry("rawPromptStored", false),
+                        Map.entry("rawResponseStored", false),
+                        Map.entry("secretPlaintextStored", false),
+                        Map.entry("supportedReportStatuses", List.of(
+                                "QUEUED",
+                                "GENERATING",
+                                "READY",
+                                "FAILED",
+                                "ARCHIVED"
+                        )),
+                        Map.entry("supportedDiagnosisStatuses", List.of(
+                                "NOT_REQUESTED",
+                                "RULE_READY",
+                                "AI_RUNNING",
+                                "AI_READY",
+                                "AI_FAILED"
+                        )),
+                        Map.entry("supportedDefectDraftStatuses", List.of(
+                                "DRAFT",
+                                "REVIEWED",
+                                "DISMISSED",
+                                "EXPORTED"
+                        )),
+                        Map.entry("supportedExportTypes", List.of("JSON", "MARKDOWN"))
+                )
+        );
+    }
+}

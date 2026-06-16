@@ -27,6 +27,7 @@ VALIDATIONS=(
   "$ROOT_DIR/db/validation/wp6_api_automation_validation.sql"
   "$ROOT_DIR/db/validation/wp9_execution_validation.sql"
   "$ROOT_DIR/db/validation/wp8_test_data_validation.sql"
+  "$ROOT_DIR/db/validation/wp10_reporting_validation.sql"
 )
 
 run_psql_file() {
@@ -202,6 +203,11 @@ grant select, insert, update on
     test_pooled_account,
     test_account_lease,
     test_account_role_matrix,
+    report_execution_report,
+    report_evidence_manifest,
+    report_failure_diagnosis,
+    report_defect_draft,
+    report_export_manifest,
     audit_outbox
 to wp1_app;
 

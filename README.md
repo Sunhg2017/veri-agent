@@ -65,6 +65,7 @@ AI 驱动的端到端企业级测试平台。WP1、WP2、WP3、WP4 是研发任�
 | `doc/mvp/final/engineering/WP10-报告与失败诊断-前端页面设计.md` | WP10 前端报告工作台、路由、权限、报告详情、失败诊断、缺陷草稿、导出和可测性设计。 |
 | `doc/mvp/final/engineering/WP10-报告与失败诊断-测试策略与用例脚本.md` | WP10 测试策略、报告/诊断/导出用例矩阵、脱敏扫描、AI 评测和质量门禁建议。 |
 | `doc/mvp/final/engineering/WP10-报告与失败诊断-研发任务拆解.md` | WP10 Epic/Story/Task 研发拆解、实施顺序和 P0 完成定义。 |
+| `doc/mvp/final/engineering/WP10-报告与失败诊断-M1基础控制面交付说明.md` | WP10 M1 基础控制面交付记录，覆盖权限、DB、validation、配置和 health API。 |
 | `doc/mvp/final/engineering/WP9-执行编排与任务调度-M1基础控制面交付说明.md` | WP9 M1 基础控制面交付记录，覆盖权限、DB、validation、配置和 health API。 |
 | `doc/mvp/final/engineering/WP9-执行编排与任务调度-M2计划与DAG交付说明.md` | WP9 M2 计划与 DAG 交付记录，覆盖 plan CRUD、DAG validator、dry-run、状态保护和后端测试。 |
 | `doc/mvp/final/engineering/WP9-执行编排与任务调度-M3A手动触发与运行记录交付说明.md` | WP9 M3A 手动触发与运行记录交付记录，覆盖 run/node run 初始化、requestKey 幂等和运行查询。 |

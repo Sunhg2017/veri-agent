@@ -1,6 +1,6 @@
--- Consolidated WP1+WP2+WP3+WP4 schema validation for single-platform deployment.
+-- Consolidated WP1+ cross-WP schema validation for single-platform deployment.
 -- Every query returns: check_name, status, details.
--- Validates all tables from WP1 (platform base), WP2 (model access), WP3 (asset service), and WP4 (document input).
+-- Validates shared platform tables and current work-package foundation schemas.
 
 with expected(table_name) as (
     values
@@ -81,7 +81,13 @@ with expected(table_name) as (
         ('execution_node_run'),
         ('execution_trigger'),
         ('execution_trigger_event'),
-        ('execution_queue_claim')
+        ('execution_queue_claim'),
+        -- WP10 reporting foundation tables
+        ('report_execution_report'),
+        ('report_evidence_manifest'),
+        ('report_failure_diagnosis'),
+        ('report_defect_draft'),
+        ('report_export_manifest')
 ),
 missing as (
     select e.table_name
@@ -95,7 +101,7 @@ missing as (
 select
     'schema.core_tables_exist' as check_name,
     case when count(*) = 0 then 'PASS' else 'FAIL' end as status,
-    coalesce(string_agg(table_name, ', ' order by table_name), 'all WP1+WP2+WP3+WP4 core tables exist') as details
+    coalesce(string_agg(table_name, ', ' order by table_name), 'all core work-package tables exist') as details
 from missing;
 
 with missing as (
@@ -470,7 +476,42 @@ with expected(table_name, column_name) as (
         ('api_automation_script_bundle','static_check_summary_json'),
         ('api_automation_script_bundle','review_note'), ('api_automation_script_bundle','submitted_by'),
         ('api_automation_script_bundle','approved_by'), ('api_automation_script_bundle','submitted_at'),
-        ('api_automation_script_bundle','approved_at'), ('api_automation_script_bundle','rejected_at')
+        ('api_automation_script_bundle','approved_at'), ('api_automation_script_bundle','rejected_at'),
+        -- WP10 key columns
+        ('report_execution_report','id'), ('report_execution_report','project_id'),
+        ('report_execution_report','execution_run_id'), ('report_execution_report','request_key'),
+        ('report_execution_report','status'), ('report_execution_report','schema_version'),
+        ('report_execution_report','source_run_digest'), ('report_execution_report','report_summary_json'),
+        ('report_execution_report','redaction_policy_json'), ('report_execution_report','generated_by'),
+        ('report_execution_report','generated_at'), ('report_execution_report','failed_code'),
+        ('report_execution_report','failure_summary'), ('report_execution_report','trace_id'),
+        ('report_execution_report','archived_at'), ('report_execution_report','created_at'),
+        ('report_execution_report','updated_at'),
+        ('report_evidence_manifest','id'), ('report_evidence_manifest','report_id'),
+        ('report_evidence_manifest','source_wp'), ('report_evidence_manifest','source_type'),
+        ('report_evidence_manifest','source_ref_digest'), ('report_evidence_manifest','schema_version'),
+        ('report_evidence_manifest','summary_keys_json'), ('report_evidence_manifest','redaction_flags_json'),
+        ('report_evidence_manifest','evidence_summary_json'), ('report_evidence_manifest','created_at'),
+        ('report_failure_diagnosis','id'), ('report_failure_diagnosis','report_id'),
+        ('report_failure_diagnosis','status'), ('report_failure_diagnosis','classification_json'),
+        ('report_failure_diagnosis','model_invocation_digest'), ('report_failure_diagnosis','confidence'),
+        ('report_failure_diagnosis','manual_review_required'), ('report_failure_diagnosis','diagnosis_summary_json'),
+        ('report_failure_diagnosis','error_code'), ('report_failure_diagnosis','created_at'),
+        ('report_failure_diagnosis','updated_at'),
+        ('report_defect_draft','id'), ('report_defect_draft','report_id'),
+        ('report_defect_draft','diagnosis_id'), ('report_defect_draft','status'),
+        ('report_defect_draft','title'), ('report_defect_draft','reproduction_summary'),
+        ('report_defect_draft','impact_summary'), ('report_defect_draft','priority_suggestion'),
+        ('report_defect_draft','evidence_refs_json'), ('report_defect_draft','payload_preview_json'),
+        ('report_defect_draft','created_by'), ('report_defect_draft','updated_by'),
+        ('report_defect_draft','created_at'), ('report_defect_draft','updated_at'),
+        ('report_export_manifest','id'), ('report_export_manifest','report_id'),
+        ('report_export_manifest','export_type'), ('report_export_manifest','status'),
+        ('report_export_manifest','schema_version'), ('report_export_manifest','field_set_version'),
+        ('report_export_manifest','redaction_policy_json'), ('report_export_manifest','content_digest'),
+        ('report_export_manifest','aggregate_only'), ('report_export_manifest','exported_by'),
+        ('report_export_manifest','exported_at'), ('report_export_manifest','block_reason'),
+        ('report_export_manifest','created_at')
 ),
 missing as (
     select e.table_name || '.' || e.column_name as item
@@ -611,7 +652,20 @@ with expected(table_name, index_name) as (
         ('test_design_evaluation_sample','idx_test_design_eval_sample_source_candidate'),
         ('test_design_calibration_run','idx_test_design_calibration_run_project_prompt_created'),
         ('test_design_calibration_run','idx_test_design_calibration_run_baseline_created'),
-        ('test_design_calibration_run','idx_test_design_calibration_run_status_created')
+        ('test_design_calibration_run','idx_test_design_calibration_run_status_created'),
+        -- WP10 key indexes
+        ('report_execution_report','uk_report_execution_report_run_request'),
+        ('report_execution_report','idx_report_execution_report_project_status'),
+        ('report_execution_report','idx_report_execution_report_run'),
+        ('report_execution_report','idx_report_execution_report_trace'),
+        ('report_evidence_manifest','idx_report_evidence_manifest_report_source'),
+        ('report_evidence_manifest','idx_report_evidence_manifest_source_digest'),
+        ('report_failure_diagnosis','idx_report_failure_diagnosis_report_status'),
+        ('report_failure_diagnosis','idx_report_failure_diagnosis_model_digest'),
+        ('report_defect_draft','idx_report_defect_draft_report_status'),
+        ('report_defect_draft','idx_report_defect_draft_diagnosis'),
+        ('report_export_manifest','idx_report_export_manifest_report_type'),
+        ('report_export_manifest','idx_report_export_manifest_digest')
 ),
 missing as (
     select e.table_name || '.' || e.index_name as item
