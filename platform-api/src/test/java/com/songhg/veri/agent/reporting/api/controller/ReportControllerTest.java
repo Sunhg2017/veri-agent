@@ -288,12 +288,96 @@ class ReportControllerTest {
                 .andExpect(jsonPath("$.data.items[0].summary.diagnosisStatus").value("AI_READY"))
                 .andExpect(jsonPath("$.data.items[0].summary.diagnosisPrimaryCategory").value("ASSERTION_FAILED"));
 
+        mockMvc.perform(get("/api/v1/reports/{id}/export", reportId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + ownerToken)
+                        .param("exportType", "JSON"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.reportId").value(reportId.toString()))
+                .andExpect(jsonPath("$.data.exportType").value("JSON"))
+                .andExpect(jsonPath("$.data.status").value("CREATED"))
+                .andExpect(jsonPath("$.data.schemaVersion").value("wp10-test-report-v1"))
+                .andExpect(jsonPath("$.data.fieldSetVersion").value("wp10-report-export-fields-v1"))
+                .andExpect(jsonPath("$.data.contentDigest").isString())
+                .andExpect(jsonPath("$.data.aggregateOnly").value(true))
+                .andExpect(jsonPath("$.data.redactionPolicy.contentStored").value(false))
+                .andExpect(jsonPath("$.data.redactionPolicy.externalDefectWriteAttempted").value(false))
+                .andExpect(jsonPath("$.data.manifest.contentDigest").isString())
+                .andExpect(jsonPath("$.data.content.report.id").value(reportId.toString()))
+                .andExpect(jsonPath("$.data.content.summary.runStatus").value("FAILED"))
+                .andExpect(jsonPath("$.data.content.evidenceManifests.length()").value(3))
+                .andExpect(jsonPath("$.data.content.evidenceManifests[0].summaryKeys[0]").value("accountLeaseRef"))
+                .andExpect(jsonPath("$.data.content.evidenceManifests[0].summaryKeys[1]").value("sanitized"))
+                .andExpect(jsonPath("$.data.content.evidenceManifests[0].evidenceSummary.nodeKey").value("api-smoke"))
+                .andExpect(jsonPath("$.data.content.evidenceManifests[2].sourceWp").value("WP8"))
+                .andExpect(jsonPath("$.data.content.evidenceManifests[2].evidenceSummary.accountLeaseRefDigest")
+                        .isString())
+                .andExpect(jsonPath("$.data.content.latestDiagnosis.status").value("AI_READY"))
+                .andExpect(jsonPath("$.data.content.latestDiagnosis.modelInvocationDigest").isString())
+                .andExpect(content().string(not(containsString("Bearer"))))
+                .andExpect(content().string(not(containsString("Authorization"))))
+                .andExpect(content().string(not(containsString("secret://"))))
+                .andExpect(content().string(not(containsString(accountLeaseRef.toString()))))
+                .andExpect(content().string(not(containsString("lease-token-plain"))))
+                .andExpect(content().string(not(containsString("execution-run-secret-holder"))))
+                .andExpect(content().string(not(containsString("account-key-secret"))))
+                .andExpect(content().string(not(containsString("Staging Admin"))))
+                .andExpect(content().string(not(containsString("raw prompt"))))
+                .andExpect(content().string(not(containsString("raw response"))));
+
+        mockMvc.perform(get("/api/v1/reports/{id}/export", reportId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + ownerToken)
+                        .param("exportType", "MARKDOWN"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.reportId").value(reportId.toString()))
+                .andExpect(jsonPath("$.data.exportType").value("MARKDOWN"))
+                .andExpect(jsonPath("$.data.status").value("CREATED"))
+                .andExpect(jsonPath("$.data.contentDigest").isString())
+                .andExpect(jsonPath("$.data.content", containsString("WP10 Report Export")))
+                .andExpect(jsonPath("$.data.content", containsString("ASSERTION_FAILED")))
+                .andExpect(content().string(not(containsString("Bearer"))))
+                .andExpect(content().string(not(containsString("Authorization"))))
+                .andExpect(content().string(not(containsString("secret://"))))
+                .andExpect(content().string(not(containsString(accountLeaseRef.toString()))))
+                .andExpect(content().string(not(containsString("Staging Admin"))));
+
+        mockMvc.perform(get("/api/v1/reports")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + ownerToken)
+                        .param("projectId", "project-alpha"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.items[0].summary.exportManifestCount").value(2));
+
         mockMvc.perform(post("/api/v1/reports/{id}/archive", reportId)
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + ownerToken))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.id").value(reportId.toString()))
                 .andExpect(jsonPath("$.data.status").value("ARCHIVED"))
                 .andExpect(jsonPath("$.data.archivedAt").exists());
+    }
+
+    @Test
+    void rejectsUnsupportedReportExportType() throws Exception {
+        UUID runId = UUID.randomUUID();
+        when(executionRunService.runProjectScopeId(runId)).thenReturn("project-alpha");
+        when(executionRunService.exportRun(runId)).thenReturn(successRunExport(runId, "project-alpha"));
+        String ownerToken = userAccessToken(List.of("ProjectOwner@PROJECT:project-alpha"));
+
+        MvcResult created = mockMvc.perform(post("/api/v1/reports")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + ownerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "projectId", "project-alpha",
+                                "executionRunId", runId,
+                                "requestKey", "unsupported-export-type"
+                        ))))
+                .andExpect(status().isCreated())
+                .andReturn();
+        UUID reportId = UUID.fromString(JsonPath.read(created.getResponse().getContentAsString(), "$.data.id"));
+
+        mockMvc.perform(get("/api/v1/reports/{id}/export", reportId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + ownerToken)
+                        .param("exportType", "PDF"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("REPORT_EXPORT_TYPE_INVALID"));
     }
 
     @Test

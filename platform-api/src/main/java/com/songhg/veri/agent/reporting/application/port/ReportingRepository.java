@@ -3,6 +3,7 @@ package com.songhg.veri.agent.reporting.application.port;
 import com.songhg.veri.agent.reporting.application.query.ReportQuery;
 import com.songhg.veri.agent.reporting.domain.ReportEvidenceManifest;
 import com.songhg.veri.agent.reporting.domain.ReportExecutionReport;
+import com.songhg.veri.agent.reporting.domain.ReportExportManifest;
 import com.songhg.veri.agent.reporting.domain.ReportFailureDiagnosis;
 import java.util.List;
 import java.util.Optional;
@@ -18,11 +19,17 @@ public interface ReportingRepository {
 
     void replaceLatestFailureDiagnosis(UUID reportId, ReportFailureDiagnosis diagnosis);
 
+    void insertExportManifest(ReportExportManifest manifest);
+
     Optional<ReportExecutionReport> report(UUID id);
 
     List<ReportEvidenceManifest> evidenceManifests(UUID reportId);
 
     Optional<ReportFailureDiagnosis> latestFailureDiagnosis(UUID reportId);
+
+    Optional<ReportExportManifest> latestExportManifest(UUID reportId, String exportType);
+
+    long countExportManifests(UUID reportId);
 
     Optional<ReportExecutionReport> reportByProjectRunRequestKey(
             String projectId,

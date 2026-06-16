@@ -72,6 +72,7 @@ AI 驱动的端到端企业级测试平台。WP1、WP2、WP3、WP4 是研发任�
 | `doc/mvp/final/engineering/WP10-报告与失败诊断-M4A规则失败分类交付说明.md` | WP10 M4A 规则失败分类交付记录，覆盖 `RULE_READY` 诊断快照、分类 bucket、候选根因、证据 digest 引用和无模型 fallback。 |
 | `doc/mvp/final/engineering/WP10-报告与失败诊断-M4B诊断API与上下文降级交付说明.md` | WP10 M4B 诊断 API 交付记录，覆盖诊断触发/查询、bounded context digest、`AI_FAILED` 策略降级、审计和敏感字段不回显。 |
 | `doc/mvp/final/engineering/WP10-报告与失败诊断-M4C-WP2诊断调用交付说明.md` | WP10 M4C WP2 诊断调用交付记录，覆盖 `AI_READY`、model invocation digest、预算阻断 fallback、context 安全和 health readiness。 |
+| `doc/mvp/final/engineering/WP10-报告与失败诊断-M5A脱敏导出摘要交付说明.md` | WP10 M5A 脱敏导出摘要交付记录，覆盖 JSON/Markdown export、manifest digest、redaction smoke 和 DB contract。 |
 | `doc/mvp/final/engineering/WP9-执行编排与任务调度-M1基础控制面交付说明.md` | WP9 M1 基础控制面交付记录，覆盖权限、DB、validation、配置和 health API。 |
 | `doc/mvp/final/engineering/WP9-执行编排与任务调度-M2计划与DAG交付说明.md` | WP9 M2 计划与 DAG 交付记录，覆盖 plan CRUD、DAG validator、dry-run、状态保护和后端测试。 |
 | `doc/mvp/final/engineering/WP9-执行编排与任务调度-M3A手动触发与运行记录交付说明.md` | WP9 M3A 手动触发与运行记录交付记录，覆盖 run/node run 初始化、requestKey 幂等和运行查询。 |

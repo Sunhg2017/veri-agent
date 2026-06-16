@@ -50,7 +50,7 @@ public class ReportingHealthService {
                         Map.entry("aiDiagnosisReady", true),
                         Map.entry("aiDiagnosisFallbackReady", true),
                         Map.entry("defectDraftReady", false),
-                        Map.entry("exportSummaryReady", false),
+                        Map.entry("exportSummaryReady", true),
                         Map.entry("crossWpDirectTableReadAllowed", false),
                         Map.entry("rawRunnerArtifactStored", false),
                         Map.entry("requestResponseBodyStored", false),

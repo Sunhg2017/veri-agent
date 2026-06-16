@@ -56,6 +56,24 @@
         </constructor>
     </resultMap>
 
+    <resultMap id="exportManifestMap" type="com.songhg.veri.agent.reporting.domain.ReportExportManifest">
+        <constructor>
+            <arg column="id" javaType="java.util.UUID"/>
+            <arg column="report_id" javaType="java.util.UUID"/>
+            <arg column="export_type" javaType="java.lang.String"/>
+            <arg column="status" javaType="java.lang.String"/>
+            <arg column="schema_version" javaType="java.lang.String"/>
+            <arg column="field_set_version" javaType="java.lang.String"/>
+            <arg column="redaction_policy_json" javaType="java.lang.String"/>
+            <arg column="content_digest" javaType="java.lang.String"/>
+            <arg column="aggregate_only" javaType="_boolean"/>
+            <arg column="exported_by" javaType="java.lang.String"/>
+            <arg column="exported_at" javaType="java.time.Instant"/>
+            <arg column="block_reason" javaType="java.lang.String"/>
+            <arg column="created_at" javaType="java.time.Instant"/>
+        </constructor>
+    </resultMap>
+
     <sql id="reportColumns">
         id, project_id, execution_run_id, request_key, status, schema_version, source_run_digest,
         report_summary_json::text as report_summary_json,
@@ -77,6 +95,12 @@
         model_invocation_digest, confidence, manual_review_required,
         diagnosis_summary_json::text as diagnosis_summary_json,
         error_code, created_at, updated_at
+    </sql>
+
+    <sql id="exportManifestColumns">
+        id, report_id, export_type, status, schema_version, field_set_version,
+        redaction_policy_json::text as redaction_policy_json,
+        content_digest, aggregate_only, exported_by, exported_at, block_reason, created_at
     </sql>
 
     <sql id="reportWhere">
@@ -155,6 +179,18 @@
         )
     </insert>
 
+    <insert id="insertExportManifest">
+        insert into report_export_manifest (
+            id, report_id, export_type, status, schema_version, field_set_version,
+            redaction_policy_json, content_digest, aggregate_only, exported_by, exported_at,
+            block_reason, created_at
+        ) values (
+            #{id}, #{reportId}, #{exportType}, #{status}, #{schemaVersion}, #{fieldSetVersion},
+            cast(coalesce(#{redactionPolicyJson}, '{}') as jsonb),
+            #{contentDigest}, #{aggregateOnly}, #{exportedBy}, #{exportedAt}, #{blockReason}, #{createdAt}
+        )
+    </insert>
+
     <select id="report" resultMap="reportMap">
         select <include refid="reportColumns"/>
         from report_execution_report
@@ -174,6 +210,21 @@
         where report_id = #{reportId}
         order by updated_at desc, created_at desc, id desc
         limit 1
+    </select>
+
+    <select id="latestExportManifest" resultMap="exportManifestMap">
+        select <include refid="exportManifestColumns"/>
+        from report_export_manifest
+        where report_id = #{reportId}
+        <if test="exportType != null">and export_type = #{exportType}</if>
+        order by created_at desc, id desc
+        limit 1
+    </select>
+
+    <select id="countExportManifests" resultType="long">
+        select count(*)
+        from report_export_manifest
+        where report_id = #{reportId}
     </select>
 
     <select id="reportByProjectRunRequestKey" resultMap="reportMap">

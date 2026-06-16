@@ -3,6 +3,7 @@ package com.songhg.veri.agent.reporting.infrastructure.mapper;
 import com.songhg.veri.agent.reporting.application.query.ReportQuery;
 import com.songhg.veri.agent.reporting.domain.ReportEvidenceManifest;
 import com.songhg.veri.agent.reporting.domain.ReportExecutionReport;
+import com.songhg.veri.agent.reporting.domain.ReportExportManifest;
 import com.songhg.veri.agent.reporting.domain.ReportFailureDiagnosis;
 import java.util.List;
 import java.util.UUID;
@@ -24,11 +25,20 @@ public interface ReportingMapper {
 
     void insertFailureDiagnosis(ReportFailureDiagnosis diagnosis);
 
+    void insertExportManifest(ReportExportManifest manifest);
+
     ReportExecutionReport report(@Param("id") UUID id);
 
     List<ReportEvidenceManifest> evidenceManifests(@Param("reportId") UUID reportId);
 
     ReportFailureDiagnosis latestFailureDiagnosis(@Param("reportId") UUID reportId);
+
+    ReportExportManifest latestExportManifest(
+            @Param("reportId") UUID reportId,
+            @Param("exportType") String exportType
+    );
+
+    long countExportManifests(@Param("reportId") UUID reportId);
 
     ReportExecutionReport reportByProjectRunRequestKey(
             @Param("projectId") String projectId,

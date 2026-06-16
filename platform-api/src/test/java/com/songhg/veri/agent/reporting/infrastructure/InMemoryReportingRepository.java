@@ -4,7 +4,9 @@ import com.songhg.veri.agent.reporting.application.port.ReportingRepository;
 import com.songhg.veri.agent.reporting.application.query.ReportQuery;
 import com.songhg.veri.agent.reporting.domain.ReportEvidenceManifest;
 import com.songhg.veri.agent.reporting.domain.ReportExecutionReport;
+import com.songhg.veri.agent.reporting.domain.ReportExportManifest;
 import com.songhg.veri.agent.reporting.domain.ReportFailureDiagnosis;
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
@@ -24,6 +26,7 @@ public class InMemoryReportingRepository implements ReportingRepository {
     private final ConcurrentHashMap<UUID, ReportExecutionReport> reports = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<UUID, List<ReportEvidenceManifest>> evidenceManifests = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<UUID, ReportFailureDiagnosis> failureDiagnoses = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<UUID, List<ReportExportManifest>> exportManifests = new ConcurrentHashMap<>();
 
     @Override
     public boolean insertReportIfAbsent(ReportExecutionReport report) {
@@ -54,6 +57,15 @@ public class InMemoryReportingRepository implements ReportingRepository {
     }
 
     @Override
+    public void insertExportManifest(ReportExportManifest manifest) {
+        exportManifests.compute(manifest.reportId(), (ignored, current) -> {
+            List<ReportExportManifest> next = new ArrayList<>(current == null ? List.of() : current);
+            next.add(manifest);
+            return List.copyOf(next);
+        });
+    }
+
+    @Override
     public Optional<ReportExecutionReport> report(UUID id) {
         return Optional.ofNullable(reports.get(id));
     }
@@ -66,6 +78,18 @@ public class InMemoryReportingRepository implements ReportingRepository {
     @Override
     public Optional<ReportFailureDiagnosis> latestFailureDiagnosis(UUID reportId) {
         return Optional.ofNullable(failureDiagnoses.get(reportId));
+    }
+
+    @Override
+    public Optional<ReportExportManifest> latestExportManifest(UUID reportId, String exportType) {
+        return exportManifests.getOrDefault(reportId, List.of()).stream()
+                .filter(manifest -> exportType == null || exportType.equals(manifest.exportType()))
+                .max(Comparator.comparing(ReportExportManifest::createdAt));
+    }
+
+    @Override
+    public long countExportManifests(UUID reportId) {
+        return exportManifests.getOrDefault(reportId, List.of()).size();
     }
 
     @Override

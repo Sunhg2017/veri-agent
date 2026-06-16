@@ -6,11 +6,13 @@ import com.songhg.veri.agent.common.api.ApiResponse;
 import com.songhg.veri.agent.common.api.PageResponse;
 import com.songhg.veri.agent.common.openapi.ApiVersion;
 import com.songhg.veri.agent.common.trace.TraceContext;
+import com.songhg.veri.agent.reporting.application.ReportExportService;
 import com.songhg.veri.agent.reporting.application.ReportService;
 import com.songhg.veri.agent.reporting.application.command.GenerateReportCommand;
 import com.songhg.veri.agent.reporting.application.query.ReportPageRequest;
 import com.songhg.veri.agent.reporting.application.view.ReportDiagnosisResponse;
 import com.songhg.veri.agent.reporting.application.view.ReportDetailResponse;
+import com.songhg.veri.agent.reporting.application.view.ReportExportResponse;
 import com.songhg.veri.agent.reporting.application.view.ReportSummaryResponse;
 import jakarta.validation.Valid;
 import java.util.UUID;
@@ -21,6 +23,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @ApiVersion
@@ -29,9 +32,11 @@ import org.springframework.web.bind.annotation.RestController;
 public class ReportController {
 
     private final ReportService service;
+    private final ReportExportService exportService;
 
-    public ReportController(ReportService service) {
+    public ReportController(ReportService service, ReportExportService exportService) {
         this.service = service;
+        this.exportService = exportService;
     }
 
     @PostMapping
@@ -80,5 +85,14 @@ public class ReportController {
     @RequirePermission(value = PermissionCodes.REPORT_READ, scope = ReportPermissionScopes.REPORT)
     public ReportDiagnosisResponse latestDiagnosis(@PathVariable UUID id) {
         return service.latestDiagnosis(id);
+    }
+
+    @GetMapping("/{id}/export")
+    @RequirePermission(value = PermissionCodes.REPORT_EXPORT, scope = ReportPermissionScopes.REPORT)
+    public ReportExportResponse exportReport(
+            @PathVariable UUID id,
+            @RequestParam(defaultValue = "JSON") String exportType
+    ) {
+        return exportService.exportReport(id, exportType);
     }
 }

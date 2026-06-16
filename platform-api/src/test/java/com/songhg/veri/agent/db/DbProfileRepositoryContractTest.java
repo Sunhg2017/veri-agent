@@ -34,6 +34,7 @@ import com.songhg.veri.agent.modelaccess.infrastructure.JdbcModelInvocationJobRe
 import com.songhg.veri.agent.modelaccess.infrastructure.JdbcModelAccessRepository;
 import com.songhg.veri.agent.reporting.application.port.ReportingRepository;
 import com.songhg.veri.agent.reporting.domain.ReportExecutionReport;
+import com.songhg.veri.agent.reporting.domain.ReportExportManifest;
 import com.songhg.veri.agent.reporting.domain.ReportFailureDiagnosis;
 import com.songhg.veri.agent.testdesign.application.port.TestDesignRepository;
 import com.songhg.veri.agent.testdesign.application.query.TestDesignConflictOperationQuery;
@@ -1797,6 +1798,60 @@ class DbProfileRepositoryContractTest {
     }
 
     @Test
+    void reportingRepositoryPersistsExportManifestThroughJdbc() {
+        Instant now = Instant.now();
+        UUID reportId = UUID.randomUUID();
+        UUID executionRunId = UUID.randomUUID();
+        ReportExecutionReport report = new ReportExecutionReport(
+                reportId,
+                "project-wp10-export-db-" + UUID.randomUUID(),
+                executionRunId,
+                "db-export-" + UUID.randomUUID(),
+                "READY",
+                "wp10-report-v1",
+                "c".repeat(64),
+                "{\"exportManifestCount\":0}",
+                "{\"aggregateOnly\":true}",
+                "db-test",
+                now,
+                null,
+                null,
+                "trc_wp10_export_db",
+                null,
+                now,
+                now
+        );
+        ReportExportManifest jsonManifest = exportManifest(reportId, "JSON", "CREATED", "d".repeat(64), null, now);
+        ReportExportManifest markdownManifest = exportManifest(
+                reportId,
+                "MARKDOWN",
+                "BLOCKED",
+                null,
+                "REPORT_EXPORT_REDACTION_BLOCKED",
+                now.plusSeconds(1)
+        );
+
+        assertThat(reportingRepository.insertReportIfAbsent(report)).isTrue();
+        reportingRepository.insertExportManifest(jsonManifest);
+        reportingRepository.insertExportManifest(markdownManifest);
+
+        assertThat(reportingRepository.countExportManifests(reportId)).isEqualTo(2L);
+        assertThat(reportingRepository.latestExportManifest(reportId, "MARKDOWN"))
+                .get()
+                .satisfies(manifest -> {
+                    assertThat(manifest.id()).isEqualTo(markdownManifest.id());
+                    assertThat(manifest.exportType()).isEqualTo("MARKDOWN");
+                    assertThat(manifest.status()).isEqualTo("BLOCKED");
+                    assertThat(manifest.contentDigest()).isNull();
+                    assertThat(manifest.aggregateOnly()).isTrue();
+                    assertThat(manifest.redactionPolicyJson())
+                            .contains("\"aggregateOnly\": true")
+                            .contains("\"contentStored\": false");
+                    assertThat(manifest.blockReason()).isEqualTo("REPORT_EXPORT_REDACTION_BLOCKED");
+                });
+    }
+
+    @Test
     void testDesignRepositoryAggregatesCrossWpAuditChainThroughJdbc() {
         String projectId = "project-wp5-audit-chain-db-" + UUID.randomUUID();
         Instant now = Instant.now();
@@ -2563,6 +2618,33 @@ class DbProfileRepositoryContractTest {
                         """.trim(),
                 errorCode,
                 now,
+                now
+        );
+    }
+
+    private static ReportExportManifest exportManifest(
+            UUID reportId,
+            String exportType,
+            String status,
+            String contentDigest,
+            String blockReason,
+            Instant now
+    ) {
+        return new ReportExportManifest(
+                UUID.randomUUID(),
+                reportId,
+                exportType,
+                status,
+                "wp10-report-v1",
+                "wp10-report-export-fields-v1",
+                """
+                        {"aggregateOnly": true, "contentStored": false}
+                        """.trim(),
+                contentDigest,
+                true,
+                "db-exporter",
+                now,
+                blockReason,
                 now
         );
     }

@@ -4,6 +4,7 @@ import com.songhg.veri.agent.reporting.application.port.ReportingRepository;
 import com.songhg.veri.agent.reporting.application.query.ReportQuery;
 import com.songhg.veri.agent.reporting.domain.ReportEvidenceManifest;
 import com.songhg.veri.agent.reporting.domain.ReportExecutionReport;
+import com.songhg.veri.agent.reporting.domain.ReportExportManifest;
 import com.songhg.veri.agent.reporting.domain.ReportFailureDiagnosis;
 import com.songhg.veri.agent.reporting.infrastructure.mapper.ReportingMapper;
 import java.util.List;
@@ -47,6 +48,11 @@ public class JdbcReportingRepository implements ReportingRepository {
     }
 
     @Override
+    public void insertExportManifest(ReportExportManifest manifest) {
+        mapper.insertExportManifest(manifest);
+    }
+
+    @Override
     public Optional<ReportExecutionReport> report(UUID id) {
         return Optional.ofNullable(mapper.report(id));
     }
@@ -59,6 +65,16 @@ public class JdbcReportingRepository implements ReportingRepository {
     @Override
     public Optional<ReportFailureDiagnosis> latestFailureDiagnosis(UUID reportId) {
         return Optional.ofNullable(mapper.latestFailureDiagnosis(reportId));
+    }
+
+    @Override
+    public Optional<ReportExportManifest> latestExportManifest(UUID reportId, String exportType) {
+        return Optional.ofNullable(mapper.latestExportManifest(reportId, exportType));
+    }
+
+    @Override
+    public long countExportManifests(UUID reportId) {
+        return mapper.countExportManifests(reportId);
     }
 
     @Override
