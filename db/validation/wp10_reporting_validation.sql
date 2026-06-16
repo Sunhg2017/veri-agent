@@ -247,6 +247,36 @@ select
     coalesce(string_agg(config_key, ', ' order by config_key), 'WP10 base config seeded') as details
 from missing;
 
+with events as (
+    select jsonb_array_elements_text(value_json) as event_name
+    from base_config
+    where scope_type = 'SYSTEM'
+      and scope_id is null
+      and config_key = 'reporting.audit_events'
+      and deleted_at is null
+),
+missing as (
+    select expected.event_name
+    from (
+        values
+            ('report.generated'),
+            ('report.generate.rejected'),
+            ('report.archived'),
+            ('report.diagnosis.requested'),
+            ('report.diagnosis.completed'),
+            ('report.defect_draft.created'),
+            ('report.exported'),
+            ('report.export.blocked')
+    ) as expected(event_name)
+    left join events e on e.event_name = expected.event_name
+    where e.event_name is null
+)
+select
+    'wp10.audit_events_seeded' as check_name,
+    case when count(*) = 0 then 'PASS' else 'FAIL' end as status,
+    coalesce(string_agg(event_name, ', ' order by event_name), 'WP10 audit events seeded') as details
+from missing;
+
 with bad as (
     select table_name || '.tenant_id' as item
     from information_schema.columns

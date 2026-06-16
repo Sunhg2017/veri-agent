@@ -1,0 +1,306 @@
+package com.songhg.veri.agent.reporting.api.controller;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.jayway.jsonpath.JsonPath;
+import com.songhg.veri.agent.auth.application.AuthTokenService;
+import com.songhg.veri.agent.auth.domain.AuthUserRecord;
+import com.songhg.veri.agent.execution.application.ExecutionRunService;
+import com.songhg.veri.agent.execution.application.view.ExecutionNodeRunResponse;
+import com.songhg.veri.agent.execution.application.view.ExecutionRunDetailResponse;
+import com.songhg.veri.agent.execution.application.view.ExecutionRunExportResponse;
+import java.time.Instant;
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.MvcResult;
+
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.startsWith;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
+import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+
+@SpringBootTest(properties = {
+        "veri-agent.auth.token-secret=test-auth-secret-32-byte-minimum!",
+        "veri-agent.reporting.schema-version=wp10-test-report-v1"
+})
+@AutoConfigureMockMvc
+@DirtiesContext(classMode = DirtiesContext.ClassMode.BEFORE_EACH_TEST_METHOD)
+class ReportControllerTest {
+
+    @Autowired
+    private MockMvc mockMvc;
+
+    @Autowired
+    private AuthTokenService tokenService;
+
+    @Autowired
+    private ObjectMapper objectMapper;
+
+    @MockitoBean
+    private ExecutionRunService executionRunService;
+
+    @Test
+    void generatesListsDetailsAndArchivesReportFromSanitizedRunExport() throws Exception {
+        UUID runId = UUID.randomUUID();
+        when(executionRunService.runProjectScopeId(runId)).thenReturn("project-alpha");
+        when(executionRunService.exportRun(runId)).thenReturn(runExport(runId, "project-alpha", "FAILED", true));
+        String ownerToken = userAccessToken(List.of("ProjectOwner@PROJECT:project-alpha"));
+
+        MvcResult created = mockMvc.perform(post("/api/v1/reports")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + ownerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "projectId", "project-alpha",
+                                "executionRunId", runId,
+                                "requestKey", "release-report-1",
+                                "reason", "release gate"
+                        ))))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.code").value("OK"))
+                .andExpect(jsonPath("$.traceId", startsWith("trc_")))
+                .andExpect(jsonPath("$.data.projectId").value("project-alpha"))
+                .andExpect(jsonPath("$.data.executionRunId").value(runId.toString()))
+                .andExpect(jsonPath("$.data.status").value("READY"))
+                .andExpect(jsonPath("$.data.schemaVersion").value("wp10-test-report-v1"))
+                .andExpect(jsonPath("$.data.idempotentReplay").value(false))
+                .andExpect(jsonPath("$.data.summary.runStatus").value("FAILED"))
+                .andExpect(jsonPath("$.data.summary.reportHandoffReady").value(true))
+                .andExpect(jsonPath("$.data.summary.rawReportStored").value(false))
+                .andExpect(jsonPath("$.data.summary.nodeStatusCounts.FAILED").value(1))
+                .andExpect(jsonPath("$.data.summary.failureBucketCounts.ASSERTION_FAILED").value(1))
+                .andExpect(jsonPath("$.data.redactionPolicy.aggregateOnly").value(true))
+                .andExpect(jsonPath("$.data.redactionPolicy.crossWpDirectTableReadAllowed").value(false))
+                .andExpect(jsonPath("$.data.evidenceManifests.length()").value(0))
+                .andExpect(jsonPath("$.data.latestDiagnosis.status").value("NOT_REQUESTED"))
+                .andExpect(content().string(not(containsString("Bearer"))))
+                .andExpect(content().string(not(containsString("secret://"))))
+                .andReturn();
+
+        UUID reportId = UUID.fromString(JsonPath.read(created.getResponse().getContentAsString(), "$.data.id"));
+
+        mockMvc.perform(post("/api/v1/reports")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + ownerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "projectId", "project-alpha",
+                                "executionRunId", runId,
+                                "requestKey", "release-report-1",
+                                "reason", "client retry"
+                        ))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.id").value(reportId.toString()))
+                .andExpect(jsonPath("$.data.idempotentReplay").value(true));
+
+        verify(executionRunService).runProjectScopeId(runId);
+        verify(executionRunService).exportRun(runId);
+        verifyNoMoreInteractions(executionRunService);
+
+        mockMvc.perform(get("/api/v1/reports")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + ownerToken)
+                        .param("projectId", "project-alpha"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.total").value(1))
+                .andExpect(jsonPath("$.data.items[0].id").value(reportId.toString()))
+                .andExpect(jsonPath("$.data.items[0].summary.nodeCount").value(2));
+
+        mockMvc.perform(get("/api/v1/reports/{id}", reportId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + ownerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.id").value(reportId.toString()))
+                .andExpect(jsonPath("$.data.redactionPolicy.secretPlaintextStored").value(false));
+
+        mockMvc.perform(post("/api/v1/reports/{id}/archive", reportId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + ownerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.id").value(reportId.toString()))
+                .andExpect(jsonPath("$.data.status").value("ARCHIVED"))
+                .andExpect(jsonPath("$.data.archivedAt").exists());
+    }
+
+    @Test
+    void rejectsSourceRunWithoutReadyReportHandoff() throws Exception {
+        UUID runId = UUID.randomUUID();
+        when(executionRunService.runProjectScopeId(runId)).thenReturn("project-alpha");
+        when(executionRunService.exportRun(runId)).thenReturn(runExport(runId, "project-alpha", "FAILED", false));
+        String ownerToken = userAccessToken(List.of("ProjectOwner@PROJECT:project-alpha"));
+
+        mockMvc.perform(post("/api/v1/reports")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + ownerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "projectId", "project-alpha",
+                                "executionRunId", runId,
+                                "requestKey", "missing-handoff"
+                        ))))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("INVALID_STATE"))
+                .andExpect(jsonPath("$.message").value("REPORT_SOURCE_RUN_NOT_READY"));
+    }
+
+    @Test
+    void rejectsCrossProjectSourceRunBeforeExportingIt() throws Exception {
+        UUID runId = UUID.randomUUID();
+        when(executionRunService.runProjectScopeId(runId)).thenReturn("project-other");
+        String ownerToken = userAccessToken(List.of("ProjectOwner@PROJECT:project-alpha"));
+
+        mockMvc.perform(post("/api/v1/reports")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + ownerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "projectId", "project-alpha",
+                                "executionRunId", runId,
+                                "requestKey", "cross-project"
+                        ))))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("NOT_FOUND"))
+                .andExpect(jsonPath("$.message").value("REPORT_SOURCE_RUN_NOT_FOUND"));
+
+        verify(executionRunService).runProjectScopeId(runId);
+        verify(executionRunService, never()).exportRun(runId);
+    }
+
+    @Test
+    void protectsReportDetailByProjectScope() throws Exception {
+        UUID runId = UUID.randomUUID();
+        when(executionRunService.runProjectScopeId(runId)).thenReturn("project-alpha");
+        when(executionRunService.exportRun(runId)).thenReturn(runExport(runId, "project-alpha", "SUCCEEDED", true));
+        String ownerToken = userAccessToken(List.of("ProjectOwner@PROJECT:project-alpha"));
+        String otherToken = userAccessToken(List.of("ProjectOwner@PROJECT:project-other"));
+
+        MvcResult created = mockMvc.perform(post("/api/v1/reports")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + ownerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "projectId", "project-alpha",
+                                "executionRunId", runId,
+                                "requestKey", "scope-report"
+                        ))))
+                .andExpect(status().isCreated())
+                .andReturn();
+
+        UUID reportId = UUID.fromString(JsonPath.read(created.getResponse().getContentAsString(), "$.data.id"));
+
+        mockMvc.perform(get("/api/v1/reports/{id}", reportId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + otherToken))
+                .andExpect(status().isForbidden());
+    }
+
+    private ExecutionRunExportResponse runExport(
+            UUID runId,
+            String projectId,
+            String status,
+            boolean handoffReady
+    ) {
+        Instant startedAt = Instant.parse("2026-06-16T10:00:00Z");
+        Instant finishedAt = Instant.parse("2026-06-16T10:01:35Z");
+        List<ExecutionNodeRunResponse> nodes = List.of(
+                new ExecutionNodeRunResponse(
+                        UUID.randomUUID(),
+                        UUID.randomUUID(),
+                        "api-smoke",
+                        "API_TEST",
+                        "FAILED",
+                        1,
+                        "WP6_API",
+                        "wp6-run-1",
+                        "ASSERTION_FAILED",
+                        "assertion failed",
+                        Map.of("sanitized", true),
+                        null,
+                        startedAt,
+                        startedAt,
+                        finishedAt,
+                        startedAt,
+                        finishedAt
+                ),
+                new ExecutionNodeRunResponse(
+                        UUID.randomUUID(),
+                        UUID.randomUUID(),
+                        "report",
+                        "REPORT_HANDOFF",
+                        handoffReady ? "SUCCEEDED" : "PENDING",
+                        1,
+                        "REPORT",
+                        null,
+                        null,
+                        null,
+                        handoffReady
+                                ? Map.of(
+                                        "schedulerManaged", true,
+                                        "reportHandoffReady", true,
+                                        "rawReportStored", false
+                                )
+                                : Map.of("schedulerManaged", false),
+                        null,
+                        startedAt,
+                        startedAt,
+                        handoffReady ? finishedAt : null,
+                        startedAt,
+                        finishedAt
+                )
+        );
+        ExecutionRunDetailResponse run = new ExecutionRunDetailResponse(
+                runId,
+                UUID.randomUUID(),
+                projectId,
+                status,
+                "MANUAL",
+                "run-request",
+                null,
+                1,
+                "trc_wp9run",
+                Map.of("runnerDispatched", false),
+                "ASSERTION_FAILED",
+                "assertion failed",
+                nodes,
+                false,
+                "tester",
+                startedAt,
+                finishedAt,
+                startedAt,
+                finishedAt
+        );
+        return new ExecutionRunExportResponse(
+                "wp9-run-export-v1",
+                Instant.parse("2026-06-16T10:02:00Z"),
+                run,
+                Map.of("FAILED", 1, handoffReady ? "SUCCEEDED" : "PENDING", 1),
+                Map.of(
+                        "rawOutputExported", false,
+                        "rawRequestResponseExported", false,
+                        "secretRefsExported", false,
+                        "claimTokenExported", false
+                )
+        );
+    }
+
+    private String userAccessToken(List<String> roles) {
+        return tokenService.issue(new AuthUserRecord(
+                UUID.randomUUID(),
+                "wp10-report-user-" + UUID.randomUUID(),
+                "WP10 Report User",
+                "wp10-report-user@example.test",
+                "{noop}password",
+                false,
+                1,
+                roles
+        )).accessToken();
+    }
+}

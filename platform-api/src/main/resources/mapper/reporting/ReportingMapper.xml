@@ -1,0 +1,111 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.songhg.veri.agent.reporting.infrastructure.mapper.ReportingMapper">
+    <resultMap id="reportMap" type="com.songhg.veri.agent.reporting.domain.ReportExecutionReport">
+        <constructor>
+            <arg column="id" javaType="java.util.UUID"/>
+            <arg column="project_id" javaType="java.lang.String"/>
+            <arg column="execution_run_id" javaType="java.util.UUID"/>
+            <arg column="request_key" javaType="java.lang.String"/>
+            <arg column="status" javaType="java.lang.String"/>
+            <arg column="schema_version" javaType="java.lang.String"/>
+            <arg column="source_run_digest" javaType="java.lang.String"/>
+            <arg column="report_summary_json" javaType="java.lang.String"/>
+            <arg column="redaction_policy_json" javaType="java.lang.String"/>
+            <arg column="generated_by" javaType="java.lang.String"/>
+            <arg column="generated_at" javaType="java.time.Instant"/>
+            <arg column="failed_code" javaType="java.lang.String"/>
+            <arg column="failure_summary" javaType="java.lang.String"/>
+            <arg column="trace_id" javaType="java.lang.String"/>
+            <arg column="archived_at" javaType="java.time.Instant"/>
+            <arg column="created_at" javaType="java.time.Instant"/>
+            <arg column="updated_at" javaType="java.time.Instant"/>
+        </constructor>
+    </resultMap>
+
+    <sql id="reportColumns">
+        id, project_id, execution_run_id, request_key, status, schema_version, source_run_digest,
+        report_summary_json::text as report_summary_json,
+        redaction_policy_json::text as redaction_policy_json,
+        generated_by, generated_at, failed_code, failure_summary, trace_id, archived_at, created_at, updated_at
+    </sql>
+
+    <sql id="reportWhere">
+        <where>
+            <if test="query.projectId != null">project_id = #{query.projectId}</if>
+            <if test="query.executionRunId != null">and execution_run_id = #{query.executionRunId}</if>
+            <if test="query.status != null">and status = #{query.status}</if>
+        </where>
+    </sql>
+
+    <insert id="insertReportIfAbsent">
+        insert into report_execution_report (
+            id, project_id, execution_run_id, request_key, status, schema_version, source_run_digest,
+            report_summary_json, redaction_policy_json, generated_by, generated_at, failed_code,
+            failure_summary, trace_id, archived_at, created_at, updated_at
+        ) values (
+            #{id}, #{projectId}, #{executionRunId}, #{requestKey}, #{status}, #{schemaVersion}, #{sourceRunDigest},
+            cast(coalesce(#{reportSummaryJson}, '{}') as jsonb),
+            cast(coalesce(#{redactionPolicyJson}, '{}') as jsonb),
+            #{generatedBy}, #{generatedAt}, #{failedCode}, #{failureSummary}, #{traceId}, #{archivedAt},
+            #{createdAt}, #{updatedAt}
+        )
+        on conflict do nothing
+    </insert>
+
+    <update id="updateReport">
+        update report_execution_report set
+            status = #{status},
+            schema_version = #{schemaVersion},
+            source_run_digest = #{sourceRunDigest},
+            report_summary_json = cast(coalesce(#{reportSummaryJson}, '{}') as jsonb),
+            redaction_policy_json = cast(coalesce(#{redactionPolicyJson}, '{}') as jsonb),
+            generated_by = #{generatedBy},
+            generated_at = #{generatedAt},
+            failed_code = #{failedCode},
+            failure_summary = #{failureSummary},
+            trace_id = #{traceId},
+            archived_at = #{archivedAt},
+            updated_at = #{updatedAt}
+        where id = #{id}
+    </update>
+
+    <select id="report" resultMap="reportMap">
+        select <include refid="reportColumns"/>
+        from report_execution_report
+        where id = #{id}
+    </select>
+
+    <select id="reportByProjectRunRequestKey" resultMap="reportMap">
+        select <include refid="reportColumns"/>
+        from report_execution_report
+        where project_id = #{projectId}
+          and execution_run_id = #{executionRunId}
+          and request_key = #{requestKey}
+        order by created_at asc
+        limit 1
+    </select>
+
+    <select id="reports" resultMap="reportMap">
+        select <include refid="reportColumns"/>
+        from report_execution_report
+        <include refid="reportWhere"/>
+        order by generated_at desc nulls last, created_at desc
+        limit #{query.limit}
+        offset #{query.offset}
+    </select>
+
+    <select id="countReports" resultType="long">
+        select count(*)
+        from report_execution_report
+        <include refid="reportWhere"/>
+    </select>
+
+    <select id="reportProjectScopeId" resultType="string">
+        select project_id
+        from report_execution_report
+        where id = #{id}
+    </select>
+</mapper>

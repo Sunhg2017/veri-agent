@@ -23,6 +23,11 @@ class ReportingOpenApiContractTest {
     void documentsReportingControlPlanePaths() throws Exception {
         mockMvc.perform(get("/v3/api-docs"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.paths['/api/v1/reports/health'].get").exists());
+                .andExpect(jsonPath("$.paths['/api/v1/reports/health'].get").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/reports'].post").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/reports'].get").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/reports/{id}'].get").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/reports/{id}/retry'].post").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/reports/{id}/archive'].post").exists());
     }
 }
