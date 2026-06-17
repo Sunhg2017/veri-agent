@@ -46,6 +46,7 @@ main() {
       "$ROOT_DIR/scripts/wp10_defect_draft_smoke.sh" \
       "$ROOT_DIR/scripts/wp10_export_redaction_smoke.sh" \
       "$ROOT_DIR/scripts/wp10_frontend_e2e_smoke.sh" \
+      "$ROOT_DIR/scripts/wp10_diagnosis_quality_eval.sh" \
       "$ROOT_DIR/scripts/platform_api_java_line_guard.sh"
 
   run_step "platform-api Java line guard" \
@@ -59,6 +60,13 @@ main() {
 
   run_step "wp10 export redaction smoke" \
     bash "$ROOT_DIR/scripts/wp10_export_redaction_smoke.sh"
+
+  if [[ "${WP10_SKIP_DIAGNOSIS_EVAL:-0}" != "1" ]]; then
+    run_step "wp10 diagnosis quality eval" \
+      bash "$ROOT_DIR/scripts/wp10_diagnosis_quality_eval.sh"
+  else
+    echo "== wp10 diagnosis quality eval skipped by WP10_SKIP_DIAGNOSIS_EVAL=1 =="
+  fi
 
   run_step "wp10 backend and OpenAPI tests" \
     mvn -B -pl platform-api \
