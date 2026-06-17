@@ -45,6 +45,7 @@ main() {
       "$ROOT_DIR/scripts/wp10_report_smoke.sh" \
       "$ROOT_DIR/scripts/wp10_defect_draft_smoke.sh" \
       "$ROOT_DIR/scripts/wp10_export_redaction_smoke.sh" \
+      "$ROOT_DIR/scripts/wp10_frontend_e2e_smoke.sh" \
       "$ROOT_DIR/scripts/platform_api_java_line_guard.sh"
 
   run_step "platform-api Java line guard" \
@@ -66,6 +67,13 @@ main() {
 
   run_step "wp10 frontend Vitest" \
     bash -c "cd '$ROOT_DIR/portal-web' && npm test -- --run src/api/reports.test.ts src/permissions.test.ts"
+
+  if [[ "${WP10_SKIP_FRONTEND_E2E:-0}" != "1" ]]; then
+    run_step "wp10 frontend Playwright smoke" \
+      bash "$ROOT_DIR/scripts/wp10_frontend_e2e_smoke.sh"
+  else
+    echo "== wp10 frontend Playwright smoke skipped by WP10_SKIP_FRONTEND_E2E=1 =="
+  fi
 
   run_step "wp10 frontend build" \
     bash -c "cd '$ROOT_DIR/portal-web' && npm run build"

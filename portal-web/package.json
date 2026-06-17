@@ -12,6 +12,7 @@
     "test:wp6-smoke": "playwright test e2e/wp6-api-automation.smoke.playwright.ts",
     "test:wp8-smoke": "playwright test e2e/wp8-test-data.smoke.playwright.ts",
     "test:wp9-smoke": "playwright test e2e/wp9-execution.smoke.playwright.ts",
+    "test:wp10-smoke": "playwright test e2e/wp10-reports.smoke.playwright.ts",
     "preview": "vite preview"
   },
   "dependencies": {
