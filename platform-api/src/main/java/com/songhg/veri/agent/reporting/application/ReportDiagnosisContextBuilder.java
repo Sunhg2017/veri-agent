@@ -21,7 +21,19 @@ final class ReportDiagnosisContextBuilder {
     static final String PROMPT_MARKER = "WP10_FAILURE_DIAGNOSIS_V1";
 
     private static final Pattern UNSAFE_SUMMARY_KEY_PATTERN =
-            Pattern.compile("(?i).*(authorization|cookie|password|passwd|secret|token|credential).*");
+            Pattern.compile("(?i).*(authorization|cookie|password|passwd|secret|token|credential|payload|raw"
+                    + "|prompt|response|request|body|stdout|stderr|screenshot|video|sourceCode).*");
+    private static final List<Pattern> FORBIDDEN_CONTEXT_TEXT_PATTERNS = List.of(
+            Pattern.compile("(?i)\\braw\\s*prompt\\b"),
+            Pattern.compile("(?i)\\braw\\s*response\\b"),
+            Pattern.compile("(?i)\\brunner\\s*stdout\\b"),
+            Pattern.compile("(?i)\\brunner\\s*stderr\\b"),
+            Pattern.compile("(?i)\\brequest\\s*body\\b"),
+            Pattern.compile("(?i)\\bresponse\\s*body\\b"),
+            Pattern.compile("(?i)\\bwebhook\\s*payload\\b"),
+            Pattern.compile("(?i)\\bsource\\s*code\\s*package\\b"),
+            Pattern.compile("(?i)\\blease\\s+token\\b")
+    );
 
     private final ReportingProperties properties;
     private final ReportingJsonSupport jsonSupport;
@@ -79,7 +91,7 @@ final class ReportDiagnosisContextBuilder {
                 "status", report.status(),
                 "summary", safeContextMap(jsonSupport.readMap(report.reportSummaryJson()))
         ));
-        context.put("classification", jsonSupport.readMap(ruleDiagnosis.classificationJson()));
+        context.put("classification", safeContextMap(jsonSupport.readMap(ruleDiagnosis.classificationJson())));
         context.put("evidenceManifests", evidenceManifests.stream()
                 .map(this::safeDiagnosisEvidence)
                 .toList());
@@ -137,7 +149,7 @@ final class ReportDiagnosisContextBuilder {
         if (value instanceof Number || value instanceof Boolean) {
             return value;
         }
-        return SensitiveTextSanitizer.sanitizedEvidenceText(value == null ? null : String.valueOf(value), 128);
+        return safeContextText(value == null ? null : String.valueOf(value), 128);
     }
 
     private List<String> safeContextKeys(List<String> keys) {
@@ -148,6 +160,22 @@ final class ReportDiagnosisContextBuilder {
 
     private boolean safeContextKey(String key) {
         return StringUtils.hasText(key) && !UNSAFE_SUMMARY_KEY_PATTERN.matcher(key).matches();
+    }
+
+    /**
+     * Removes raw artifact markers that can arrive inside otherwise safe aggregate notes before WP2 sees the context.
+     */
+    private String safeContextText(String value, int maxLength) {
+        String sanitized = SensitiveTextSanitizer.sanitizedEvidenceText(value, maxLength);
+        if (!StringUtils.hasText(sanitized)) {
+            return sanitized;
+        }
+        for (Pattern pattern : FORBIDDEN_CONTEXT_TEXT_PATTERNS) {
+            if (pattern.matcher(sanitized).find()) {
+                return "[REDACTED_CONTEXT]";
+            }
+        }
+        return sanitized;
     }
 
     record DiagnosisContext(

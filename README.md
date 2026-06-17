@@ -77,6 +77,7 @@ AI 驱动的端到端企业级测试平台。WP1、WP2、WP3、WP4 是研发任�
 | `doc/mvp/final/engineering/WP10-报告与失败诊断-M6A前端工作台基础闭环交付说明.md` | WP10 M6A 前端工作台基础闭环交付记录，覆盖 `#reports` 入口、API helper、列表详情、诊断、草稿、导出和前端门禁。 |
 | `doc/mvp/final/engineering/WP10-报告与失败诊断-M6B前端浏览器Smoke交付说明.md` | WP10 M6B 前端浏览器 smoke 交付记录，覆盖桌面/390px 主链路、DOM 禁止字段扫描和 quality gate 接入。 |
 | `doc/mvp/final/engineering/WP10-报告与失败诊断-M7A诊断质量评测门禁交付说明.md` | WP10 M7A 诊断质量评测门禁交付记录，覆盖典型失败分类、安全输出扫描和 quality gate 接入。 |
+| `doc/mvp/final/engineering/WP10-报告与失败诊断-M7B诊断上下文脱敏专项门禁交付说明.md` | WP10 M7B 诊断上下文脱敏专项门禁交付记录，覆盖 WP2 bounded context 禁止字段和值扫描和 quality gate 接入。 |
 | `doc/mvp/final/engineering/WP9-执行编排与任务调度-M1基础控制面交付说明.md` | WP9 M1 基础控制面交付记录，覆盖权限、DB、validation、配置和 health API。 |
 | `doc/mvp/final/engineering/WP9-执行编排与任务调度-M2计划与DAG交付说明.md` | WP9 M2 计划与 DAG 交付记录，覆盖 plan CRUD、DAG validator、dry-run、状态保护和后端测试。 |
 | `doc/mvp/final/engineering/WP9-执行编排与任务调度-M3A手动触发与运行记录交付说明.md` | WP9 M3A 手动触发与运行记录交付记录，覆盖 run/node run 初始化、requestKey 幂等和运行查询。 |
@@ -136,6 +137,7 @@ AI 驱动的端到端企业级测试平台。WP1、WP2、WP3、WP4 是研发任�
 | `scripts/wp6_quality_gate.sh` | WP6 本地质量门禁入口，串联 OpenAPI fixture、后端、前端、构建、DB validation 和可选 runner smoke。 |
 | `scripts/wp10_frontend_e2e_smoke.sh` | WP10 报告诊断前端浏览器 smoke，覆盖报告生成、诊断、缺陷草稿、导出摘要、DOM 禁止字段扫描和 390px 响应式。 |
 | `scripts/wp10_diagnosis_quality_eval.sh` | WP10 诊断质量评测入口，离线覆盖 timeout、dependency blocked、runner disabled、账号锁定和 webhook 幂等冲突 fallback。 |
+| `scripts/wp10_diagnosis_redaction_eval.sh` | WP10 诊断上下文脱敏专项评测入口，离线扫描 WP2 bounded context 禁止字段和值。 |
 
 ## 本地内存模式
 
