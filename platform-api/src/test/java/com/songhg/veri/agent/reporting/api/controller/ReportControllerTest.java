@@ -4,6 +4,9 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.jayway.jsonpath.JsonPath;
 import com.songhg.veri.agent.auth.application.AuthTokenService;
 import com.songhg.veri.agent.auth.domain.AuthUserRecord;
+import com.songhg.veri.agent.asset.application.AssetCrossWpReportEvidenceService;
+import com.songhg.veri.agent.asset.application.command.AssetReportEvidenceQuery;
+import com.songhg.veri.agent.asset.application.view.AssetReportEvidenceResponse;
 import com.songhg.veri.agent.common.error.BusinessException;
 import com.songhg.veri.agent.common.error.ErrorCode;
 import com.songhg.veri.agent.execution.application.ExecutionRunService;
@@ -18,6 +21,9 @@ import com.songhg.veri.agent.testdata.application.TestDataCrossWpReferenceServic
 import com.songhg.veri.agent.testdata.application.command.TestDataReportEvidenceQuery;
 import com.songhg.veri.agent.testdata.application.view.TestDataCrossWpAccountSummary;
 import com.songhg.veri.agent.testdata.application.view.TestDataReportEvidenceResponse;
+import com.songhg.veri.agent.testdesign.application.TestDesignCrossWpReportEvidenceService;
+import com.songhg.veri.agent.testdesign.application.command.TestDesignReportEvidenceQuery;
+import com.songhg.veri.agent.testdesign.application.view.TestDesignReportEvidenceResponse;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
@@ -74,6 +80,12 @@ class ReportControllerTest {
 
     @MockitoBean
     private TestDataCrossWpReferenceService testDataCrossWpReferenceService;
+
+    @MockitoBean
+    private AssetCrossWpReportEvidenceService assetCrossWpReportEvidenceService;
+
+    @MockitoBean
+    private TestDesignCrossWpReportEvidenceService testDesignCrossWpReportEvidenceService;
 
     @MockitoBean
     private ModelInvocationService modelInvocationService;
@@ -427,6 +439,89 @@ class ReportControllerTest {
     }
 
     @Test
+    void generatesWp3AndWp5AggregateEvidenceManifestsFromSanitizedRunRefs() throws Exception {
+        UUID runId = UUID.randomUUID();
+        UUID requirementRef = UUID.randomUUID();
+        UUID testCaseRef = UUID.randomUUID();
+        UUID taskRef = UUID.randomUUID();
+        UUID candidateRef = UUID.randomUUID();
+        when(executionRunService.runProjectScopeId(runId)).thenReturn("project-alpha");
+        when(executionRunService.exportRun(runId)).thenReturn(crossWpRunExport(
+                runId,
+                "project-alpha",
+                requirementRef,
+                testCaseRef,
+                taskRef,
+                candidateRef
+        ));
+        when(assetCrossWpReportEvidenceService.reportEvidence(any(AssetReportEvidenceQuery.class)))
+                .thenReturn(wp3Evidence(requirementRef, testCaseRef));
+        when(testDesignCrossWpReportEvidenceService.reportEvidence(any(TestDesignReportEvidenceQuery.class)))
+                .thenReturn(wp5Evidence(taskRef, candidateRef, requirementRef, testCaseRef));
+        String ownerToken = userAccessToken(List.of("ProjectOwner@PROJECT:project-alpha"));
+
+        mockMvc.perform(post("/api/v1/reports")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + ownerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "projectId", "project-alpha",
+                                "executionRunId", runId,
+                                "requestKey", "wp3-wp5-evidence-report"
+                        ))))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.data.summary.evidenceManifestCount").value(6))
+                .andExpect(jsonPath("$.data.summary.wp3EvidenceReferenceCount").value(2))
+                .andExpect(jsonPath("$.data.summary.wp3EvidenceManifestCount").value(2))
+                .andExpect(jsonPath("$.data.summary.wp3EvidenceReferenceTruncated").value(false))
+                .andExpect(jsonPath("$.data.summary.wp5EvidenceReferenceCount").value(2))
+                .andExpect(jsonPath("$.data.summary.wp5EvidenceManifestCount").value(2))
+                .andExpect(jsonPath("$.data.summary.wp5EvidenceReferenceTruncated").value(false))
+                .andExpect(jsonPath("$.data.evidenceManifests[2].sourceWp").value("WP3"))
+                .andExpect(jsonPath("$.data.evidenceManifests[2].sourceType").value("REQUIREMENT"))
+                .andExpect(jsonPath("$.data.evidenceManifests[2].schemaVersion").value("wp3-report-evidence-v1"))
+                .andExpect(jsonPath("$.data.evidenceManifests[2].redactionFlags.sourceWp3ReportEvidenceSanitized")
+                        .value(true))
+                .andExpect(jsonPath("$.data.evidenceManifests[2].redactionFlags.assetBodyStored").value(false))
+                .andExpect(jsonPath("$.data.evidenceManifests[2].redactionFlags.traceIdentifierListStored")
+                        .value(false))
+                .andExpect(jsonPath("$.data.evidenceManifests[2].evidenceSummary.requirementRefDigest")
+                        .isString())
+                .andExpect(jsonPath("$.data.evidenceManifests[3].sourceWp").value("WP3"))
+                .andExpect(jsonPath("$.data.evidenceManifests[3].sourceType").value("TEST_CASE"))
+                .andExpect(jsonPath("$.data.evidenceManifests[4].sourceWp").value("WP5"))
+                .andExpect(jsonPath("$.data.evidenceManifests[4].sourceType").value("TEST_DESIGN_TASK"))
+                .andExpect(jsonPath("$.data.evidenceManifests[4].schemaVersion").value("wp5-report-evidence-v1"))
+                .andExpect(jsonPath("$.data.evidenceManifests[4].redactionFlags.sourceWp5ReportEvidenceSanitized")
+                        .value(true))
+                .andExpect(jsonPath("$.data.evidenceManifests[4].redactionFlags.promptStored").value(false))
+                .andExpect(jsonPath("$.data.evidenceManifests[4].redactionFlags.modelPayloadStored").value(false))
+                .andExpect(jsonPath("$.data.evidenceManifests[5].sourceWp").value("WP5"))
+                .andExpect(jsonPath("$.data.evidenceManifests[5].sourceType").value("TEST_DESIGN_CANDIDATE"))
+                .andExpect(content().string(not(containsString(requirementRef.toString()))))
+                .andExpect(content().string(not(containsString(testCaseRef.toString()))))
+                .andExpect(content().string(not(containsString(taskRef.toString()))))
+                .andExpect(content().string(not(containsString(candidateRef.toString()))))
+                .andExpect(content().string(not(containsString("Requirement raw body should not leak"))))
+                .andExpect(content().string(not(containsString("Candidate generated step body should not leak"))))
+                .andExpect(content().string(not(containsString("raw prompt"))))
+                .andExpect(content().string(not(containsString("raw response"))));
+
+        verify(assetCrossWpReportEvidenceService).reportEvidence(argThat(query ->
+                "project-alpha".equals(query.projectId())
+                        && List.of(requirementRef).equals(query.requirementRefs())
+                        && List.of(testCaseRef).equals(query.testCaseRefs())
+                        && query.apiRefs().isEmpty()
+                        && query.pageRefs().isEmpty()
+                        && query.businessFlowRefs().isEmpty()
+        ));
+        verify(testDesignCrossWpReportEvidenceService).reportEvidence(argThat(query ->
+                "project-alpha".equals(query.projectId())
+                        && List.of(taskRef).equals(query.taskRefs())
+                        && List.of(candidateRef).equals(query.candidateRefs())
+        ));
+    }
+
+    @Test
     void rejectsUnsupportedReportExportType() throws Exception {
         UUID runId = UUID.randomUUID();
         when(executionRunService.runProjectScopeId(runId)).thenReturn("project-alpha");
@@ -768,6 +863,102 @@ class ReportControllerTest {
         );
     }
 
+    private ExecutionRunExportResponse crossWpRunExport(
+            UUID runId,
+            String projectId,
+            UUID requirementRef,
+            UUID testCaseRef,
+            UUID taskRef,
+            UUID candidateRef
+    ) {
+        Instant startedAt = Instant.parse("2026-06-16T10:00:00Z");
+        Instant finishedAt = Instant.parse("2026-06-16T10:00:45Z");
+        List<ExecutionNodeRunResponse> nodes = List.of(
+                new ExecutionNodeRunResponse(
+                        UUID.randomUUID(),
+                        UUID.randomUUID(),
+                        "cross-wp-context",
+                        "API_TEST",
+                        "SUCCEEDED",
+                        1,
+                        "WP6_API",
+                        "wp6-run-cross-wp",
+                        null,
+                        null,
+                        Map.of(
+                                "sanitized", true,
+                                "wp3RequirementRef", requirementRef.toString(),
+                                "wp3TestCaseRef", testCaseRef.toString(),
+                                "wp5TaskRef", taskRef.toString(),
+                                "wp5CandidateRef", candidateRef.toString(),
+                                "rawPrompt", "raw prompt should be filtered as an unsafe key"
+                        ),
+                        null,
+                        startedAt,
+                        startedAt,
+                        finishedAt,
+                        startedAt,
+                        finishedAt
+                ),
+                new ExecutionNodeRunResponse(
+                        UUID.randomUUID(),
+                        UUID.randomUUID(),
+                        "report",
+                        "REPORT_HANDOFF",
+                        "SUCCEEDED",
+                        1,
+                        "REPORT",
+                        null,
+                        null,
+                        null,
+                        Map.of(
+                                "schedulerManaged", true,
+                                "reportHandoffReady", true,
+                                "rawReportStored", false
+                        ),
+                        null,
+                        startedAt,
+                        startedAt,
+                        finishedAt,
+                        startedAt,
+                        finishedAt
+                )
+        );
+        ExecutionRunDetailResponse run = new ExecutionRunDetailResponse(
+                runId,
+                UUID.randomUUID(),
+                projectId,
+                "SUCCEEDED",
+                "MANUAL",
+                "run-request",
+                null,
+                1,
+                "trc_wp9run",
+                Map.of("runnerDispatched", false),
+                null,
+                null,
+                nodes,
+                false,
+                "tester",
+                startedAt,
+                finishedAt,
+                startedAt,
+                finishedAt
+        );
+        return new ExecutionRunExportResponse(
+                "wp9-run-export-v1",
+                Instant.parse("2026-06-16T10:02:00Z"),
+                run,
+                Map.of("SUCCEEDED", 2),
+                Map.of(
+                        "rawOutputExported", false,
+                        "rawRequestResponseExported", false,
+                        "secretRefsExported", false,
+                        "claimTokenExported", false
+                )
+        );
+    }
+
     private Map<String, Object> apiNodeSummary(UUID accountLeaseRef) {
         if (accountLeaseRef == null) {
             return Map.of(
@@ -817,6 +1008,103 @@ class ReportControllerTest {
                         "secretPlaintextReturned", false,
                         "secretRefPlaintextReturned", false,
                         "leaseTokenPlaintextReturned", false
+                )
+        );
+    }
+
+    private AssetReportEvidenceResponse wp3Evidence(UUID requirementRef, UUID testCaseRef) {
+        return new AssetReportEvidenceResponse(
+                "project-alpha",
+                "report-ref",
+                List.of(new AssetReportEvidenceResponse.RequirementEvidence(
+                        requirementRef,
+                        "APPROVED",
+                        "P1",
+                        3,
+                        "ACTIVE",
+                        2,
+                        4,
+                        1,
+                        0,
+                        0,
+                        2,
+                        Instant.parse("2026-06-16T09:30:00Z")
+                )),
+                List.of(),
+                List.of(),
+                List.of(),
+                List.of(new AssetReportEvidenceResponse.TestCaseEvidence(
+                        testCaseRef,
+                        "APPROVED",
+                        "P1",
+                        5,
+                        "ACTIVE",
+                        3,
+                        6,
+                        requirementRef,
+                        null,
+                        2,
+                        Instant.parse("2026-06-16T09:45:00Z")
+                )),
+                Map.of(
+                        "aggregateOnly", true,
+                        "assetBodyReturned", false,
+                        "traceIdentifierListReturned", false
+                )
+        );
+    }
+
+    private TestDesignReportEvidenceResponse wp5Evidence(
+            UUID taskRef,
+            UUID candidateRef,
+            UUID requirementRef,
+            UUID testCaseRef
+    ) {
+        return new TestDesignReportEvidenceResponse(
+                "project-alpha",
+                "report-ref",
+                List.of(new TestDesignReportEvidenceResponse.TaskEvidence(
+                        taskRef,
+                        "COMPLETED",
+                        1,
+                        2,
+                        1,
+                        3,
+                        2,
+                        1,
+                        true,
+                        "b".repeat(64),
+                        "c".repeat(64),
+                        5,
+                        3,
+                        Map.of("CONFIRMED", 2L, "PUBLISHED", 1L),
+                        1,
+                        1,
+                        "COMPLETE",
+                        "d".repeat(64),
+                        "wp5-task-report-v1",
+                        Instant.parse("2026-06-16T09:55:00Z")
+                )),
+                List.of(new TestDesignReportEvidenceResponse.CandidateEvidence(
+                        candidateRef,
+                        taskRef,
+                        requirementRef,
+                        null,
+                        testCaseRef,
+                        "PUBLISHED",
+                        "API_REGRESSION",
+                        "P1",
+                        0.87,
+                        true,
+                        true,
+                        4,
+                        Instant.parse("2026-06-16T09:58:00Z")
+                )),
+                Map.of(
+                        "aggregateOnly", true,
+                        "candidateBodyReturned", false,
+                        "promptReturned", false,
+                        "modelPayloadReturned", false
                 )
         );
     }

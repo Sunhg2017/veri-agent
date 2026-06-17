@@ -5,7 +5,7 @@
 | 工作包 | WP10 报告与失败诊断 |
 | 角色产出 | 资深产品经理 |
 | 文档性质 | 需求文档、产品 PRD 和产品验收标准 |
-| 当前口径 | 当前范围已推进至 M8E：基于 WP9 脱敏 run export、`REPORT_HANDOFF` 摘要、WP8 aggregate-only evidence 和 WP2 模型能力，已交付可审计的报告、失败诊断、缺陷草稿、JSON/Markdown 导出和 `#reports` 控制面；WP3/WP5 聚合证据、外部缺陷写入、完整报告和趋势/BI 保持后续专项 |
+| 当前口径 | 当前范围已推进至 M9：基于 WP9 脱敏 run export、`REPORT_HANDOFF` 摘要、WP8/WP3/WP5 aggregate-only evidence 和 WP2 模型能力，已交付可审计的报告、失败诊断、缺陷草稿、JSON/Markdown 导出和 `#reports` 控制面；外部缺陷写入、完整报告和趋势/BI 保持后续专项 |
 | 版本 | v0.2 |
 | 日期 | 2026-06-17 |
 
@@ -13,7 +13,7 @@
 
 WP9 已经提供执行计划、运行状态、节点摘要、`REPORT_HANDOFF` 节点和脱敏 run export，但测试负责人仍缺少面向发布准出和问题分流的统一报告视图。当前用户需要在运行详情、执行摘要、数据准备证据、资产追踪关系和模型调用记录之间手工拼接失败原因，容易遗漏证据、误传敏感信息或把临时判断写成确定结论。
 
-WP10 负责把这些已脱敏输入组织成版本化报告快照，并提供规则失败分类、AI 诊断建议、缺陷草稿和脱敏导出。当前已完成 WP9/WP8 主链路、`#reports` 工作台、质量门禁和本地准出执行记录；WP10 不重新执行测试、不读取 runner 原始产物、不自动写入外部缺陷系统。
+WP10 负责把这些已脱敏输入组织成版本化报告快照，并提供规则失败分类、AI 诊断建议、缺陷草稿和脱敏导出。当前已完成 WP9/WP8/WP3/WP5 聚合证据主链路、`#reports` 工作台、质量门禁和本地准出执行记录；WP10 不重新执行测试、不读取 runner 原始产物、不自动写入外部缺陷系统。
 
 ## 2. 用户与价值
 
@@ -40,7 +40,7 @@ WP10 负责把这些已脱敏输入组织成版本化报告快照，并提供规
 |---|---|---|
 | 报告生成 | `POST /api/v1/reports` 基于 `executionRunId` 创建快照，支持 `requestKey` 幂等 | 批量生成、异步队列优先级 |
 | 报告查询 | 列表、详情、状态、run summary、节点计数、失败分类和证据 manifest | 趋势报表、历史对比 |
-| 证据聚合 | 当前消费 WP9 run export、REPORT_HANDOFF 和 WP8 report evidence；WP3 asset summary 与 WP5 manifest 保持后续 adapter 专项 | 受控 artifact 索引和审批后明细归档 |
+| 证据聚合 | 当前消费 WP9 run export、REPORT_HANDOFF、WP8 report evidence、WP3 asset summary 和 WP5 manifest；仅保存 digest、状态、计数、summary keys 和 redaction flags | 受控 artifact 索引和审批后明细归档 |
 | 失败分类 | 基于 errorCode、status、nodeType、runnerMode、timeout、blocked、lease release 和 trigger 来源分类 | 可配置分类规则和团队标签 |
 | AI 诊断 | 通过 WP2 生成脱敏建议，输出候选根因、置信度、依据和下一步动作 | 反馈闭环和诊断模型评测看板 |
 | 缺陷草稿 | 生成标题、复现摘要、影响范围、优先级建议和证据引用，支持 DRAFT/REVIEWED/DISMISSED | 外部 Jira/禅道/飞书写入由 WP11 承接 |
@@ -100,7 +100,7 @@ WP10 负责把这些已脱敏输入组织成版本化报告快照，并提供规
 5. `ARCHIVED` 报告只读，不允许新增诊断、草稿或导出。
 6. 诊断必须先有规则分类；AI 失败时不阻断报告详情查看。
 7. AI 诊断上下文不得包含 raw prompt、raw response、secret、token、cookie、Authorization、lease token、stdout/stderr、请求响应正文、webhook payload 或账号凭据。
-8. 缺陷草稿只能引用 evidenceRef、digest、状态、计数和摘要 key，不复制原始 evidence 正文。
+8. 缺陷草稿只能引用 evidenceRef、digest、状态、计数和摘要 key，不复制原始 evidence 正文；WP3/WP5 证据同样不得包含资产正文、候选正文、Prompt 原文或模型载荷。
 9. 导出 manifest 必须声明 `aggregateOnly=true`、字段集版本、生成时间、digest 和禁止字段清单。
 10. 前端按钮显隐只做体验优化，最终准入以后端权限、项目 scope、报告状态和配置开关为准。
 

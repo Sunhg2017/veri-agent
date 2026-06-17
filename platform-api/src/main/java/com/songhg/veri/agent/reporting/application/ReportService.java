@@ -7,6 +7,7 @@ import com.songhg.veri.agent.common.error.BusinessException;
 import com.songhg.veri.agent.common.error.ErrorCode;
 import com.songhg.veri.agent.common.trace.TraceContext;
 import com.songhg.veri.agent.common.util.SensitiveTextSanitizer;
+import com.songhg.veri.agent.asset.application.AssetCrossWpReportEvidenceService;
 import com.songhg.veri.agent.execution.application.ExecutionRunService;
 import com.songhg.veri.agent.execution.application.view.ExecutionNodeRunResponse;
 import com.songhg.veri.agent.execution.application.view.ExecutionRunDetailResponse;
@@ -25,20 +26,15 @@ import com.songhg.veri.agent.reporting.domain.ReportEvidenceManifest;
 import com.songhg.veri.agent.reporting.domain.ReportExecutionReport;
 import com.songhg.veri.agent.reporting.domain.ReportFailureDiagnosis;
 import com.songhg.veri.agent.testdata.application.TestDataCrossWpReferenceService;
-import com.songhg.veri.agent.testdata.application.command.TestDataReportEvidenceQuery;
-import com.songhg.veri.agent.testdata.application.view.TestDataCrossWpAccountSummary;
-import com.songhg.veri.agent.testdata.application.view.TestDataReportEvidenceResponse;
+import com.songhg.veri.agent.testdesign.application.TestDesignCrossWpReportEvidenceService;
 import java.time.Duration;
 import java.time.Instant;
-import java.util.ArrayList;
 import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
-import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Service;
@@ -52,14 +48,9 @@ public class ReportService {
             "SUCCEEDED", "PARTIAL_SUCCESS", "FAILED", "CANCELED", "TIMEOUT"
     );
     private static final Set<String> FAILURE_NODE_STATUSES = Set.of("FAILED", "BLOCKED", "TIMEOUT");
-    private static final Pattern UNSAFE_SUMMARY_KEY_PATTERN =
-            Pattern.compile("(?i).*(authorization|cookie|password|passwd|secret|token|credential).*");
-    private static final int MAX_WP8_REPORT_REF_COUNT = 100;
-    private static final String WP8_EVIDENCE_SCHEMA_VERSION = "wp8-report-evidence-v1";
 
     private final ReportingRepository repository;
     private final ExecutionRunService executionRunService;
-    private final TestDataCrossWpReferenceService testDataService;
     private final ReportingProperties properties;
     private final ReportingActorResolver actorResolver;
     private final ReportingPlatformContextClient contextClient;
@@ -69,11 +60,14 @@ public class ReportService {
     private final RuleFailureClassifier failureClassifier;
     private final ReportDiagnosisContextBuilder diagnosisContextBuilder;
     private final ReportDiagnosisAiInvoker diagnosisAiInvoker;
+    private final ReportEvidenceAssembler evidenceAssembler;
 
     public ReportService(
             ReportingRepository repository,
             ExecutionRunService executionRunService,
             ObjectProvider<TestDataCrossWpReferenceService> testDataServices,
+            ObjectProvider<AssetCrossWpReportEvidenceService> assetEvidenceServices,
+            ObjectProvider<TestDesignCrossWpReportEvidenceService> testDesignEvidenceServices,
             ObjectProvider<ModelInvocationService> modelInvocationServices,
             ReportingProperties properties,
             ReportingActorResolver actorResolver,
@@ -82,7 +76,6 @@ public class ReportService {
     ) {
         this.repository = repository;
         this.executionRunService = executionRunService;
-        this.testDataService = testDataServices.getIfAvailable();
         this.properties = properties;
         this.actorResolver = actorResolver;
         this.contextClient = contextClient;
@@ -92,6 +85,13 @@ public class ReportService {
         this.failureClassifier = new RuleFailureClassifier(jsonSupport);
         this.diagnosisContextBuilder = new ReportDiagnosisContextBuilder(properties, jsonSupport);
         this.diagnosisAiInvoker = new ReportDiagnosisAiInvoker(modelInvocationServices, actorResolver);
+        this.evidenceAssembler = new ReportEvidenceAssembler(
+                testDataServices,
+                assetEvidenceServices,
+                testDesignEvidenceServices,
+                properties,
+                jsonSupport
+        );
     }
 
     /**
@@ -315,10 +315,11 @@ public class ReportService {
             throw new BusinessException(ErrorCode.NOT_FOUND, "REPORT_SOURCE_RUN_NOT_FOUND");
         }
         requireSourceReady(run);
-        Wp8EvidenceRefs wp8EvidenceRefs = wp8EvidenceRefs(run.nodes());
-        List<ReportEvidenceManifest> evidenceManifests = evidenceManifests(reportId, request, export, wp8EvidenceRefs, now);
+        ReportEvidenceAssembler.EvidenceRefs evidenceRefs = evidenceAssembler.evidenceRefs(run.nodes());
+        List<ReportEvidenceManifest> evidenceManifests =
+                evidenceAssembler.evidenceManifests(reportId, request.projectId(), export, evidenceRefs, now);
         ReportFailureDiagnosis failureDiagnosis = failureClassifier.classify(reportId, evidenceManifests, now);
-        Map<String, Object> summary = reportSummary(export, request, evidenceManifests, wp8EvidenceRefs,
+        Map<String, Object> summary = reportSummary(export, request, evidenceManifests, evidenceRefs,
                 failureDiagnosis);
         Map<String, Object> redactionPolicy = redactionPolicy(export.redactionPolicy());
         ReportExecutionReport report = new ReportExecutionReport(
@@ -366,7 +367,7 @@ public class ReportService {
             ExecutionRunExportResponse export,
             NormalizedGenerateRequest request,
             List<ReportEvidenceManifest> evidenceManifests,
-            Wp8EvidenceRefs wp8EvidenceRefs,
+            ReportEvidenceAssembler.EvidenceRefs evidenceRefs,
             ReportFailureDiagnosis failureDiagnosis
     ) {
         ExecutionRunDetailResponse run = export.run();
@@ -388,12 +389,22 @@ public class ReportService {
         summary.put("rawReportStored", false);
         summary.put("generationReasonPresent", StringUtils.hasText(request.reason()));
         summary.put("evidenceManifestCount", evidenceManifests.size());
-        summary.put("evidenceManifestTruncated", estimatedEvidenceCount(run, wp8EvidenceRefs) > evidenceManifests.size());
-        summary.put("wp8EvidenceReferenceCount", wp8EvidenceRefs.size());
+        summary.put("evidenceManifestTruncated", estimatedEvidenceCount(run, evidenceRefs) > evidenceManifests.size());
+        summary.put("wp8EvidenceReferenceCount", evidenceRefs.wp8Refs().size());
         summary.put("wp8EvidenceManifestCount", evidenceManifests.stream()
                 .filter(manifest -> "WP8".equals(manifest.sourceWp()))
                 .count());
-        summary.put("wp8EvidenceReferenceTruncated", wp8EvidenceRefs.truncated());
+        summary.put("wp8EvidenceReferenceTruncated", evidenceRefs.wp8Refs().truncated());
+        summary.put("wp3EvidenceReferenceCount", evidenceRefs.wp3Refs().size());
+        summary.put("wp3EvidenceManifestCount", evidenceManifests.stream()
+                .filter(manifest -> "WP3".equals(manifest.sourceWp()))
+                .count());
+        summary.put("wp3EvidenceReferenceTruncated", evidenceRefs.wp3Refs().truncated());
+        summary.put("wp5EvidenceReferenceCount", evidenceRefs.wp5Refs().size());
+        summary.put("wp5EvidenceManifestCount", evidenceManifests.stream()
+                .filter(manifest -> "WP5".equals(manifest.sourceWp()))
+                .count());
+        summary.put("wp5EvidenceReferenceTruncated", evidenceRefs.wp5Refs().truncated());
         summary.put("diagnosisStatus", failureDiagnosis.status());
         summary.put("diagnosisRuleVersion", RuleFailureClassifier.RULE_VERSION);
         summary.put("diagnosisPrimaryCategory", primaryCategory(failureDiagnosis));
@@ -521,372 +532,6 @@ public class ReportService {
         return policy;
     }
 
-    /**
-     * Builds WP10 M3 evidence manifests from the already-sanitized WP9 run export and WP8 cross-WP contract.
-     *
-     * <p>Only node metadata, summary key names, counts and digests are persisted. The node result values, external run
-     * IDs, source reference IDs, error summaries and any raw runner payload stay outside WP10 storage.</p>
-     */
-    private List<ReportEvidenceManifest> evidenceManifests(
-            UUID reportId,
-            NormalizedGenerateRequest request,
-            ExecutionRunExportResponse export,
-            Wp8EvidenceRefs wp8EvidenceRefs,
-            Instant now
-    ) {
-        List<ExecutionNodeRunResponse> nodes = export.run().nodes();
-        int maxItems = properties.effectiveMaxEvidenceItems();
-        int wp9Items = Math.min(nodes.size(), maxItems);
-        List<ReportEvidenceManifest> manifests = new ArrayList<>(maxItems);
-        for (int index = 0; index < wp9Items; index++) {
-            manifests.add(evidenceManifest(reportId, export, nodes.get(index), index, manifestCreatedAt(now, index)));
-        }
-        if (!wp8EvidenceRefs.empty()) {
-            TestDataReportEvidenceResponse wp8Evidence = wp8ReportEvidence(request, reportId, wp8EvidenceRefs);
-            appendWp8EvidenceManifests(
-                    reportId,
-                    wp8Evidence,
-                    manifests,
-                    maxItems,
-                    now
-            );
-        }
-        return manifests;
-    }
-
-    private ReportEvidenceManifest evidenceManifest(
-            UUID reportId,
-            ExecutionRunExportResponse export,
-            ExecutionNodeRunResponse node,
-            int index,
-            Instant now
-    ) {
-        Map<String, Object> summary = new LinkedHashMap<>();
-        summary.put("nodeIndex", index);
-        summary.put("nodeKey", SensitiveTextSanitizer.sanitizedEvidenceText(node.nodeKey(), 128));
-        summary.put("nodeType", SensitiveTextSanitizer.sanitizedEvidenceText(node.nodeType(), 64));
-        summary.put("status", node.status());
-        summary.put("attempt", node.attempt());
-        summary.put("runnerType", SensitiveTextSanitizer.sanitizedEvidenceText(node.runnerType(), 64));
-        summary.put("errorCode", SensitiveTextSanitizer.sanitizedEvidenceText(node.errorCode(), 64));
-        summary.put("durationMillis", durationMillis(node.startedAt(), node.finishedAt()));
-        summary.put("resultSummaryKeyCount", node.resultSummary() == null ? 0 : node.resultSummary().size());
-
-        Map<String, Object> redactionFlags = new LinkedHashMap<>();
-        redactionFlags.put("sourceWp9ExportSanitized", true);
-        redactionFlags.put("summaryValuesStored", false);
-        redactionFlags.put("externalRunIdStored", false);
-        redactionFlags.put("errorSummaryStored", false);
-        redactionFlags.put("rawRunnerArtifactStored", false);
-        redactionFlags.put("requestResponseBodyStored", false);
-        redactionFlags.put("secretPlaintextStored", false);
-        redactionFlags.put("unsafeSummaryKeysFiltered", true);
-
-        Map<String, Object> digestSource = new LinkedHashMap<>();
-        digestSource.put("exportSchemaVersion", export.schemaVersion());
-        digestSource.put("runId", export.run().id());
-        digestSource.put("nodeRunId", node.id());
-        digestSource.put("planNodeId", node.planNodeId());
-        digestSource.put("nodeKey", node.nodeKey());
-        digestSource.put("nodeType", node.nodeType());
-        digestSource.put("status", node.status());
-        digestSource.put("attempt", node.attempt());
-        digestSource.put("runnerType", node.runnerType());
-        digestSource.put("errorCode", node.errorCode());
-        digestSource.put("summaryKeys", summaryKeys(node));
-
-        return new ReportEvidenceManifest(
-                UUID.randomUUID(),
-                reportId,
-                "WP9",
-                "EXECUTION_NODE",
-                SensitiveTextSanitizer.sha256Hex(jsonSupport.json(digestSource)),
-                export.schemaVersion(),
-                jsonSupport.json(summaryKeys(node)),
-                jsonSupport.json(redactionFlags),
-                jsonSupport.json(summary),
-                now
-        );
-    }
-
-    private List<String> summaryKeys(ExecutionNodeRunResponse node) {
-        if (node.resultSummary() == null || node.resultSummary().isEmpty()) {
-            return List.of();
-        }
-        return safeSummaryKeys(node.resultSummary().keySet().stream().toList());
-    }
-
-    /**
-     * Resolves WP8 evidence through the WP8 application contract. WP10 only extracts stable references from the
-     * already-sanitized WP9 summary and never reads WP8 data tables directly.
-     */
-    private TestDataReportEvidenceResponse wp8ReportEvidence(
-            NormalizedGenerateRequest request,
-            UUID reportId,
-            Wp8EvidenceRefs refs
-    ) {
-        if (testDataService == null) {
-            throw new BusinessException(ErrorCode.INVALID_STATE, "REPORT_WP8_EVIDENCE_SERVICE_UNAVAILABLE");
-        }
-        return testDataService.reportEvidence(new TestDataReportEvidenceQuery(
-                request.projectId(),
-                reportId.toString(),
-                refs.dataSetRefs(),
-                refs.accountLeaseRefs(),
-                refs.cleanupTaskRefs()
-        ));
-    }
-
-    private Wp8EvidenceRefs wp8EvidenceRefs(List<ExecutionNodeRunResponse> nodes) {
-        LinkedHashSet<UUID> dataSetRefs = new LinkedHashSet<>();
-        LinkedHashSet<UUID> accountLeaseRefs = new LinkedHashSet<>();
-        LinkedHashSet<UUID> cleanupTaskRefs = new LinkedHashSet<>();
-        boolean truncated = false;
-        for (ExecutionNodeRunResponse node : nodes) {
-            Map<String, Object> summary = node.resultSummary();
-            if (summary == null || summary.isEmpty()) {
-                continue;
-            }
-            truncated |= collectUuidRefs(summary.get("dataSetRef"), dataSetRefs);
-            truncated |= collectUuidRefs(summary.get("dataSetRefs"), dataSetRefs);
-            truncated |= collectUuidRefs(summary.get("testDataSetRef"), dataSetRefs);
-            truncated |= collectUuidRefs(summary.get("testDataSetRefs"), dataSetRefs);
-            truncated |= collectUuidRefs(summary.get("accountLeaseRef"), accountLeaseRefs);
-            truncated |= collectUuidRefs(summary.get("accountLeaseRefs"), accountLeaseRefs);
-            truncated |= collectUuidRefs(summary.get("cleanupTaskRef"), cleanupTaskRefs);
-            truncated |= collectUuidRefs(summary.get("cleanupTaskRefs"), cleanupTaskRefs);
-            truncated |= collectUuidRefs(summary.get("testDataCleanupTaskRef"), cleanupTaskRefs);
-            truncated |= collectUuidRefs(summary.get("testDataCleanupTaskRefs"), cleanupTaskRefs);
-        }
-        return new Wp8EvidenceRefs(
-                dataSetRefs.stream().toList(),
-                accountLeaseRefs.stream().toList(),
-                cleanupTaskRefs.stream().toList(),
-                truncated
-        );
-    }
-
-    private boolean collectUuidRefs(Object value, LinkedHashSet<UUID> refs) {
-        if (value == null) {
-            return false;
-        }
-        if (value instanceof Iterable<?> values) {
-            boolean truncated = false;
-            for (Object item : values) {
-                truncated |= collectUuidRefs(item, refs);
-            }
-            return truncated;
-        }
-        if (value instanceof Object[] values) {
-            boolean truncated = false;
-            for (Object item : values) {
-                truncated |= collectUuidRefs(item, refs);
-            }
-            return truncated;
-        }
-        UUID ref = uuid(value);
-        if (ref == null || refs.contains(ref)) {
-            return false;
-        }
-        if (refs.size() >= MAX_WP8_REPORT_REF_COUNT) {
-            return true;
-        }
-        refs.add(ref);
-        return false;
-    }
-
-    private UUID uuid(Object value) {
-        if (value instanceof UUID ref) {
-            return ref;
-        }
-        if (!StringUtils.hasText(value == null ? null : String.valueOf(value))) {
-            return null;
-        }
-        try {
-            return UUID.fromString(String.valueOf(value).trim());
-        } catch (IllegalArgumentException exception) {
-            return null;
-        }
-    }
-
-    private void appendWp8EvidenceManifests(
-            UUID reportId,
-            TestDataReportEvidenceResponse response,
-            List<ReportEvidenceManifest> manifests,
-            int maxItems,
-            Instant now
-    ) {
-        for (TestDataReportEvidenceResponse.DataSetEvidence dataSet : response.dataSets()) {
-            if (manifests.size() >= maxItems) {
-                return;
-            }
-            manifests.add(wp8DataSetManifest(reportId, dataSet, manifestCreatedAt(now, manifests.size())));
-        }
-        for (TestDataReportEvidenceResponse.AccountLeaseEvidence lease : response.accountLeases()) {
-            if (manifests.size() >= maxItems) {
-                return;
-            }
-            manifests.add(wp8AccountLeaseManifest(reportId, lease, manifestCreatedAt(now, manifests.size())));
-        }
-        for (TestDataReportEvidenceResponse.CleanupTaskEvidence task : response.cleanupTasks()) {
-            if (manifests.size() >= maxItems) {
-                return;
-            }
-            manifests.add(wp8CleanupTaskManifest(reportId, task, manifestCreatedAt(now, manifests.size())));
-        }
-    }
-
-    private ReportEvidenceManifest wp8DataSetManifest(
-            UUID reportId,
-            TestDataReportEvidenceResponse.DataSetEvidence dataSet,
-            Instant createdAt
-    ) {
-        Map<String, Object> summary = new LinkedHashMap<>();
-        summary.put("dataSetRefDigest", wp8SourceRefDigest("TEST_DATA_SET", dataSet.dataSetRef()));
-        summary.put("applicationId", safeEvidenceText(dataSet.applicationId(), 64));
-        summary.put("environmentId", safeEvidenceText(dataSet.environmentId(), 64));
-        summary.put("code", safeEvidenceText(dataSet.code(), 96));
-        summary.put("status", safeEvidenceText(dataSet.status(), 32));
-        summary.put("sensitivityLevel", safeEvidenceText(dataSet.sensitivityLevel(), 32));
-        summary.put("schemaFieldCount", dataSet.schemaFieldCount());
-        summary.put("recordCount", dataSet.recordCount());
-        summary.put("cleanupPolicyDigest", safeEvidenceText(dataSet.cleanupPolicyDigest(), 128));
-        summary.put("sourceRefDigest", safeEvidenceText(dataSet.sourceRefDigest(), 128));
-        return wp8Manifest(reportId, "TEST_DATA_SET", dataSet.dataSetRef(), summary, createdAt);
-    }
-
-    private ReportEvidenceManifest wp8AccountLeaseManifest(
-            UUID reportId,
-            TestDataReportEvidenceResponse.AccountLeaseEvidence lease,
-            Instant createdAt
-    ) {
-        Map<String, Object> summary = new LinkedHashMap<>();
-        summary.put("accountLeaseRefDigest", wp8SourceRefDigest("ACCOUNT_LEASE", lease.accountLeaseRef()));
-        summary.put("status", safeEvidenceText(lease.status(), 32));
-        summary.put("holderType", safeEvidenceText(lease.holderType(), 64));
-        summary.put("holderRefDigest", digestNullable(lease.holderRef()));
-        summary.put("expiresAt", stringInstant(lease.expiresAt()));
-        summary.put("releasedAt", stringInstant(lease.releasedAt()));
-        appendAccountSummary(summary, lease.account());
-        return wp8Manifest(reportId, "ACCOUNT_LEASE", lease.accountLeaseRef(), summary, createdAt);
-    }
-
-    private void appendAccountSummary(Map<String, Object> summary, TestDataCrossWpAccountSummary account) {
-        if (account == null) {
-            summary.put("accountPresent", false);
-            return;
-        }
-        summary.put("accountPresent", true);
-        summary.put("accountRefDigest", digestNullable(account.accountRef()));
-        summary.put("accountPoolRefDigest", digestNullable(account.accountPoolRef()));
-        summary.put("accountProjectId", safeEvidenceText(account.projectId(), 64));
-        summary.put("accountStatus", safeEvidenceText(account.status(), 32));
-        summary.put("accountRoleTagCount", account.roleTags() == null ? 0 : account.roleTags().size());
-        summary.put("accountScopeSummaryKeys", safeSummaryKeys(account.scopeSummary() == null
-                ? List.of()
-                : account.scopeSummary().keySet().stream().map(String::valueOf).toList()));
-        summary.put("secretRefDigest", safeEvidenceText(account.secretRefDigest(), 128));
-        summary.put("lastHealthStatus", safeEvidenceText(account.lastHealthStatus(), 64));
-    }
-
-    private ReportEvidenceManifest wp8CleanupTaskManifest(
-            UUID reportId,
-            TestDataReportEvidenceResponse.CleanupTaskEvidence task,
-            Instant createdAt
-    ) {
-        Map<String, Object> summary = new LinkedHashMap<>();
-        summary.put("cleanupTaskRefDigest", wp8SourceRefDigest("CLEANUP_TASK", task.cleanupTaskRef()));
-        summary.put("dataSetRefDigest", wp8SourceRefDigest("TEST_DATA_SET", task.dataSetRef()));
-        summary.put("taskType", safeEvidenceText(task.taskType(), 64));
-        summary.put("status", safeEvidenceText(task.status(), 32));
-        summary.put("targetRefDigest", safeEvidenceText(task.targetRefDigest(), 128));
-        summary.put("attempt", task.attempt());
-        summary.put("resultSummaryDigest", safeEvidenceText(task.resultSummaryDigest(), 128));
-        summary.put("resultSummaryKeys", safeSummaryKeys(task.resultSummaryKeys()));
-        summary.put("errorCode", safeEvidenceText(task.errorCode(), 64));
-        summary.put("errorSummaryDigest", safeEvidenceText(task.errorSummaryDigest(), 128));
-        summary.put("traceId", safeEvidenceText(task.traceId(), 96));
-        summary.put("startedAt", stringInstant(task.startedAt()));
-        summary.put("finishedAt", stringInstant(task.finishedAt()));
-        return wp8Manifest(reportId, "CLEANUP_TASK", task.cleanupTaskRef(), summary, createdAt);
-    }
-
-    private ReportEvidenceManifest wp8Manifest(
-            UUID reportId,
-            String sourceType,
-            Object sourceRef,
-            Map<String, Object> summary,
-            Instant createdAt
-    ) {
-        return new ReportEvidenceManifest(
-                UUID.randomUUID(),
-                reportId,
-                "WP8",
-                sourceType,
-                wp8SourceRefDigest(sourceType, sourceRef),
-                WP8_EVIDENCE_SCHEMA_VERSION,
-                jsonSupport.json(safeSummaryKeys(summary.keySet().stream().toList())),
-                jsonSupport.json(wp8RedactionFlags()),
-                jsonSupport.json(summary),
-                createdAt
-        );
-    }
-
-    private Map<String, Object> wp8RedactionFlags() {
-        Map<String, Object> redactionFlags = new LinkedHashMap<>();
-        redactionFlags.put("sourceWp8ReportEvidenceSanitized", true);
-        redactionFlags.put("summaryValuesStored", false);
-        redactionFlags.put("rawRecordPayloadStored", false);
-        redactionFlags.put("cleanupResultPayloadStored", false);
-        redactionFlags.put("targetRefStored", false);
-        redactionFlags.put("errorSummaryStored", false);
-        redactionFlags.put("accountCredentialStored", false);
-        redactionFlags.put("secretPlaintextStored", false);
-        redactionFlags.put("secretRefPlaintextStored", false);
-        redactionFlags.put("leaseTokenStored", false);
-        redactionFlags.put("crossWpDirectTableReadAllowed", false);
-        return redactionFlags;
-    }
-
-    private List<String> safeSummaryKeys(List<String> keys) {
-        if (keys == null || keys.isEmpty()) {
-            return List.of();
-        }
-        return keys.stream()
-                .filter(StringUtils::hasText)
-                .filter(key -> !UNSAFE_SUMMARY_KEY_PATTERN.matcher(key).matches())
-                .map(key -> SensitiveTextSanitizer.boundedText(key, 96))
-                .sorted()
-                .toList();
-    }
-
-    private String wp8SourceRefDigest(String sourceType, Object sourceRef) {
-        Map<String, Object> digestSource = new LinkedHashMap<>();
-        digestSource.put("sourceWp", "WP8");
-        digestSource.put("sourceType", sourceType);
-        digestSource.put("sourceRef", sourceRef == null ? null : String.valueOf(sourceRef));
-        return SensitiveTextSanitizer.sha256Hex(jsonSupport.json(digestSource));
-    }
-
-    private String digestNullable(Object value) {
-        if (value == null || !StringUtils.hasText(String.valueOf(value))) {
-            return null;
-        }
-        return SensitiveTextSanitizer.sha256Hex(String.valueOf(value).trim());
-    }
-
-    private String safeEvidenceText(String value, int maxLength) {
-        return SensitiveTextSanitizer.sanitizedEvidenceText(value, maxLength);
-    }
-
-    private Instant manifestCreatedAt(Instant now, int index) {
-        return now.plusMillis(index);
-    }
-
-    private int estimatedEvidenceCount(ExecutionRunDetailResponse run, Wp8EvidenceRefs wp8EvidenceRefs) {
-        return run.nodes().size() + wp8EvidenceRefs.size();
-    }
-
     private Map<String, Integer> failureBucketCounts(List<ExecutionNodeRunResponse> nodes) {
         return nodes.stream()
                 .filter(node -> FAILURE_NODE_STATUSES.contains(node.status()))
@@ -909,8 +554,11 @@ public class ReportService {
         return Math.max(0, Duration.between(startedAt, finishedAt).toMillis());
     }
 
-    private String stringInstant(Instant value) {
-        return value == null ? null : value.toString();
+    private int estimatedEvidenceCount(
+            ExecutionRunDetailResponse run,
+            ReportEvidenceAssembler.EvidenceRefs evidenceRefs
+    ) {
+        return run.nodes().size() + evidenceRefs.size();
     }
 
     private String sourceDigest(ExecutionRunExportResponse export) {
@@ -1013,19 +661,4 @@ public class ReportService {
     ) {
     }
 
-    private record Wp8EvidenceRefs(
-            List<UUID> dataSetRefs,
-            List<UUID> accountLeaseRefs,
-            List<UUID> cleanupTaskRefs,
-            boolean truncated
-    ) {
-
-        private boolean empty() {
-            return dataSetRefs.isEmpty() && accountLeaseRefs.isEmpty() && cleanupTaskRefs.isEmpty();
-        }
-
-        private int size() {
-            return dataSetRefs.size() + accountLeaseRefs.size() + cleanupTaskRefs.size();
-        }
-    }
 }
