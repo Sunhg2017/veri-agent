@@ -5,15 +5,15 @@
 | 工作包 | WP10 报告与失败诊断 |
 | 角色产出 | 资深产品经理 |
 | 文档性质 | 需求文档、产品 PRD 和产品验收标准 |
-| 当前口径 | 基于 WP9 脱敏 run export、`REPORT_HANDOFF` 摘要、WP8/WP3/WP5 聚合证据和 WP2 模型能力，建设可审计的报告、失败诊断、缺陷草稿和导出控制面 |
-| 版本 | v0.1 |
-| 日期 | 2026-06-16 |
+| 当前口径 | 当前范围已推进至 M8E：基于 WP9 脱敏 run export、`REPORT_HANDOFF` 摘要、WP8 aggregate-only evidence 和 WP2 模型能力，已交付可审计的报告、失败诊断、缺陷草稿、JSON/Markdown 导出和 `#reports` 控制面；WP3/WP5 聚合证据、外部缺陷写入、完整报告和趋势/BI 保持后续专项 |
+| 版本 | v0.2 |
+| 日期 | 2026-06-17 |
 
 ## 1. 背景
 
 WP9 已经提供执行计划、运行状态、节点摘要、`REPORT_HANDOFF` 节点和脱敏 run export，但测试负责人仍缺少面向发布准出和问题分流的统一报告视图。当前用户需要在运行详情、执行摘要、数据准备证据、资产追踪关系和模型调用记录之间手工拼接失败原因，容易遗漏证据、误传敏感信息或把临时判断写成确定结论。
 
-WP10 负责把这些已脱敏输入组织成版本化报告快照，并提供规则失败分类、AI 诊断建议、缺陷草稿和脱敏导出。WP10 不重新执行测试、不读取 runner 原始产物、不自动写入外部缺陷系统。
+WP10 负责把这些已脱敏输入组织成版本化报告快照，并提供规则失败分类、AI 诊断建议、缺陷草稿和脱敏导出。当前已完成 WP9/WP8 主链路、`#reports` 工作台、质量门禁和本地准出执行记录；WP10 不重新执行测试、不读取 runner 原始产物、不自动写入外部缺陷系统。
 
 ## 2. 用户与价值
 
@@ -40,7 +40,7 @@ WP10 负责把这些已脱敏输入组织成版本化报告快照，并提供规
 |---|---|---|
 | 报告生成 | `POST /api/v1/reports` 基于 `executionRunId` 创建快照，支持 `requestKey` 幂等 | 批量生成、异步队列优先级 |
 | 报告查询 | 列表、详情、状态、run summary、节点计数、失败分类和证据 manifest | 趋势报表、历史对比 |
-| 证据聚合 | 消费 WP9 run export、REPORT_HANDOFF、WP8 report evidence、WP3 asset summary，WP5 manifest 为 aggregate-only | 受控 artifact 索引和审批后明细归档 |
+| 证据聚合 | 当前消费 WP9 run export、REPORT_HANDOFF 和 WP8 report evidence；WP3 asset summary 与 WP5 manifest 保持后续 adapter 专项 | 受控 artifact 索引和审批后明细归档 |
 | 失败分类 | 基于 errorCode、status、nodeType、runnerMode、timeout、blocked、lease release 和 trigger 来源分类 | 可配置分类规则和团队标签 |
 | AI 诊断 | 通过 WP2 生成脱敏建议，输出候选根因、置信度、依据和下一步动作 | 反馈闭环和诊断模型评测看板 |
 | 缺陷草稿 | 生成标题、复现摘要、影响范围、优先级建议和证据引用，支持 DRAFT/REVIEWED/DISMISSED | 外部 Jira/禅道/飞书写入由 WP11 承接 |
