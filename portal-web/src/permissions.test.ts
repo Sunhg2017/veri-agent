@@ -39,6 +39,7 @@ describe('WP1 permission helpers', () => {
       'apiAutomation:read',
       'execution:read',
       'testData:read',
+      'report:read',
       'modelAccess:read'
     ]);
 
@@ -52,6 +53,7 @@ describe('WP1 permission helpers', () => {
     expect(canAccessPage(currentUser, 'api-automation')).toBe(true);
     expect(canAccessPage(currentUser, 'execution')).toBe(true);
     expect(canAccessPage(currentUser, 'test-data')).toBe(true);
+    expect(canAccessPage(currentUser, 'reports')).toBe(true);
     expect(canAccessPage(currentUser, 'model-access')).toBe(true);
     expect(canAccessPage(currentUser, 'projects')).toBe(false);
   });
@@ -84,6 +86,11 @@ describe('WP1 permission helpers', () => {
   it('requires WP8 test data read permission for the test data workbench', () => {
     expect(canAccessPage(user(['execution:read']), 'test-data')).toBe(false);
     expect(canAccessPage(user(['testData:read']), 'test-data')).toBe(true);
+  });
+
+  it('requires WP10 report read permission for the report workbench', () => {
+    expect(canAccessPage(user(['execution:read']), 'reports')).toBe(false);
+    expect(canAccessPage(user(['report:read']), 'reports')).toBe(true);
   });
 
   it('requires WP2 model access read permission for the model access console', () => {
@@ -211,6 +218,11 @@ describe('WP1 permission helpers', () => {
     expect(canUseButton(user(['testData:lease']), 'testData:lease')).toBe(true);
     expect(canUseButton(user(['testData:cleanup']), 'testData:cleanup')).toBe(true);
     expect(canUseButton(user(['testData:export']), 'testData:export')).toBe(true);
+    expect(canUseButton(user(['report:generate']), 'report:generate')).toBe(true);
+    expect(canUseButton(user(['report:read']), 'report:generate')).toBe(false);
+    expect(canUseButton(user(['report:diagnose']), 'report:diagnose')).toBe(true);
+    expect(canUseButton(user(['report:export']), 'report:export')).toBe(true);
+    expect(canUseButton(user(['report:manage']), 'report:manage')).toBe(true);
     expect(canUseButton(user(['modelAccess:manage']), 'modelAccess:provider_manage')).toBe(true);
     expect(canUseButton(user(['modelAccess:manage']), 'modelAccess:prompt_manage')).toBe(true);
     expect(canUseButton(user(['modelAccess:manage']), 'modelAccess:policy_manage')).toBe(true);

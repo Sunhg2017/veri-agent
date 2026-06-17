@@ -64,6 +64,12 @@ main() {
       -Dtest=ReportControllerTest,ReportingHealthControllerTest,ReportingOpenApiContractTest,OpenApiContractTest,PermissionCodeUsageTest \
       test
 
+  run_step "wp10 frontend Vitest" \
+    bash -c "cd '$ROOT_DIR/portal-web' && npm test -- --run src/api/reports.test.ts src/permissions.test.ts"
+
+  run_step "wp10 frontend build" \
+    bash -c "cd '$ROOT_DIR/portal-web' && npm run build"
+
   if [[ "${WP10_SKIP_DB_VALIDATION:-0}" != "1" ]]; then
     run_step "wp10 database validation via consolidated WP validation" \
       bash "$ROOT_DIR/db/validation/run_wp1_db_validation.sh"

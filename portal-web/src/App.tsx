@@ -37,6 +37,7 @@ import { ExecutionWorkbench } from './components/ExecutionWorkbench';
 import { ModelAccessConsole } from './components/ModelAccessConsole';
 import { ManagementPage } from './components/AppManagementPage';
 import { OverviewPage } from './components/AppOverviewPage';
+import { ReportsWorkbench } from './components/ReportsWorkbench';
 import { TestDesignWorkbench } from './components/TestDesignWorkbench';
 import { TestDataWorkbench } from './components/TestDataWorkbench';
 import { useToast } from './components/Toast';
@@ -148,6 +149,13 @@ const pages: PageDefinition[] = [
     title: '测试数据',
     description: '维护数据集、账号池、租借记录和清理任务。',
     icon: KeyRound
+  },
+  {
+    key: 'reports',
+    label: '报告诊断',
+    title: '报告诊断',
+    description: '生成 WP10 报告快照，查看失败诊断、缺陷草稿和脱敏导出摘要。',
+    icon: ScrollText
   },
   {
     key: 'model-access',
@@ -573,6 +581,8 @@ export function App() {
         return <ExecutionWorkbench signedIn={signedIn} currentUser={currentUser} />;
       case 'test-data':
         return <TestDataWorkbench signedIn={signedIn} currentUser={currentUser} />;
+      case 'reports':
+        return <ReportsWorkbench signedIn={signedIn} currentUser={currentUser} />;
       case 'model-access':
         return <ModelAccessConsole signedIn={signedIn} currentUser={currentUser} />;
       default:

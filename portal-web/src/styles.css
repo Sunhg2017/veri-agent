@@ -3839,6 +3839,259 @@ tbody tr:hover td {
 }
 
 /* ============================================================
+   WP10 报告诊断
+   ============================================================ */
+
+.reports-workbench {
+  display: grid;
+  gap: var(--space-lg);
+}
+
+.reports-metrics {
+  margin-bottom: 0;
+}
+
+.reports-layout {
+  display: grid;
+  grid-template-columns: minmax(340px, 0.9fr) minmax(520px, 1.35fr);
+  gap: var(--space-lg);
+  align-items: start;
+}
+
+.reports-list-column,
+.reports-detail-column {
+  display: grid;
+  gap: var(--space-lg);
+  min-width: 0;
+}
+
+.report-filter-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-sm);
+  align-items: end;
+}
+
+.report-filter-actions,
+.report-actions-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  flex-wrap: wrap;
+}
+
+.report-actions-row {
+  margin-top: var(--space-md);
+}
+
+.report-actions-row.compact {
+  margin-top: 0;
+}
+
+.report-generate-form {
+  display: grid;
+  gap: var(--space-md);
+}
+
+.reports-list {
+  display: grid;
+  gap: var(--space-sm);
+}
+
+.report-list-item {
+  width: 100%;
+  min-height: 92px;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 4px var(--space-sm);
+  align-items: start;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text-secondary);
+  text-align: left;
+  cursor: pointer;
+  transition: border-color var(--transition-fast), background var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+.report-list-item:hover,
+.report-list-item.active {
+  border-color: var(--primary);
+  background: var(--primary-bg);
+  box-shadow: var(--shadow-xs);
+}
+
+.report-list-item strong,
+.report-list-item span,
+.report-list-item small {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.report-list-item strong {
+  color: var(--text-primary);
+  font-size: var(--font-size-sm);
+}
+
+.report-list-item > span:not(.badge),
+.report-list-item small {
+  grid-column: 1 / -1;
+}
+
+.report-list-item small {
+  color: var(--text-tertiary);
+  font-size: var(--font-size-xs);
+}
+
+.skeleton-report-item {
+  cursor: default;
+}
+
+.report-detail-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  flex-wrap: wrap;
+  margin-bottom: var(--space-md);
+}
+
+.report-mono {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-xs);
+  color: var(--text-secondary);
+  overflow-wrap: anywhere;
+}
+
+.report-summary-grid,
+.report-diagnosis-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--space-sm);
+  margin-bottom: var(--space-md);
+}
+
+.report-summary-tile {
+  min-width: 0;
+  min-height: 72px;
+  display: grid;
+  align-content: center;
+  gap: 4px;
+  padding: 12px;
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-sm);
+  background: var(--bg-alt);
+}
+
+.report-summary-tile span,
+.report-info-block span {
+  color: var(--text-secondary);
+  font-size: var(--font-size-xs);
+}
+
+.report-summary-tile strong,
+.report-info-block strong {
+  color: var(--text-primary);
+  font-size: var(--font-size-sm);
+  overflow-wrap: anywhere;
+}
+
+.report-summary-tile strong.tone-success { color: var(--success-dark); }
+.report-summary-tile strong.tone-info { color: var(--info); }
+.report-summary-tile strong.tone-warning { color: var(--warning-dark); }
+.report-summary-tile strong.tone-danger { color: var(--danger-dark); }
+.report-summary-tile strong.tone-neutral { color: var(--text-secondary); }
+
+.report-section-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-sm);
+  margin-bottom: var(--space-md);
+}
+
+.report-info-block {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+  padding: 10px 12px;
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+}
+
+.report-card-list {
+  display: grid;
+  gap: var(--space-sm);
+  margin-top: var(--space-md);
+}
+
+.report-mini-card {
+  min-width: 0;
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-sm);
+  background: var(--bg-alt);
+}
+
+.report-mini-card strong,
+.report-mini-card span,
+.report-mini-card small {
+  overflow-wrap: anywhere;
+}
+
+.report-mini-card span {
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+}
+
+.report-mini-card small {
+  color: var(--text-tertiary);
+  font-size: var(--font-size-xs);
+}
+
+.report-card-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-sm);
+  min-width: 0;
+}
+
+.report-policy-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: var(--space-md);
+}
+
+.report-policy-title,
+.report-policy-list span {
+  display: inline-flex;
+  align-items: center;
+  min-height: 26px;
+  padding: 3px 8px;
+  border-radius: var(--radius-sm);
+  font-size: var(--font-size-xs);
+  overflow-wrap: anywhere;
+}
+
+.report-policy-title {
+  gap: 4px;
+  color: var(--primary);
+  background: var(--primary-light);
+  font-weight: 600;
+}
+
+.report-policy-list span {
+  max-width: 100%;
+  color: var(--text-secondary);
+  background: var(--surface);
+  border: 1px solid var(--border-light);
+}
+
+/* ============================================================
    响应式
    ============================================================ */
 
@@ -3854,7 +4107,8 @@ tbody tr:hover td {
   .test-data-export-grid,
   .test-data-record-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .execution-layout,
-  .test-data-layout { grid-template-columns: 1fr; }
+  .test-data-layout,
+  .reports-layout { grid-template-columns: 1fr; }
   .execution-policy-grid,
   .test-data-policy-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .test-design-quality-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -3940,6 +4194,10 @@ tbody tr:hover td {
   .test-design-evaluation-metrics { grid-template-columns: 1fr; }
   .test-design-cross-wp-metrics,
   .test-design-cross-wp-requeue-grid { grid-template-columns: 1fr; }
+  .report-summary-grid,
+  .report-diagnosis-grid,
+  .report-section-grid,
+  .report-filter-grid { grid-template-columns: 1fr; }
   .test-design-quality-distribution { grid-template-columns: 1fr; }
   .test-design-prompt-trend-row { grid-template-columns: 1fr; }
   .test-design-evaluation-row,

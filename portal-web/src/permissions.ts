@@ -9,6 +9,7 @@ export type PageKey =
   | 'api-automation'
   | 'execution'
   | 'test-data'
+  | 'reports'
   | 'model-access'
   | 'organizations'
   | 'users'
@@ -97,6 +98,11 @@ export type Permission =
   | 'testData:lease'
   | 'testData:cleanup'
   | 'testData:export'
+  | 'report:read'
+  | 'report:generate'
+  | 'report:diagnose'
+  | 'report:export'
+  | 'report:manage'
   | 'modelAccess:read'
   | 'modelAccess:manage'
   | 'modelAccess:export';
@@ -157,6 +163,10 @@ export type ButtonKey =
   | 'testData:lease'
   | 'testData:cleanup'
   | 'testData:export'
+  | 'report:generate'
+  | 'report:diagnose'
+  | 'report:export'
+  | 'report:manage'
   | 'modelAccess:provider_manage'
   | 'modelAccess:prompt_manage'
   | 'modelAccess:policy_manage'
@@ -171,6 +181,7 @@ export const pageReadPermissions: Partial<Record<PageKey, Permission>> = {
   'api-automation': 'apiAutomation:read',
   execution: 'execution:read',
   'test-data': 'testData:read',
+  reports: 'report:read',
   'model-access': 'modelAccess:read',
   organizations: 'department:read',
   users: 'user:read',
@@ -262,6 +273,10 @@ const buttonPermissionGroups: Record<ButtonKey, Permission[][]> = {
   'testData:lease': [['testData:lease']],
   'testData:cleanup': [['testData:cleanup']],
   'testData:export': [['testData:export']],
+  'report:generate': [['report:generate']],
+  'report:diagnose': [['report:diagnose']],
+  'report:export': [['report:export']],
+  'report:manage': [['report:manage']],
   'modelAccess:provider_manage': [['modelAccess:manage']],
   'modelAccess:prompt_manage': [['modelAccess:manage']],
   'modelAccess:policy_manage': [['modelAccess:manage']],
