@@ -8,10 +8,12 @@ import com.songhg.veri.agent.common.openapi.ApiVersion;
 import com.songhg.veri.agent.common.trace.TraceContext;
 import com.songhg.veri.agent.reporting.application.ReportDefectDraftService;
 import com.songhg.veri.agent.reporting.application.ReportExportService;
+import com.songhg.veri.agent.reporting.application.ReportCompareService;
 import com.songhg.veri.agent.reporting.application.ReportService;
 import com.songhg.veri.agent.reporting.application.command.GenerateReportCommand;
 import com.songhg.veri.agent.reporting.application.command.ReviewDefectDraftCommand;
 import com.songhg.veri.agent.reporting.application.query.ReportPageRequest;
+import com.songhg.veri.agent.reporting.application.view.ReportCompareResponse;
 import com.songhg.veri.agent.reporting.application.view.ReportDefectDraftResponse;
 import com.songhg.veri.agent.reporting.application.view.ReportDiagnosisResponse;
 import com.songhg.veri.agent.reporting.application.view.ReportDetailResponse;
@@ -36,15 +38,18 @@ import org.springframework.web.bind.annotation.RestController;
 public class ReportController {
 
     private final ReportService service;
+    private final ReportCompareService compareService;
     private final ReportExportService exportService;
     private final ReportDefectDraftService defectDraftService;
 
     public ReportController(
             ReportService service,
+            ReportCompareService compareService,
             ReportExportService exportService,
             ReportDefectDraftService defectDraftService
     ) {
         this.service = service;
+        this.compareService = compareService;
         this.exportService = exportService;
         this.defectDraftService = defectDraftService;
     }
@@ -71,6 +76,15 @@ public class ReportController {
     @RequirePermission(value = PermissionCodes.REPORT_READ, scope = ReportPermissionScopes.REPORT)
     public ReportDetailResponse report(@PathVariable UUID id) {
         return service.report(id);
+    }
+
+    @GetMapping("/{id}/compare")
+    @RequirePermission(value = PermissionCodes.REPORT_READ, scope = ReportPermissionScopes.REPORT_COMPARE)
+    public ReportCompareResponse compareReport(
+            @PathVariable UUID id,
+            @RequestParam UUID baselineReportId
+    ) {
+        return compareService.compare(id, baselineReportId);
     }
 
     @PostMapping("/{id}/retry")

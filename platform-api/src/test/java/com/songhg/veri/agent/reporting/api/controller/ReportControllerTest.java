@@ -43,6 +43,7 @@ import org.mockito.ArgumentCaptor;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.startsWith;
 import static org.mockito.ArgumentMatchers.any;
@@ -680,6 +681,171 @@ class ReportControllerTest {
         mockMvc.perform(get("/api/v1/reports/{id}", reportId)
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + otherToken))
                 .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void comparesTwoReportsWithinSameProjectUsingAggregateOnlyDiffs() throws Exception {
+        UUID baselineRunId = UUID.randomUUID();
+        UUID currentRunId = UUID.randomUUID();
+        UUID accountLeaseRef = UUID.randomUUID();
+        when(executionRunService.runProjectScopeId(baselineRunId)).thenReturn("project-alpha");
+        when(executionRunService.runProjectScopeId(currentRunId)).thenReturn("project-alpha");
+        when(executionRunService.exportRun(baselineRunId)).thenReturn(successRunExport(baselineRunId, "project-alpha"));
+        when(executionRunService.exportRun(currentRunId))
+                .thenReturn(runExport(currentRunId, "project-alpha", "FAILED", true, accountLeaseRef));
+        when(testDataCrossWpReferenceService.reportEvidence(any(TestDataReportEvidenceQuery.class)))
+                .thenReturn(wp8Evidence(accountLeaseRef));
+        when(modelInvocationService.invoke(any(ModelInvocationCommand.class), any(ServicePrincipal.class)))
+                .thenReturn(modelResult());
+        String ownerToken = userAccessToken(List.of("ProjectOwner@PROJECT:project-alpha"));
+
+        MvcResult baselineCreated = mockMvc.perform(post("/api/v1/reports")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + ownerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "projectId", "project-alpha",
+                                "executionRunId", baselineRunId,
+                                "requestKey", "baseline-report"
+                        ))))
+                .andExpect(status().isCreated())
+                .andReturn();
+        UUID baselineReportId = UUID.fromString(JsonPath.read(
+                baselineCreated.getResponse().getContentAsString(),
+                "$.data.id"
+        ));
+
+        MvcResult currentCreated = mockMvc.perform(post("/api/v1/reports")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + ownerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "projectId", "project-alpha",
+                                "executionRunId", currentRunId,
+                                "requestKey", "current-report"
+                        ))))
+                .andExpect(status().isCreated())
+                .andReturn();
+        UUID currentReportId = UUID.fromString(JsonPath.read(
+                currentCreated.getResponse().getContentAsString(),
+                "$.data.id"
+        ));
+
+        mockMvc.perform(post("/api/v1/reports/{id}/diagnoses", currentReportId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + ownerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("AI_READY"));
+
+        mockMvc.perform(post("/api/v1/reports/{id}/defect-drafts", currentReportId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + ownerToken))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.data.status").value("DRAFT"));
+
+        mockMvc.perform(get("/api/v1/reports/{id}/compare", currentReportId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + ownerToken)
+                        .param("baselineReportId", baselineReportId.toString()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.reportId").value(currentReportId.toString()))
+                .andExpect(jsonPath("$.data.baselineReportId").value(baselineReportId.toString()))
+                .andExpect(jsonPath("$.data.projectId").value("project-alpha"))
+                .andExpect(jsonPath("$.data.unchanged").value(false))
+                .andExpect(jsonPath("$.data.changedFields", hasItems(
+                        "metadata.executionRunId",
+                        "summary.runStatus",
+                        "summary.evidenceManifestCount",
+                        "summary.diagnosisPrimaryCategory",
+                        "summary.defectDraftCount",
+                        "diagnosis.status",
+                        "evidence.count",
+                        "defectDrafts.count"
+                )))
+                .andExpect(jsonPath("$.data.metadataDiffs[0].field").value("executionRunId"))
+                .andExpect(jsonPath("$.data.summaryDiffs[0].field").value("runStatus"))
+                .andExpect(jsonPath("$.data.diagnosisDiffs[0].field").value("status"))
+                .andExpect(jsonPath("$.data.evidenceDiff.changed").value(true))
+                .andExpect(jsonPath("$.data.evidenceDiff.baselineCount").value(2))
+                .andExpect(jsonPath("$.data.evidenceDiff.currentCount").value(3))
+                .andExpect(jsonPath("$.data.evidenceDiff.baselineSourceWpCounts.WP9").value(2))
+                .andExpect(jsonPath("$.data.evidenceDiff.currentSourceWpCounts.WP8").value(1))
+                .andExpect(jsonPath("$.data.defectDraftDiff.changed").value(true))
+                .andExpect(jsonPath("$.data.defectDraftDiff.baselineCount").value(0))
+                .andExpect(jsonPath("$.data.defectDraftDiff.currentCount").value(1))
+                .andExpect(jsonPath("$.data.defectDraftDiff.currentStatusCounts.DRAFT").value(1))
+                .andExpect(content().string(not(containsString("Authorization"))))
+                .andExpect(content().string(not(containsString("secret://"))))
+                .andExpect(content().string(not(containsString(accountLeaseRef.toString()))))
+                .andExpect(content().string(not(containsString("lease-token-plain"))))
+                .andExpect(content().string(not(containsString("Staging Admin"))));
+    }
+
+    @Test
+    void rejectsComparingReportWithItself() throws Exception {
+        UUID runId = UUID.randomUUID();
+        when(executionRunService.runProjectScopeId(runId)).thenReturn("project-alpha");
+        when(executionRunService.exportRun(runId)).thenReturn(successRunExport(runId, "project-alpha"));
+        String ownerToken = userAccessToken(List.of("ProjectOwner@PROJECT:project-alpha"));
+
+        MvcResult created = mockMvc.perform(post("/api/v1/reports")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + ownerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "projectId", "project-alpha",
+                                "executionRunId", runId,
+                                "requestKey", "same-report-compare"
+                        ))))
+                .andExpect(status().isCreated())
+                .andReturn();
+        UUID reportId = UUID.fromString(JsonPath.read(created.getResponse().getContentAsString(), "$.data.id"));
+
+        mockMvc.perform(get("/api/v1/reports/{id}/compare", reportId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + ownerToken)
+                        .param("baselineReportId", reportId.toString()))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"))
+                .andExpect(jsonPath("$.message").value("REPORT_COMPARE_SAME_REPORT"));
+    }
+
+    @Test
+    void rejectsComparingReportsAcrossProjects() throws Exception {
+        UUID alphaRunId = UUID.randomUUID();
+        UUID otherRunId = UUID.randomUUID();
+        when(executionRunService.runProjectScopeId(alphaRunId)).thenReturn("project-alpha");
+        when(executionRunService.runProjectScopeId(otherRunId)).thenReturn("project-other");
+        when(executionRunService.exportRun(alphaRunId)).thenReturn(successRunExport(alphaRunId, "project-alpha"));
+        when(executionRunService.exportRun(otherRunId)).thenReturn(successRunExport(otherRunId, "project-other"));
+        String dualScopeToken = userAccessToken(List.of(
+                "ProjectOwner@PROJECT:project-alpha",
+                "ProjectOwner@PROJECT:project-other"
+        ));
+
+        MvcResult alphaCreated = mockMvc.perform(post("/api/v1/reports")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + dualScopeToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "projectId", "project-alpha",
+                                "executionRunId", alphaRunId,
+                                "requestKey", "alpha-report"
+                        ))))
+                .andExpect(status().isCreated())
+                .andReturn();
+        UUID alphaReportId = UUID.fromString(JsonPath.read(alphaCreated.getResponse().getContentAsString(), "$.data.id"));
+
+        MvcResult otherCreated = mockMvc.perform(post("/api/v1/reports")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + dualScopeToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "projectId", "project-other",
+                                "executionRunId", otherRunId,
+                                "requestKey", "other-report"
+                        ))))
+                .andExpect(status().isCreated())
+                .andReturn();
+        UUID otherReportId = UUID.fromString(JsonPath.read(otherCreated.getResponse().getContentAsString(), "$.data.id"));
+
+        mockMvc.perform(get("/api/v1/reports/{id}/compare", alphaReportId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + dualScopeToken)
+                        .param("baselineReportId", otherReportId.toString()))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"))
+                .andExpect(jsonPath("$.message").value("REPORT_COMPARE_PROJECT_MISMATCH"));
     }
 
     private ExecutionRunExportResponse runExport(

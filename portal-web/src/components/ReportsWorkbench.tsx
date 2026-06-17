@@ -15,6 +15,7 @@ import { useCallback, useEffect, useMemo, useState, type FormEvent, type ReactNo
 import type { CurrentUser } from '../api/auth';
 import {
   archiveReport,
+  compareReport,
   createDefectDraft,
   diagnoseReport,
   exportReport,
@@ -24,6 +25,7 @@ import {
   generateReport,
   retryReport,
   reviewDefectDraft,
+  type ReportCompare,
   type ReportDefectDraft,
   type ReportDetail,
   type ReportDiagnosis,
@@ -88,6 +90,8 @@ export function ReportsWorkbench(props: { signedIn: boolean; currentUser: Curren
   const [selectedReportId, setSelectedReportId] = useState('');
   const [detail, setDetail] = useState<ReportDetail | null>(null);
   const [latestExport, setLatestExport] = useState<ReportExport | null>(null);
+  const [compareResult, setCompareResult] = useState<ReportCompare | null>(null);
+  const [baselineReportId, setBaselineReportId] = useState('');
   const [generateDraft, setGenerateDraft] = useState<GenerateDraft>(initialGenerateDraft);
   const [loadState, setLoadState] = useState<WorkState>({ loading: false });
   const [detailState, setDetailState] = useState<WorkState>({ loading: false });
@@ -95,6 +99,7 @@ export function ReportsWorkbench(props: { signedIn: boolean; currentUser: Curren
   const [diagnosisState, setDiagnosisState] = useState<WorkState>({ loading: false });
   const [defectState, setDefectState] = useState<WorkState>({ loading: false });
   const [exportState, setExportState] = useState<WorkState>({ loading: false });
+  const [compareState, setCompareState] = useState<WorkState>({ loading: false });
 
   const summary = useMemo(() => {
     const ready = reports.filter((report) => report.status === 'READY').length;
@@ -104,6 +109,11 @@ export function ReportsWorkbench(props: { signedIn: boolean; currentUser: Curren
     return { ready, generating, failed, drafts };
   }, [reports]);
 
+  const baselineCandidates = useMemo(() => {
+    if (!detail) return [];
+    return reports.filter((report) => report.id !== detail.id && report.projectId === detail.projectId);
+  }, [detail, reports]);
+
   const refreshReports = useCallback(async () => {
     if (!props.signedIn || !canRead) {
       setHealth(null);
@@ -111,6 +121,8 @@ export function ReportsWorkbench(props: { signedIn: boolean; currentUser: Curren
       setSelectedReportId('');
       setDetail(null);
       setLatestExport(null);
+      setCompareResult(null);
+      setBaselineReportId('');
       return;
     }
     setLoadState({ loading: true });
@@ -137,6 +149,8 @@ export function ReportsWorkbench(props: { signedIn: boolean; currentUser: Curren
     if (!reportId || !canRead) {
       setDetail(null);
       setLatestExport(null);
+      setCompareResult(null);
+      setBaselineReportId('');
       return;
     }
     setDetailState({ loading: true });
@@ -144,6 +158,9 @@ export function ReportsWorkbench(props: { signedIn: boolean; currentUser: Curren
       const result = await fetchReport(reportId);
       setDetail(result.data);
       setLatestExport(null);
+      setCompareResult(null);
+      setBaselineReportId('');
+      setCompareState({ loading: false });
       setDetailState({ loading: false, traceId: result.trace_id });
     } catch (error: unknown) {
       setDetailState({ loading: false, error: error instanceof Error ? error.message : '加载报告详情失败' });
@@ -183,6 +200,8 @@ export function ReportsWorkbench(props: { signedIn: boolean; currentUser: Curren
         reason: optionalText(generateDraft.reason)
       });
       setDetail(result.data);
+      setCompareResult(null);
+      setBaselineReportId('');
       setSelectedReportId(result.data.id);
       setReports((current) => [summaryFromDetail(result.data), ...current.filter((report) => report.id !== result.data.id)]);
       setGenerateState({
@@ -226,6 +245,7 @@ export function ReportsWorkbench(props: { signedIn: boolean; currentUser: Curren
     try {
       const result = await diagnoseReport(detail.id);
       setDetail((current) => current ? { ...current, latestDiagnosis: result.data } : current);
+      setCompareResult(null);
       setReports((current) => current.map((report) => report.id === detail.id
         ? {
           ...report,
@@ -256,6 +276,7 @@ export function ReportsWorkbench(props: { signedIn: boolean; currentUser: Curren
           defectDraftCount: current.defectDrafts.filter((draft) => draft.id !== result.data.id).length + 1
         }
       } : current);
+      setCompareResult(null);
       setReports((current) => current.map((report) => report.id === detail.id
         ? { ...report, summary: { ...report.summary, defectDraftCount: numberFrom(report.summary.defectDraftCount) + 1 } }
         : report));
@@ -274,6 +295,7 @@ export function ReportsWorkbench(props: { signedIn: boolean; currentUser: Curren
         ...current,
         defectDrafts: current.defectDrafts.map((item) => item.id === result.data.id ? result.data : item)
       } : current);
+      setCompareResult(null);
       setDefectState({ loading: false, success: `草稿状态已更新为 ${result.data.status}`, traceId: result.trace_id });
     } catch (error: unknown) {
       setDefectState({ loading: false, error: error instanceof Error ? error.message : '更新草稿失败' });
@@ -292,8 +314,30 @@ export function ReportsWorkbench(props: { signedIn: boolean; currentUser: Curren
     }
   }
 
+  async function onCompareReport() {
+    if (!detail) return;
+    if (!baselineReportId) {
+      setCompareState({ loading: false, error: '请选择一个 baseline 报告' });
+      return;
+    }
+    setCompareState({ loading: true });
+    try {
+      const result = await compareReport(detail.id, baselineReportId);
+      setCompareResult(result.data);
+      setCompareState({
+        loading: false,
+        success: result.data.unchanged ? '两次报告没有聚合差异' : `发现 ${result.data.changedFields.length} 项聚合差异`,
+        traceId: result.trace_id
+      });
+    } catch (error: unknown) {
+      setCompareResult(null);
+      setCompareState({ loading: false, error: error instanceof Error ? error.message : '加载报告对比失败' });
+    }
+  }
+
   function applyDetail(next: ReportDetail) {
     setDetail(next);
+    setCompareResult(null);
     setReports((current) => current.map((report) => report.id === next.id ? summaryFromDetail(next) : report));
   }
 
@@ -418,6 +462,18 @@ export function ReportsWorkbench(props: { signedIn: boolean; currentUser: Curren
                 state={detailState}
                 canManage={canManage}
                 onArchive={() => void onArchiveReport()}
+              />
+              <ComparePanel
+                detail={detail}
+                reports={baselineCandidates}
+                baselineReportId={baselineReportId}
+                compareResult={compareResult}
+                state={compareState}
+                onBaselineChange={(value) => {
+                  setBaselineReportId(value);
+                  setCompareState({ loading: false });
+                }}
+                onCompare={() => void onCompareReport()}
               />
               <DiagnosisPanel
                 detail={detail}
@@ -546,6 +602,113 @@ function DiagnosisPanel(props: {
   );
 }
 
+function ComparePanel(props: {
+  detail: ReportDetail;
+  reports: ReportSummary[];
+  baselineReportId: string;
+  compareResult: ReportCompare | null;
+  state: WorkState;
+  onBaselineChange: (value: string) => void;
+  onCompare: () => void;
+}) {
+  return (
+    <Panel
+      title="报告对比"
+      desc="选择同项目历史快照，对比两次运行的聚合差异。"
+      testId="report-compare-panel"
+      action={(
+        <div className="report-actions-row compact">
+          <button
+            className="btn btn-secondary btn-sm"
+            type="button"
+            onClick={props.onCompare}
+            disabled={props.state.loading || !props.baselineReportId}
+          >
+            <RefreshCw size={15} />开始对比
+          </button>
+        </div>
+      )}
+    >
+      <div className="report-compare-controls">
+        <Field label="baseline report">
+          <select
+            value={props.baselineReportId}
+            onChange={(event) => props.onBaselineChange(event.target.value)}
+          >
+            <option value="">请选择历史报告</option>
+            {props.reports.map((report) => (
+              <option key={report.id} value={report.id}>
+                {report.status} · {shortId(report.executionRunId)} · {report.generatedAt ? formatDateTime(report.generatedAt) : shortId(report.id)}
+              </option>
+            ))}
+          </select>
+        </Field>
+      </div>
+      {props.reports.length === 0 && (
+        <div className="notice info">当前项目还没有其他可作为 baseline 的报告。</div>
+      )}
+      {props.compareResult ? (
+        <>
+          <div className="report-summary-grid">
+            <SummaryTile label="projectId" value={props.compareResult.projectId} />
+            <SummaryTile label="changedFields" value={String(props.compareResult.changedFields.length)} tone={props.compareResult.unchanged ? 'success' : 'warning'} />
+            <SummaryTile label="baseline" value={shortId(props.compareResult.baselineReportId)} />
+            <SummaryTile label="current" value={shortId(props.compareResult.reportId)} />
+          </div>
+          {props.compareResult.unchanged ? (
+            <div className="notice success">当前报告与所选 baseline 在聚合摘要上没有差异。</div>
+          ) : (
+            <>
+              <CompareDiffList title="元数据差异" diffs={props.compareResult.metadataDiffs} />
+              <CompareDiffList title="摘要差异" diffs={props.compareResult.summaryDiffs} />
+              <CompareDiffList title="诊断差异" diffs={props.compareResult.diagnosisDiffs} />
+              <div className="report-section-grid">
+                <InfoBlock
+                  title="evidence count"
+                  value={`${props.compareResult.evidenceDiff.baselineCount} -> ${props.compareResult.evidenceDiff.currentCount}`}
+                />
+                <InfoBlock
+                  title="draft count"
+                  value={`${props.compareResult.defectDraftDiff.baselineCount} -> ${props.compareResult.defectDraftDiff.currentCount}`}
+                />
+                <InfoBlock
+                  title="added manifests"
+                  value={props.compareResult.evidenceDiff.addedManifestKeys.join(', ') || '-'}
+                />
+                <InfoBlock
+                  title="removed manifests"
+                  value={props.compareResult.evidenceDiff.removedManifestKeys.join(', ') || '-'}
+                />
+              </div>
+              <div className="report-section-grid">
+                <InfoBlock
+                  title="sourceWp"
+                  value={`${formatRecord(props.compareResult.evidenceDiff.baselineSourceWpCounts)} -> ${formatRecord(props.compareResult.evidenceDiff.currentSourceWpCounts)}`}
+                />
+                <InfoBlock
+                  title="sourceType"
+                  value={`${formatRecord(props.compareResult.evidenceDiff.baselineSourceTypeCounts)} -> ${formatRecord(props.compareResult.evidenceDiff.currentSourceTypeCounts)}`}
+                />
+                <InfoBlock
+                  title="draft statuses"
+                  value={`${formatRecord(props.compareResult.defectDraftDiff.baselineStatusCounts)} -> ${formatRecord(props.compareResult.defectDraftDiff.currentStatusCounts)}`}
+                />
+                <InfoBlock
+                  title="changed fields"
+                  value={props.compareResult.changedFields.join(', ') || '-'}
+                />
+              </div>
+            </>
+          )}
+        </>
+      ) : (
+        <div className="notice info">选择 baseline 后可查看 run summary、诊断、evidence 与草稿的聚合差异。</div>
+      )}
+      <StateLine state={props.state} />
+    </Panel>
+  );
+}
+
 function DefectDraftPanel(props: {
   detail: ReportDetail;
   state: WorkState;
@@ -596,6 +759,27 @@ function DefectDraftPanel(props: {
       )}
       <StateLine state={props.state} />
     </Panel>
+  );
+}
+
+function CompareDiffList(props: { title: string; diffs: Array<{ field: string; baselineValue: unknown; currentValue: unknown }> }) {
+  if (!props.diffs.length) {
+    return null;
+  }
+  return (
+    <div className="report-card-list">
+      <div className="report-mini-card report-mini-card-muted">
+        <strong>{props.title}</strong>
+        <div className="report-compare-diff-list">
+          {props.diffs.map((diff) => (
+            <div className="report-compare-diff-item" key={`${props.title}-${diff.field}`}>
+              <strong>{diff.field}</strong>
+              <span>{formatRecord(diff.baselineValue)} {'->'} {formatRecord(diff.currentValue)}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
   );
 }
 

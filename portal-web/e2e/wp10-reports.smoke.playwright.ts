@@ -81,6 +81,14 @@ async function runWp10MainFlow(page: Page, assertResponsive: boolean) {
   await expect(defectPanel.getByText('草稿状态已更新为 REVIEWED')).toBeVisible();
   expect(mock.reviewDraftStatus).toBe('REVIEWED');
 
+  const comparePanel = page.getByTestId('report-compare-panel');
+  await comparePanel.getByLabel('baseline report').selectOption(existingReportId);
+  await comparePanel.getByRole('button', { name: '开始对比' }).click();
+  await expect(comparePanel.getByText('发现 8 项聚合差异')).toBeVisible();
+  await expect(comparePanel.getByText('summary.runStatus')).toBeVisible();
+  await expectInfoBlock(page, comparePanel, 'evidence count', '2 -> 3');
+  await expectInfoBlock(page, comparePanel, 'draft count', '0 -> 1');
+
   const exportPanel = page.getByTestId('report-export-panel');
   await exportPanel.getByRole('button', { name: '导出 JSON' }).click();
   await expectInfoBlock(page, exportPanel, 'fieldSetVersion', 'wp10-export-fields-v1');
@@ -198,6 +206,13 @@ class Wp10ReportMock {
     const detailMatch = path.match(/^\/api\/v1\/reports\/([^/]+)$/);
     if (detailMatch && method === 'GET') {
       return this.fulfill(route, this.details.get(detailMatch[1]) ?? this.reportDetail(detailMatch[1], 'READY'), 'trace-report-detail');
+    }
+
+    const compareMatch = path.match(/^\/api\/v1\/reports\/([^/]+)\/compare$/);
+    if (compareMatch && method === 'GET') {
+      const reportId = compareMatch[1];
+      const baselineReportId = url.searchParams.get('baselineReportId') ?? '';
+      return this.fulfill(route, this.reportCompare(reportId, baselineReportId), 'trace-report-compare');
     }
 
     const retryMatch = path.match(/^\/api\/v1\/reports\/([^/]+)\/retry$/);
@@ -488,6 +503,53 @@ class Wp10ReportMock {
         summaryOnly: true
       },
       createdAt: '2026-06-17T00:05:00Z'
+    };
+  }
+
+  private reportCompare(reportId: string, baselineReportId: string) {
+    return {
+      reportId,
+      baselineReportId,
+      projectId: 'project-wp10-ui-smoke',
+      unchanged: false,
+      changedFields: [
+        'metadata.executionRunId',
+        'summary.runStatus',
+        'summary.evidenceManifestCount',
+        'summary.diagnosisPrimaryCategory',
+        'summary.defectDraftCount',
+        'diagnosis.status',
+        'evidence.count',
+        'defectDrafts.count'
+      ],
+      metadataDiffs: [
+        { field: 'executionRunId', baselineValue: executionRunId, currentValue: generatedReportId }
+      ],
+      summaryDiffs: [
+        { field: 'runStatus', baselineValue: 'FAILED', currentValue: 'FAILED' },
+        { field: 'evidenceManifestCount', baselineValue: 2, currentValue: 3 }
+      ],
+      diagnosisDiffs: [
+        { field: 'status', baselineValue: 'AI_FAILED', currentValue: 'AI_READY' }
+      ],
+      evidenceDiff: {
+        changed: true,
+        baselineCount: 2,
+        currentCount: 3,
+        addedManifestKeys: ['WP8:ACCOUNT_LEASE:sha256:wp8-manifest'],
+        removedManifestKeys: [],
+        baselineSourceWpCounts: { WP9: 2 },
+        currentSourceWpCounts: { WP9: 2, WP8: 1 },
+        baselineSourceTypeCounts: { RUN_NODE: 2 },
+        currentSourceTypeCounts: { RUN_NODE: 2, ACCOUNT_LEASE: 1 }
+      },
+      defectDraftDiff: {
+        changed: true,
+        baselineCount: 0,
+        currentCount: 1,
+        baselineStatusCounts: {},
+        currentStatusCounts: { REVIEWED: 1 }
+      }
     };
   }
 

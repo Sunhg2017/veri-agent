@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { requestJson } from './client';
 import {
   archiveReport,
+  compareReport,
   createDefectDraft,
   diagnoseReport,
   exportReport,
@@ -11,6 +12,7 @@ import {
   fetchReports,
   generateReport,
   normalizeDefectDraft,
+  normalizeReportCompare,
   normalizeReportDetail,
   normalizeReportDiagnosis,
   normalizeReportExport,
@@ -153,6 +155,42 @@ describe('WP10 report API helpers', () => {
       aggregateOnly: true,
       contentDigest: 'sha256:content'
     });
+
+    expect(normalizeReportCompare({
+      report_id: 'report-1',
+      baseline_report_id: 'report-0',
+      project_id: 'project-alpha',
+      unchanged: false,
+      changed_fields: ['summary.runStatus'],
+      metadata_diffs: [{ field: 'status', baseline_value: 'READY', current_value: 'FAILED' }],
+      summary_diffs: [{ field: 'runStatus', baseline_value: 'SUCCEEDED', current_value: 'FAILED' }],
+      diagnosis_diffs: [{ field: 'primaryCategory', baseline_value: 'NO_FAILURE', current_value: 'RUNNER_FAILURE' }],
+      evidence_diff: {
+        changed: true,
+        baseline_count: 2,
+        current_count: 3,
+        added_manifest_keys: ['WP8:ACCOUNT_LEASE:sha256:lease'],
+        removed_manifest_keys: [],
+        baseline_source_wp_counts: { WP9: 2 },
+        current_source_wp_counts: { WP9: 2, WP8: 1 },
+        baseline_source_type_counts: { RUN_NODE: 2 },
+        current_source_type_counts: { RUN_NODE: 2, ACCOUNT_LEASE: 1 }
+      },
+      defect_draft_diff: {
+        changed: true,
+        baseline_count: 0,
+        current_count: 1,
+        baseline_status_counts: {},
+        current_status_counts: { DRAFT: 1 }
+      }
+    })).toMatchObject({
+      reportId: 'report-1',
+      baselineReportId: 'report-0',
+      changedFields: ['summary.runStatus'],
+      metadataDiffs: [{ field: 'status', baselineValue: 'READY', currentValue: 'FAILED' }],
+      evidenceDiff: { currentCount: 3, currentSourceWpCounts: { WP8: 1 } },
+      defectDraftDiff: { currentStatusCounts: { DRAFT: 1 } }
+    });
   });
 
   it('calls report endpoints with normalized paths and payloads', async () => {
@@ -160,6 +198,7 @@ describe('WP10 report API helpers', () => {
     await fetchReportingHealth();
     await fetchReports({ projectId: 'project alpha', executionRunId: 'run-1', status: 'READY', size: 10 });
     await fetchReport('report-1');
+    await compareReport('report-1', 'report-0');
     await generateReport({ projectId: 'project-alpha', executionRunId: 'run-1', requestKey: 'rk-1', reason: 'manual' });
     await retryReport('report-1');
     await archiveReport('report-1');
@@ -175,19 +214,20 @@ describe('WP10 report API helpers', () => {
       '/api/v1/reports?projectId=project+alpha&executionRunId=run-1&status=READY&size=10'
     );
     expect(requestJsonMock).toHaveBeenNthCalledWith(3, '/api/v1/reports/report-1');
-    expect(requestJsonMock).toHaveBeenNthCalledWith(4, '/api/v1/reports', {
+    expect(requestJsonMock).toHaveBeenNthCalledWith(4, '/api/v1/reports/report-1/compare?baselineReportId=report-0');
+    expect(requestJsonMock).toHaveBeenNthCalledWith(5, '/api/v1/reports', {
       method: 'POST',
       body: JSON.stringify({ projectId: 'project-alpha', executionRunId: 'run-1', requestKey: 'rk-1', reason: 'manual' })
     });
-    expect(requestJsonMock).toHaveBeenNthCalledWith(5, '/api/v1/reports/report-1/retry', { method: 'POST' });
-    expect(requestJsonMock).toHaveBeenNthCalledWith(6, '/api/v1/reports/report-1/archive', { method: 'POST' });
-    expect(requestJsonMock).toHaveBeenNthCalledWith(7, '/api/v1/reports/report-1/diagnoses', { method: 'POST' });
-    expect(requestJsonMock).toHaveBeenNthCalledWith(8, '/api/v1/reports/report-1/diagnoses/latest');
-    expect(requestJsonMock).toHaveBeenNthCalledWith(9, '/api/v1/reports/report-1/defect-drafts', { method: 'POST' });
-    expect(requestJsonMock).toHaveBeenNthCalledWith(10, '/api/v1/reports/report-1/defect-drafts/draft-1', {
+    expect(requestJsonMock).toHaveBeenNthCalledWith(6, '/api/v1/reports/report-1/retry', { method: 'POST' });
+    expect(requestJsonMock).toHaveBeenNthCalledWith(7, '/api/v1/reports/report-1/archive', { method: 'POST' });
+    expect(requestJsonMock).toHaveBeenNthCalledWith(8, '/api/v1/reports/report-1/diagnoses', { method: 'POST' });
+    expect(requestJsonMock).toHaveBeenNthCalledWith(9, '/api/v1/reports/report-1/diagnoses/latest');
+    expect(requestJsonMock).toHaveBeenNthCalledWith(10, '/api/v1/reports/report-1/defect-drafts', { method: 'POST' });
+    expect(requestJsonMock).toHaveBeenNthCalledWith(11, '/api/v1/reports/report-1/defect-drafts/draft-1', {
       method: 'PATCH',
       body: JSON.stringify({ status: 'REVIEWED' })
     });
-    expect(requestJsonMock).toHaveBeenNthCalledWith(11, '/api/v1/reports/report-1/export?exportType=MARKDOWN');
+    expect(requestJsonMock).toHaveBeenNthCalledWith(12, '/api/v1/reports/report-1/export?exportType=MARKDOWN');
   });
 });

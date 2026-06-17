@@ -27,6 +27,7 @@ class ReportingOpenApiContractTest {
                 .andExpect(jsonPath("$.paths['/api/v1/reports'].post").exists())
                 .andExpect(jsonPath("$.paths['/api/v1/reports'].get").exists())
                 .andExpect(jsonPath("$.paths['/api/v1/reports/{id}'].get").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/reports/{id}/compare'].get").exists())
                 .andExpect(jsonPath("$.paths['/api/v1/reports/{id}/retry'].post").exists())
                 .andExpect(jsonPath("$.paths['/api/v1/reports/{id}/archive'].post").exists())
                 .andExpect(jsonPath("$.paths['/api/v1/reports/{id}/diagnoses'].post").exists())

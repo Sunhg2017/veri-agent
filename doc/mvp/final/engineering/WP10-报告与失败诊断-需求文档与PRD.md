@@ -5,7 +5,7 @@
 | 工作包 | WP10 报告与失败诊断 |
 | 角色产出 | 资深产品经理 |
 | 文档性质 | 需求文档、产品 PRD 和产品验收标准 |
-| 当前口径 | 当前范围已推进至 M10：基于 WP9 脱敏 run export、`REPORT_HANDOFF` 摘要、WP8/WP3/WP5 aggregate-only evidence 和 WP2 模型能力，已交付可审计的报告、可选异步生成 worker、失败诊断、缺陷草稿、JSON/Markdown 导出和 `#reports` 控制面；外部缺陷写入、完整报告和趋势/BI 保持后续专项 |
+| 当前口径 | 当前范围已推进至 M10：基于 WP9 脱敏 run export、`REPORT_HANDOFF` 摘要、WP8/WP3/WP5 aggregate-only evidence 和 WP2 模型能力，已交付可审计的报告、可选异步生成 worker、同项目历史快照对比、失败诊断、缺陷草稿、JSON/Markdown 导出和 `#reports` 控制面；外部缺陷写入、完整报告和趋势/BI 保持后续专项 |
 | 版本 | v0.2 |
 | 日期 | 2026-06-17 |
 
@@ -39,7 +39,7 @@ WP10 负责把这些已脱敏输入组织成版本化报告快照，并提供规
 | 功能 | P0 口径 | P1 口径 |
 |---|---|---|
 | 报告生成 | `POST /api/v1/reports` 基于 `executionRunId` 创建快照，支持 `requestKey` 幂等；默认同步生成，可通过开关进入 `QUEUED` 并由后台 worker 收敛到 `READY/FAILED` | 批量生成优先级、租户级容量配额 |
-| 报告查询 | 列表、详情、状态、run summary、节点计数、失败分类和证据 manifest | 趋势报表、历史对比 |
+| 报告查询 | 列表、详情、状态、run summary、节点计数、失败分类、证据 manifest 和同项目历史快照对比 | 趋势报表 |
 | 证据聚合 | 当前消费 WP9 run export、REPORT_HANDOFF、WP8 report evidence、WP3 asset summary 和 WP5 manifest；仅保存 digest、状态、计数、summary keys 和 redaction flags | 受控 artifact 索引和审批后明细归档 |
 | 失败分类 | 基于 errorCode、status、nodeType、runnerMode、timeout、blocked、lease release 和 trigger 来源分类 | 可配置分类规则和团队标签 |
 | AI 诊断 | 通过 WP2 生成脱敏建议，输出候选根因、置信度、依据和下一步动作 | 反馈闭环和诊断模型评测看板 |
@@ -91,6 +91,13 @@ WP10 负责把这些已脱敏输入组织成版本化报告快照，并提供规
 3. 系统返回脱敏摘要、export manifest、digest、schemaVersion、fieldSetVersion 和 redactionPolicy。
 4. 前端展示导出结果和敏感字段拦截状态，不下载包含敏感明细的完整文件。
 
+### 6.5 报告对比
+
+1. 用户在报告详情选择同项目历史报告作为 baseline。
+2. 系统对比当前报告与 baseline 的 aggregate-only metadata、summary、最新诊断、evidence manifest 指纹和缺陷草稿状态分布。
+3. 页面仅展示 changed fields、计数变化和 digest/状态层面的差异，不展示原始 evidence、Prompt、模型正文、secret、token 或跨 WP 内部 ID 清单。
+4. 基线报告与当前报告相同、跨项目或无 baseline 时，页面给出明确阻断提示。
+
 ## 7. 业务规则
 
 1. 只有同项目 scope 下可读的 WP9 run 才能生成报告。
@@ -104,6 +111,7 @@ WP10 负责把这些已脱敏输入组织成版本化报告快照，并提供规
 9. 缺陷草稿只能引用 evidenceRef、digest、状态、计数和摘要 key，不复制原始 evidence 正文；WP3/WP5 证据同样不得包含资产正文、候选正文、Prompt 原文或模型载荷。
 10. 导出 manifest 必须声明 `aggregateOnly=true`、字段集版本、生成时间、digest 和禁止字段清单。
 11. 前端按钮显隐只做体验优化，最终准入以后端权限、项目 scope、报告状态和配置开关为准。
+12. 报告对比只允许同项目既有快照之间进行，且不重新读取 WP9/WP8/WP3/WP5 原始来源。
 
 ## 8. 权限矩阵
 

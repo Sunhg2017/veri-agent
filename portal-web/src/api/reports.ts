@@ -112,6 +112,45 @@ export interface ReportDetail extends ReportSummary {
   defectDrafts: ReportDefectDraft[];
 }
 
+export interface ReportCompareFieldDiff {
+  field: string;
+  baselineValue: unknown;
+  currentValue: unknown;
+}
+
+export interface ReportCompareEvidenceDiff {
+  changed: boolean;
+  baselineCount: number;
+  currentCount: number;
+  addedManifestKeys: string[];
+  removedManifestKeys: string[];
+  baselineSourceWpCounts: Record<string, number>;
+  currentSourceWpCounts: Record<string, number>;
+  baselineSourceTypeCounts: Record<string, number>;
+  currentSourceTypeCounts: Record<string, number>;
+}
+
+export interface ReportCompareDefectDraftDiff {
+  changed: boolean;
+  baselineCount: number;
+  currentCount: number;
+  baselineStatusCounts: Record<string, number>;
+  currentStatusCounts: Record<string, number>;
+}
+
+export interface ReportCompare {
+  reportId: string;
+  baselineReportId: string;
+  projectId: string;
+  unchanged: boolean;
+  changedFields: string[];
+  metadataDiffs: ReportCompareFieldDiff[];
+  summaryDiffs: ReportCompareFieldDiff[];
+  diagnosisDiffs: ReportCompareFieldDiff[];
+  evidenceDiff: ReportCompareEvidenceDiff;
+  defectDraftDiff: ReportCompareDefectDraftDiff;
+}
+
 export interface ReportList {
   items: ReportSummary[];
   index: number;
@@ -147,6 +186,13 @@ export async function fetchReports(filters: ReportFilters = {}): Promise<ApiResp
 export async function fetchReport(id: string): Promise<ApiResponse<ReportDetail>> {
   const response = await requestJson<unknown>(`${REPORTS_BASE}/${encodeURIComponent(id)}`);
   return { ...response, data: normalizeReportDetail(response.data) };
+}
+
+export async function compareReport(id: string, baselineReportId: string): Promise<ApiResponse<ReportCompare>> {
+  const response = await requestJson<unknown>(
+    `${REPORTS_BASE}/${encodeURIComponent(id)}/compare?baselineReportId=${encodeURIComponent(baselineReportId)}`
+  );
+  return { ...response, data: normalizeReportCompare(response.data) };
 }
 
 export async function generateReport(payload: GenerateReportPayload): Promise<ApiResponse<ReportDetail>> {
@@ -357,11 +403,62 @@ export function normalizeReportExport(input: unknown): ReportExport {
   };
 }
 
+export function normalizeReportCompare(input: unknown): ReportCompare {
+  const value = objectValue(input);
+  return {
+    reportId: stringValue(read(value, 'reportId', 'report_id')),
+    baselineReportId: stringValue(read(value, 'baselineReportId', 'baseline_report_id')),
+    projectId: stringValue(read(value, 'projectId', 'project_id')),
+    unchanged: booleanValue(read(value, 'unchanged'), true),
+    changedFields: stringArray(read(value, 'changedFields', 'changed_fields')),
+    metadataDiffs: arrayValue(read(value, 'metadataDiffs', 'metadata_diffs')).map(normalizeReportCompareFieldDiff),
+    summaryDiffs: arrayValue(read(value, 'summaryDiffs', 'summary_diffs')).map(normalizeReportCompareFieldDiff),
+    diagnosisDiffs: arrayValue(read(value, 'diagnosisDiffs', 'diagnosis_diffs')).map(normalizeReportCompareFieldDiff),
+    evidenceDiff: normalizeReportCompareEvidenceDiff(read(value, 'evidenceDiff', 'evidence_diff')),
+    defectDraftDiff: normalizeReportCompareDefectDraftDiff(read(value, 'defectDraftDiff', 'defect_draft_diff'))
+  };
+}
+
 function normalizeOptionalDiagnosis(input: unknown): ReportDiagnosis | undefined {
   if (!input || Object.keys(objectValue(input)).length === 0) {
     return undefined;
   }
   return normalizeReportDiagnosis(input);
+}
+
+function normalizeReportCompareFieldDiff(input: unknown): ReportCompareFieldDiff {
+  const value = objectValue(input);
+  return {
+    field: stringValue(read(value, 'field')),
+    baselineValue: read(value, 'baselineValue', 'baseline_value'),
+    currentValue: read(value, 'currentValue', 'current_value')
+  };
+}
+
+function normalizeReportCompareEvidenceDiff(input: unknown): ReportCompareEvidenceDiff {
+  const value = objectValue(input);
+  return {
+    changed: booleanValue(read(value, 'changed'), false),
+    baselineCount: numberValue(read(value, 'baselineCount', 'baseline_count'), 0),
+    currentCount: numberValue(read(value, 'currentCount', 'current_count'), 0),
+    addedManifestKeys: stringArray(read(value, 'addedManifestKeys', 'added_manifest_keys')),
+    removedManifestKeys: stringArray(read(value, 'removedManifestKeys', 'removed_manifest_keys')),
+    baselineSourceWpCounts: numberRecord(read(value, 'baselineSourceWpCounts', 'baseline_source_wp_counts')),
+    currentSourceWpCounts: numberRecord(read(value, 'currentSourceWpCounts', 'current_source_wp_counts')),
+    baselineSourceTypeCounts: numberRecord(read(value, 'baselineSourceTypeCounts', 'baseline_source_type_counts')),
+    currentSourceTypeCounts: numberRecord(read(value, 'currentSourceTypeCounts', 'current_source_type_counts'))
+  };
+}
+
+function normalizeReportCompareDefectDraftDiff(input: unknown): ReportCompareDefectDraftDiff {
+  const value = objectValue(input);
+  return {
+    changed: booleanValue(read(value, 'changed'), false),
+    baselineCount: numberValue(read(value, 'baselineCount', 'baseline_count'), 0),
+    currentCount: numberValue(read(value, 'currentCount', 'current_count'), 0),
+    baselineStatusCounts: numberRecord(read(value, 'baselineStatusCounts', 'baseline_status_counts')),
+    currentStatusCounts: numberRecord(read(value, 'currentStatusCounts', 'current_status_counts'))
+  };
 }
 
 function queryString(filters: object) {
@@ -410,4 +507,9 @@ function booleanValue(input: unknown, fallback: boolean) {
   if (input === 'true') return true;
   if (input === 'false') return false;
   return fallback;
+}
+
+function numberRecord(input: unknown) {
+  const value = objectValue(input);
+  return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, numberValue(item, 0)]));
 }
