@@ -5,7 +5,7 @@
 | 工作包 | WP10 报告与失败诊断 |
 | 角色产出 | 资深产品经理 |
 | 文档性质 | 需求文档、产品 PRD 和产品验收标准 |
-| 当前口径 | 当前范围已推进至 M10：基于 WP9 脱敏 run export、`REPORT_HANDOFF` 摘要、WP8/WP3/WP5 aggregate-only evidence 和 WP2 模型能力，已交付可审计的报告、可选异步生成 worker、同项目历史快照对比、失败诊断、缺陷草稿、JSON/Markdown 导出和 `#reports` 控制面；外部缺陷写入、完整报告和趋势/BI 保持后续专项 |
+| 当前口径 | 当前范围已推进至 M10：基于 WP9 脱敏 run export、`REPORT_HANDOFF` 摘要、WP8/WP3/WP5 aggregate-only evidence 和 WP2 模型能力，已交付可审计的报告、可选异步生成 worker、同项目历史快照对比、失败诊断、缺陷草稿、JSON/Markdown 导出、报告完成 webhook 回调和 `#reports` 控制面；外部缺陷写入、完整报告和趋势/BI 保持后续专项 |
 | 版本 | v0.2 |
 | 日期 | 2026-06-17 |
 
@@ -33,6 +33,7 @@ WP10 负责把这些已脱敏输入组织成版本化报告快照，并提供规
 4. 用户可从报告生成缺陷草稿，草稿只保存平台内内容，不自动写外部缺陷系统。
 5. 用户可导出脱敏 JSON/Markdown 摘要和 export manifest，不导出 runner 原始 stdout/stderr、请求响应正文、webhook payload、Prompt 原文、secret 或账号凭据。
 6. 报告、诊断、导出、草稿均按项目 scope 鉴权并写审计。
+7. 报告到达终态后可按全局配置异步回调一个 aggregate-only webhook，不阻断报告成功或失败落库。
 
 ## 4. P0/P1 范围
 
@@ -46,6 +47,7 @@ WP10 负责把这些已脱敏输入组织成版本化报告快照，并提供规
 | 缺陷草稿 | 生成标题、复现摘要、影响范围、优先级建议和证据引用，支持 DRAFT/REVIEWED/DISMISSED | 外部 Jira/禅道/飞书写入由 WP11 承接 |
 | 导出摘要 | JSON/Markdown 脱敏摘要和 export manifest | PDF/Word 完整报告由合规审批专项承接 |
 | 前端 | `#reports` 工作台、列表、详情、诊断、草稿、导出和状态反馈 | 报告订阅、趋势图、团队视图 |
+| webhook 回调 | 默认关闭的全局 outbound callback，在报告 `READY/FAILED` 终态时发送 aggregate-only 完成通知 | 订阅管理、回放补偿和租户级路由 |
 
 ## 5. 非目标
 
@@ -112,6 +114,7 @@ WP10 负责把这些已脱敏输入组织成版本化报告快照，并提供规
 10. 导出 manifest 必须声明 `aggregateOnly=true`、字段集版本、生成时间、digest 和禁止字段清单。
 11. 前端按钮显隐只做体验优化，最终准入以后端权限、项目 scope、报告状态和配置开关为准。
 12. 报告对比只允许同项目既有快照之间进行，且不重新读取 WP9/WP8/WP3/WP5 原始来源。
+13. webhook 回调只发送 aggregate-only report 元数据、summary 和最新诊断摘要；失败仅写告警与审计，不回滚报告状态。
 
 ## 8. 权限矩阵
 

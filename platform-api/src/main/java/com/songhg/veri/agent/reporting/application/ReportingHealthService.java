@@ -10,9 +10,14 @@ import org.springframework.stereotype.Service;
 public class ReportingHealthService {
 
     private final ReportingProperties properties;
+    private final ReportingWebhookDispatcher webhookDispatcher;
 
-    public ReportingHealthService(ReportingProperties properties) {
+    public ReportingHealthService(
+            ReportingProperties properties,
+            ReportingWebhookDispatcher webhookDispatcher
+    ) {
         this.properties = properties;
+        this.webhookDispatcher = webhookDispatcher;
     }
 
     /**
@@ -40,6 +45,7 @@ public class ReportingHealthService {
                 properties.effectiveMaxExportMarkdownChars(),
                 properties.effectiveSchemaVersion(),
                 properties.effectiveFieldSetVersion(),
+                webhookDispatcher.health(),
                 Map.ofEntries(
                         Map.entry("foundationReady", true),
                         Map.entry("permissionSeedReady", true),
@@ -66,6 +72,10 @@ public class ReportingHealthService {
                         Map.entry("aiDiagnosisFallbackReady", true),
                         Map.entry("defectDraftReady", true),
                         Map.entry("exportSummaryReady", true),
+                        Map.entry("reportWebhookDeliveryReady", true),
+                        Map.entry("reportWebhookDeliveryDefaultDisabled", !properties.webhookDeliveryEnabled()),
+                        Map.entry("reportWebhookDeliveryAggregateOnly", true),
+                        Map.entry("reportWebhookDeliveryBlocksGeneration", false),
                         Map.entry("crossWpDirectTableReadAllowed", false),
                         Map.entry("rawRunnerArtifactStored", false),
                         Map.entry("requestResponseBodyStored", false),

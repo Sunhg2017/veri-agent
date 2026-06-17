@@ -35,6 +35,16 @@ public record ReportingProperties(
         @DefaultValue("true") boolean defectDraftEnabled,
         /** Allows sanitized JSON/Markdown summary export. */
         @DefaultValue("true") boolean exportEnabled,
+        /** Enables aggregate-only outbound report completion webhook delivery. */
+        @DefaultValue("false") boolean webhookDeliveryEnabled,
+        /** Global callback endpoint used for terminal report delivery. */
+        String webhookDeliveryUrl,
+        /** Enables HMAC signing headers for outbound report completion webhook delivery. */
+        @DefaultValue("false") boolean webhookDeliverySignatureEnabled,
+        /** Secret reference used for webhook signature resolution. */
+        String webhookDeliverySecretRef,
+        /** Delivery timeout for one webhook callback attempt. */
+        @DefaultValue("5000") int webhookDeliveryTimeoutMs,
         /** Maximum evidence manifest items kept in one report. */
         @DefaultValue("200") int maxEvidenceItems,
         /** Maximum sanitized context characters sent to WP2. */
@@ -62,6 +72,8 @@ public record ReportingProperties(
     private static final int MAX_GENERATION_RUNNING_TIMEOUT_SECONDS = 86_400;
     private static final int DEFAULT_GENERATION_RECOVERY_BATCH_SIZE = 50;
     private static final int MAX_GENERATION_RECOVERY_BATCH_SIZE = 1_000;
+    private static final int DEFAULT_WEBHOOK_DELIVERY_TIMEOUT_MS = 5_000;
+    private static final int MAX_WEBHOOK_DELIVERY_TIMEOUT_MS = 120_000;
     private static final String DEFAULT_GENERATION_WORKER_ID = "wp10-report-worker";
     private static final String DEFAULT_SCHEMA_VERSION = "wp10-report-v1";
     private static final String DEFAULT_FIELD_SET_VERSION = "wp10-report-export-fields-v1";
@@ -131,6 +143,22 @@ public record ReportingProperties(
                 generationRecoveryBatchSize,
                 DEFAULT_GENERATION_RECOVERY_BATCH_SIZE,
                 MAX_GENERATION_RECOVERY_BATCH_SIZE
+        );
+    }
+
+    public String effectiveWebhookDeliveryUrl() {
+        return boundedText(webhookDeliveryUrl, null, 512);
+    }
+
+    public String effectiveWebhookDeliverySecretRef() {
+        return boundedText(webhookDeliverySecretRef, null, 256);
+    }
+
+    public int effectiveWebhookDeliveryTimeoutMs() {
+        return boundedPositive(
+                webhookDeliveryTimeoutMs,
+                DEFAULT_WEBHOOK_DELIVERY_TIMEOUT_MS,
+                MAX_WEBHOOK_DELIVERY_TIMEOUT_MS
         );
     }
 

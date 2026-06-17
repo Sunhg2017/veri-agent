@@ -67,4 +67,12 @@ public class KafkaPlatformEventConfiguration {
                 .replicas(properties.kafkaTopicReplicas())
                 .build();
     }
+
+    @Bean
+    NewTopic reportWebhookDeliveryRequestedTopic(PlatformEventProperties properties) {
+        return TopicBuilder.name(properties.reportWebhookDeliveryRequestedTopic())
+                .partitions(properties.kafkaTopicPartitions())
+                .replicas(properties.kafkaTopicReplicas())
+                .build();
+    }
 }

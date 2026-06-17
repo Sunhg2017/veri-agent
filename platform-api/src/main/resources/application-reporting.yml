@@ -13,6 +13,11 @@ veri-agent:
     diagnosis-enabled: ${WP10_DIAGNOSIS_ENABLED:true}
     defect-draft-enabled: ${WP10_DEFECT_DRAFT_ENABLED:true}
     export-enabled: ${WP10_REPORT_EXPORT_ENABLED:true}
+    webhook-delivery-enabled: ${WP10_REPORT_WEBHOOK_DELIVERY_ENABLED:false}
+    webhook-delivery-url: ${WP10_REPORT_WEBHOOK_DELIVERY_URL:}
+    webhook-delivery-signature-enabled: ${WP10_REPORT_WEBHOOK_DELIVERY_SIGNATURE_ENABLED:false}
+    webhook-delivery-secret-ref: ${WP10_REPORT_WEBHOOK_DELIVERY_SECRET_REF:}
+    webhook-delivery-timeout-ms: ${WP10_REPORT_WEBHOOK_DELIVERY_TIMEOUT_MS:5000}
     max-evidence-items: ${WP10_MAX_EVIDENCE_ITEMS:200}
     max-diagnosis-context-chars: ${WP10_MAX_DIAGNOSIS_CONTEXT_CHARS:12000}
     max-export-markdown-chars: ${WP10_MAX_EXPORT_MARKDOWN_CHARS:30000}

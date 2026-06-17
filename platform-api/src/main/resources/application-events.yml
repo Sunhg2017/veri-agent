@@ -17,6 +17,7 @@ veri-agent:
         document-input-webhook-accepted: ${WP4_DOCUMENT_INPUT_WEBHOOK_ACCEPTED_TOPIC:veri-agent.document-input-webhook-accepted}
         test-design-generation-requested: ${WP5_TEST_DESIGN_GENERATION_REQUESTED_TOPIC:veri-agent.test-design-generation-requested}
         test-design-publish-requested: ${WP5_TEST_DESIGN_PUBLISH_REQUESTED_TOPIC:veri-agent.test-design-publish-requested}
+        report-webhook-delivery-requested: ${WP10_REPORT_WEBHOOK_DELIVERY_REQUESTED_TOPIC:veri-agent.report-webhook-delivery-requested}
 
 spring:
   kafka:

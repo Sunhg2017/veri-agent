@@ -44,6 +44,8 @@ public record ReportingHealthResponse(
         String schemaVersion,
         @Schema(description = "导出字段集版本")
         String fieldSetVersion,
+        @Schema(description = "报告完成 webhook 回调健康摘要")
+        ReportingWebhookDeliveryHealthResponse webhookDelivery,
         @Schema(description = "当前 WP10 功能边界")
         Map<String, Object> policy
 ) {

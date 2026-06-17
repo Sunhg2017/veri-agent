@@ -61,6 +61,7 @@ public class ReportService {
     private final ReportDiagnosisContextBuilder diagnosisContextBuilder;
     private final ReportDiagnosisAiInvoker diagnosisAiInvoker;
     private final ReportEvidenceAssembler evidenceAssembler;
+    private final ReportingEventPublisher eventPublisher;
 
     public ReportService(
             ReportingRepository repository,
@@ -72,7 +73,8 @@ public class ReportService {
             ReportingProperties properties,
             ReportingActorResolver actorResolver,
             ReportingPlatformContextClient contextClient,
-            ObjectMapper objectMapper
+            ObjectMapper objectMapper,
+            ReportingEventPublisher eventPublisher
     ) {
         this.repository = repository;
         this.executionRunService = executionRunService;
@@ -92,6 +94,7 @@ public class ReportService {
                 properties,
                 jsonSupport
         );
+        this.eventPublisher = eventPublisher;
     }
 
     /**
@@ -175,6 +178,7 @@ public class ReportService {
                 "evidenceCount", bundle.evidenceManifests().size(),
                 "diagnosisStatus", bundle.failureDiagnosis().status()
         ));
+        publishTerminalWebhook(regenerated, "READY");
         return responseMapper.toDetail(
                 regenerated,
                 bundle.evidenceManifests(),
@@ -212,6 +216,7 @@ public class ReportService {
                         "workerRecovered", true,
                         "errorCode", "REPORT_GENERATION_TIMEOUT"
                 ));
+                publishTerminalWebhook(failed, "FAILED");
             }
         }
         return recoveredCount;
@@ -263,6 +268,7 @@ public class ReportService {
                 "evidenceCount", bundle.evidenceManifests().size(),
                 "diagnosisStatus", bundle.failureDiagnosis().status()
         ));
+        publishTerminalWebhook(ready, "READY");
         return Optional.of("READY");
     }
 
@@ -382,6 +388,7 @@ public class ReportService {
                 "evidenceCount", bundle.evidenceManifests().size(),
                 "diagnosisStatus", bundle.failureDiagnosis().status()
         ));
+        publishTerminalWebhook(report, "READY");
         return responseMapper.toDetail(
                 report,
                 bundle.evidenceManifests(),
@@ -893,6 +900,14 @@ public class ReportService {
                 "workerId", properties.effectiveGenerationWorkerId(),
                 "errorCode", failed.failedCode()
         ));
+        publishTerminalWebhook(failed, "FAILED");
+    }
+
+    private void publishTerminalWebhook(ReportExecutionReport report, String terminalStatus) {
+        if (report == null || !StringUtils.hasText(terminalStatus)) {
+            return;
+        }
+        eventPublisher.publishReportWebhookDeliveryRequested(report.id(), terminalStatus.trim());
     }
 
     private NormalizedGenerateRequest generationRequest(ReportExecutionReport report) {

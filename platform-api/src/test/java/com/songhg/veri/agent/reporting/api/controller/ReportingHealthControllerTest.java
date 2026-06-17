@@ -16,6 +16,11 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         "veri-agent.reporting.max-evidence-items=3",
         "veri-agent.reporting.max-diagnosis-context-chars=256",
         "veri-agent.reporting.max-export-markdown-chars=512",
+        "veri-agent.reporting.webhook-delivery-enabled=true",
+        "veri-agent.reporting.webhook-delivery-url=https://notify.example.test/hooks/report-finished?token=should-not-leak",
+        "veri-agent.reporting.webhook-delivery-signature-enabled=true",
+        "veri-agent.reporting.webhook-delivery-secret-ref=secret://wp10/report-webhook-signature",
+        "veri-agent.reporting.webhook-delivery-timeout-ms=4321",
         "veri-agent.reporting.schema-version=wp10-test-report-v1",
         "veri-agent.reporting.field-set-version=wp10-test-fields-v1"
 })
@@ -49,6 +54,14 @@ class ReportingHealthControllerTest {
                 .andExpect(jsonPath("$.data.maxExportMarkdownChars").value(512))
                 .andExpect(jsonPath("$.data.schemaVersion").value("wp10-test-report-v1"))
                 .andExpect(jsonPath("$.data.fieldSetVersion").value("wp10-test-fields-v1"))
+                .andExpect(jsonPath("$.data.webhookDelivery.enabled").value(true))
+                .andExpect(jsonPath("$.data.webhookDelivery.urlConfigured").value(true))
+                .andExpect(jsonPath("$.data.webhookDelivery.callbackUrl")
+                        .value("https://notify.example.test/hooks/report-finished"))
+                .andExpect(jsonPath("$.data.webhookDelivery.signatureEnabled").value(true))
+                .andExpect(jsonPath("$.data.webhookDelivery.secretRefConfigured").value(true))
+                .andExpect(jsonPath("$.data.webhookDelivery.secretRefDigest", startsWith("sha256:")))
+                .andExpect(jsonPath("$.data.webhookDelivery.timeoutMs").value(4321))
                 .andExpect(jsonPath("$.data.policy.foundationReady").value(true))
                 .andExpect(jsonPath("$.data.policy.permissionSeedReady").value(true))
                 .andExpect(jsonPath("$.data.policy.databaseSchemaReady").value(true))
@@ -74,6 +87,10 @@ class ReportingHealthControllerTest {
                 .andExpect(jsonPath("$.data.policy.aiDiagnosisFallbackReady").value(true))
                 .andExpect(jsonPath("$.data.policy.defectDraftReady").value(true))
                 .andExpect(jsonPath("$.data.policy.exportSummaryReady").value(true))
+                .andExpect(jsonPath("$.data.policy.reportWebhookDeliveryReady").value(true))
+                .andExpect(jsonPath("$.data.policy.reportWebhookDeliveryDefaultDisabled").value(false))
+                .andExpect(jsonPath("$.data.policy.reportWebhookDeliveryAggregateOnly").value(true))
+                .andExpect(jsonPath("$.data.policy.reportWebhookDeliveryBlocksGeneration").value(false))
                 .andExpect(jsonPath("$.data.policy.crossWpDirectTableReadAllowed").value(false))
                 .andExpect(jsonPath("$.data.policy.rawRunnerArtifactStored").value(false))
                 .andExpect(jsonPath("$.data.policy.rawPromptStored").value(false))
