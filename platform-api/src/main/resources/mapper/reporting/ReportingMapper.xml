@@ -170,6 +170,24 @@
         where id = #{id}
     </update>
 
+    <update id="updateReportIfStatus">
+        update report_execution_report set
+            status = #{report.status},
+            schema_version = #{report.schemaVersion},
+            source_run_digest = #{report.sourceRunDigest},
+            report_summary_json = cast(coalesce(#{report.reportSummaryJson}, '{}') as jsonb),
+            redaction_policy_json = cast(coalesce(#{report.redactionPolicyJson}, '{}') as jsonb),
+            generated_by = #{report.generatedBy},
+            generated_at = #{report.generatedAt},
+            failed_code = #{report.failedCode},
+            failure_summary = #{report.failureSummary},
+            trace_id = #{report.traceId},
+            archived_at = #{report.archivedAt},
+            updated_at = #{report.updatedAt}
+        where id = #{report.id}
+          and status = #{expectedStatus}
+    </update>
+
     <delete id="deleteEvidenceManifests">
         delete from report_evidence_manifest
         where report_id = #{reportId}
@@ -252,6 +270,23 @@
         select <include refid="reportColumns"/>
         from report_execution_report
         where id = #{id}
+    </select>
+
+    <select id="queuedReports" resultMap="reportMap">
+        select <include refid="reportColumns"/>
+        from report_execution_report
+        where status = 'QUEUED'
+        order by created_at asc, id asc
+        limit #{limit}
+    </select>
+
+    <select id="generatingReportsUpdatedBefore" resultMap="reportMap">
+        select <include refid="reportColumns"/>
+        from report_execution_report
+        where status = 'GENERATING'
+          and updated_at &lt; #{threshold}
+        order by updated_at asc, id asc
+        limit #{limit}
     </select>
 
     <select id="evidenceManifests" resultMap="evidenceManifestMap">

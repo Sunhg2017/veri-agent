@@ -106,19 +106,21 @@ public class ReportService {
         requireEnabled();
         NormalizedGenerateRequest request = normalize(command);
         if (StringUtils.hasText(request.requestKey())) {
-            return repository.reportByProjectRunRequestKey(
+            Optional<ReportExecutionReport> existing = repository.reportByProjectRunRequestKey(
                             request.projectId(),
                             request.executionRunId(),
                             request.requestKey()
-                    )
-                    .map(report -> responseMapper.toDetail(
-                            report,
-                            repository.evidenceManifests(report.id()),
-                            repository.latestFailureDiagnosis(report.id()),
-                            repository.defectDrafts(report.id()),
-                            true
-                    ))
-                    .orElseGet(() -> createReport(request));
+                    );
+            if (existing.isPresent()) {
+                return reportDetail(existing.get(), true);
+            }
+            if (properties.asyncGenerationEnabled()) {
+                return queueReport(request);
+            }
+            return createReport(request);
+        }
+        if (properties.asyncGenerationEnabled()) {
+            return queueReport(request);
         }
         return createReport(request);
     }
@@ -152,6 +154,9 @@ public class ReportService {
         if (!"FAILED".equals(current.status())) {
             throw new BusinessException(ErrorCode.INVALID_STATE, "REPORT_INVALID_STATE");
         }
+        if (properties.asyncGenerationEnabled()) {
+            return queueRetry(current);
+        }
         NormalizedGenerateRequest request = new NormalizedGenerateRequest(
                 current.projectId(),
                 current.executionRunId(),
@@ -177,6 +182,88 @@ public class ReportService {
                 repository.defectDrafts(regenerated.id()),
                 false
         );
+    }
+
+    @Transactional(readOnly = true)
+    public List<ReportExecutionReport> queuedReports(int limit) {
+        return repository.queuedReports(Math.max(1, limit));
+    }
+
+    @Transactional
+    public int recoverStaleGeneratingReports() {
+        Instant now = Instant.now();
+        Instant threshold = now.minusSeconds(properties.effectiveGenerationRunningTimeoutSeconds());
+        int recoveredCount = 0;
+        for (ReportExecutionReport report : repository.generatingReportsUpdatedBefore(
+                threshold,
+                properties.effectiveGenerationRecoveryBatchSize()
+        )) {
+            ReportExecutionReport failed = markGenerationFailed(
+                    report,
+                    "REPORT_GENERATION_TIMEOUT",
+                    "Report generation worker timed out before completing the snapshot.",
+                    true,
+                    now
+            );
+            if (repository.updateReportIfStatus(failed, "GENERATING")) {
+                recoveredCount++;
+                audit(failed, "report.generate.recovered", "FAILED", Map.of(
+                        "status", "FAILED",
+                        "workerRecovered", true,
+                        "errorCode", "REPORT_GENERATION_TIMEOUT"
+                ));
+            }
+        }
+        return recoveredCount;
+    }
+
+    /**
+     * Claims and completes one queued report in a single service transaction.
+     *
+     * <p>The conditional `QUEUED -> GENERATING` update is the duplicate-worker guard. Once claimed, generation failure
+     * is persisted as a FAILED report instead of rolling the queue row back to QUEUED and retrying forever.</p>
+     */
+    @Transactional(noRollbackFor = BusinessException.class)
+    public Optional<String> processQueuedReport(UUID id) {
+        ReportExecutionReport current = requireReport(id);
+        if (!"QUEUED".equals(current.status())) {
+            return Optional.empty();
+        }
+        Instant startedAt = Instant.now();
+        ReportExecutionReport generating = markGenerating(current, startedAt);
+        if (!repository.updateReportIfStatus(generating, "QUEUED")) {
+            return Optional.empty();
+        }
+        NormalizedGenerateRequest request = generationRequest(generating);
+        ReportBundle bundle;
+        try {
+            bundle = reportFromExport(
+                    generating.id(),
+                    request,
+                    startedAt,
+                    generating.generatedBy(),
+                    generating.traceId()
+            );
+        } catch (BusinessException exception) {
+            failQueuedReport(generating, exception);
+            return Optional.of("FAILED");
+        } catch (RuntimeException exception) {
+            failQueuedReport(generating, exception);
+            return Optional.of("FAILED");
+        }
+        ReportExecutionReport ready = bundle.report();
+        repository.updateReport(ready);
+        repository.replaceEvidenceManifests(ready.id(), bundle.evidenceManifests());
+        repository.replaceLatestFailureDiagnosis(ready.id(), bundle.failureDiagnosis());
+        audit(ready, "report.generated", "SUCCESS", Map.of(
+                "asyncGeneration", true,
+                "workerId", properties.effectiveGenerationWorkerId(),
+                "schemaVersion", ready.schemaVersion(),
+                "sourceRunDigest", ready.sourceRunDigest(),
+                "evidenceCount", bundle.evidenceManifests().size(),
+                "diagnosisStatus", bundle.failureDiagnosis().status()
+        ));
+        return Optional.of("READY");
     }
 
     @Transactional(noRollbackFor = BusinessException.class)
@@ -305,6 +392,16 @@ public class ReportService {
     }
 
     private ReportBundle reportFromExport(UUID reportId, NormalizedGenerateRequest request, Instant now) {
+        return reportFromExport(reportId, request, now, actorResolver.currentActor(), TraceContext.getOrCreateTraceId());
+    }
+
+    private ReportBundle reportFromExport(
+            UUID reportId,
+            NormalizedGenerateRequest request,
+            Instant now,
+            String generatedBy,
+            String traceId
+    ) {
         String sourceProjectId = executionRunService.runProjectScopeId(request.executionRunId());
         if (!sameProject(request.projectId(), sourceProjectId)) {
             throw new BusinessException(ErrorCode.NOT_FOUND, "REPORT_SOURCE_RUN_NOT_FOUND");
@@ -332,11 +429,11 @@ public class ReportService {
                 sourceDigest(export),
                 jsonSupport.json(summary),
                 jsonSupport.json(redactionPolicy),
-                actorResolver.currentActor(),
+                generatedBy,
                 now,
                 null,
                 null,
-                TraceContext.getOrCreateTraceId(),
+                traceId,
                 null,
                 now,
                 now
@@ -628,6 +725,234 @@ public class ReportService {
     private ReportExecutionReport requireReport(UUID id) {
         return repository.report(id)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "REPORT_NOT_FOUND"));
+    }
+
+    private ReportDetailResponse reportDetail(ReportExecutionReport report, boolean idempotentReplay) {
+        return responseMapper.toDetail(
+                report,
+                repository.evidenceManifests(report.id()),
+                repository.latestFailureDiagnosis(report.id()),
+                repository.defectDrafts(report.id()),
+                idempotentReplay
+        );
+    }
+
+    private ReportDetailResponse queueReport(NormalizedGenerateRequest request) {
+        Instant now = Instant.now();
+        ReportExecutionReport report = new ReportExecutionReport(
+                UUID.randomUUID(),
+                request.projectId(),
+                request.executionRunId(),
+                request.requestKey(),
+                "QUEUED",
+                properties.effectiveSchemaVersion(),
+                null,
+                jsonSupport.json(queuedSummary(request, now)),
+                jsonSupport.json(queuedRedactionPolicy()),
+                actorResolver.currentActor(),
+                null,
+                null,
+                null,
+                TraceContext.getOrCreateTraceId(),
+                null,
+                now,
+                now
+        );
+        boolean inserted = repository.insertReportIfAbsent(report);
+        if (!inserted && StringUtils.hasText(request.requestKey())) {
+            return repository.reportByProjectRunRequestKey(
+                            request.projectId(),
+                            request.executionRunId(),
+                            request.requestKey()
+                    )
+                    .map(existing -> reportDetail(existing, true))
+                    .orElseThrow(() -> new BusinessException(ErrorCode.CONFLICT, "REPORT_DUPLICATE_REQUEST"));
+        }
+        audit(report, "report.generate.queued", "QUEUED", Map.of(
+                "status", "QUEUED",
+                "asyncGeneration", true,
+                "generationWorkerReady", properties.generationWorkerEnabled(),
+                "generationWorkerId", properties.effectiveGenerationWorkerId(),
+                "generationReasonPresent", StringUtils.hasText(request.reason())
+        ));
+        return responseMapper.toDetail(report, List.of(), Optional.empty(), List.of(), false);
+    }
+
+    private ReportDetailResponse queueRetry(ReportExecutionReport current) {
+        Instant now = Instant.now();
+        ReportExecutionReport queued = new ReportExecutionReport(
+                current.id(),
+                current.projectId(),
+                current.executionRunId(),
+                current.requestKey(),
+                "QUEUED",
+                current.schemaVersion(),
+                current.sourceRunDigest(),
+                jsonSupport.json(queueRetrySummary(current, now)),
+                current.redactionPolicyJson(),
+                actorResolver.currentActor(),
+                null,
+                null,
+                null,
+                current.traceId(),
+                null,
+                current.createdAt(),
+                now
+        );
+        if (!repository.updateReportIfStatus(queued, "FAILED")) {
+            throw new BusinessException(ErrorCode.INVALID_STATE, "REPORT_INVALID_STATE");
+        }
+        audit(queued, "report.generate.queued", "QUEUED", Map.of(
+                "status", "QUEUED",
+                "asyncGeneration", true,
+                "retry", true,
+                "generationWorkerReady", properties.generationWorkerEnabled(),
+                "generationWorkerId", properties.effectiveGenerationWorkerId(),
+                "generationReasonPresent", generationReasonPresent(current)
+        ));
+        return reportDetail(queued, false);
+    }
+
+    private ReportExecutionReport markGenerating(ReportExecutionReport current, Instant now) {
+        Map<String, Object> summary = new LinkedHashMap<>(jsonSupport.readMap(current.reportSummaryJson()));
+        summary.put("generationStatus", "GENERATING");
+        summary.put("asyncGeneration", true);
+        summary.put("generationWorkerId", properties.effectiveGenerationWorkerId());
+        summary.put("generationStartedAt", now);
+        return new ReportExecutionReport(
+                current.id(),
+                current.projectId(),
+                current.executionRunId(),
+                current.requestKey(),
+                "GENERATING",
+                current.schemaVersion(),
+                current.sourceRunDigest(),
+                jsonSupport.json(summary),
+                current.redactionPolicyJson(),
+                current.generatedBy(),
+                current.generatedAt(),
+                null,
+                null,
+                current.traceId(),
+                current.archivedAt(),
+                current.createdAt(),
+                now
+        );
+    }
+
+    private ReportExecutionReport markGenerationFailed(
+            ReportExecutionReport current,
+            String failedCode,
+            String failureSummary,
+            boolean workerRecovered,
+            Instant now
+    ) {
+        Map<String, Object> summary = new LinkedHashMap<>(jsonSupport.readMap(current.reportSummaryJson()));
+        summary.put("generationStatus", "FAILED");
+        summary.put("asyncGeneration", true);
+        summary.put("workerRecovered", workerRecovered);
+        summary.put("failureCode", failedCode);
+        summary.put("failureSummaryStored", true);
+        return new ReportExecutionReport(
+                current.id(),
+                current.projectId(),
+                current.executionRunId(),
+                current.requestKey(),
+                "FAILED",
+                current.schemaVersion(),
+                current.sourceRunDigest(),
+                jsonSupport.json(summary),
+                current.redactionPolicyJson(),
+                current.generatedBy(),
+                current.generatedAt(),
+                failedCode,
+                SensitiveTextSanitizer.sanitizedErrorSummary(
+                        failureSummary,
+                        "Report generation failed",
+                        512
+                ),
+                current.traceId(),
+                current.archivedAt(),
+                current.createdAt(),
+                now
+        );
+    }
+
+    private void failQueuedReport(ReportExecutionReport generating, RuntimeException exception) {
+        Instant now = Instant.now();
+        ReportExecutionReport failed = markGenerationFailed(
+                generating,
+                sourceErrorCode(exception),
+                exception.getMessage(),
+                false,
+                now
+        );
+        repository.updateReport(failed);
+        audit(failed, "report.generated", "FAILED", Map.of(
+                "asyncGeneration", true,
+                "workerId", properties.effectiveGenerationWorkerId(),
+                "errorCode", failed.failedCode()
+        ));
+    }
+
+    private NormalizedGenerateRequest generationRequest(ReportExecutionReport report) {
+        return new NormalizedGenerateRequest(
+                report.projectId(),
+                report.executionRunId(),
+                report.requestKey(),
+                generationReasonPresent(report) ? "queued" : null
+        );
+    }
+
+    private Map<String, Object> queuedSummary(NormalizedGenerateRequest request, Instant queuedAt) {
+        Map<String, Object> summary = new LinkedHashMap<>();
+        summary.put("source", "WP9_RUN_EXPORT");
+        summary.put("generationStatus", "QUEUED");
+        summary.put("asyncGeneration", true);
+        summary.put("generationReasonPresent", StringUtils.hasText(request.reason()));
+        summary.put("queuedAt", queuedAt);
+        summary.put("evidenceManifestCount", 0);
+        summary.put("defectDraftCount", 0);
+        summary.put("exportManifestCount", 0);
+        return summary;
+    }
+
+    private Map<String, Object> queueRetrySummary(ReportExecutionReport current, Instant queuedAt) {
+        Map<String, Object> summary = new LinkedHashMap<>(jsonSupport.readMap(current.reportSummaryJson()));
+        summary.remove("failureCode");
+        summary.remove("failureSummaryStored");
+        summary.remove("workerRecovered");
+        summary.put("generationStatus", "QUEUED");
+        summary.put("asyncGeneration", true);
+        summary.put("retryQueued", true);
+        summary.put("queuedAt", queuedAt);
+        return summary;
+    }
+
+    private Map<String, Object> queuedRedactionPolicy() {
+        Map<String, Object> policy = new LinkedHashMap<>();
+        policy.put("aggregateOnly", true);
+        policy.put("crossWpDirectTableReadAllowed", false);
+        policy.put("rawRunnerArtifactStored", false);
+        policy.put("stdoutStderrStored", false);
+        policy.put("requestResponseBodyStored", false);
+        policy.put("secretPlaintextStored", false);
+        policy.put("rawPromptStored", false);
+        policy.put("rawResponseStored", false);
+        policy.put("triggerPayloadStored", false);
+        return policy;
+    }
+
+    private boolean generationReasonPresent(ReportExecutionReport report) {
+        Object value = jsonSupport.readMap(report.reportSummaryJson()).get("generationReasonPresent");
+        return Boolean.TRUE.equals(value);
+    }
+
+    private String sourceErrorCode(RuntimeException exception) {
+        if (exception instanceof BusinessException businessException) {
+            return businessException.getErrorCode().name();
+        }
+        return exception.getClass().getSimpleName();
     }
 
     private void audit(ReportExecutionReport report, String action, String result, Map<String, Object> afterJson) {

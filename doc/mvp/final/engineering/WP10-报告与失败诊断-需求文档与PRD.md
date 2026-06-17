@@ -5,7 +5,7 @@
 | 工作包 | WP10 报告与失败诊断 |
 | 角色产出 | 资深产品经理 |
 | 文档性质 | 需求文档、产品 PRD 和产品验收标准 |
-| 当前口径 | 当前范围已推进至 M9：基于 WP9 脱敏 run export、`REPORT_HANDOFF` 摘要、WP8/WP3/WP5 aggregate-only evidence 和 WP2 模型能力，已交付可审计的报告、失败诊断、缺陷草稿、JSON/Markdown 导出和 `#reports` 控制面；外部缺陷写入、完整报告和趋势/BI 保持后续专项 |
+| 当前口径 | 当前范围已推进至 M10：基于 WP9 脱敏 run export、`REPORT_HANDOFF` 摘要、WP8/WP3/WP5 aggregate-only evidence 和 WP2 模型能力，已交付可审计的报告、可选异步生成 worker、失败诊断、缺陷草稿、JSON/Markdown 导出和 `#reports` 控制面；外部缺陷写入、完整报告和趋势/BI 保持后续专项 |
 | 版本 | v0.2 |
 | 日期 | 2026-06-17 |
 
@@ -38,7 +38,7 @@ WP10 负责把这些已脱敏输入组织成版本化报告快照，并提供规
 
 | 功能 | P0 口径 | P1 口径 |
 |---|---|---|
-| 报告生成 | `POST /api/v1/reports` 基于 `executionRunId` 创建快照，支持 `requestKey` 幂等 | 批量生成、异步队列优先级 |
+| 报告生成 | `POST /api/v1/reports` 基于 `executionRunId` 创建快照，支持 `requestKey` 幂等；默认同步生成，可通过开关进入 `QUEUED` 并由后台 worker 收敛到 `READY/FAILED` | 批量生成优先级、租户级容量配额 |
 | 报告查询 | 列表、详情、状态、run summary、节点计数、失败分类和证据 manifest | 趋势报表、历史对比 |
 | 证据聚合 | 当前消费 WP9 run export、REPORT_HANDOFF、WP8 report evidence、WP3 asset summary 和 WP5 manifest；仅保存 digest、状态、计数、summary keys 和 redaction flags | 受控 artifact 索引和审批后明细归档 |
 | 失败分类 | 基于 errorCode、status、nodeType、runnerMode、timeout、blocked、lease release 和 trigger 来源分类 | 可配置分类规则和团队标签 |
@@ -66,7 +66,7 @@ WP10 负责把这些已脱敏输入组织成版本化报告快照，并提供规
 2. 选择项目和 WP9 execution run，或从 WP9 运行详情点击生成报告。
 3. 前端提交 `executionRunId`、`requestKey` 和生成原因。
 4. 服务端校验 `report:generate`、项目 scope、WP9 run export 可读性和 `REPORT_HANDOFF` 摘要。
-5. 系统创建或回放报告快照，状态从 `QUEUED/GENERATING` 收敛到 `READY` 或 `FAILED`。
+5. 系统创建或回放报告快照；默认同步返回 `READY/FAILED`，异步开关开启时先返回 `QUEUED`，后台 worker 认领为 `GENERATING` 并收敛到 `READY` 或 `FAILED`。
 6. 用户进入报告详情查看摘要、证据、失败分类和 redaction policy。
 
 ### 6.2 查看失败诊断
@@ -97,12 +97,13 @@ WP10 负责把这些已脱敏输入组织成版本化报告快照，并提供规
 2. 同一 `executionRunId + requestKey` 必须幂等，重复请求返回既有报告。
 3. 报告快照一旦 `READY`，详情展示使用快照数据，不因源 run 后续变化静默改变。
 4. `FAILED` 报告可重试生成，但必须保留失败 traceId、错误码和审计。
-5. `ARCHIVED` 报告只读，不允许新增诊断、草稿或导出。
-6. 诊断必须先有规则分类；AI 失败时不阻断报告详情查看。
-7. AI 诊断上下文不得包含 raw prompt、raw response、secret、token、cookie、Authorization、lease token、stdout/stderr、请求响应正文、webhook payload 或账号凭据。
-8. 缺陷草稿只能引用 evidenceRef、digest、状态、计数和摘要 key，不复制原始 evidence 正文；WP3/WP5 证据同样不得包含资产正文、候选正文、Prompt 原文或模型载荷。
-9. 导出 manifest 必须声明 `aggregateOnly=true`、字段集版本、生成时间、digest 和禁止字段清单。
-10. 前端按钮显隐只做体验优化，最终准入以后端权限、项目 scope、报告状态和配置开关为准。
+5. 异步生成 worker 只能处理 WP10 自身 `report_execution_report` 队列，不触发、取消、重试或认领 WP9 execution run。
+6. `ARCHIVED` 报告只读，不允许新增诊断、草稿或导出。
+7. 诊断必须先有规则分类；AI 失败时不阻断报告详情查看。
+8. AI 诊断上下文不得包含 raw prompt、raw response、secret、token、cookie、Authorization、lease token、stdout/stderr、请求响应正文、webhook payload 或账号凭据。
+9. 缺陷草稿只能引用 evidenceRef、digest、状态、计数和摘要 key，不复制原始 evidence 正文；WP3/WP5 证据同样不得包含资产正文、候选正文、Prompt 原文或模型载荷。
+10. 导出 manifest 必须声明 `aggregateOnly=true`、字段集版本、生成时间、digest 和禁止字段清单。
+11. 前端按钮显隐只做体验优化，最终准入以后端权限、项目 scope、报告状态和配置开关为准。
 
 ## 8. 权限矩阵
 

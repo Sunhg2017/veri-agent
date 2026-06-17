@@ -8,6 +8,7 @@ import com.songhg.veri.agent.reporting.domain.ReportExecutionReport;
 import com.songhg.veri.agent.reporting.domain.ReportExportManifest;
 import com.songhg.veri.agent.reporting.domain.ReportFailureDiagnosis;
 import com.songhg.veri.agent.reporting.infrastructure.mapper.ReportingMapper;
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -32,6 +33,21 @@ public class JdbcReportingRepository implements ReportingRepository {
     @Override
     public void updateReport(ReportExecutionReport report) {
         mapper.updateReport(report);
+    }
+
+    @Override
+    public boolean updateReportIfStatus(ReportExecutionReport report, String expectedStatus) {
+        return mapper.updateReportIfStatus(report, expectedStatus) == 1;
+    }
+
+    @Override
+    public List<ReportExecutionReport> queuedReports(int limit) {
+        return mapper.queuedReports(limit);
+    }
+
+    @Override
+    public List<ReportExecutionReport> generatingReportsUpdatedBefore(Instant threshold, int limit) {
+        return mapper.generatingReportsUpdatedBefore(threshold, limit);
     }
 
     @Override

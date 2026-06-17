@@ -1927,6 +1927,74 @@ class DbProfileRepositoryContractTest {
     }
 
     @Test
+    void reportingRepositoryClaimsQueuedReportsAndScansStaleGeneratingThroughJdbc() {
+        Instant now = Instant.now();
+        UUID queuedReportId = UUID.randomUUID();
+        ReportExecutionReport queued = report(
+                queuedReportId,
+                "project-wp10-worker-db-" + UUID.randomUUID(),
+                "db-worker-queued-" + UUID.randomUUID(),
+                "QUEUED",
+                null,
+                now.minusSeconds(30)
+        );
+        ReportExecutionReport staleGenerating = report(
+                UUID.randomUUID(),
+                queued.projectId(),
+                "db-worker-stale-" + UUID.randomUUID(),
+                "GENERATING",
+                null,
+                now.minusSeconds(90)
+        );
+        ReportExecutionReport freshGenerating = report(
+                UUID.randomUUID(),
+                queued.projectId(),
+                "db-worker-fresh-" + UUID.randomUUID(),
+                "GENERATING",
+                null,
+                now
+        );
+
+        assertThat(reportingRepository.insertReportIfAbsent(queued)).isTrue();
+        assertThat(reportingRepository.insertReportIfAbsent(staleGenerating)).isTrue();
+        assertThat(reportingRepository.insertReportIfAbsent(freshGenerating)).isTrue();
+
+        assertThat(reportingRepository.queuedReports(10))
+                .extracting(ReportExecutionReport::id)
+                .contains(queuedReportId);
+        ReportExecutionReport generating = new ReportExecutionReport(
+                queued.id(),
+                queued.projectId(),
+                queued.executionRunId(),
+                queued.requestKey(),
+                "GENERATING",
+                queued.schemaVersion(),
+                queued.sourceRunDigest(),
+                "{\"generationStatus\":\"GENERATING\"}",
+                queued.redactionPolicyJson(),
+                queued.generatedBy(),
+                queued.generatedAt(),
+                null,
+                null,
+                queued.traceId(),
+                queued.archivedAt(),
+                queued.createdAt(),
+                now
+        );
+        assertThat(reportingRepository.updateReportIfStatus(generating, "QUEUED")).isTrue();
+        assertThat(reportingRepository.updateReportIfStatus(queued, "QUEUED")).isFalse();
+        assertThat(reportingRepository.report(queuedReportId))
+                .get()
+                .extracting(ReportExecutionReport::status)
+                .isEqualTo("GENERATING");
+
+        assertThat(reportingRepository.generatingReportsUpdatedBefore(now.minusSeconds(60), 10))
+                .extracting(ReportExecutionReport::id)
+                .contains(staleGenerating.id())
+                .doesNotContain(freshGenerating.id());
+    }
+
+    @Test
     void testDesignRepositoryAggregatesCrossWpAuditChainThroughJdbc() {
         String projectId = "project-wp5-audit-chain-db-" + UUID.randomUUID();
         Instant now = Instant.now();
@@ -2650,6 +2718,35 @@ class DbProfileRepositoryContractTest {
                 null,
                 "db-publisher",
                 createdAt
+        );
+    }
+
+    private static ReportExecutionReport report(
+            UUID reportId,
+            String projectId,
+            String requestKey,
+            String status,
+            String sourceRunDigest,
+            Instant now
+    ) {
+        return new ReportExecutionReport(
+                reportId,
+                projectId,
+                UUID.randomUUID(),
+                requestKey,
+                status,
+                "wp10-report-v1",
+                sourceRunDigest,
+                "{\"generationStatus\":\"" + status + "\"}",
+                "{\"aggregateOnly\":true}",
+                "db-test",
+                "READY".equals(status) ? now : null,
+                null,
+                null,
+                "trc_wp10_worker_db",
+                null,
+                now,
+                now
         );
     }
 

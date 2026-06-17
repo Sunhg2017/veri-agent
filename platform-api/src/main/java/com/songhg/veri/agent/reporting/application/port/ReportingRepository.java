@@ -6,6 +6,7 @@ import com.songhg.veri.agent.reporting.domain.ReportEvidenceManifest;
 import com.songhg.veri.agent.reporting.domain.ReportExecutionReport;
 import com.songhg.veri.agent.reporting.domain.ReportExportManifest;
 import com.songhg.veri.agent.reporting.domain.ReportFailureDiagnosis;
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -15,6 +16,12 @@ public interface ReportingRepository {
     boolean insertReportIfAbsent(ReportExecutionReport report);
 
     void updateReport(ReportExecutionReport report);
+
+    boolean updateReportIfStatus(ReportExecutionReport report, String expectedStatus);
+
+    List<ReportExecutionReport> queuedReports(int limit);
+
+    List<ReportExecutionReport> generatingReportsUpdatedBefore(Instant threshold, int limit);
 
     void replaceEvidenceManifests(UUID reportId, List<ReportEvidenceManifest> manifests);
 

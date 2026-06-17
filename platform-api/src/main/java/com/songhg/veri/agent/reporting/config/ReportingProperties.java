@@ -13,6 +13,22 @@ public record ReportingProperties(
         @DefaultValue("true") boolean enabled,
         /** Allows creating report snapshots from WP9 sanitized run exports. */
         @DefaultValue("true") boolean generateEnabled,
+        /** Queues create/retry requests instead of generating in the HTTP request thread. */
+        @DefaultValue("false") boolean asyncGenerationEnabled,
+        /** Enables the managed background worker that processes queued report snapshots. */
+        @DefaultValue("true") boolean generationWorkerEnabled,
+        /** Fixed delay for the managed report generation worker loop. */
+        @DefaultValue("5000") int generationWorkerIntervalMs,
+        /** Startup delay for the managed report generation worker loop. */
+        @DefaultValue("30000") int generationWorkerInitialDelayMs,
+        /** Worker ID recorded in worker ticks and generation summaries. */
+        @DefaultValue("wp10-report-worker") String generationWorkerId,
+        /** Maximum queued reports claimed by one worker tick. */
+        @DefaultValue("4") int generationWorkerBatchSize,
+        /** Timeout for reports stuck in GENERATING before recovery marks them FAILED. */
+        @DefaultValue("1800") int generationRunningTimeoutSeconds,
+        /** Maximum stale GENERATING reports recovered by one worker tick. */
+        @DefaultValue("50") int generationRecoveryBatchSize,
         /** Allows AI diagnosis through WP2; rule classification remains the fallback. */
         @DefaultValue("true") boolean diagnosisEnabled,
         /** Allows platform-local defect draft creation. */
@@ -36,6 +52,17 @@ public record ReportingProperties(
     private static final int MAX_DIAGNOSIS_CONTEXT_CHARS = 100_000;
     private static final int DEFAULT_MAX_EXPORT_MARKDOWN_CHARS = 30_000;
     private static final int MAX_EXPORT_MARKDOWN_CHARS = 200_000;
+    private static final int DEFAULT_GENERATION_WORKER_INTERVAL_MS = 5_000;
+    private static final int MAX_GENERATION_WORKER_INTERVAL_MS = 600_000;
+    private static final int DEFAULT_GENERATION_WORKER_INITIAL_DELAY_MS = 30_000;
+    private static final int MAX_GENERATION_WORKER_INITIAL_DELAY_MS = 3_600_000;
+    private static final int DEFAULT_GENERATION_WORKER_BATCH_SIZE = 4;
+    private static final int MAX_GENERATION_WORKER_BATCH_SIZE = 100;
+    private static final int DEFAULT_GENERATION_RUNNING_TIMEOUT_SECONDS = 1_800;
+    private static final int MAX_GENERATION_RUNNING_TIMEOUT_SECONDS = 86_400;
+    private static final int DEFAULT_GENERATION_RECOVERY_BATCH_SIZE = 50;
+    private static final int MAX_GENERATION_RECOVERY_BATCH_SIZE = 1_000;
+    private static final String DEFAULT_GENERATION_WORKER_ID = "wp10-report-worker";
     private static final String DEFAULT_SCHEMA_VERSION = "wp10-report-v1";
     private static final String DEFAULT_FIELD_SET_VERSION = "wp10-report-export-fields-v1";
 
@@ -60,6 +87,50 @@ public record ReportingProperties(
                 maxExportMarkdownChars,
                 DEFAULT_MAX_EXPORT_MARKDOWN_CHARS,
                 MAX_EXPORT_MARKDOWN_CHARS
+        );
+    }
+
+    public int effectiveGenerationWorkerIntervalMs() {
+        return boundedPositive(
+                generationWorkerIntervalMs,
+                DEFAULT_GENERATION_WORKER_INTERVAL_MS,
+                MAX_GENERATION_WORKER_INTERVAL_MS
+        );
+    }
+
+    public int effectiveGenerationWorkerInitialDelayMs() {
+        return boundedPositive(
+                generationWorkerInitialDelayMs,
+                DEFAULT_GENERATION_WORKER_INITIAL_DELAY_MS,
+                MAX_GENERATION_WORKER_INITIAL_DELAY_MS
+        );
+    }
+
+    public String effectiveGenerationWorkerId() {
+        return boundedText(generationWorkerId, DEFAULT_GENERATION_WORKER_ID, 128);
+    }
+
+    public int effectiveGenerationWorkerBatchSize() {
+        return boundedPositive(
+                generationWorkerBatchSize,
+                DEFAULT_GENERATION_WORKER_BATCH_SIZE,
+                MAX_GENERATION_WORKER_BATCH_SIZE
+        );
+    }
+
+    public int effectiveGenerationRunningTimeoutSeconds() {
+        return boundedPositive(
+                generationRunningTimeoutSeconds,
+                DEFAULT_GENERATION_RUNNING_TIMEOUT_SECONDS,
+                MAX_GENERATION_RUNNING_TIMEOUT_SECONDS
+        );
+    }
+
+    public int effectiveGenerationRecoveryBatchSize() {
+        return boundedPositive(
+                generationRecoveryBatchSize,
+                DEFAULT_GENERATION_RECOVERY_BATCH_SIZE,
+                MAX_GENERATION_RECOVERY_BATCH_SIZE
         );
     }
 

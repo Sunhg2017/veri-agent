@@ -12,6 +12,22 @@ public record ReportingHealthResponse(
         boolean enabled,
         @Schema(description = "是否允许报告生成")
         boolean generateEnabled,
+        @Schema(description = "是否将报告生成请求异步入队")
+        boolean asyncGenerationEnabled,
+        @Schema(description = "是否启用报告生成后台 worker")
+        boolean generationWorkerEnabled,
+        @Schema(description = "报告生成后台 worker 轮询间隔")
+        int generationWorkerIntervalMs,
+        @Schema(description = "报告生成后台 worker 启动延迟")
+        int generationWorkerInitialDelayMs,
+        @Schema(description = "报告生成后台 worker ID")
+        String generationWorkerId,
+        @Schema(description = "单次 worker tick 认领上限")
+        int generationWorkerBatchSize,
+        @Schema(description = "GENERATING 超时秒数")
+        int generationRunningTimeoutSeconds,
+        @Schema(description = "单次 worker tick stale 恢复上限")
+        int generationRecoveryBatchSize,
         @Schema(description = "是否允许 AI 诊断")
         boolean diagnosisEnabled,
         @Schema(description = "是否允许生成缺陷草稿")

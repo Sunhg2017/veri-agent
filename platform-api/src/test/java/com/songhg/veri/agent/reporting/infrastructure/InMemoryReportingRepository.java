@@ -7,6 +7,7 @@ import com.songhg.veri.agent.reporting.domain.ReportEvidenceManifest;
 import com.songhg.veri.agent.reporting.domain.ReportExecutionReport;
 import com.songhg.veri.agent.reporting.domain.ReportExportManifest;
 import com.songhg.veri.agent.reporting.domain.ReportFailureDiagnosis;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -46,6 +47,31 @@ public class InMemoryReportingRepository implements ReportingRepository {
     @Override
     public void updateReport(ReportExecutionReport report) {
         reports.computeIfPresent(report.id(), (ignored, current) -> report);
+    }
+
+    @Override
+    public boolean updateReportIfStatus(ReportExecutionReport report, String expectedStatus) {
+        return reports.computeIfPresent(report.id(), (ignored, current) ->
+                expectedStatus.equals(current.status()) ? report : current) == report;
+    }
+
+    @Override
+    public List<ReportExecutionReport> queuedReports(int limit) {
+        return reports.values().stream()
+                .filter(report -> "QUEUED".equals(report.status()))
+                .sorted(Comparator.comparing(ReportExecutionReport::createdAt))
+                .limit(Math.max(1, limit))
+                .toList();
+    }
+
+    @Override
+    public List<ReportExecutionReport> generatingReportsUpdatedBefore(Instant threshold, int limit) {
+        return reports.values().stream()
+                .filter(report -> "GENERATING".equals(report.status()))
+                .filter(report -> report.updatedAt() != null && report.updatedAt().isBefore(threshold))
+                .sorted(Comparator.comparing(ReportExecutionReport::updatedAt))
+                .limit(Math.max(1, limit))
+                .toList();
     }
 
     @Override

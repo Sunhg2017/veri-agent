@@ -4,12 +4,12 @@
 |---|---|
 | 工作包 | WP10 报告与失败诊断 |
 | 文档性质 | 报告生成、证据 manifest、AI 诊断、缺陷草稿、导出脱敏、回滚和发布准出 Runbook |
-| 当前口径 | WP10 当前由 `platform-api` 承载报告控制面，消费 WP9/WP8 aggregate-only 摘要，通过 WP2 受控模型调用生成诊断建议，并由 `portal-web #reports` 提供浏览器主链路 |
+| 当前口径 | WP10 当前由 `platform-api` 承载报告控制面，消费 WP9/WP8/WP3/WP5 aggregate-only 摘要，默认同步生成并可选由后台 worker 处理自身报告队列，通过 WP2 受控模型调用生成诊断建议，并由 `portal-web #reports` 提供浏览器主链路 |
 | 日期 | 2026-06-17 |
 
 ## 1. 适用范围
 
-本 Runbook 适用于 WP10 开发、预发和生产发布准出，以及报告生成失败、evidence manifest 异常、AI 诊断降级、模型预算阻断、缺陷草稿异常、导出阻断、前端 DOM 脱敏异常和紧急回滚处理。
+本 Runbook 适用于 WP10 开发、预发和生产发布准出，以及报告生成失败、worker 认领失败、stale `GENERATING` 恢复、evidence manifest 异常、AI 诊断降级、模型预算阻断、缺陷草稿异常、导出阻断、前端 DOM 脱敏异常和紧急回滚处理。
 
 WP10 是报告与失败诊断控制面，不触发 runner、不调度 execution run、不写外部缺陷系统、不归档 runner 原始产物。排障时只能围绕已持久化的 aggregate-only report summary、evidence manifest digest、latest diagnosis、defect draft preview、export manifest 和 traceId 追踪，不得要求或补采 runner stdout/stderr、请求/响应正文、webhook payload、raw prompt 或 raw response。
 
@@ -19,6 +19,14 @@ WP10 是报告与失败诊断控制面，不触发 runner、不调度 execution 
 |---|---|---|
 | `WP10_REPORTING_ENABLED` / `veri-agent.reporting.enabled` | `true` | WP10 报告控制面总开关；关闭后业务写操作应阻断，health 仍用于观测。 |
 | `WP10_REPORT_GENERATE_ENABLED` / `veri-agent.reporting.generate-enabled` | `true` | 是否允许生成或重试报告。 |
+| `WP10_REPORT_ASYNC_GENERATION_ENABLED` / `veri-agent.reporting.async-generation-enabled` | `false` | 是否将生成和重试请求先写入 `QUEUED`，由 worker 后台处理。 |
+| `WP10_REPORT_GENERATION_WORKER_ENABLED` / `veri-agent.reporting.generation-worker-enabled` | `true` | 是否启用 managed 报告生成 worker。 |
+| `WP10_REPORT_GENERATION_WORKER_INTERVAL_MS` / `veri-agent.reporting.generation-worker-interval-ms` | `5000` | worker 固定 delay。 |
+| `WP10_REPORT_GENERATION_WORKER_INITIAL_DELAY_MS` / `veri-agent.reporting.generation-worker-initial-delay-ms` | `30000` | worker 初始延迟。 |
+| `WP10_REPORT_GENERATION_WORKER_ID` / `veri-agent.reporting.generation-worker-id` | `wp10-report-worker` | worker 标识。 |
+| `WP10_REPORT_GENERATION_WORKER_BATCH_SIZE` / `veri-agent.reporting.generation-worker-batch-size` | `4` | 单次 tick 认领上限。 |
+| `WP10_REPORT_GENERATION_RUNNING_TIMEOUT_SECONDS` / `veri-agent.reporting.generation-running-timeout-seconds` | `1800` | `GENERATING` 超时恢复阈值。 |
+| `WP10_REPORT_GENERATION_RECOVERY_BATCH_SIZE` / `veri-agent.reporting.generation-recovery-batch-size` | `50` | 单次 tick 恢复上限。 |
 | `WP10_DIAGNOSIS_ENABLED` / `veri-agent.reporting.diagnosis-enabled` | `true` | 是否允许触发 WP2 AI 诊断；关闭后保留既有规则分类。 |
 | `WP10_DEFECT_DRAFT_ENABLED` / `veri-agent.reporting.defect-draft-enabled` | `true` | 是否允许生成平台内缺陷草稿。 |
 | `WP10_REPORT_EXPORT_ENABLED` / `veri-agent.reporting.export-enabled` | `true` | 是否允许 JSON/Markdown 脱敏摘要导出。 |
@@ -31,7 +39,7 @@ WP10 是报告与失败诊断控制面，不触发 runner、不调度 execution 
 生产建议：
 
 1. 首次发布先确认 `GET /api/v1/reports/health` 的开关、limits、schemaVersion、fieldSetVersion 和 policy 摘要符合发布计划。
-2. 若发现报告生成或跨 WP 证据异常，优先关闭 `WP10_REPORT_GENERATE_ENABLED=false`，保留既有报告详情只读排障。
+2. 若发现报告生成、worker 认领或跨 WP 证据异常，优先关闭 `WP10_REPORT_GENERATE_ENABLED=false`；若只需绕开后台队列，可关闭 `WP10_REPORT_ASYNC_GENERATION_ENABLED=false` 回到同步生成。
 3. 若发现模型预算、provider 或上下文安全风险，优先关闭 `WP10_DIAGNOSIS_ENABLED=false`，规则分类仍可作为 fallback。
 4. 若发现导出或页面泄露风险，优先关闭 `WP10_REPORT_EXPORT_ENABLED=false` 并撤销 `report:export` 权限。
 5. 若发现草稿字段或 payload preview 风险，优先关闭 `WP10_DEFECT_DRAFT_ENABLED=false`，不要删除既有草稿证据。
@@ -87,12 +95,15 @@ WP10_FRONTEND_INSTALL_BROWSERS=1 bash scripts/wp10_frontend_e2e_smoke.sh
 9. DB validation 覆盖 WP10 表、约束、索引、权限、角色授权、基础配置、审计事件和无 `tenant_id` 回归。
 10. 涉及 Java 代码的发布必须运行 `bash scripts/platform_api_java_line_guard.sh`，并完成《阿里巴巴 Java 开发手册》自查和核心逻辑注释检查。
 
-## 5. 报告生成失败处理
+## 5. 报告生成和 worker 失败处理
 
 | 现象或错误码 | 常见原因 | 处理 |
 |---|---|---|
 | `REPORT_DISABLED` | WP10 总开关关闭。 | 确认发布计划是否允许开启 `WP10_REPORTING_ENABLED=true`；不允许时保持只读观测。 |
 | `REPORT_GENERATE_DISABLED` | 生成开关关闭。 | 如为止血状态，继续保留；如为误配，开启后重跑 report smoke。 |
+| 异步入队后长时间停留在 `QUEUED` | worker 关闭、初始延迟过长、tick 频率过低或批量处理被堆积占满。 | 检查 health 的 `asyncGenerationEnabled/generationWorkerEnabled/generationWorkerBatchSize` 和 worker 日志；必要时关闭 `WP10_REPORT_ASYNC_GENERATION_ENABLED=false` 回到同步生成。 |
+| worker tick 跳过 queued candidate | 并发 worker 或手动 tick 已先一步条件认领。 | 观察 tick 的 `skippedCandidateCount`；通常属于正常竞争保护，不要手工改状态。 |
+| stale `GENERATING` 被恢复为 FAILED | worker 进程中断、生成耗时超过阈值或跨 WP 调用长时间失败。 | 检查 `WP10_REPORT_GENERATION_RUNNING_TIMEOUT_SECONDS`、`report.generate.recovered` 审计和失败 traceId；确认源 run 仍可读后执行 retry。 |
 | `REPORT_SOURCE_RUN_NOT_FOUND` | run 不存在、跨项目不可见或用户无源 run scope。 | 核对 projectId、executionRunId、用户角色和 WP9 run 归属；不要放宽为全局查询。 |
 | `REPORT_SOURCE_RUN_NOT_READY` | WP9 run 未终态、缺少 `REPORT_HANDOFF`、或 handoff 摘要不满足 `rawReportStored=false`。 | 先排查 WP9 run export 和 REPORT_HANDOFF 节点，不在 WP10 侧伪造报告。 |
 | `REPORT_INVALID_STATE` | 对 READY/ARCHIVED 报告执行不允许的重试、诊断或导出动作。 | 刷新详情，按状态机操作；FAILED 才能重试生成。 |
@@ -107,6 +118,12 @@ WP10_FRONTEND_INSTALL_BROWSERS=1 bash scripts/wp10_frontend_e2e_smoke.sh
 bash scripts/wp10_report_smoke.sh
 ```
 
+worker 链路恢复后额外运行：
+
+```bash
+mvn -B -pl platform-api -Dtest=ReportGenerationWorkerServiceTest,ReportingHealthControllerTest test
+```
+
 ## 6. Evidence Manifest 异常处理
 
 | 场景 | 推荐操作 | 证据 |
@@ -115,7 +132,7 @@ bash scripts/wp10_report_smoke.sh
 | WP8 manifest 缺失 | 确认 WP9 节点摘要是否包含 WP8 引用 key，如 `accountLeaseRef(s)`、`dataSetRef(s)`、`cleanupTaskRef(s)`。 | summaryKeys、sourceRefDigest、WP8 reportEvidence 调用结果。 |
 | manifest 数量被裁剪 | 检查 `WP10_MAX_EVIDENCE_ITEMS` 和 report summary 的 truncated 标记。 | maxEvidenceItems、evidenceManifestCount、evidenceManifestTruncated。 |
 | evidence 命中敏感样本 | 立即关闭生成和导出，保留报告与 traceId，运行 export redaction smoke 和 diagnosis redaction eval。 | reportId、manifestDigest、redactionFlags、blocked policy。 |
-| WP3/WP5 证据为空 | 当前仍为后续专项，不能作为 WP10 P0 阻断。 | 记录后续专项边界，不手工直连 WP3/WP5 表补数据。 |
+| WP3/WP5 证据为空 | WP9 节点摘要未输出对应白名单引用，或引用跨项目/已不可见。 | 检查 `summaryKeys`、sourceRefDigest、WP3/WP5 应用服务 aggregate-only 响应和项目 scope；不要手工直连 WP3/WP5 表补数据。 |
 
 WP10 不直连 WP8/WP9/WP3/WP5 表。确需跨 WP 追踪时，通过对应应用服务、导出接口或明确 port 获取 aggregate-only 摘要。
 
@@ -177,7 +194,7 @@ bash scripts/wp10_diagnosis_redaction_eval.sh
 
 应急步骤：
 
-1. 立即关闭相关开关：导出泄露关闭 `WP10_REPORT_EXPORT_ENABLED=false`；诊断上下文风险关闭 `WP10_DIAGNOSIS_ENABLED=false`；草稿风险关闭 `WP10_DEFECT_DRAFT_ENABLED=false`；必要时关闭 `WP10_REPORT_GENERATE_ENABLED=false`。
+1. 立即关闭相关开关：导出泄露关闭 `WP10_REPORT_EXPORT_ENABLED=false`；诊断上下文风险关闭 `WP10_DIAGNOSIS_ENABLED=false`；草稿风险关闭 `WP10_DEFECT_DRAFT_ENABLED=false`；必要时关闭 `WP10_REPORT_GENERATE_ENABLED=false` 或 `WP10_REPORT_ASYNC_GENERATION_ENABLED=false`。
 2. 暂停发布或回滚流量入口，保留 reportId、traceId、export manifest、diagnosis contextDigest、modelInvocationDigest 和审计事件。
 3. 不在工单、聊天、release notes 或日志中复制敏感原文；只记录命中类别和 digest。
 4. 运行 `bash scripts/wp10_diagnosis_redaction_eval.sh`、`bash scripts/wp10_export_redaction_smoke.sh` 和前端 DOM smoke。
@@ -227,11 +244,12 @@ bash scripts/wp10_frontend_e2e_smoke.sh
 1. 暂停导出：设置 `WP10_REPORT_EXPORT_ENABLED=false`，必要时撤销 `report:export`。
 2. 暂停 AI 诊断：设置 `WP10_DIAGNOSIS_ENABLED=false`，规则分类仍可用。
 3. 暂停缺陷草稿：设置 `WP10_DEFECT_DRAFT_ENABLED=false`。
-4. 暂停生成和重试：设置 `WP10_REPORT_GENERATE_ENABLED=false`，保留既有报告只读。
-5. 暂停 WP10 控制面：设置 `WP10_REPORTING_ENABLED=false`。
-6. 回退应用版本或本次文档/代码 commit；涉及 DB migration 时按 `WP1-WP4-数据库迁移回滚与前滚策略.md` 走前滚修复，不手工回滚已执行 Flyway 版本。
-7. 保留 report、evidence、diagnosis、draft、export manifest 和 audit 数据；不要直接删除证据。
-8. 修复后按 `bash scripts/wp10_quality_gate.sh`、`mvn -B -pl platform-api test`、`cd portal-web && npm test`、`cd portal-web && npm run build` 和 DB validation 重跑准出。
+4. 暂停异步入队：设置 `WP10_REPORT_ASYNC_GENERATION_ENABLED=false`，回到同步生成路径。
+5. 暂停生成和重试：设置 `WP10_REPORT_GENERATE_ENABLED=false`，保留既有报告只读。
+6. 暂停 WP10 控制面：设置 `WP10_REPORTING_ENABLED=false`。
+7. 回退应用版本或本次文档/代码 commit；涉及 DB migration 时按 `WP1-WP4-数据库迁移回滚与前滚策略.md` 走前滚修复，不手工回滚已执行 Flyway 版本。
+8. 保留 report、evidence、diagnosis、draft、export manifest 和 audit 数据；不要直接删除证据。
+9. 修复后按 `bash scripts/wp10_quality_gate.sh`、`mvn -B -pl platform-api test`、`cd portal-web && npm test`、`cd portal-web && npm run build` 和 DB validation 重跑准出。
 
 ## 14. 准出记录
 
