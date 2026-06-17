@@ -21,7 +21,7 @@ M8C 目标是完成 WP10-8.4 发布准出说明，把 M1-M8B 的功能交付、�
 1. 不修改 `platform-api` Java 生产代码、API 契约、DB migration、模型调用或脚本逻辑。
 2. 不修改 `portal-web` 运行时代码、样式、路由或 Playwright smoke。
 3. 不新增 WP3/WP5 evidence adapter、真实 provider 质量评测看板、外部缺陷系统写入、PDF/Word 完整报告、趋势报表或生产容量承诺。
-4. 不替代后续 WP10 剩余工作盘点；WP10-8.5 仍需单独审计当前完成项和后续专项。
+4. 不替代 WP10 剩余工作盘点；WP10-8.5 已在后续 M8D 单独审计当前完成项和后续专项。
 
 ## 3. 涉及模块
 

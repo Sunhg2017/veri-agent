@@ -68,6 +68,7 @@ AI 驱动的端到端企业级测试平台。WP1、WP2、WP3、WP4 是研发任�
 | `doc/mvp/final/engineering/WP10-报告与失败诊断-测试策略与用例脚本.md` | WP10 测试策略、报告/诊断/导出用例矩阵、脱敏扫描、AI 评测和质量门禁建议。 |
 | `doc/mvp/final/engineering/WP10-报告与失败诊断-研发任务拆解.md` | WP10 Epic/Story/Task 研发拆解、实施顺序和 P0 完成定义。 |
 | `doc/mvp/final/engineering/WP10-报告与失败诊断-发布准出说明.md` | WP10 发布准出总说明，覆盖当前范围、验证记录、跳过项、风险、回滚和五角色准出。 |
+| `doc/mvp/final/engineering/WP10-报告与失败诊断-剩余工作盘点.md` | WP10 当前范围剩余工作盘点，区分已完成项、发布前必做和后续专项。 |
 | `doc/mvp/final/engineering/WP10-报告与失败诊断-M1基础控制面交付说明.md` | WP10 M1 基础控制面交付记录，覆盖权限、DB、validation、配置和 health API。 |
 | `doc/mvp/final/engineering/WP10-报告与失败诊断-M2报告生成查询交付说明.md` | WP10 M2 报告生成/查询交付记录，覆盖 WP9 脱敏 run export、requestKey 幂等、列表详情、归档和 smoke。 |
 | `doc/mvp/final/engineering/WP10-报告与失败诊断-M3A-WP9证据Manifest交付说明.md` | WP10 M3A WP9 证据 manifest 交付记录，覆盖节点级 manifest、summary key 白名单、脱敏边界和详情返回。 |
@@ -84,6 +85,7 @@ AI 驱动的端到端企业级测试平台。WP1、WP2、WP3、WP4 是研发任�
 | `doc/mvp/final/engineering/WP10-报告与失败诊断-M8A前端操作说明交付说明.md` | WP10 M8A 前端操作说明交付记录，覆盖 `#reports` 浏览器操作说明、文档验收和五角色结论。 |
 | `doc/mvp/final/engineering/WP10-报告与失败诊断-M8B运维Runbook交付说明.md` | WP10 M8B 运维 Runbook 交付记录，覆盖报告/诊断/导出排障、敏感泄露止血和回滚准出。 |
 | `doc/mvp/final/engineering/WP10-报告与失败诊断-M8C发布准出说明交付说明.md` | WP10 M8C 发布准出说明交付记录，覆盖 release gate、风险、回滚和五角色准出收口。 |
+| `doc/mvp/final/engineering/WP10-报告与失败诊断-M8D剩余工作盘点交付说明.md` | WP10 M8D 剩余工作盘点交付记录，覆盖当前范围无剩余 P0 功能开发项和后续专项边界。 |
 | `doc/mvp/final/engineering/WP9-执行编排与任务调度-M1基础控制面交付说明.md` | WP9 M1 基础控制面交付记录，覆盖权限、DB、validation、配置和 health API。 |
 | `doc/mvp/final/engineering/WP9-执行编排与任务调度-M2计划与DAG交付说明.md` | WP9 M2 计划与 DAG 交付记录，覆盖 plan CRUD、DAG validator、dry-run、状态保护和后端测试。 |
 | `doc/mvp/final/engineering/WP9-执行编排与任务调度-M3A手动触发与运行记录交付说明.md` | WP9 M3A 手动触发与运行记录交付记录，覆盖 run/node run 初始化、requestKey 幂等和运行查询。 |
