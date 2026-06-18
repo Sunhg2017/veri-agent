@@ -5,6 +5,9 @@ final class UiE2ePermissionScopes {
     static final String SCENE_REQUEST = "@uiE2ePermissionScopeResolver.sceneRequest(#command)";
     static final String SCENE_LIST = "@uiE2ePermissionScopeResolver.sceneList(#request)";
     static final String SCENE = "@uiE2ePermissionScopeResolver.scene(#id)";
+    static final String BUNDLE_REQUEST = "@uiE2ePermissionScopeResolver.bundleRequest(#command)";
+    static final String BUNDLE_LIST = "@uiE2ePermissionScopeResolver.bundleList(#request)";
+    static final String BUNDLE = "@uiE2ePermissionScopeResolver.bundle(#id)";
 
     private UiE2ePermissionScopes() {
     }

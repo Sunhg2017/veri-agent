@@ -65,7 +65,10 @@ import com.songhg.veri.agent.testdata.domain.TestDataTask;
 import com.songhg.veri.agent.testdata.domain.TestPooledAccount;
 import com.songhg.veri.agent.testdata.infrastructure.JdbcTestDataRepository;
 import com.songhg.veri.agent.uie2e.application.port.UiE2eRepository;
+import com.songhg.veri.agent.uie2e.application.query.UiE2eBundleQuery;
 import com.songhg.veri.agent.uie2e.application.query.UiE2eSceneQuery;
+import com.songhg.veri.agent.uie2e.domain.UiE2eBundle;
+import com.songhg.veri.agent.uie2e.domain.UiE2eBundleReview;
 import com.songhg.veri.agent.uie2e.domain.UiE2eScene;
 import com.songhg.veri.agent.uie2e.domain.UiE2eSceneStep;
 import com.songhg.veri.agent.uie2e.infrastructure.JdbcUiE2eRepository;
@@ -416,6 +419,107 @@ class DbProfileRepositoryContractTest {
                 .get()
                 .extracting(UiE2eScene::status)
                 .isEqualTo("ARCHIVED");
+    }
+
+    @Test
+    void uiE2eRepositoryPersistsBundlesAndReviewsThroughJdbc() {
+        Instant now = Instant.now();
+        UUID sceneId = UUID.randomUUID();
+        UUID bundleId = UUID.randomUUID();
+        String projectId = "project-wp7-bundle-db-" + UUID.randomUUID();
+
+        uiE2eRepository.insertScene(new UiE2eScene(
+                sceneId,
+                projectId,
+                "app-db",
+                "env-db",
+                "portal-bundle-review",
+                "Portal bundle review",
+                "APPROVED",
+                "HIGH",
+                "{\"pageRefs\":[]}",
+                "[\"review\"]",
+                "db-tester",
+                "db-tester",
+                null,
+                now,
+                now
+        ));
+
+        uiE2eRepository.insertBundle(new UiE2eBundle(
+                bundleId,
+                sceneId,
+                projectId,
+                "DRAFT",
+                "a".repeat(64),
+                "{\"templateVersion\":\"wp7-playwright-summary-v1\"}",
+                "{\"requiredFixtures\":[\"page\"]}",
+                "{\"status\":\"PASSED\",\"findingCount\":0}",
+                null,
+                null,
+                null,
+                null,
+                null,
+                "db-tester",
+                "db-tester",
+                null,
+                now,
+                now
+        ));
+
+        assertThat(uiE2eRepository.activeBundleBySceneAndDigest(sceneId, "a".repeat(64)))
+                .isPresent()
+                .get()
+                .extracting(UiE2eBundle::status)
+                .isEqualTo("DRAFT");
+
+        UiE2eBundle reviewing = new UiE2eBundle(
+                bundleId,
+                sceneId,
+                projectId,
+                "REVIEWING",
+                "a".repeat(64),
+                "{\"templateVersion\":\"wp7-playwright-summary-v1\"}",
+                "{\"requiredFixtures\":[\"page\"]}",
+                "{\"status\":\"PASSED\",\"findingCount\":0}",
+                "db-reviewer",
+                null,
+                now.plusSeconds(1),
+                null,
+                null,
+                "db-tester",
+                "db-reviewer",
+                null,
+                now,
+                now.plusSeconds(1)
+        );
+        uiE2eRepository.updateBundle(reviewing);
+        uiE2eRepository.insertBundleReview(new UiE2eBundleReview(
+                UUID.randomUUID(),
+                bundleId,
+                projectId,
+                "SUBMITTED",
+                "ready",
+                "db-reviewer",
+                now.plusSeconds(1),
+                "db-reviewer",
+                "db-reviewer",
+                now.plusSeconds(1),
+                now.plusSeconds(1)
+        ));
+
+        UiE2eBundleQuery query = new UiE2eBundleQuery(projectId, sceneId, "REVIEWING", "portal", 0, 10);
+        assertThat(uiE2eRepository.countBundles(query)).isEqualTo(1);
+        assertThat(uiE2eRepository.bundles(query))
+                .singleElement()
+                .extracting(UiE2eBundle::status)
+                .isEqualTo("REVIEWING");
+        assertThat(uiE2eRepository.bundleReviews(bundleId))
+                .singleElement()
+                .extracting(UiE2eBundleReview::reviewStatus)
+                .isEqualTo("SUBMITTED");
+
+        assertThat(uiE2eRepository.bundleProjectScopeId(bundleId)).contains(projectId);
     }
 
     @Test

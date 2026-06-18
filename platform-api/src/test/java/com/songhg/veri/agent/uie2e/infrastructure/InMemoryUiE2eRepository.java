@@ -1,9 +1,12 @@
 package com.songhg.veri.agent.uie2e.infrastructure;
 
+import com.songhg.veri.agent.uie2e.application.query.UiE2eBundleQuery;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.songhg.veri.agent.uie2e.application.port.UiE2eRepository;
 import com.songhg.veri.agent.uie2e.application.query.UiE2eSceneQuery;
+import com.songhg.veri.agent.uie2e.domain.UiE2eBundle;
+import com.songhg.veri.agent.uie2e.domain.UiE2eBundleReview;
 import com.songhg.veri.agent.uie2e.domain.UiE2eScene;
 import com.songhg.veri.agent.uie2e.domain.UiE2eSceneStep;
 import java.io.UncheckedIOException;
@@ -32,6 +35,8 @@ public class InMemoryUiE2eRepository implements UiE2eRepository {
 
     private final ConcurrentHashMap<UUID, UiE2eScene> scenes = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, UiE2eSceneStep> steps = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<UUID, UiE2eBundle> bundles = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, UiE2eBundleReview> bundleReviews = new ConcurrentHashMap<>();
 
     @Override
     public void insertScene(UiE2eScene scene) {
@@ -101,6 +106,73 @@ public class InMemoryUiE2eRepository implements UiE2eRepository {
                 .toList();
     }
 
+    @Override
+    public void insertBundle(UiE2eBundle bundle) {
+        if (activeBundleBySceneAndDigest(bundle.sceneId(), bundle.bundleDigest()).isPresent()) {
+            throw new DuplicateKeyException("Duplicate ui-e2e bundle digest");
+        }
+        bundles.put(bundle.id(), bundle);
+    }
+
+    @Override
+    public void updateBundle(UiE2eBundle bundle) {
+        bundles.put(bundle.id(), bundle);
+    }
+
+    @Override
+    public Optional<UiE2eBundle> bundle(UUID id) {
+        return Optional.ofNullable(bundles.get(id));
+    }
+
+    @Override
+    public Optional<UiE2eBundle> activeBundleBySceneAndDigest(UUID sceneId, String bundleDigest) {
+        return bundles.values().stream()
+                .filter(bundle -> sceneId.equals(bundle.sceneId()))
+                .filter(bundle -> bundleDigest.equals(bundle.bundleDigest()))
+                .filter(bundle -> !"ARCHIVED".equals(bundle.status()))
+                .findFirst();
+    }
+
+    @Override
+    public List<UiE2eBundle> bundles(UiE2eBundleQuery query) {
+        return filteredBundles(query)
+                .skip(query.offset())
+                .limit(query.limit())
+                .toList();
+    }
+
+    @Override
+    public long countBundles(UiE2eBundleQuery query) {
+        return filteredBundles(query).count();
+    }
+
+    @Override
+    public List<UiE2eBundle> sceneBundles(UUID sceneId) {
+        return bundles.values().stream()
+                .filter(bundle -> sceneId.equals(bundle.sceneId()))
+                .sorted(Comparator.comparing(UiE2eBundle::updatedAt).reversed().thenComparing(UiE2eBundle::id))
+                .toList();
+    }
+
+    @Override
+    public Optional<String> bundleProjectScopeId(UUID id) {
+        return bundle(id).map(UiE2eBundle::projectId);
+    }
+
+    @Override
+    public void insertBundleReview(UiE2eBundleReview review) {
+        bundleReviews.put(bundleReviewKey(review.bundleId(), review.id()), review);
+    }
+
+    @Override
+    public List<UiE2eBundleReview> bundleReviews(UUID bundleId) {
+        return bundleReviews.values().stream()
+                .filter(review -> bundleId.equals(review.bundleId()))
+                .sorted(Comparator.comparing(UiE2eBundleReview::reviewedAt, Comparator.nullsLast(Comparator.reverseOrder()))
+                        .thenComparing(UiE2eBundleReview::createdAt, Comparator.reverseOrder()))
+                .toList();
+    }
+
     private Stream<UiE2eScene> filteredScenes(UiE2eSceneQuery query) {
         return scenes.values().stream()
                 .filter(scene -> query.projectId() == null || query.projectId().equals(scene.projectId()))
@@ -111,6 +183,15 @@ public class InMemoryUiE2eRepository implements UiE2eRepository {
                 .filter(scene -> query.tag() == null || containsTag(scene.tagsJson(), query.tag()))
                 .filter(scene -> keywordMatches(scene, query.keyword()))
                 .sorted(Comparator.comparing(UiE2eScene::updatedAt).reversed().thenComparing(UiE2eScene::id));
+    }
+
+    private Stream<UiE2eBundle> filteredBundles(UiE2eBundleQuery query) {
+        return bundles.values().stream()
+                .filter(bundle -> query.projectId() == null || query.projectId().equals(bundle.projectId()))
+                .filter(bundle -> query.sceneId() == null || query.sceneId().equals(bundle.sceneId()))
+                .filter(bundle -> query.status() == null || query.status().equals(bundle.status()))
+                .filter(bundle -> bundleKeywordMatches(bundle, query.keyword()))
+                .sorted(Comparator.comparing(UiE2eBundle::updatedAt).reversed().thenComparing(UiE2eBundle::id));
     }
 
     private boolean keywordMatches(UiE2eScene scene, String keyword) {
@@ -129,6 +210,18 @@ public class InMemoryUiE2eRepository implements UiE2eRepository {
         return value != null && value.toLowerCase(Locale.ROOT).contains(loweredKeyword);
     }
 
+    private boolean bundleKeywordMatches(UiE2eBundle bundle, String keyword) {
+        if (!StringUtils.hasText(keyword)) {
+            return true;
+        }
+        String lowered = keyword.toLowerCase(Locale.ROOT);
+        UiE2eScene scene = scenes.get(bundle.sceneId());
+        if (scene == null) {
+            return contains(bundle.bundleDigest(), lowered);
+        }
+        return contains(scene.code(), lowered) || contains(scene.name(), lowered) || contains(bundle.bundleDigest(), lowered);
+    }
+
     private List<String> readTags(String tagsJson) {
         if (!StringUtils.hasText(tagsJson)) {
             return List.of();
@@ -142,5 +235,9 @@ public class InMemoryUiE2eRepository implements UiE2eRepository {
 
     private String stepKey(UUID sceneId, int order) {
         return sceneId + ":" + order;
+    }
+
+    private String bundleReviewKey(UUID bundleId, UUID reviewId) {
+        return bundleId + ":" + reviewId;
     }
 }

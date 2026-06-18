@@ -28,6 +28,12 @@ class UiE2eOpenApiContractTest {
                 .andExpect(jsonPath("$.paths['/api/v1/ui-e2e/scenes'].get").exists())
                 .andExpect(jsonPath("$.paths['/api/v1/ui-e2e/scenes/{id}'].get").exists())
                 .andExpect(jsonPath("$.paths['/api/v1/ui-e2e/scenes/{id}'].patch").exists())
-                .andExpect(jsonPath("$.paths['/api/v1/ui-e2e/scenes/{id}/archive'].post").exists());
+                .andExpect(jsonPath("$.paths['/api/v1/ui-e2e/scenes/{id}/archive'].post").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/ui-e2e/bundles'].post").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/ui-e2e/bundles'].get").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/ui-e2e/bundles/{id}'].get").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/ui-e2e/bundles/{id}/submit-review'].post").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/ui-e2e/bundles/{id}/approve'].post").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/ui-e2e/bundles/{id}/reject'].post").exists());
     }
 }

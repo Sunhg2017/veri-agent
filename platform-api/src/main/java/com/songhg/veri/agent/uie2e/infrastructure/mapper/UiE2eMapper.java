@@ -1,5 +1,8 @@
 package com.songhg.veri.agent.uie2e.infrastructure.mapper;
 
+import com.songhg.veri.agent.uie2e.application.query.UiE2eBundleQuery;
+import com.songhg.veri.agent.uie2e.domain.UiE2eBundle;
+import com.songhg.veri.agent.uie2e.domain.UiE2eBundleReview;
 import com.songhg.veri.agent.uie2e.application.query.UiE2eSceneQuery;
 import com.songhg.veri.agent.uie2e.domain.UiE2eScene;
 import com.songhg.veri.agent.uie2e.domain.UiE2eSceneStep;
@@ -32,4 +35,24 @@ public interface UiE2eMapper {
     void insertSceneStep(UiE2eSceneStep step);
 
     void deleteSceneSteps(@Param("sceneId") UUID sceneId);
+
+    void insertBundle(UiE2eBundle bundle);
+
+    void updateBundle(UiE2eBundle bundle);
+
+    UiE2eBundle bundle(@Param("id") UUID id);
+
+    UiE2eBundle activeBundleBySceneAndDigest(@Param("sceneId") UUID sceneId, @Param("bundleDigest") String bundleDigest);
+
+    List<UiE2eBundle> bundles(@Param("query") UiE2eBundleQuery query);
+
+    long countBundles(@Param("query") UiE2eBundleQuery query);
+
+    List<UiE2eBundle> sceneBundles(@Param("sceneId") UUID sceneId);
+
+    String bundleProjectScopeId(@Param("id") UUID id);
+
+    void insertBundleReview(UiE2eBundleReview review);
+
+    List<UiE2eBundleReview> bundleReviews(@Param("bundleId") UUID bundleId);
 }

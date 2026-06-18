@@ -147,7 +147,7 @@ class UiE2eSceneServiceTest {
         return fixture(enabled).service();
     }
 
-    private Fixture fixture(boolean enabled) {
+    static Fixture fixture(boolean enabled) {
         InMemoryUiE2eRepository repository = new InMemoryUiE2eRepository();
         InMemoryAssetRepository assetRepository = new InMemoryAssetRepository();
         InMemoryTestDesignRepository testDesignRepository = new InMemoryTestDesignRepository();
@@ -204,17 +204,34 @@ class UiE2eSceneServiceTest {
                 assetEvidenceService,
                 testDesignEvidenceService
         );
+        UiE2eProperties properties = new UiE2eProperties(
+                enabled,
+                false,
+                "disabled",
+                300,
+                1800,
+                1,
+                20 * 1024 * 1024L,
+                20,
+                2,
+                List.of(),
+                true,
+                false,
+                true,
+                true
+        );
+        ObjectMapper objectMapper = new ObjectMapper();
         return new Fixture(new UiE2eSceneService(
                 repository,
                 contextClient,
                 actorResolver,
                 crossWpReferenceService,
-                new UiE2eProperties(enabled, false, "disabled", 300, 1800, 1, 20 * 1024 * 1024L, 20, 2, List.of(), true, false, true, true),
-                new ObjectMapper()
-        ), assetRepository);
+                properties,
+                objectMapper
+        ), repository, assetRepository, contextClient, actorResolver, properties, objectMapper);
     }
 
-    private void seedWp3Refs(InMemoryAssetRepository repository, UUID pageRef, UUID flowRef, UUID caseRef, String projectId) {
+    static void seedWp3Refs(InMemoryAssetRepository repository, UUID pageRef, UUID flowRef, UUID caseRef, String projectId) {
         if (pageRef != null) {
             repository.savePage(new AssetPage(
                     pageRef,
@@ -277,7 +294,7 @@ class UiE2eSceneServiceTest {
         }
     }
 
-    private CreateUiE2eSceneCommand.SceneStepPayload step(String stepType) {
+    static CreateUiE2eSceneCommand.SceneStepPayload step(String stepType) {
         return new CreateUiE2eSceneCommand.SceneStepPayload(
                 stepType,
                 Map.of("action", stepType.toLowerCase()),
@@ -299,9 +316,14 @@ class UiE2eSceneServiceTest {
         }
     }
 
-    private record Fixture(
+    static record Fixture(
             UiE2eSceneService service,
-            InMemoryAssetRepository assetRepository
+            InMemoryUiE2eRepository repository,
+            InMemoryAssetRepository assetRepository,
+            UiE2ePlatformContextClient contextClient,
+            UiE2eActorResolver actorResolver,
+            UiE2eProperties properties,
+            ObjectMapper objectMapper
     ) {
     }
 }

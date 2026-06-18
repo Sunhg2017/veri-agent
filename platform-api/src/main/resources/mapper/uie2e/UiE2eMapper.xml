@@ -41,6 +41,45 @@
         </constructor>
     </resultMap>
 
+    <resultMap id="bundleMap" type="com.songhg.veri.agent.uie2e.domain.UiE2eBundle">
+        <constructor>
+            <arg column="id" javaType="java.util.UUID"/>
+            <arg column="scene_id" javaType="java.util.UUID"/>
+            <arg column="project_id" javaType="java.lang.String"/>
+            <arg column="status" javaType="java.lang.String"/>
+            <arg column="bundle_digest" javaType="java.lang.String"/>
+            <arg column="spec_summary_json" javaType="java.lang.String"/>
+            <arg column="fixture_summary_json" javaType="java.lang.String"/>
+            <arg column="static_check_summary_json" javaType="java.lang.String"/>
+            <arg column="submitted_by" javaType="java.lang.String"/>
+            <arg column="approved_by" javaType="java.lang.String"/>
+            <arg column="submitted_at" javaType="java.time.Instant"/>
+            <arg column="approved_at" javaType="java.time.Instant"/>
+            <arg column="rejected_at" javaType="java.time.Instant"/>
+            <arg column="created_by" javaType="java.lang.String"/>
+            <arg column="updated_by" javaType="java.lang.String"/>
+            <arg column="archived_at" javaType="java.time.Instant"/>
+            <arg column="created_at" javaType="java.time.Instant"/>
+            <arg column="updated_at" javaType="java.time.Instant"/>
+        </constructor>
+    </resultMap>
+
+    <resultMap id="bundleReviewMap" type="com.songhg.veri.agent.uie2e.domain.UiE2eBundleReview">
+        <constructor>
+            <arg column="id" javaType="java.util.UUID"/>
+            <arg column="bundle_id" javaType="java.util.UUID"/>
+            <arg column="project_id" javaType="java.lang.String"/>
+            <arg column="review_status" javaType="java.lang.String"/>
+            <arg column="review_comment" javaType="java.lang.String"/>
+            <arg column="reviewed_by" javaType="java.lang.String"/>
+            <arg column="reviewed_at" javaType="java.time.Instant"/>
+            <arg column="created_by" javaType="java.lang.String"/>
+            <arg column="updated_by" javaType="java.lang.String"/>
+            <arg column="created_at" javaType="java.time.Instant"/>
+            <arg column="updated_at" javaType="java.time.Instant"/>
+        </constructor>
+    </resultMap>
+
     <sql id="sceneColumns">
         id, project_id, application_id, environment_id, code, name, status, risk_level,
         source_summary_json::text as source_summary_json, tags_json::text as tags_json,
@@ -56,6 +95,20 @@
         created_by, updated_by, created_at, updated_at
     </sql>
 
+    <sql id="bundleColumns">
+        b.id, b.scene_id, b.project_id, b.status, b.bundle_digest,
+        b.spec_summary_json::text as spec_summary_json,
+        b.fixture_summary_json::text as fixture_summary_json,
+        b.static_check_summary_json::text as static_check_summary_json,
+        b.submitted_by, b.approved_by, b.submitted_at, b.approved_at, b.rejected_at,
+        b.created_by, b.updated_by, b.archived_at, b.created_at, b.updated_at
+    </sql>
+
+    <sql id="bundleReviewColumns">
+        id, bundle_id, project_id, review_status, review_comment, reviewed_by, reviewed_at,
+        created_by, updated_by, created_at, updated_at
+    </sql>
+
     <sql id="sceneWhere">
         <where>
             <if test="query.projectId != null">project_id = #{query.projectId}</if>
@@ -68,6 +121,21 @@
                 and (
                     position(lower(#{query.keyword}) in lower(coalesce(code, ''))) &gt; 0
                     or position(lower(#{query.keyword}) in lower(coalesce(name, ''))) &gt; 0
+                )
+            </if>
+        </where>
+    </sql>
+
+    <sql id="bundleWhere">
+        <where>
+            <if test="query.projectId != null">b.project_id = #{query.projectId}</if>
+            <if test="query.sceneId != null">and b.scene_id = #{query.sceneId}</if>
+            <if test="query.status != null">and b.status = #{query.status}</if>
+            <if test="query.keyword != null">
+                and (
+                    position(lower(#{query.keyword}) in lower(coalesce(s.code, ''))) &gt; 0
+                    or position(lower(#{query.keyword}) in lower(coalesce(s.name, ''))) &gt; 0
+                    or position(lower(#{query.keyword}) in lower(coalesce(b.bundle_digest, ''))) &gt; 0
                 )
             </if>
         </where>
@@ -170,4 +238,101 @@
         delete from ui_e2e_scene_step
         where scene_id = #{sceneId}
     </delete>
+
+    <insert id="insertBundle">
+        insert into ui_e2e_bundle (
+            id, scene_id, project_id, status, bundle_digest,
+            spec_summary_json, fixture_summary_json, static_check_summary_json,
+            submitted_by, approved_by, submitted_at, approved_at, rejected_at,
+            created_by, updated_by, archived_at, created_at, updated_at
+        ) values (
+            #{id}, #{sceneId}, #{projectId}, #{status}, #{bundleDigest},
+            cast(coalesce(#{specSummaryJson}, '{}') as jsonb),
+            cast(coalesce(#{fixtureSummaryJson}, '{}') as jsonb),
+            cast(coalesce(#{staticCheckSummaryJson}, '{}') as jsonb),
+            #{submittedBy}, #{approvedBy}, #{submittedAt}, #{approvedAt}, #{rejectedAt},
+            #{createdBy}, #{updatedBy}, #{archivedAt}, #{createdAt}, #{updatedAt}
+        )
+    </insert>
+
+    <update id="updateBundle">
+        update ui_e2e_bundle set
+            status = #{status},
+            bundle_digest = #{bundleDigest},
+            spec_summary_json = cast(coalesce(#{specSummaryJson}, '{}') as jsonb),
+            fixture_summary_json = cast(coalesce(#{fixtureSummaryJson}, '{}') as jsonb),
+            static_check_summary_json = cast(coalesce(#{staticCheckSummaryJson}, '{}') as jsonb),
+            submitted_by = #{submittedBy},
+            approved_by = #{approvedBy},
+            submitted_at = #{submittedAt},
+            approved_at = #{approvedAt},
+            rejected_at = #{rejectedAt},
+            updated_by = #{updatedBy},
+            archived_at = #{archivedAt},
+            updated_at = #{updatedAt}
+        where id = #{id}
+    </update>
+
+    <select id="bundle" resultMap="bundleMap">
+        select <include refid="bundleColumns"/>
+        from ui_e2e_bundle b
+        where id = #{id}
+    </select>
+
+    <select id="activeBundleBySceneAndDigest" resultMap="bundleMap">
+        select <include refid="bundleColumns"/>
+        from ui_e2e_bundle b
+        where b.scene_id = #{sceneId}
+          and b.bundle_digest = #{bundleDigest}
+          and b.status != 'ARCHIVED'
+        order by b.updated_at desc, b.id desc
+        limit 1
+    </select>
+
+    <select id="bundles" resultMap="bundleMap">
+        select <include refid="bundleColumns"/>
+        from ui_e2e_bundle b
+        join ui_e2e_scene s on s.id = b.scene_id
+        <include refid="bundleWhere"/>
+        order by b.updated_at desc, b.id desc
+        offset #{query.offset}
+        limit #{query.limit}
+    </select>
+
+    <select id="countBundles" resultType="long">
+        select count(*)
+        from ui_e2e_bundle b
+        join ui_e2e_scene s on s.id = b.scene_id
+        <include refid="bundleWhere"/>
+    </select>
+
+    <select id="sceneBundles" resultMap="bundleMap">
+        select <include refid="bundleColumns"/>
+        from ui_e2e_bundle b
+        where b.scene_id = #{sceneId}
+        order by b.updated_at desc, b.id desc
+    </select>
+
+    <select id="bundleProjectScopeId" resultType="string">
+        select project_id
+        from ui_e2e_bundle
+        where id = #{id}
+    </select>
+
+    <insert id="insertBundleReview">
+        insert into ui_e2e_bundle_review (
+            id, bundle_id, project_id, review_status, review_comment, reviewed_by, reviewed_at,
+            created_by, updated_by, created_at, updated_at
+        ) values (
+            #{id}, #{bundleId}, #{projectId}, #{reviewStatus}, #{reviewComment}, #{reviewedBy}, #{reviewedAt},
+            #{createdBy}, #{updatedBy}, #{createdAt}, #{updatedAt}
+        )
+    </insert>
+
+    <select id="bundleReviews" resultMap="bundleReviewMap">
+        select <include refid="bundleReviewColumns"/>
+        from ui_e2e_bundle_review
+        where bundle_id = #{bundleId}
+        order by reviewed_at desc nulls last, created_at desc, id desc
+    </select>
 </mapper>
