@@ -31,6 +31,7 @@ import com.songhg.veri.agent.uie2e.application.view.UiE2eRunDetailResponse;
 import com.songhg.veri.agent.uie2e.application.view.UiE2eRunExportResponse;
 import com.songhg.veri.agent.uie2e.application.view.UiE2eRunSummaryResponse;
 import com.songhg.veri.agent.uie2e.config.UiE2eProperties;
+import com.songhg.veri.agent.uie2e.domain.UiE2eFlakyMark;
 import com.songhg.veri.agent.uie2e.infrastructure.InMemoryUiE2eRepository;
 import java.time.Instant;
 import java.util.List;
@@ -82,6 +83,10 @@ class UiE2eRunServiceTest {
         assertThat(created.executionSummary()).containsEntry("runnerReady", true);
         assertThat(created.executionSummary()).containsEntry("runnerDefaultDisabled", true);
         assertThat(created.executionSummary()).containsEntry("rawArtifactDownloadReady", false);
+        assertThat(created.executionSummary()).containsEntry("stepResultCount", 0);
+        assertThat(created.stepResults()).isEmpty();
+        assertThat(created.artifacts()).isEmpty();
+        assertThat(created.flakyMark()).isNull();
         assertThat(created.finishedAt()).isNotNull();
 
         UiE2eRunDetailResponse replayed = fixture.service().createRun(new CreateUiE2eRunCommand(
@@ -160,6 +165,11 @@ class UiE2eRunServiceTest {
 
         assertThat(created.status()).isEqualTo("RUNNING");
         assertThat(created.finishedAt()).isNull();
+        assertThat(created.stepResults()).hasSize(2);
+        assertThat(created.artifacts()).hasSize(2);
+        assertThat(created.executionSummary()).containsEntry("stepResultCount", 2);
+        assertThat(((Map<?, ?>) created.executionSummary().get("stepStatusCounts")).get("RUNNING")).isEqualTo(1);
+        assertThat(((Map<?, ?>) created.executionSummary().get("stepStatusCounts")).get("SUCCEEDED")).isEqualTo(1);
 
         UiE2eRunDetailResponse canceled = fixture.service().cancelRun(
                 created.id(),
@@ -184,6 +194,51 @@ class UiE2eRunServiceTest {
                 new CancelUiE2eRunCommand("cancel again")
         );
         assertThat(terminalCancel.status()).isEqualTo("CANCELED");
+    }
+
+    @Test
+    void exposesFlakyFallbackInRunSummaryAndDetail() {
+        Fixture fixture = fixture(true, List.of("https://portal.example.test"));
+        SeededRunRefs refs = seedApprovedSceneAndBundle(fixture);
+        UUID leaseRef = acquireLease(fixture);
+        UiE2eRunDetailResponse created = fixture.service().createRun(new CreateUiE2eRunCommand(
+                PROJECT_ID,
+                refs.sceneId(),
+                refs.bundleId(),
+                ENVIRONMENT_KEY,
+                "env:" + ENVIRONMENT_KEY,
+                leaseRef,
+                "run-request-004b",
+                "start managed"
+        ));
+        Instant now = Instant.now();
+        fixture.repository().upsertFlakyMark(new UiE2eFlakyMark(
+                UUID.randomUUID(),
+                PROJECT_ID,
+                refs.sceneId(),
+                created.id(),
+                "CONFIRMED_FLAKY",
+                "LOCATOR_DRIFT",
+                "locator occasionally changes",
+                "qa-tester",
+                "qa-tester",
+                now,
+                now
+        ));
+
+        UiE2eRunDetailResponse detail = fixture.service().run(created.id());
+        assertThat(detail.flakyMark()).isNotNull();
+        assertThat(detail.flakyMark().status()).isEqualTo("CONFIRMED_FLAKY");
+        assertThat(detail.executionSummary()).containsEntry("flakyStatus", "CONFIRMED_FLAKY");
+
+        UiE2eRunPageRequest request = new UiE2eRunPageRequest();
+        request.setProjectId(PROJECT_ID);
+        request.setKeyword("run-request-004b");
+        PageResponse<UiE2eRunSummaryResponse> page = fixture.service().runs(request);
+        assertThat(page.items()).singleElement().satisfies(item -> {
+            assertThat(item.id()).isEqualTo(created.id());
+            assertThat(item.flakyStatus()).isEqualTo("CONFIRMED_FLAKY");
+        });
     }
 
     @Test
@@ -233,6 +288,8 @@ class UiE2eRunServiceTest {
         var health = service.health();
         assertThat(health.policy()).containsEntry("runControlPlaneReady", true);
         assertThat(health.policy()).containsEntry("runnerPortReady", true);
+        assertThat(health.policy()).containsEntry("artifactManifestReady", true);
+        assertThat(health.policy()).containsEntry("flakyMarkReady", true);
         assertThat(health.policy()).containsEntry("runnerDefaultDisabled", true);
     }
 
@@ -488,7 +545,34 @@ class UiE2eRunServiceTest {
 
         @Override
         public RunnerRunResult run(RunnerRunRequest request) {
-            return new RunnerRunResult("RUNNING", "MANAGED", null, null);
+            return new RunnerRunResult(
+                    "RUNNING",
+                    "MANAGED",
+                    null,
+                    null,
+                    List.of(
+                            new RunnerStepResult(null, 1, "SUCCEEDED", 120, null, null, Map.of("stepType", "LOGIN")),
+                            new RunnerStepResult(null, 2, "RUNNING", 0, null, null, Map.of("stepType", "ASSERT"))
+                    ),
+                    List.of(
+                            new RunnerArtifactManifest(
+                                    "SCREENSHOT",
+                                    "artifact://shot-001",
+                                    "a".repeat(64),
+                                    1024,
+                                    Map.of("scanStatus", "clean"),
+                                    "CAPTURED"
+                            ),
+                            new RunnerArtifactManifest(
+                                    "LOG",
+                                    null,
+                                    null,
+                                    0,
+                                    Map.of("aggregateOnly", true),
+                                    "FAILED"
+                            )
+                    )
+            );
         }
 
         @Override

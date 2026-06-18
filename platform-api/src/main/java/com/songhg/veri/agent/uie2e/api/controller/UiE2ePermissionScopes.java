@@ -11,6 +11,8 @@ final class UiE2ePermissionScopes {
     static final String RUN_REQUEST = "@uiE2ePermissionScopeResolver.runRequest(#command)";
     static final String RUN_LIST = "@uiE2ePermissionScopeResolver.runList(#request)";
     static final String RUN = "@uiE2ePermissionScopeResolver.run(#id)";
+    static final String FLAKY_REQUEST = "@uiE2ePermissionScopeResolver.flakyRequest(#command)";
+    static final String FLAKY_LIST = "@uiE2ePermissionScopeResolver.flakyList(#request)";
 
     private UiE2ePermissionScopes() {
     }

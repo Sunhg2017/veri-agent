@@ -18,6 +18,7 @@ public record UiE2eRunSummaryResponse(
         String failureSummary,
         String traceId,
         Map<String, Object> accountSummary,
+        String flakyStatus,
         Instant startedAt,
         Instant finishedAt,
         Instant createdAt,

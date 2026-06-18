@@ -66,11 +66,15 @@ import com.songhg.veri.agent.testdata.domain.TestPooledAccount;
 import com.songhg.veri.agent.testdata.infrastructure.JdbcTestDataRepository;
 import com.songhg.veri.agent.uie2e.application.port.UiE2eRepository;
 import com.songhg.veri.agent.uie2e.application.query.UiE2eBundleQuery;
+import com.songhg.veri.agent.uie2e.application.query.UiE2eFlakyMarkQuery;
 import com.songhg.veri.agent.uie2e.application.query.UiE2eRunQuery;
 import com.songhg.veri.agent.uie2e.application.query.UiE2eSceneQuery;
+import com.songhg.veri.agent.uie2e.domain.UiE2eArtifactManifest;
 import com.songhg.veri.agent.uie2e.domain.UiE2eBundle;
 import com.songhg.veri.agent.uie2e.domain.UiE2eBundleReview;
+import com.songhg.veri.agent.uie2e.domain.UiE2eFlakyMark;
 import com.songhg.veri.agent.uie2e.domain.UiE2eRun;
+import com.songhg.veri.agent.uie2e.domain.UiE2eRunStepResult;
 import com.songhg.veri.agent.uie2e.domain.UiE2eScene;
 import com.songhg.veri.agent.uie2e.domain.UiE2eSceneStep;
 import com.songhg.veri.agent.uie2e.infrastructure.JdbcUiE2eRepository;
@@ -637,6 +641,213 @@ class DbProfileRepositoryContractTest {
                     assertThat(run.finishedAt()).isEqualTo(now.plusSeconds(5));
                 });
         assertThat(uiE2eRepository.runProjectScopeId(runId)).contains(projectId);
+    }
+
+    @Test
+    void uiE2eRepositoryPersistsRunEvidenceAndFlakyMarksThroughJdbc() {
+        Instant now = Instant.now();
+        UUID sceneId = UUID.randomUUID();
+        UUID sceneStepId = UUID.randomUUID();
+        UUID bundleId = UUID.randomUUID();
+        UUID runId = UUID.randomUUID();
+        String projectId = "project-wp7-evidence-db-" + UUID.randomUUID();
+
+        uiE2eRepository.insertScene(new UiE2eScene(
+                sceneId,
+                projectId,
+                "app-db",
+                "env-db",
+                "portal-run-evidence-db",
+                "Portal run evidence db",
+                "APPROVED",
+                "HIGH",
+                "{\"pageRefs\":[]}",
+                "[\"run\",\"evidence\"]",
+                "db-tester",
+                "db-tester",
+                null,
+                now,
+                now
+        ));
+        uiE2eRepository.replaceSceneSteps(sceneId, List.of(
+                new UiE2eSceneStep(
+                        sceneStepId,
+                        sceneId,
+                        projectId,
+                        1,
+                        "LOGIN",
+                        "{\"submitAction\":\"click\"}",
+                        "{\"preferred\":\"testId\"}",
+                        "{\"successSignal\":\"/dashboard\"}",
+                        "{\"timeoutSeconds\":5}",
+                        "db-tester",
+                        "db-tester",
+                        now,
+                        now
+                )
+        ));
+        uiE2eRepository.insertBundle(new UiE2eBundle(
+                bundleId,
+                sceneId,
+                projectId,
+                "APPROVED",
+                "d".repeat(64),
+                "{\"templateVersion\":\"wp7-playwright-summary-v1\"}",
+                "{\"requiredFixtures\":[\"page\"]}",
+                "{\"status\":\"PASSED\",\"findingCount\":0}",
+                "db-reviewer",
+                "db-reviewer",
+                now,
+                now,
+                null,
+                "db-tester",
+                "db-reviewer",
+                null,
+                now,
+                now
+        ));
+        uiE2eRepository.insertRun(new UiE2eRun(
+                runId,
+                sceneId,
+                bundleId,
+                projectId,
+                "FAILED",
+                "wp7-run-evidence-db-001",
+                "MANAGED",
+                "e".repeat(64),
+                UUID.randomUUID().toString(),
+                "{\"accountLeaseRef\":\"lease-001\",\"secretRefDigest\":\"digest-001\"}",
+                "ASSERTION_FAILED",
+                "assertion mismatch",
+                "trc_wp7_run_evidence_db",
+                "db-tester",
+                now,
+                now.plusSeconds(5),
+                now,
+                now.plusSeconds(5)
+        ));
+
+        uiE2eRepository.replaceRunStepResults(runId, List.of(
+                new UiE2eRunStepResult(
+                        UUID.randomUUID(),
+                        runId,
+                        sceneStepId,
+                        1,
+                        "FAILED",
+                        240,
+                        "ASSERTION",
+                        "ASSERTION_FAILED",
+                        "{\"aggregateOnly\":true,\"stepType\":\"LOGIN\"}",
+                        "db-worker",
+                        "db-worker",
+                        now,
+                        now
+                ),
+                new UiE2eRunStepResult(
+                        UUID.randomUUID(),
+                        runId,
+                        null,
+                        2,
+                        "SKIPPED",
+                        0,
+                        null,
+                        null,
+                        "{\"aggregateOnly\":true,\"stepType\":\"ASSERT\"}",
+                        "db-worker",
+                        "db-worker",
+                        now.plusSeconds(1),
+                        now.plusSeconds(1)
+                )
+        ));
+        uiE2eRepository.replaceArtifacts(runId, List.of(
+                new UiE2eArtifactManifest(
+                        UUID.randomUUID(),
+                        runId,
+                        "SCREENSHOT",
+                        "artifact://wp7/screenshot-001",
+                        "f".repeat(64),
+                        2048,
+                        "{\"aggregateOnly\":true,\"scanStatus\":\"clean\"}",
+                        "CAPTURED",
+                        "db-worker",
+                        "db-worker",
+                        now,
+                        now
+                ),
+                new UiE2eArtifactManifest(
+                        UUID.randomUUID(),
+                        runId,
+                        "LOG",
+                        null,
+                        null,
+                        0,
+                        "{\"aggregateOnly\":true,\"captureBlockedReason\":\"artifactRefIncomplete\"}",
+                        "FAILED",
+                        "db-worker",
+                        "db-worker",
+                        now.plusSeconds(1),
+                        now.plusSeconds(1)
+                )
+        ));
+
+        UiE2eFlakyMark sceneMark = new UiE2eFlakyMark(
+                UUID.randomUUID(),
+                projectId,
+                sceneId,
+                null,
+                "FLAKY_CANDIDATE",
+                "LOCATOR_DRIFT",
+                "locator drift candidate",
+                "db-tester",
+                "db-tester",
+                now,
+                now
+        );
+        uiE2eRepository.upsertFlakyMark(sceneMark);
+        uiE2eRepository.upsertFlakyMark(new UiE2eFlakyMark(
+                UUID.randomUUID(),
+                projectId,
+                sceneId,
+                runId,
+                "CONFIRMED_FLAKY",
+                "LOCATOR_DRIFT",
+                "locator drift confirmed",
+                "db-tester",
+                "db-updater",
+                now,
+                now.plusSeconds(2)
+        ));
+
+        assertThat(uiE2eRepository.runStepResults(runId))
+                .hasSize(2)
+                .first()
+                .satisfies(step -> {
+                    assertThat(step.stepOrder()).isEqualTo(1);
+                    assertThat(step.failureBucket()).isEqualTo("ASSERTION");
+                    assertThat(step.summaryJson()).contains("aggregateOnly");
+                });
+        assertThat(uiE2eRepository.artifacts(runId))
+                .hasSize(2)
+                .first()
+                .satisfies(artifact -> {
+                    assertThat(artifact.artifactType()).isEqualTo("SCREENSHOT");
+                    assertThat(artifact.storageRef()).isEqualTo("artifact://wp7/screenshot-001");
+                });
+        assertThat(uiE2eRepository.flakyMarkByRun(runId))
+                .isPresent()
+                .get()
+                .satisfies(mark -> {
+                    assertThat(mark.id()).isEqualTo(sceneMark.id());
+                    assertThat(mark.status()).isEqualTo("CONFIRMED_FLAKY");
+                    assertThat(mark.runId()).isEqualTo(runId);
+                });
+
+        UiE2eFlakyMarkQuery flakyQuery = new UiE2eFlakyMarkQuery(projectId, sceneId, runId, "CONFIRMED_FLAKY", "locator", 0, 10);
+        assertThat(uiE2eRepository.countFlakyMarks(flakyQuery)).isEqualTo(1);
+        assertThat(uiE2eRepository.flakyMarks(flakyQuery))
+                .singleElement()
+                .extracting(UiE2eFlakyMark::reasonSummary)
+                .isEqualTo("locator drift confirmed");
     }
 
     @Test

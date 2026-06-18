@@ -1,14 +1,18 @@
 package com.songhg.veri.agent.uie2e.infrastructure;
 
 import com.songhg.veri.agent.uie2e.application.query.UiE2eBundleQuery;
+import com.songhg.veri.agent.uie2e.application.query.UiE2eFlakyMarkQuery;
 import com.songhg.veri.agent.uie2e.application.query.UiE2eRunQuery;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.songhg.veri.agent.uie2e.application.port.UiE2eRepository;
 import com.songhg.veri.agent.uie2e.application.query.UiE2eSceneQuery;
+import com.songhg.veri.agent.uie2e.domain.UiE2eArtifactManifest;
 import com.songhg.veri.agent.uie2e.domain.UiE2eBundle;
 import com.songhg.veri.agent.uie2e.domain.UiE2eBundleReview;
+import com.songhg.veri.agent.uie2e.domain.UiE2eFlakyMark;
 import com.songhg.veri.agent.uie2e.domain.UiE2eRun;
+import com.songhg.veri.agent.uie2e.domain.UiE2eRunStepResult;
 import com.songhg.veri.agent.uie2e.domain.UiE2eScene;
 import com.songhg.veri.agent.uie2e.domain.UiE2eSceneStep;
 import java.io.UncheckedIOException;
@@ -40,6 +44,9 @@ public class InMemoryUiE2eRepository implements UiE2eRepository {
     private final ConcurrentHashMap<UUID, UiE2eBundle> bundles = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, UiE2eBundleReview> bundleReviews = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<UUID, UiE2eRun> runs = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, UiE2eRunStepResult> runStepResults = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, UiE2eArtifactManifest> artifacts = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<UUID, UiE2eFlakyMark> flakyMarks = new ConcurrentHashMap<>();
 
     @Override
     public void insertScene(UiE2eScene scene) {
@@ -222,6 +229,82 @@ public class InMemoryUiE2eRepository implements UiE2eRepository {
         return run(id).map(UiE2eRun::projectId);
     }
 
+    @Override
+    public void replaceRunStepResults(UUID runId, List<UiE2eRunStepResult> newStepResults) {
+        runStepResults.entrySet().removeIf(entry -> runId.equals(entry.getValue().runId()));
+        if (newStepResults == null || newStepResults.isEmpty()) {
+            return;
+        }
+        for (UiE2eRunStepResult stepResult : newStepResults) {
+            runStepResults.put(runStepKey(runId, stepResult.stepOrder()), stepResult);
+        }
+    }
+
+    @Override
+    public List<UiE2eRunStepResult> runStepResults(UUID runId) {
+        return runStepResults.values().stream()
+                .filter(stepResult -> runId.equals(stepResult.runId()))
+                .sorted(Comparator.comparingInt(UiE2eRunStepResult::stepOrder).thenComparing(UiE2eRunStepResult::id))
+                .toList();
+    }
+
+    @Override
+    public void replaceArtifacts(UUID runId, List<UiE2eArtifactManifest> manifests) {
+        artifacts.entrySet().removeIf(entry -> runId.equals(entry.getValue().runId()));
+        if (manifests == null || manifests.isEmpty()) {
+            return;
+        }
+        for (UiE2eArtifactManifest manifest : manifests) {
+            artifacts.put(artifactKey(runId, manifest.id()), manifest);
+        }
+    }
+
+    @Override
+    public List<UiE2eArtifactManifest> artifacts(UUID runId) {
+        return artifacts.values().stream()
+                .filter(manifest -> runId.equals(manifest.runId()))
+                .sorted(Comparator.comparing(UiE2eArtifactManifest::createdAt).thenComparing(UiE2eArtifactManifest::id))
+                .toList();
+    }
+
+    @Override
+    public void upsertFlakyMark(UiE2eFlakyMark flakyMark) {
+        if (flakyMark.runId() != null) {
+            flakyMarkByRun(flakyMark.runId()).ifPresent(existing -> flakyMarks.remove(existing.id()));
+        }
+        if (flakyMark.sceneId() != null) {
+            flakyMarkByScene(flakyMark.sceneId()).ifPresent(existing -> flakyMarks.remove(existing.id()));
+        }
+        flakyMarks.put(flakyMark.id(), flakyMark);
+    }
+
+    @Override
+    public Optional<UiE2eFlakyMark> flakyMarkByScene(UUID sceneId) {
+        return flakyMarks.values().stream()
+                .filter(mark -> sceneId.equals(mark.sceneId()))
+                .max(Comparator.comparing(UiE2eFlakyMark::updatedAt).thenComparing(UiE2eFlakyMark::id));
+    }
+
+    @Override
+    public Optional<UiE2eFlakyMark> flakyMarkByRun(UUID runId) {
+        return flakyMarks.values().stream()
+                .filter(mark -> runId.equals(mark.runId()))
+                .max(Comparator.comparing(UiE2eFlakyMark::updatedAt).thenComparing(UiE2eFlakyMark::id));
+    }
+
+    @Override
+    public List<UiE2eFlakyMark> flakyMarks(UiE2eFlakyMarkQuery query) {
+        return filteredFlakyMarks(query)
+                .skip(query.offset())
+                .limit(query.limit())
+                .toList();
+    }
+
+    @Override
+    public long countFlakyMarks(UiE2eFlakyMarkQuery query) {
+        return filteredFlakyMarks(query).count();
+    }
+
     private Stream<UiE2eScene> filteredScenes(UiE2eSceneQuery query) {
         return scenes.values().stream()
                 .filter(scene -> query.projectId() == null || query.projectId().equals(scene.projectId()))
@@ -310,5 +393,36 @@ public class InMemoryUiE2eRepository implements UiE2eRepository {
                 || contains(run.failureCode(), lowered)
                 || contains(run.traceId(), lowered)
                 || (scene != null && (contains(scene.code(), lowered) || contains(scene.name(), lowered)));
+    }
+
+    private Stream<UiE2eFlakyMark> filteredFlakyMarks(UiE2eFlakyMarkQuery query) {
+        return flakyMarks.values().stream()
+                .filter(mark -> query.projectId() == null || query.projectId().equals(mark.projectId()))
+                .filter(mark -> query.sceneId() == null || query.sceneId().equals(mark.sceneId()))
+                .filter(mark -> query.runId() == null || query.runId().equals(mark.runId()))
+                .filter(mark -> query.status() == null || query.status().equals(mark.status()))
+                .filter(mark -> flakyKeywordMatches(mark, query.keyword()))
+                .sorted(Comparator.comparing(UiE2eFlakyMark::updatedAt).reversed().thenComparing(UiE2eFlakyMark::id));
+    }
+
+    private boolean flakyKeywordMatches(UiE2eFlakyMark mark, String keyword) {
+        if (!StringUtils.hasText(keyword)) {
+            return true;
+        }
+        String lowered = keyword.toLowerCase(Locale.ROOT);
+        UiE2eScene scene = mark.sceneId() == null ? null : scenes.get(mark.sceneId());
+        UiE2eRun run = mark.runId() == null ? null : runs.get(mark.runId());
+        return contains(mark.reasonCode(), lowered)
+                || contains(mark.reasonSummary(), lowered)
+                || (scene != null && (contains(scene.code(), lowered) || contains(scene.name(), lowered)))
+                || (run != null && (contains(run.failureCode(), lowered) || contains(run.requestKey(), lowered)));
+    }
+
+    private String artifactKey(UUID runId, UUID artifactId) {
+        return runId + ":" + artifactId;
+    }
+
+    private String runStepKey(UUID runId, int stepOrder) {
+        return runId + ":" + stepOrder;
     }
 }

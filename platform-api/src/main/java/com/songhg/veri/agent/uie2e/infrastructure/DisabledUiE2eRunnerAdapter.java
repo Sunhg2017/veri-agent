@@ -17,7 +17,9 @@ public class DisabledUiE2eRunnerAdapter implements UiE2eRunnerPort {
                 "BLOCKED",
                 "DISABLED",
                 "UI_E2E_RUNNER_DISABLED",
-                "WP7 runner is disabled by default"
+                "WP7 runner is disabled by default",
+                java.util.List.of(),
+                java.util.List.of()
         );
     }
 

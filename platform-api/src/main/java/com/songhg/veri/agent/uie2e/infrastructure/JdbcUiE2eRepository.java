@@ -1,11 +1,15 @@
 package com.songhg.veri.agent.uie2e.infrastructure;
 
 import com.songhg.veri.agent.uie2e.application.query.UiE2eBundleQuery;
+import com.songhg.veri.agent.uie2e.application.query.UiE2eFlakyMarkQuery;
 import com.songhg.veri.agent.uie2e.application.query.UiE2eRunQuery;
 import com.songhg.veri.agent.uie2e.application.port.UiE2eRepository;
+import com.songhg.veri.agent.uie2e.domain.UiE2eArtifactManifest;
 import com.songhg.veri.agent.uie2e.domain.UiE2eBundle;
 import com.songhg.veri.agent.uie2e.domain.UiE2eBundleReview;
+import com.songhg.veri.agent.uie2e.domain.UiE2eFlakyMark;
 import com.songhg.veri.agent.uie2e.domain.UiE2eRun;
+import com.songhg.veri.agent.uie2e.domain.UiE2eRunStepResult;
 import com.songhg.veri.agent.uie2e.application.query.UiE2eSceneQuery;
 import com.songhg.veri.agent.uie2e.domain.UiE2eScene;
 import com.songhg.veri.agent.uie2e.domain.UiE2eSceneStep;
@@ -167,5 +171,66 @@ public class JdbcUiE2eRepository implements UiE2eRepository {
     @Override
     public Optional<String> runProjectScopeId(UUID id) {
         return Optional.ofNullable(mapper.runProjectScopeId(id));
+    }
+
+    @Override
+    public void replaceRunStepResults(UUID runId, List<UiE2eRunStepResult> stepResults) {
+        mapper.deleteRunStepResults(runId);
+        if (stepResults == null || stepResults.isEmpty()) {
+            return;
+        }
+        stepResults.forEach(mapper::insertRunStepResult);
+    }
+
+    @Override
+    public List<UiE2eRunStepResult> runStepResults(UUID runId) {
+        return mapper.runStepResults(runId);
+    }
+
+    @Override
+    public void replaceArtifacts(UUID runId, List<UiE2eArtifactManifest> manifests) {
+        mapper.deleteArtifacts(runId);
+        if (manifests == null || manifests.isEmpty()) {
+            return;
+        }
+        manifests.forEach(mapper::insertArtifact);
+    }
+
+    @Override
+    public List<UiE2eArtifactManifest> artifacts(UUID runId) {
+        return mapper.artifacts(runId);
+    }
+
+    @Override
+    public void upsertFlakyMark(UiE2eFlakyMark flakyMark) {
+        if (flakyMark.runId() != null && mapper.flakyMarkByRun(flakyMark.runId()) != null) {
+            mapper.updateFlakyMarkByRun(flakyMark);
+            return;
+        }
+        if (flakyMark.sceneId() != null && mapper.flakyMarkByScene(flakyMark.sceneId()) != null) {
+            mapper.updateFlakyMarkByScene(flakyMark);
+            return;
+        }
+        mapper.insertFlakyMark(flakyMark);
+    }
+
+    @Override
+    public Optional<UiE2eFlakyMark> flakyMarkByScene(UUID sceneId) {
+        return Optional.ofNullable(mapper.flakyMarkByScene(sceneId));
+    }
+
+    @Override
+    public Optional<UiE2eFlakyMark> flakyMarkByRun(UUID runId) {
+        return Optional.ofNullable(mapper.flakyMarkByRun(runId));
+    }
+
+    @Override
+    public List<UiE2eFlakyMark> flakyMarks(UiE2eFlakyMarkQuery query) {
+        return mapper.flakyMarks(query);
+    }
+
+    @Override
+    public long countFlakyMarks(UiE2eFlakyMarkQuery query) {
+        return mapper.countFlakyMarks(query);
     }
 }

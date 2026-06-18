@@ -1,10 +1,14 @@
 package com.songhg.veri.agent.uie2e.infrastructure.mapper;
 
 import com.songhg.veri.agent.uie2e.application.query.UiE2eBundleQuery;
+import com.songhg.veri.agent.uie2e.application.query.UiE2eFlakyMarkQuery;
 import com.songhg.veri.agent.uie2e.application.query.UiE2eRunQuery;
+import com.songhg.veri.agent.uie2e.domain.UiE2eArtifactManifest;
 import com.songhg.veri.agent.uie2e.domain.UiE2eBundle;
 import com.songhg.veri.agent.uie2e.domain.UiE2eBundleReview;
+import com.songhg.veri.agent.uie2e.domain.UiE2eFlakyMark;
 import com.songhg.veri.agent.uie2e.domain.UiE2eRun;
+import com.songhg.veri.agent.uie2e.domain.UiE2eRunStepResult;
 import com.songhg.veri.agent.uie2e.application.query.UiE2eSceneQuery;
 import com.songhg.veri.agent.uie2e.domain.UiE2eScene;
 import com.songhg.veri.agent.uie2e.domain.UiE2eSceneStep;
@@ -75,4 +79,30 @@ public interface UiE2eMapper {
     long countRuns(@Param("query") UiE2eRunQuery query);
 
     String runProjectScopeId(@Param("id") UUID id);
+
+    void insertRunStepResult(UiE2eRunStepResult stepResult);
+
+    void deleteRunStepResults(@Param("runId") UUID runId);
+
+    List<UiE2eRunStepResult> runStepResults(@Param("runId") UUID runId);
+
+    void insertArtifact(UiE2eArtifactManifest manifest);
+
+    void deleteArtifacts(@Param("runId") UUID runId);
+
+    List<UiE2eArtifactManifest> artifacts(@Param("runId") UUID runId);
+
+    void insertFlakyMark(UiE2eFlakyMark flakyMark);
+
+    void updateFlakyMarkByScene(UiE2eFlakyMark flakyMark);
+
+    void updateFlakyMarkByRun(UiE2eFlakyMark flakyMark);
+
+    UiE2eFlakyMark flakyMarkByScene(@Param("sceneId") UUID sceneId);
+
+    UiE2eFlakyMark flakyMarkByRun(@Param("runId") UUID runId);
+
+    List<UiE2eFlakyMark> flakyMarks(@Param("query") UiE2eFlakyMarkQuery query);
+
+    long countFlakyMarks(@Param("query") UiE2eFlakyMarkQuery query);
 }

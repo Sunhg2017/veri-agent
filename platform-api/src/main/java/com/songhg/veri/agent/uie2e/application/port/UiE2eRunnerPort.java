@@ -1,5 +1,6 @@
 package com.songhg.veri.agent.uie2e.application.port;
 
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -43,7 +44,30 @@ public interface UiE2eRunnerPort {
             String status,
             String runnerMode,
             String failureCode,
-            String failureSummary
+            String failureSummary,
+            List<RunnerStepResult> stepResults,
+            List<RunnerArtifactManifest> artifacts
+    ) {
+    }
+
+    record RunnerStepResult(
+            UUID sceneStepId,
+            int stepOrder,
+            String status,
+            int durationMs,
+            String failureBucket,
+            String errorCode,
+            Map<String, Object> summary
+    ) {
+    }
+
+    record RunnerArtifactManifest(
+            String artifactType,
+            String storageRef,
+            String artifactDigest,
+            long sizeBytes,
+            Map<String, Object> redactionFlags,
+            String captureStatus
     ) {
     }
 

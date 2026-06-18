@@ -103,6 +103,57 @@
         </constructor>
     </resultMap>
 
+    <resultMap id="runStepResultMap" type="com.songhg.veri.agent.uie2e.domain.UiE2eRunStepResult">
+        <constructor>
+            <arg column="id" javaType="java.util.UUID"/>
+            <arg column="run_id" javaType="java.util.UUID"/>
+            <arg column="scene_step_id" javaType="java.util.UUID"/>
+            <arg column="step_order" javaType="_int"/>
+            <arg column="status" javaType="java.lang.String"/>
+            <arg column="duration_ms" javaType="_int"/>
+            <arg column="failure_bucket" javaType="java.lang.String"/>
+            <arg column="error_code" javaType="java.lang.String"/>
+            <arg column="summary_json" javaType="java.lang.String"/>
+            <arg column="created_by" javaType="java.lang.String"/>
+            <arg column="updated_by" javaType="java.lang.String"/>
+            <arg column="created_at" javaType="java.time.Instant"/>
+            <arg column="updated_at" javaType="java.time.Instant"/>
+        </constructor>
+    </resultMap>
+
+    <resultMap id="artifactManifestMap" type="com.songhg.veri.agent.uie2e.domain.UiE2eArtifactManifest">
+        <constructor>
+            <arg column="id" javaType="java.util.UUID"/>
+            <arg column="run_id" javaType="java.util.UUID"/>
+            <arg column="artifact_type" javaType="java.lang.String"/>
+            <arg column="storage_ref" javaType="java.lang.String"/>
+            <arg column="artifact_digest" javaType="java.lang.String"/>
+            <arg column="size_bytes" javaType="_long"/>
+            <arg column="redaction_flags_json" javaType="java.lang.String"/>
+            <arg column="capture_status" javaType="java.lang.String"/>
+            <arg column="created_by" javaType="java.lang.String"/>
+            <arg column="updated_by" javaType="java.lang.String"/>
+            <arg column="created_at" javaType="java.time.Instant"/>
+            <arg column="updated_at" javaType="java.time.Instant"/>
+        </constructor>
+    </resultMap>
+
+    <resultMap id="flakyMarkMap" type="com.songhg.veri.agent.uie2e.domain.UiE2eFlakyMark">
+        <constructor>
+            <arg column="id" javaType="java.util.UUID"/>
+            <arg column="project_id" javaType="java.lang.String"/>
+            <arg column="scene_id" javaType="java.util.UUID"/>
+            <arg column="run_id" javaType="java.util.UUID"/>
+            <arg column="status" javaType="java.lang.String"/>
+            <arg column="reason_code" javaType="java.lang.String"/>
+            <arg column="reason_summary" javaType="java.lang.String"/>
+            <arg column="created_by" javaType="java.lang.String"/>
+            <arg column="updated_by" javaType="java.lang.String"/>
+            <arg column="created_at" javaType="java.time.Instant"/>
+            <arg column="updated_at" javaType="java.time.Instant"/>
+        </constructor>
+    </resultMap>
+
     <sql id="sceneColumns">
         id, project_id, application_id, environment_id, code, name, status, risk_level,
         source_summary_json::text as source_summary_json, tags_json::text as tags_json,
@@ -137,6 +188,22 @@
         r.base_url_digest, r.account_lease_ref, r.account_summary_json::text as account_summary_json,
         r.failure_code, r.failure_summary, r.trace_id, r.created_by, r.started_at, r.finished_at,
         r.created_at, r.updated_at
+    </sql>
+
+    <sql id="runStepResultColumns">
+        id, run_id, scene_step_id, step_order, status, duration_ms, failure_bucket, error_code,
+        summary_json::text as summary_json, created_by, updated_by, created_at, updated_at
+    </sql>
+
+    <sql id="artifactManifestColumns">
+        id, run_id, artifact_type, storage_ref, artifact_digest, size_bytes,
+        redaction_flags_json::text as redaction_flags_json, capture_status,
+        created_by, updated_by, created_at, updated_at
+    </sql>
+
+    <sql id="flakyMarkColumns">
+        f.id, f.project_id, f.scene_id, f.run_id, f.status, f.reason_code, f.reason_summary,
+        f.created_by, f.updated_by, f.created_at, f.updated_at
     </sql>
 
     <sql id="sceneWhere">
@@ -184,6 +251,25 @@
                     or position(lower(#{query.keyword}) in lower(coalesce(r.request_key, ''))) &gt; 0
                     or position(lower(#{query.keyword}) in lower(coalesce(r.failure_code, ''))) &gt; 0
                     or position(lower(#{query.keyword}) in lower(coalesce(r.trace_id, ''))) &gt; 0
+                )
+            </if>
+        </where>
+    </sql>
+
+    <sql id="flakyWhere">
+        <where>
+            <if test="query.projectId != null">f.project_id = #{query.projectId}</if>
+            <if test="query.sceneId != null">and f.scene_id = #{query.sceneId}</if>
+            <if test="query.runId != null">and f.run_id = #{query.runId}</if>
+            <if test="query.status != null">and f.status = #{query.status}</if>
+            <if test="query.keyword != null">
+                and (
+                    position(lower(#{query.keyword}) in lower(coalesce(f.reason_code, ''))) &gt; 0
+                    or position(lower(#{query.keyword}) in lower(coalesce(f.reason_summary, ''))) &gt; 0
+                    or position(lower(#{query.keyword}) in lower(coalesce(s.code, ''))) &gt; 0
+                    or position(lower(#{query.keyword}) in lower(coalesce(s.name, ''))) &gt; 0
+                    or position(lower(#{query.keyword}) in lower(coalesce(r.request_key, ''))) &gt; 0
+                    or position(lower(#{query.keyword}) in lower(coalesce(r.failure_code, ''))) &gt; 0
                 )
             </if>
         </where>
@@ -451,5 +537,119 @@
         select project_id
         from ui_e2e_run
         where id = #{id}
+    </select>
+
+    <insert id="insertRunStepResult">
+        insert into ui_e2e_run_step_result (
+            id, run_id, scene_step_id, step_order, status, duration_ms, failure_bucket, error_code,
+            summary_json, created_by, updated_by, created_at, updated_at
+        ) values (
+            #{id}, #{runId}, #{sceneStepId}, #{stepOrder}, #{status}, #{durationMs}, #{failureBucket}, #{errorCode},
+            cast(coalesce(#{summaryJson}, '{}') as jsonb), #{createdBy}, #{updatedBy}, #{createdAt}, #{updatedAt}
+        )
+    </insert>
+
+    <delete id="deleteRunStepResults">
+        delete from ui_e2e_run_step_result
+        where run_id = #{runId}
+    </delete>
+
+    <select id="runStepResults" resultMap="runStepResultMap">
+        select <include refid="runStepResultColumns"/>
+        from ui_e2e_run_step_result
+        where run_id = #{runId}
+        order by step_order asc, id asc
+    </select>
+
+    <insert id="insertArtifact">
+        insert into ui_e2e_artifact_manifest (
+            id, run_id, artifact_type, storage_ref, artifact_digest, size_bytes,
+            redaction_flags_json, capture_status, created_by, updated_by, created_at, updated_at
+        ) values (
+            #{id}, #{runId}, #{artifactType}, #{storageRef}, #{artifactDigest}, #{sizeBytes},
+            cast(coalesce(#{redactionFlagsJson}, '{}') as jsonb), #{captureStatus},
+            #{createdBy}, #{updatedBy}, #{createdAt}, #{updatedAt}
+        )
+    </insert>
+
+    <delete id="deleteArtifacts">
+        delete from ui_e2e_artifact_manifest
+        where run_id = #{runId}
+    </delete>
+
+    <select id="artifacts" resultMap="artifactManifestMap">
+        select <include refid="artifactManifestColumns"/>
+        from ui_e2e_artifact_manifest
+        where run_id = #{runId}
+        order by created_at asc, id asc
+    </select>
+
+    <insert id="insertFlakyMark">
+        insert into ui_e2e_flaky_mark (
+            id, project_id, scene_id, run_id, status, reason_code, reason_summary,
+            created_by, updated_by, created_at, updated_at
+        ) values (
+            #{id}, #{projectId}, #{sceneId}, #{runId}, #{status}, #{reasonCode}, #{reasonSummary},
+            #{createdBy}, #{updatedBy}, #{createdAt}, #{updatedAt}
+        )
+    </insert>
+
+    <update id="updateFlakyMarkByScene">
+        update ui_e2e_flaky_mark set
+            project_id = #{projectId},
+            run_id = #{runId},
+            status = #{status},
+            reason_code = #{reasonCode},
+            reason_summary = #{reasonSummary},
+            updated_by = #{updatedBy},
+            updated_at = #{updatedAt}
+        where scene_id = #{sceneId}
+    </update>
+
+    <update id="updateFlakyMarkByRun">
+        update ui_e2e_flaky_mark set
+            project_id = #{projectId},
+            scene_id = #{sceneId},
+            status = #{status},
+            reason_code = #{reasonCode},
+            reason_summary = #{reasonSummary},
+            updated_by = #{updatedBy},
+            updated_at = #{updatedAt}
+        where run_id = #{runId}
+    </update>
+
+    <select id="flakyMarkByScene" resultMap="flakyMarkMap">
+        select <include refid="flakyMarkColumns"/>
+        from ui_e2e_flaky_mark f
+        where f.scene_id = #{sceneId}
+        order by f.updated_at desc, f.id desc
+        limit 1
+    </select>
+
+    <select id="flakyMarkByRun" resultMap="flakyMarkMap">
+        select <include refid="flakyMarkColumns"/>
+        from ui_e2e_flaky_mark f
+        where f.run_id = #{runId}
+        order by f.updated_at desc, f.id desc
+        limit 1
+    </select>
+
+    <select id="flakyMarks" resultMap="flakyMarkMap">
+        select <include refid="flakyMarkColumns"/>
+        from ui_e2e_flaky_mark f
+        left join ui_e2e_scene s on s.id = f.scene_id
+        left join ui_e2e_run r on r.id = f.run_id
+        <include refid="flakyWhere"/>
+        order by f.updated_at desc, f.id desc
+        offset #{query.offset}
+        limit #{query.limit}
+    </select>
+
+    <select id="countFlakyMarks" resultType="long">
+        select count(*)
+        from ui_e2e_flaky_mark f
+        left join ui_e2e_scene s on s.id = f.scene_id
+        left join ui_e2e_run r on r.id = f.run_id
+        <include refid="flakyWhere"/>
     </select>
 </mapper>

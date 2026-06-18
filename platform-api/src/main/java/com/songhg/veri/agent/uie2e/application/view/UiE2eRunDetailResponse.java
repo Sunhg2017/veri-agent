@@ -2,6 +2,7 @@ package com.songhg.veri.agent.uie2e.application.view;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 import java.time.Instant;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -22,6 +23,9 @@ public record UiE2eRunDetailResponse(
         String traceId,
         Map<String, Object> accountSummary,
         Map<String, Object> executionSummary,
+        List<UiE2eRunStepResultResponse> stepResults,
+        List<UiE2eArtifactManifestResponse> artifacts,
+        UiE2eFlakyMarkResponse flakyMark,
         Instant startedAt,
         Instant finishedAt,
         Instant createdAt,

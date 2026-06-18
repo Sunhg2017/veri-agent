@@ -17,20 +17,30 @@ import com.songhg.veri.agent.uie2e.application.port.UiE2eRepository;
 import com.songhg.veri.agent.uie2e.application.port.UiE2eRunnerPort;
 import com.songhg.veri.agent.uie2e.application.query.UiE2eRunPageRequest;
 import com.songhg.veri.agent.uie2e.application.query.UiE2eRunQuery;
+import com.songhg.veri.agent.uie2e.application.view.UiE2eArtifactManifestResponse;
+import com.songhg.veri.agent.uie2e.application.view.UiE2eFlakyMarkResponse;
 import com.songhg.veri.agent.uie2e.application.view.UiE2eRunDetailResponse;
 import com.songhg.veri.agent.uie2e.application.view.UiE2eRunExportResponse;
+import com.songhg.veri.agent.uie2e.application.view.UiE2eRunStepResultResponse;
 import com.songhg.veri.agent.uie2e.application.view.UiE2eRunSummaryResponse;
+import com.songhg.veri.agent.uie2e.domain.UiE2eArtifactManifest;
+import com.songhg.veri.agent.uie2e.domain.UiE2eFlakyMark;
 import com.songhg.veri.agent.uie2e.config.UiE2eProperties;
 import com.songhg.veri.agent.uie2e.domain.UiE2eBundle;
 import com.songhg.veri.agent.uie2e.domain.UiE2eRun;
+import com.songhg.veri.agent.uie2e.domain.UiE2eRunStepResult;
 import com.songhg.veri.agent.uie2e.domain.UiE2eScene;
+import com.songhg.veri.agent.uie2e.domain.UiE2eSceneStep;
 import java.time.Instant;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
+import java.util.function.Function;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -51,6 +61,28 @@ public class UiE2eRunService {
             "BLOCKED"
     );
     private static final Set<String> TERMINAL_RUN_STATUSES = Set.of("SUCCEEDED", "FAILED", "TIMEOUT", "CANCELED", "BLOCKED");
+    private static final Set<String> FAILURE_BUCKETS = Set.of(
+            "LOCATOR",
+            "AUTHORIZATION",
+            "ENVIRONMENT_TIMEOUT",
+            "ACCOUNT",
+            "TEST_DATA",
+            "RUNNER",
+            "ASSERTION",
+            "UNKNOWN"
+    );
+    private static final Set<String> STEP_RESULT_STATUSES = Set.of(
+            "PENDING",
+            "RUNNING",
+            "SUCCEEDED",
+            "FAILED",
+            "SKIPPED",
+            "BLOCKED",
+            "TIMEOUT",
+            "CANCELED"
+    );
+    private static final Set<String> ARTIFACT_TYPES = Set.of("SCREENSHOT", "VIDEO", "TRACE", "LOG", "HAR", "JUNIT_XML");
+    private static final Set<String> ARTIFACT_CAPTURE_STATUSES = Set.of("PENDING", "CAPTURED", "REDACTED", "BLOCKED", "FAILED", "SKIPPED");
 
     private final UiE2eRepository repository;
     private final UiE2eActorResolver actorResolver;
@@ -246,6 +278,8 @@ public class UiE2eRunService {
                 traceId,
                 now
         );
+        List<UiE2eArtifactManifest> manifests = manifests(run, attempt, actor, now);
+        List<UiE2eRunStepResult> stepResults = stepResults(run, scene, attempt, actor, now);
         try {
             repository.insertRun(run);
         } catch (DuplicateKeyException exception) {
@@ -256,6 +290,8 @@ public class UiE2eRunService {
             }
             throw exception;
         }
+        repository.replaceRunStepResults(run.id(), stepResults);
+        repository.replaceArtifacts(run.id(), manifests);
         Map<String, Object> createdAudit = new LinkedHashMap<>();
         createdAudit.put("status", run.status());
         createdAudit.put("runnerMode", run.runnerMode());
@@ -272,7 +308,8 @@ public class UiE2eRunService {
             Map<String, Object> completedAudit = new LinkedHashMap<>();
             completedAudit.put("status", run.status());
             completedAudit.put("failureCode", run.failureCode());
-            completedAudit.put("artifactManifestCount", 0);
+            completedAudit.put("stepResultCount", stepResults.size());
+            completedAudit.put("artifactManifestCount", manifests.size());
             auditRun(run, "BLOCKED".equals(run.status()) ? "FAILED" : "SUCCESS", "ui_e2e.run.completed", completedAudit);
         }
         return detail(run, false);
@@ -391,6 +428,10 @@ public class UiE2eRunService {
                 run.failureSummary(),
                 run.traceId(),
                 readMap(run.accountSummaryJson()),
+                repository.flakyMarkByRun(run.id())
+                        .or(() -> repository.flakyMarkByScene(run.sceneId()))
+                        .map(UiE2eFlakyMark::status)
+                        .orElse(null),
                 run.startedAt(),
                 run.finishedAt(),
                 run.createdAt(),
@@ -402,18 +443,34 @@ public class UiE2eRunService {
         UiE2eScene scene = requireScene(run.sceneId());
         UiE2eBundle bundle = requireBundle(run.bundleId());
         Map<String, Object> accountSummary = readMap(run.accountSummaryJson());
+        List<UiE2eRunStepResultResponse> stepResults = repository.runStepResults(run.id()).stream()
+                .map(this::stepResultResponse)
+                .toList();
+        List<UiE2eArtifactManifestResponse> artifacts = repository.artifacts(run.id()).stream()
+                .map(this::artifactResponse)
+                .toList();
+        UiE2eFlakyMarkResponse flakyMark = repository.flakyMarkByRun(run.id())
+                .map(mark -> flakyResponse(mark, scene, run))
+                .orElseGet(() -> repository.flakyMarkByScene(scene.id())
+                        .map(mark -> flakyResponse(mark, scene, run))
+                        .orElse(null));
         Map<String, Object> executionSummary = new LinkedHashMap<>();
         // runnerReady reflects that the control-plane contracts are live. runnerDefaultDisabled remains the switch that
         // tells the caller whether this environment will actually execute the run by default.
         executionSummary.put("aggregateOnly", true);
         executionSummary.put("runnerReady", true);
-        executionSummary.put("artifactManifestCount", 0);
+        executionSummary.put("stepResultCount", stepResults.size());
+        executionSummary.put("artifactManifestCount", artifacts.size());
         executionSummary.put("rawArtifactDownloadReady", false);
         executionSummary.put("secretRefPlaintextReturned", false);
         executionSummary.put("baseUrlDigest", run.baseUrlDigest());
         executionSummary.put("accountScopeSummaryKeys", accountSummary.getOrDefault("scopeSummaryKeys", List.of()));
         executionSummary.put("runnerDefaultDisabled", !properties.runnerEnabled());
         executionSummary.put("cancelSupported", true);
+        executionSummary.put("stepStatusCounts", stepStatusCounts(stepResults));
+        executionSummary.put("failureBucketCounts", failureBucketCounts(stepResults));
+        executionSummary.put("artifactTypes", artifacts.stream().map(UiE2eArtifactManifestResponse::artifactType).distinct().toList());
+        executionSummary.put("flakyStatus", flakyMark == null ? null : flakyMark.status());
         return new UiE2eRunDetailResponse(
                 run.id(),
                 run.projectId(),
@@ -431,11 +488,80 @@ public class UiE2eRunService {
                 run.traceId(),
                 accountSummary,
                 executionSummary,
+                stepResults,
+                artifacts,
+                flakyMark,
                 run.startedAt(),
                 run.finishedAt(),
                 run.createdAt(),
                 run.updatedAt(),
                 idempotentReplay
+        );
+    }
+
+    /**
+     * Stores only step-level aggregate summaries so WP9/WP10 can consume classification and timing without DOM,
+     * scripts or credential-bearing runner output.
+     */
+    private List<UiE2eRunStepResult> stepResults(
+            UiE2eRun run,
+            UiE2eScene scene,
+            UiE2eRunnerPort.RunnerRunResult attempt,
+            String actor,
+            Instant now
+    ) {
+        if (attempt == null || attempt.stepResults() == null || attempt.stepResults().isEmpty()) {
+            return List.of();
+        }
+        Map<Integer, UiE2eSceneStep> sceneStepsByOrder = repository.sceneSteps(scene.id()).stream()
+                .collect(java.util.stream.Collectors.toMap(
+                        UiE2eSceneStep::stepOrder,
+                        Function.identity(),
+                        (left, right) -> left,
+                        LinkedHashMap::new
+                ));
+        return attempt.stepResults().stream()
+                .filter(Objects::nonNull)
+                .map(step -> stepResult(run, sceneStepsByOrder, step, actor, now))
+                .sorted(Comparator.comparingInt(UiE2eRunStepResult::stepOrder).thenComparing(UiE2eRunStepResult::id))
+                .toList();
+    }
+
+    private UiE2eRunStepResult stepResult(
+            UiE2eRun run,
+            Map<Integer, UiE2eSceneStep> sceneStepsByOrder,
+            UiE2eRunnerPort.RunnerStepResult step,
+            String actor,
+            Instant now
+    ) {
+        int stepOrder = Math.max(step.stepOrder(), 1);
+        UiE2eSceneStep sceneStep = sceneStepsByOrder.get(stepOrder);
+        UUID sceneStepId = sceneStep == null ? step.sceneStepId() : sceneStep.id();
+        Map<String, Object> safeSummary = new LinkedHashMap<>();
+        if (step.summary() != null) {
+            step.summary().forEach((key, value) -> safeSummary.put(
+                    SensitiveTextSanitizer.boundedText(String.valueOf(key), 64),
+                    safeManifestValue(value)
+            ));
+        }
+        safeSummary.put("aggregateOnly", true);
+        safeSummary.put("rawDomStored", false);
+        safeSummary.put("rawRunnerOutputStored", false);
+        safeSummary.put("secretPlaintextStored", false);
+        return new UiE2eRunStepResult(
+                UUID.randomUUID(),
+                run.id(),
+                sceneStepId,
+                stepOrder,
+                normalizeStepResultStatus(step.status()),
+                Math.max(step.durationMs(), 0),
+                normalizeFailureBucket(step.failureBucket()),
+                SensitiveTextSanitizer.boundedNullableText(step.errorCode(), 64),
+                json(safeSummary),
+                actor,
+                actor,
+                now,
+                now
         );
     }
 
@@ -447,6 +573,164 @@ public class UiE2eRunService {
         payload.put("status", run.status());
         payload.put("traceId", run.traceId());
         contextClient.writeAuditEvent(action, "UI_E2E_RUN", run.id().toString(), run.projectId(), result, payload);
+    }
+
+    private List<UiE2eArtifactManifest> manifests(
+            UiE2eRun run,
+            UiE2eRunnerPort.RunnerRunResult attempt,
+            String actor,
+            Instant now
+    ) {
+        if (attempt == null || attempt.artifacts() == null || attempt.artifacts().isEmpty()) {
+            return List.of();
+        }
+        return attempt.artifacts().stream()
+                .filter(Objects::nonNull)
+                .limit(properties.effectiveMaxArtifactCount())
+                .map(artifact -> artifact(run, artifact, actor, now))
+                .sorted(Comparator.comparing(UiE2eArtifactManifest::createdAt).thenComparing(UiE2eArtifactManifest::id))
+                .toList();
+    }
+
+    private UiE2eArtifactManifest artifact(
+            UiE2eRun run,
+            UiE2eRunnerPort.RunnerArtifactManifest artifact,
+            String actor,
+            Instant now
+    ) {
+        String artifactType = normalizeArtifactType(artifact.artifactType());
+        String captureStatus = normalizeArtifactCaptureStatus(artifact.captureStatus());
+        String storageRef = boundedStorageRef(artifact.storageRef());
+        String digest = boundedDigest(artifact.artifactDigest());
+        long sizeBytes = Math.max(0L, Math.min(artifact.sizeBytes(), properties.effectiveMaxArtifactSizeBytes()));
+        Map<String, Object> flags = new LinkedHashMap<>();
+        if (artifact.redactionFlags() != null) {
+            artifact.redactionFlags().forEach((key, value) -> flags.put(
+                    SensitiveTextSanitizer.boundedText(String.valueOf(key), 64),
+                    safeManifestValue(value)
+            ));
+        }
+        flags.put("aggregateOnly", true);
+        flags.put("rawArtifactStored", false);
+        flags.put("rawArtifactDownloadReady", false);
+        flags.put("secretPlaintextStored", false);
+        flags.put("storageCredentialStored", false);
+        if ("CAPTURED".equals(captureStatus) && (!StringUtils.hasText(storageRef) || !StringUtils.hasText(digest))) {
+            captureStatus = "BLOCKED";
+            flags.put("captureBlockedReason", "artifactRefIncomplete");
+        }
+        return new UiE2eArtifactManifest(
+                UUID.randomUUID(),
+                run.id(),
+                artifactType,
+                storageRef,
+                digest,
+                sizeBytes,
+                json(flags),
+                captureStatus,
+                actor,
+                actor,
+                now,
+                now
+        );
+    }
+
+    private Object safeManifestValue(Object value) {
+        if (value instanceof Map<?, ?> map) {
+            Map<String, Object> safe = new LinkedHashMap<>();
+            map.forEach((key, nestedValue) -> safe.put(
+                    SensitiveTextSanitizer.boundedText(String.valueOf(key), 64),
+                    safeManifestValue(nestedValue)
+            ));
+            return safe;
+        }
+        if (value instanceof List<?> list) {
+            return list.stream().map(this::safeManifestValue).toList();
+        }
+        if (value instanceof String text) {
+            return SensitiveTextSanitizer.sanitizedEvidenceText(text, 256);
+        }
+        return value;
+    }
+
+    private UiE2eArtifactManifestResponse artifactResponse(UiE2eArtifactManifest manifest) {
+        return new UiE2eArtifactManifestResponse(
+                manifest.id(),
+                manifest.artifactType(),
+                manifest.storageRef(),
+                manifest.artifactDigest(),
+                manifest.sizeBytes(),
+                readMap(manifest.redactionFlagsJson()),
+                manifest.captureStatus(),
+                manifest.createdAt(),
+                manifest.updatedAt()
+        );
+    }
+
+    private UiE2eFlakyMarkResponse flakyResponse(UiE2eFlakyMark mark, UiE2eScene scene, UiE2eRun run) {
+        return new UiE2eFlakyMarkResponse(
+                mark.id(),
+                mark.projectId(),
+                mark.sceneId(),
+                scene.code(),
+                scene.name(),
+                mark.runId(),
+                run.status(),
+                mark.status(),
+                mark.reasonCode(),
+                mark.reasonSummary(),
+                mark.createdBy(),
+                mark.updatedBy(),
+                mark.createdAt(),
+                mark.updatedAt()
+        );
+    }
+
+    private UiE2eRunStepResultResponse stepResultResponse(UiE2eRunStepResult stepResult) {
+        return new UiE2eRunStepResultResponse(
+                stepResult.id(),
+                stepResult.sceneStepId(),
+                stepResult.stepOrder(),
+                stepResult.status(),
+                stepResult.durationMs(),
+                stepResult.failureBucket(),
+                stepResult.errorCode(),
+                readMap(stepResult.summaryJson()),
+                stepResult.createdAt(),
+                stepResult.updatedAt()
+        );
+    }
+
+    private Map<String, Integer> stepStatusCounts(List<UiE2eRunStepResultResponse> stepResults) {
+        return countsByKey(stepResults, UiE2eRunStepResultResponse::status, STEP_RESULT_STATUSES);
+    }
+
+    private Map<String, Integer> failureBucketCounts(List<UiE2eRunStepResultResponse> stepResults) {
+        return countsByKey(stepResults, UiE2eRunStepResultResponse::failureBucket, FAILURE_BUCKETS);
+    }
+
+    private <T> Map<String, Integer> countsByKey(
+            List<T> items,
+            Function<T, String> extractor,
+            Set<String> allowedValues
+    ) {
+        Map<String, Integer> counts = new LinkedHashMap<>();
+        allowedValues.stream().sorted().forEach(value -> counts.put(value, 0));
+        for (T item : items) {
+            if (item == null) {
+                continue;
+            }
+            String value = extractor.apply(item);
+            if (!StringUtils.hasText(value)) {
+                continue;
+            }
+            String normalized = value.trim().toUpperCase(Locale.ROOT);
+            if (!allowedValues.contains(normalized)) {
+                continue;
+            }
+            counts.computeIfPresent(normalized, (ignored, current) -> current + 1);
+        }
+        return counts;
     }
 
     private UiE2eScene requireScene(UUID id) {
@@ -491,6 +775,41 @@ public class UiE2eRunService {
     private String normalizeRunnerMode(String runnerMode) {
         String normalized = StringUtils.hasText(runnerMode) ? runnerMode.trim().toUpperCase(Locale.ROOT) : "DISABLED";
         return Set.of("DISABLED", "MANAGED", "HTTP_ADAPTER").contains(normalized) ? normalized : "DISABLED";
+    }
+
+    private String normalizeArtifactType(String artifactType) {
+        String normalized = StringUtils.hasText(artifactType) ? artifactType.trim().toUpperCase(Locale.ROOT) : "LOG";
+        return ARTIFACT_TYPES.contains(normalized) ? normalized : "LOG";
+    }
+
+    private String normalizeStepResultStatus(String status) {
+        String normalized = StringUtils.hasText(status) ? status.trim().toUpperCase(Locale.ROOT) : "BLOCKED";
+        return STEP_RESULT_STATUSES.contains(normalized) ? normalized : "BLOCKED";
+    }
+
+    private String normalizeFailureBucket(String failureBucket) {
+        if (!StringUtils.hasText(failureBucket)) {
+            return null;
+        }
+        String normalized = failureBucket.trim().toUpperCase(Locale.ROOT);
+        return FAILURE_BUCKETS.contains(normalized) ? normalized : "UNKNOWN";
+    }
+
+    private String normalizeArtifactCaptureStatus(String captureStatus) {
+        String normalized = StringUtils.hasText(captureStatus) ? captureStatus.trim().toUpperCase(Locale.ROOT) : "PENDING";
+        return ARTIFACT_CAPTURE_STATUSES.contains(normalized) ? normalized : "BLOCKED";
+    }
+
+    private String boundedStorageRef(String storageRef) {
+        return SensitiveTextSanitizer.sanitizedEvidenceText(storageRef, 512);
+    }
+
+    private String boundedDigest(String digest) {
+        if (!StringUtils.hasText(digest)) {
+            return null;
+        }
+        String bounded = SensitiveTextSanitizer.boundedText(digest.trim().toLowerCase(Locale.ROOT), 64);
+        return bounded.matches("^[0-9a-f]{1,64}$") ? bounded : SensitiveTextSanitizer.sha256Hex(bounded);
     }
 
     private UiE2eRunQuery normalizeQuery(UiE2eRunQuery query) {
