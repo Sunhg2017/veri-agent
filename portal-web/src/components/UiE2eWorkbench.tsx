@@ -31,6 +31,7 @@ import {
   fetchUiE2eScenes,
   rejectUiE2eBundle,
   submitUiE2eBundleReview,
+  updateUiE2eScene,
   upsertUiE2eFlakyMark,
   type UiE2eArtifactManifest,
   type UiE2eBundleDetail,
@@ -46,14 +47,17 @@ import {
 } from '../api/uiE2e';
 import { canUseButton, hasPermission } from '../permissions';
 import {
+  blankUiE2eSceneDraft,
   buildUiE2eFlakyPayload,
   buildUiE2eRunPayload,
   buildUiE2eScenePayload,
+  buildUiE2eSceneUpdatePayload,
   initialUiE2eFlakyDraft,
   initialUiE2eRunDraft,
   initialUiE2eSceneDraft,
   initialUiE2eSceneStepDraft,
   prettyJson,
+  sceneDraftFromDetail,
   type UiE2eFlakyDraft,
   type UiE2eRunDraft,
   type UiE2eSceneDraft,
@@ -98,6 +102,7 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
   const [selectedBundleId, setSelectedBundleId] = useState('');
   const [selectedRunId, setSelectedRunId] = useState('');
   const [selectedFlakyId, setSelectedFlakyId] = useState('');
+  const [editingSceneId, setEditingSceneId] = useState('');
 
   const [sceneDetail, setSceneDetail] = useState<UiE2eSceneDetail | null>(null);
   const [bundleDetail, setBundleDetail] = useState<UiE2eBundleDetail | null>(null);
@@ -144,6 +149,7 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
       setSelectedBundleId('');
       setSelectedRunId('');
       setSelectedFlakyId('');
+      setEditingSceneId('');
       return;
     }
     setLoadState({ loading: true });
@@ -235,9 +241,31 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
     return <div className="notice error">当前账号缺少 uiE2e:read 权限。</div>;
   }
 
-  async function onCreateScene(event: FormEvent<HTMLFormElement>) {
+  async function onSubmitScene(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!canManage) return;
+    if (editingSceneId) {
+      const { payload, issues } = buildUiE2eSceneUpdatePayload(sceneDraft);
+      if (!payload || issues.length) {
+        setSceneActionState({ loading: false, error: issues.join('；') });
+        return;
+      }
+      setSceneActionState({ loading: true });
+      try {
+        const result = await updateUiE2eScene(editingSceneId, payload);
+        setSceneDetail(result.data);
+        setSelectedSceneId(result.data.id);
+        setScenes((current) => [summaryFromSceneDetail(result.data), ...current.filter((scene) => scene.id !== result.data.id)]);
+        setSceneDraft(sceneDraftFromDetail(result.data));
+        setEditingSceneId(result.data.id);
+        applySceneDefaults(result.data);
+        setSceneActionState({ loading: false, success: '场景已更新', traceId: result.trace_id });
+      } catch (error: unknown) {
+        setSceneActionState({ loading: false, error: error instanceof Error ? error.message : '更新场景失败' });
+      }
+      return;
+    }
+
     const { payload, issues } = buildUiE2eScenePayload(sceneDraft);
     if (!payload || issues.length) {
       setSceneActionState({ loading: false, error: issues.join('；') });
@@ -249,12 +277,12 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
       setSceneDetail(result.data);
       setSelectedSceneId(result.data.id);
       setScenes((current) => [summaryFromSceneDetail(result.data), ...current.filter((scene) => scene.id !== result.data.id)]);
-      setSceneDraft((current) => ({
-        ...initialUiE2eSceneDraft,
-        projectId: current.projectId,
-        applicationId: current.applicationId,
-        environmentId: current.environmentId
+      setSceneDraft(blankUiE2eSceneDraft({
+        projectId: sceneDraft.projectId,
+        applicationId: sceneDraft.applicationId,
+        environmentId: sceneDraft.environmentId
       }));
+      setEditingSceneId('');
       applySceneDefaults(result.data);
       setSceneActionState({ loading: false, success: '场景已创建', traceId: result.trace_id });
     } catch (error: unknown) {
@@ -269,6 +297,14 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
       const result = await archiveUiE2eScene(sceneDetail.id);
       setSceneDetail(result.data);
       setScenes((current) => current.map((scene) => scene.id === result.data.id ? summaryFromSceneDetail(result.data) : scene));
+      if (editingSceneId === result.data.id) {
+        setEditingSceneId('');
+        setSceneDraft(blankUiE2eSceneDraft({
+          projectId: result.data.projectId,
+          applicationId: result.data.applicationId || '',
+          environmentId: result.data.environmentId || ''
+        }));
+      }
       setSceneActionState({ loading: false, success: '场景已归档', traceId: result.trace_id });
     } catch (error: unknown) {
       setSceneActionState({ loading: false, error: error instanceof Error ? error.message : '归档场景失败' });
@@ -460,10 +496,10 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
                 </button>
               </div>
             </form>
-            <form className="ui-e2e-form" onSubmit={onCreateScene}>
+            <form className="ui-e2e-form" onSubmit={onSubmitScene}>
               <div className="form-grid">
                 <Field label="projectId">
-                  <input value={sceneDraft.projectId} onChange={(event) => setSceneDraftValue('projectId', event.target.value)} placeholder="project-alpha" disabled={!canManage || sceneActionState.loading} />
+                  <input value={sceneDraft.projectId} onChange={(event) => setSceneDraftValue('projectId', event.target.value)} placeholder="project-alpha" disabled={!canManage || sceneActionState.loading || Boolean(editingSceneId)} />
                 </Field>
                 <Field label="applicationId">
                   <input value={sceneDraft.applicationId} onChange={(event) => setSceneDraftValue('applicationId', event.target.value)} placeholder="app-alpha" disabled={!canManage || sceneActionState.loading} />
@@ -472,7 +508,7 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
                   <input value={sceneDraft.environmentId} onChange={(event) => setSceneDraftValue('environmentId', event.target.value)} placeholder="staging" disabled={!canManage || sceneActionState.loading} />
                 </Field>
                 <Field label="code">
-                  <input value={sceneDraft.code} onChange={(event) => setSceneDraftValue('code', event.target.value)} placeholder="portal-login-smoke" disabled={!canManage || sceneActionState.loading} />
+                  <input value={sceneDraft.code} onChange={(event) => setSceneDraftValue('code', event.target.value)} placeholder="portal-login-smoke" disabled={!canManage || sceneActionState.loading || Boolean(editingSceneId)} />
                 </Field>
                 <Field label="name">
                   <input value={sceneDraft.name} onChange={(event) => setSceneDraftValue('name', event.target.value)} placeholder="后台管理员登录并进入首页" disabled={!canManage || sceneActionState.loading} />
@@ -500,6 +536,9 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
               <Field label="sourceSummary">
                 <textarea value={sceneDraft.sourceSummaryText} onChange={(event) => setSceneDraftValue('sourceSummaryText', event.target.value)} disabled={!canManage || sceneActionState.loading} />
               </Field>
+              {editingSceneId && (
+                <div className="notice info">当前正在编辑所选场景；`projectId` 和 `code` 为后端只读键，前端不会允许改写。</div>
+              )}
               <div className="ui-e2e-step-editor">
                 <div className="ui-e2e-section-heading">
                   <strong>步骤模板</strong>
@@ -537,8 +576,18 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
               </div>
               <div className="report-actions-row">
                 <button className="btn btn-primary" type="submit" disabled={!canManage || sceneActionState.loading}>
-                  <FileText size={16} />创建场景
+                  <FileText size={16} />{editingSceneId ? '保存场景' : '创建场景'}
                 </button>
+                {sceneDetail && sceneDetail.status !== 'ARCHIVED' && (
+                  <button className="btn btn-secondary" type="button" onClick={loadSelectedSceneIntoDraft} disabled={!canManage || sceneActionState.loading}>
+                    <FileText size={16} />{editingSceneId === sceneDetail.id ? '重新载入所选场景' : '编辑所选场景'}
+                  </button>
+                )}
+                {editingSceneId && (
+                  <button className="btn btn-secondary" type="button" onClick={cancelSceneEditing} disabled={!canManage || sceneActionState.loading}>
+                    取消编辑
+                  </button>
+                )}
                 {sceneDetail && sceneDetail.status !== 'ARCHIVED' && (
                   <button className="btn btn-secondary" type="button" onClick={() => void onArchiveScene()} disabled={!canManage || sceneActionState.loading}>
                     <Archive size={16} />归档所选场景
@@ -555,6 +604,14 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
               onSelect={(scene) => {
                 setSelectedSceneId(scene.id);
                 applySceneDefaults(scene);
+                if (editingSceneId) {
+                  setEditingSceneId('');
+                  setSceneDraft(blankUiE2eSceneDraft({
+                    projectId: scene.projectId,
+                    applicationId: scene.applicationId || '',
+                    environmentId: scene.environmentId || ''
+                  }));
+                }
               }}
               renderItem={(scene) => (
                 <>
@@ -894,6 +951,29 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
       sceneId: run.sceneId,
       bundleId: run.bundleId
     }));
+  }
+
+  function loadSelectedSceneIntoDraft() {
+    if (!sceneDetail) {
+      return;
+    }
+    setEditingSceneId(sceneDetail.id);
+    setSceneDraft(sceneDraftFromDetail(sceneDetail));
+    setSceneActionState({ loading: false });
+  }
+
+  function cancelSceneEditing() {
+    setEditingSceneId('');
+    setSceneDraft(blankUiE2eSceneDraft(sceneDetail ? {
+      projectId: sceneDetail.projectId,
+      applicationId: sceneDetail.applicationId || '',
+      environmentId: sceneDetail.environmentId || ''
+    } : {
+      projectId: sceneDraft.projectId,
+      applicationId: sceneDraft.applicationId,
+      environmentId: sceneDraft.environmentId
+    }));
+    setSceneActionState({ loading: false });
   }
 }
 

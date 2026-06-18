@@ -1,7 +1,9 @@
 import type {
   CreateUiE2eRunPayload,
   CreateUiE2eScenePayload,
+  UiE2eSceneDetail,
   UiE2eSceneStepPayload,
+  UpdateUiE2eScenePayload,
   UpsertUiE2eFlakyMarkPayload
 } from './api/uiE2e';
 
@@ -67,6 +69,16 @@ export const initialUiE2eSceneDraft: UiE2eSceneDraft = {
   steps: [{ ...initialUiE2eSceneStepDraft }]
 };
 
+export function blankUiE2eSceneDraft(defaults: Partial<Pick<UiE2eSceneDraft, 'projectId' | 'applicationId' | 'environmentId'>> = {}): UiE2eSceneDraft {
+  return {
+    ...initialUiE2eSceneDraft,
+    projectId: defaults.projectId || '',
+    applicationId: defaults.applicationId || '',
+    environmentId: defaults.environmentId || '',
+    steps: [{ ...initialUiE2eSceneStepDraft }]
+  };
+}
+
 export const initialUiE2eRunDraft: UiE2eRunDraft = {
   projectId: '',
   sceneId: '',
@@ -91,9 +103,70 @@ const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}
 const requestKeyPattern = /^[A-Za-z0-9_.:-]{1,128}$/;
 
 export function buildUiE2eScenePayload(draft: UiE2eSceneDraft): { payload?: CreateUiE2eScenePayload; issues: string[] } {
-  const issues: string[] = [];
+  const { payload: partialPayload, issues } = buildUiE2eScenePayloadBase(draft);
   if (!draft.projectId.trim()) issues.push('请填写 scene projectId');
   if (!draft.code.trim()) issues.push('请填写 scene code');
+
+  if (!partialPayload || issues.length) {
+    return { issues };
+  }
+
+  return {
+    issues,
+    payload: {
+      projectId: draft.projectId.trim(),
+      applicationId: partialPayload.applicationId,
+      environmentId: partialPayload.environmentId,
+      code: draft.code.trim(),
+      name: partialPayload.name,
+      status: partialPayload.status,
+      riskLevel: partialPayload.riskLevel,
+      tags: partialPayload.tags,
+      sourceSummary: partialPayload.sourceSummary,
+      steps: partialPayload.steps
+    }
+  };
+}
+
+export function buildUiE2eSceneUpdatePayload(draft: UiE2eSceneDraft): { payload?: UpdateUiE2eScenePayload; issues: string[] } {
+  const { payload, issues } = buildUiE2eScenePayloadBase(draft);
+  if (!payload || issues.length) {
+    return { issues };
+  }
+
+  return { issues, payload };
+}
+
+export function sceneDraftFromDetail(detail: Pick<
+  UiE2eSceneDetail,
+  'projectId' | 'applicationId' | 'environmentId' | 'code' | 'name' | 'status' | 'riskLevel' | 'tags' | 'sourceSummary' | 'steps'
+>): UiE2eSceneDraft {
+  return {
+    projectId: detail.projectId,
+    applicationId: detail.applicationId || '',
+    environmentId: detail.environmentId || '',
+    code: detail.code,
+    name: detail.name,
+    status: detail.status,
+    riskLevel: detail.riskLevel,
+    tagsText: detail.tags.join(' '),
+    sourceSummaryText: prettyJson(detail.sourceSummary),
+    steps: detail.steps.length
+      ? detail.steps.map((step) => ({
+          stepType: step.stepType,
+          actionSummaryText: prettyJson(step.actionSummary),
+          locatorStrategyText: prettyJson(step.locatorStrategy),
+          assertionSummaryText: prettyJson(step.assertionSummary),
+          waitPolicyText: prettyJson(step.waitPolicy)
+        }))
+      : [{ ...initialUiE2eSceneStepDraft }]
+  };
+}
+
+function buildUiE2eScenePayloadBase(
+  draft: UiE2eSceneDraft
+): { payload?: Omit<CreateUiE2eScenePayload, 'projectId' | 'code'>; issues: string[] } {
+  const issues: string[] = [];
   if (!draft.name.trim()) issues.push('请填写 scene name');
   if (!draft.steps.length) issues.push('至少保留一个步骤');
 
@@ -113,10 +186,8 @@ export function buildUiE2eScenePayload(draft: UiE2eSceneDraft): { payload?: Crea
   return {
     issues,
     payload: {
-      projectId: draft.projectId.trim(),
       applicationId: optionalText(draft.applicationId),
       environmentId: optionalText(draft.environmentId),
-      code: draft.code.trim(),
       name: draft.name.trim(),
       status: optionalText(draft.status),
       riskLevel: optionalText(draft.riskLevel),

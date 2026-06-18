@@ -1,10 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import {
+  blankUiE2eSceneDraft,
   buildUiE2eFlakyPayload,
   buildUiE2eRunPayload,
   buildUiE2eScenePayload,
+  buildUiE2eSceneUpdatePayload,
   initialUiE2eSceneDraft,
   prettyJson,
+  sceneDraftFromDetail,
   splitTags
 } from './uiE2eWorkbenchState';
 
@@ -68,6 +71,32 @@ describe('ui e2e workbench state helpers', () => {
     expect(result.issues).toContain('请填写 scene name');
     expect(result.issues).toContain('sourceSummary 不是合法 JSON');
     expect(result.issues).toContain('步骤 1 缺少 stepType');
+  });
+
+  it('builds scene update payloads without requiring immutable keys', () => {
+    const result = buildUiE2eSceneUpdatePayload({
+      ...initialUiE2eSceneDraft,
+      name: 'Portal login updated',
+      status: 'DISABLED',
+      riskLevel: 'LOW',
+      sourceSummaryText: '{"sourceType":"WP3","assetId":"asset-2"}',
+      steps: [{
+        stepType: 'ASSERT',
+        actionSummaryText: '{"mode":"read"}',
+        locatorStrategyText: '{"preferred":"text"}',
+        assertionSummaryText: '{"successSignal":"toast visible"}',
+        waitPolicyText: '{"timeoutSeconds":8}'
+      }]
+    });
+
+    expect(result.issues).toEqual([]);
+    expect(result.payload).toMatchObject({
+      name: 'Portal login updated',
+      status: 'DISABLED',
+      riskLevel: 'LOW',
+      sourceSummary: { sourceType: 'WP3', assetId: 'asset-2' },
+      steps: [{ stepType: 'ASSERT', waitPolicy: { timeoutSeconds: 8 } }]
+    });
   });
 
   it('builds run payloads and rejects invalid uuids or request keys', () => {
@@ -145,5 +174,50 @@ describe('ui e2e workbench state helpers', () => {
   it('keeps tag splitting and pretty json deterministic', () => {
     expect(splitTags(' smoke, admin，portal  login ')).toEqual(['smoke', 'admin', 'portal', 'login']);
     expect(prettyJson({ aggregateOnly: true, count: 2 })).toBe('{\n  "aggregateOnly": true,\n  "count": 2\n}');
+  });
+
+  it('hydrates and resets scene drafts predictably', () => {
+    expect(blankUiE2eSceneDraft({
+      projectId: 'project-alpha',
+      applicationId: 'app-alpha',
+      environmentId: 'staging'
+    })).toMatchObject({
+      projectId: 'project-alpha',
+      applicationId: 'app-alpha',
+      environmentId: 'staging',
+      code: '',
+      name: '',
+      steps: [{ stepType: 'LOGIN' }]
+    });
+
+    expect(sceneDraftFromDetail({
+      projectId: 'project-alpha',
+      applicationId: 'app-alpha',
+      environmentId: 'staging',
+      code: 'portal-login',
+      name: 'Portal login',
+      status: 'APPROVED',
+      riskLevel: 'HIGH',
+      tags: ['smoke', 'admin'],
+      sourceSummary: { sourceType: 'WP3', assetId: 'asset-1' },
+      steps: [{
+        id: 'step-1',
+        stepOrder: 1,
+        stepType: 'LOGIN',
+        actionSummary: { submitAction: 'click' },
+        locatorStrategy: { preferred: 'testId' },
+        assertionSummary: { successSignal: 'dashboard visible' },
+        waitPolicy: { timeoutSeconds: 5 }
+      }]
+    })).toMatchObject({
+      projectId: 'project-alpha',
+      code: 'portal-login',
+      tagsText: 'smoke admin',
+      sourceSummaryText: '{\n  "sourceType": "WP3",\n  "assetId": "asset-1"\n}',
+      steps: [{
+        stepType: 'LOGIN',
+        actionSummaryText: '{\n  "submitAction": "click"\n}'
+      }]
+    });
   });
 });
