@@ -23,6 +23,11 @@ class UiE2eOpenApiContractTest {
     void documentsUiE2eControlPlanePaths() throws Exception {
         mockMvc.perform(get("/v3/api-docs"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.paths['/api/v1/ui-e2e/health'].get").exists());
+                .andExpect(jsonPath("$.paths['/api/v1/ui-e2e/health'].get").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/ui-e2e/scenes'].post").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/ui-e2e/scenes'].get").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/ui-e2e/scenes/{id}'].get").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/ui-e2e/scenes/{id}'].patch").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/ui-e2e/scenes/{id}/archive'].post").exists());
     }
 }

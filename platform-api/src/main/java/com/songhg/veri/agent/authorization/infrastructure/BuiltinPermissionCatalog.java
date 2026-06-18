@@ -44,7 +44,10 @@ final class BuiltinPermissionCatalog {
                     PermissionCodes.TEST_DATA_EXPORT,
                     PermissionCodes.REPORT_READ, PermissionCodes.REPORT_GENERATE,
                     PermissionCodes.REPORT_DIAGNOSE, PermissionCodes.REPORT_EXPORT,
-                    PermissionCodes.REPORT_MANAGE
+                    PermissionCodes.REPORT_MANAGE,
+                    PermissionCodes.UI_E2E_READ, PermissionCodes.UI_E2E_MANAGE,
+                    PermissionCodes.UI_E2E_REVIEW, PermissionCodes.UI_E2E_EXECUTE,
+                    PermissionCodes.UI_E2E_EXPORT, PermissionCodes.UI_E2E_FLAKY
             ),
             "DepartmentManager", Set.of(
                     PermissionCodes.DEPARTMENT_READ, PermissionCodes.DEPARTMENT_EDIT, PermissionCodes.DEPARTMENT_ENABLE, PermissionCodes.DEPARTMENT_DISABLE,
@@ -78,7 +81,10 @@ final class BuiltinPermissionCatalog {
                     PermissionCodes.TEST_DATA_EXPORT,
                     PermissionCodes.REPORT_READ, PermissionCodes.REPORT_GENERATE,
                     PermissionCodes.REPORT_DIAGNOSE, PermissionCodes.REPORT_EXPORT,
-                    PermissionCodes.REPORT_MANAGE
+                    PermissionCodes.REPORT_MANAGE,
+                    PermissionCodes.UI_E2E_READ, PermissionCodes.UI_E2E_MANAGE,
+                    PermissionCodes.UI_E2E_REVIEW, PermissionCodes.UI_E2E_EXECUTE,
+                    PermissionCodes.UI_E2E_EXPORT, PermissionCodes.UI_E2E_FLAKY
             ),
             "AppOwner", Set.of(
                     PermissionCodes.PROJECT_READ, PermissionCodes.APPLICATION_READ, PermissionCodes.APPLICATION_EDIT, PermissionCodes.APPLICATION_DISABLE,
@@ -100,7 +106,10 @@ final class BuiltinPermissionCatalog {
                     PermissionCodes.TEST_DATA_READ, PermissionCodes.TEST_DATA_MANAGE,
                     PermissionCodes.TEST_DATA_LEASE, PermissionCodes.TEST_DATA_CLEANUP,
                     PermissionCodes.REPORT_READ, PermissionCodes.REPORT_GENERATE,
-                    PermissionCodes.REPORT_DIAGNOSE
+                    PermissionCodes.REPORT_DIAGNOSE,
+                    PermissionCodes.UI_E2E_READ, PermissionCodes.UI_E2E_MANAGE,
+                    PermissionCodes.UI_E2E_REVIEW, PermissionCodes.UI_E2E_EXECUTE,
+                    PermissionCodes.UI_E2E_EXPORT, PermissionCodes.UI_E2E_FLAKY
             ),
             "Tester", Set.of(
                     PermissionCodes.PROJECT_READ, PermissionCodes.APPLICATION_READ, PermissionCodes.ENVIRONMENT_READ, PermissionCodes.ENVIRONMENT_USE,
@@ -115,14 +124,16 @@ final class BuiltinPermissionCatalog {
                     PermissionCodes.EXECUTION_READ, PermissionCodes.EXECUTION_TRIGGER,
                     PermissionCodes.TEST_DATA_READ, PermissionCodes.TEST_DATA_LEASE,
                     PermissionCodes.REPORT_READ, PermissionCodes.REPORT_GENERATE,
-                    PermissionCodes.REPORT_DIAGNOSE
+                    PermissionCodes.REPORT_DIAGNOSE,
+                    PermissionCodes.UI_E2E_READ, PermissionCodes.UI_E2E_MANAGE,
+                    PermissionCodes.UI_E2E_EXECUTE, PermissionCodes.UI_E2E_FLAKY
             ),
             "Developer", Set.of(
                     PermissionCodes.PROJECT_READ, PermissionCodes.APPLICATION_READ, PermissionCodes.ENVIRONMENT_READ, PermissionCodes.CONFIG_READ,
                     PermissionCodes.CONTEXT_READ, PermissionCodes.CONTEXT_SWITCH, PermissionCodes.CONTEXT_EFFECTIVE_READ,
                     PermissionCodes.ASSET_READ, PermissionCodes.REQUIREMENT_INPUT_READ, PermissionCodes.TEST_DESIGN_READ,
                     PermissionCodes.API_AUTOMATION_READ, PermissionCodes.TEST_DATA_READ,
-                    PermissionCodes.REPORT_READ
+                    PermissionCodes.REPORT_READ, PermissionCodes.UI_E2E_READ
             ),
             "Auditor", Set.of(
                     PermissionCodes.DEPARTMENT_READ, PermissionCodes.USER_READ, PermissionCodes.PROJECT_READ, PermissionCodes.APPLICATION_READ,
@@ -133,7 +144,8 @@ final class BuiltinPermissionCatalog {
                     PermissionCodes.API_AUTOMATION_READ, PermissionCodes.API_AUTOMATION_EXPORT,
                     PermissionCodes.EXECUTION_READ, PermissionCodes.EXECUTION_EXPORT,
                     PermissionCodes.TEST_DATA_READ, PermissionCodes.TEST_DATA_EXPORT,
-                    PermissionCodes.REPORT_READ, PermissionCodes.REPORT_EXPORT
+                    PermissionCodes.REPORT_READ, PermissionCodes.REPORT_EXPORT,
+                    PermissionCodes.UI_E2E_READ, PermissionCodes.UI_E2E_EXPORT
             )
     );
 }

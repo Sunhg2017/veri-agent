@@ -1,0 +1,173 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.songhg.veri.agent.uie2e.infrastructure.mapper.UiE2eMapper">
+    <resultMap id="sceneMap" type="com.songhg.veri.agent.uie2e.domain.UiE2eScene">
+        <constructor>
+            <arg column="id" javaType="java.util.UUID"/>
+            <arg column="project_id" javaType="java.lang.String"/>
+            <arg column="application_id" javaType="java.lang.String"/>
+            <arg column="environment_id" javaType="java.lang.String"/>
+            <arg column="code" javaType="java.lang.String"/>
+            <arg column="name" javaType="java.lang.String"/>
+            <arg column="status" javaType="java.lang.String"/>
+            <arg column="risk_level" javaType="java.lang.String"/>
+            <arg column="source_summary_json" javaType="java.lang.String"/>
+            <arg column="tags_json" javaType="java.lang.String"/>
+            <arg column="created_by" javaType="java.lang.String"/>
+            <arg column="updated_by" javaType="java.lang.String"/>
+            <arg column="archived_at" javaType="java.time.Instant"/>
+            <arg column="created_at" javaType="java.time.Instant"/>
+            <arg column="updated_at" javaType="java.time.Instant"/>
+        </constructor>
+    </resultMap>
+
+    <resultMap id="sceneStepMap" type="com.songhg.veri.agent.uie2e.domain.UiE2eSceneStep">
+        <constructor>
+            <arg column="id" javaType="java.util.UUID"/>
+            <arg column="scene_id" javaType="java.util.UUID"/>
+            <arg column="project_id" javaType="java.lang.String"/>
+            <arg column="step_order" javaType="_int"/>
+            <arg column="step_type" javaType="java.lang.String"/>
+            <arg column="action_summary_json" javaType="java.lang.String"/>
+            <arg column="locator_strategy_json" javaType="java.lang.String"/>
+            <arg column="assertion_summary_json" javaType="java.lang.String"/>
+            <arg column="wait_policy_json" javaType="java.lang.String"/>
+            <arg column="created_by" javaType="java.lang.String"/>
+            <arg column="updated_by" javaType="java.lang.String"/>
+            <arg column="created_at" javaType="java.time.Instant"/>
+            <arg column="updated_at" javaType="java.time.Instant"/>
+        </constructor>
+    </resultMap>
+
+    <sql id="sceneColumns">
+        id, project_id, application_id, environment_id, code, name, status, risk_level,
+        source_summary_json::text as source_summary_json, tags_json::text as tags_json,
+        created_by, updated_by, archived_at, created_at, updated_at
+    </sql>
+
+    <sql id="sceneStepColumns">
+        id, scene_id, project_id, step_order, step_type,
+        action_summary_json::text as action_summary_json,
+        locator_strategy_json::text as locator_strategy_json,
+        assertion_summary_json::text as assertion_summary_json,
+        wait_policy_json::text as wait_policy_json,
+        created_by, updated_by, created_at, updated_at
+    </sql>
+
+    <sql id="sceneWhere">
+        <where>
+            <if test="query.projectId != null">project_id = #{query.projectId}</if>
+            <if test="query.applicationId != null">and application_id = #{query.applicationId}</if>
+            <if test="query.environmentId != null">and environment_id = #{query.environmentId}</if>
+            <if test="query.status != null">and status = #{query.status}</if>
+            <if test="query.riskLevel != null">and risk_level = #{query.riskLevel}</if>
+            <if test="query.tag != null">and jsonb_exists(tags_json, #{query.tag})</if>
+            <if test="query.keyword != null">
+                and (
+                    position(lower(#{query.keyword}) in lower(coalesce(code, ''))) &gt; 0
+                    or position(lower(#{query.keyword}) in lower(coalesce(name, ''))) &gt; 0
+                )
+            </if>
+        </where>
+    </sql>
+
+    <insert id="insertScene">
+        insert into ui_e2e_scene (
+            id, project_id, application_id, environment_id, code, name, status, risk_level,
+            source_summary_json, tags_json, created_by, updated_by, archived_at, created_at, updated_at
+        ) values (
+            #{id}, #{projectId}, #{applicationId}, #{environmentId}, #{code}, #{name}, #{status}, #{riskLevel},
+            cast(coalesce(#{sourceSummaryJson}, '{}') as jsonb),
+            cast(coalesce(#{tagsJson}, '[]') as jsonb),
+            #{createdBy}, #{updatedBy}, #{archivedAt}, #{createdAt}, #{updatedAt}
+        )
+    </insert>
+
+    <update id="updateScene">
+        update ui_e2e_scene set
+            application_id = #{applicationId},
+            environment_id = #{environmentId},
+            name = #{name},
+            status = #{status},
+            risk_level = #{riskLevel},
+            source_summary_json = cast(coalesce(#{sourceSummaryJson}, '{}') as jsonb),
+            tags_json = cast(coalesce(#{tagsJson}, '[]') as jsonb),
+            updated_by = #{updatedBy},
+            updated_at = #{updatedAt}
+        where id = #{id}
+          and status != 'ARCHIVED'
+    </update>
+
+    <update id="archiveScene">
+        update ui_e2e_scene set
+            status = 'ARCHIVED',
+            updated_by = #{updatedBy},
+            archived_at = #{archivedAt},
+            updated_at = #{updatedAt}
+        where id = #{id}
+          and status != 'ARCHIVED'
+    </update>
+
+    <select id="scene" resultMap="sceneMap">
+        select <include refid="sceneColumns"/>
+        from ui_e2e_scene
+        where id = #{id}
+    </select>
+
+    <select id="sceneByProjectAndCode" resultMap="sceneMap">
+        select <include refid="sceneColumns"/>
+        from ui_e2e_scene
+        where project_id = #{projectId}
+          and code = #{code}
+    </select>
+
+    <select id="scenes" resultMap="sceneMap">
+        select <include refid="sceneColumns"/>
+        from ui_e2e_scene
+        <include refid="sceneWhere"/>
+        order by updated_at desc, id desc
+        offset #{query.offset}
+        limit #{query.limit}
+    </select>
+
+    <select id="countScenes" resultType="long">
+        select count(*)
+        from ui_e2e_scene
+        <include refid="sceneWhere"/>
+    </select>
+
+    <select id="sceneProjectScopeId" resultType="string">
+        select project_id
+        from ui_e2e_scene
+        where id = #{id}
+    </select>
+
+    <select id="sceneSteps" resultMap="sceneStepMap">
+        select <include refid="sceneStepColumns"/>
+        from ui_e2e_scene_step
+        where scene_id = #{sceneId}
+        order by step_order asc
+    </select>
+
+    <insert id="insertSceneStep">
+        insert into ui_e2e_scene_step (
+            id, scene_id, project_id, step_order, step_type,
+            action_summary_json, locator_strategy_json, assertion_summary_json, wait_policy_json,
+            created_by, updated_by, created_at, updated_at
+        ) values (
+            #{id}, #{sceneId}, #{projectId}, #{stepOrder}, #{stepType},
+            cast(coalesce(#{actionSummaryJson}, '{}') as jsonb),
+            cast(coalesce(#{locatorStrategyJson}, '{}') as jsonb),
+            cast(coalesce(#{assertionSummaryJson}, '{}') as jsonb),
+            cast(coalesce(#{waitPolicyJson}, '{}') as jsonb),
+            #{createdBy}, #{updatedBy}, #{createdAt}, #{updatedAt}
+        )
+    </insert>
+
+    <delete id="deleteSceneSteps">
+        delete from ui_e2e_scene_step
+        where scene_id = #{sceneId}
+    </delete>
+</mapper>

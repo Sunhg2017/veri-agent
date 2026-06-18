@@ -64,6 +64,11 @@ import com.songhg.veri.agent.testdata.domain.TestDataSet;
 import com.songhg.veri.agent.testdata.domain.TestDataTask;
 import com.songhg.veri.agent.testdata.domain.TestPooledAccount;
 import com.songhg.veri.agent.testdata.infrastructure.JdbcTestDataRepository;
+import com.songhg.veri.agent.uie2e.application.port.UiE2eRepository;
+import com.songhg.veri.agent.uie2e.application.query.UiE2eSceneQuery;
+import com.songhg.veri.agent.uie2e.domain.UiE2eScene;
+import com.songhg.veri.agent.uie2e.domain.UiE2eSceneStep;
+import com.songhg.veri.agent.uie2e.infrastructure.JdbcUiE2eRepository;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
@@ -135,6 +140,9 @@ class DbProfileRepositoryContractTest {
     private TestDataRepository testDataRepository;
 
     @Autowired
+    private UiE2eRepository uiE2eRepository;
+
+    @Autowired
     private AuditLogWriter auditLogWriter;
 
     @Autowired
@@ -154,6 +162,8 @@ class DbProfileRepositoryContractTest {
         assertThat(applicationContext.getBeanNamesForType(AssetRepository.class)).hasSize(1);
         assertThat(testDataRepository).isInstanceOf(JdbcTestDataRepository.class);
         assertThat(applicationContext.getBeanNamesForType(TestDataRepository.class)).hasSize(1);
+        assertThat(uiE2eRepository).isInstanceOf(JdbcUiE2eRepository.class);
+        assertThat(applicationContext.getBeanNamesForType(UiE2eRepository.class)).hasSize(1);
     }
 
     @Test
@@ -282,6 +292,129 @@ class DbProfileRepositoryContractTest {
                 .isPresent()
                 .get()
                 .extracting(TestDataSet::status)
+                .isEqualTo("ARCHIVED");
+    }
+
+    @Test
+    void uiE2eRepositoryPersistsScenesAndStepsThroughJdbc() {
+        Instant now = Instant.now();
+        UUID sceneId = UUID.randomUUID();
+        String projectId = "project-wp7-db-" + UUID.randomUUID();
+
+        uiE2eRepository.insertScene(new UiE2eScene(
+                sceneId,
+                projectId,
+                "app-db",
+                "env-db",
+                "portal-admin-login",
+                "Portal admin login",
+                "DRAFT",
+                "HIGH",
+                "{\"pageRefs\":[]}",
+                "[\"login\",\"smoke\"]",
+                "db-tester",
+                "db-tester",
+                null,
+                now,
+                now
+        ));
+        uiE2eRepository.replaceSceneSteps(sceneId, List.of(
+                new UiE2eSceneStep(
+                        UUID.randomUUID(),
+                        sceneId,
+                        projectId,
+                        1,
+                        "LOGIN",
+                        "{\"submitAction\":\"click\"}",
+                        "{\"preferred\":\"testId\"}",
+                        "{\"successSignal\":\"/dashboard\"}",
+                        "{\"timeoutSeconds\":5}",
+                        "db-tester",
+                        "db-tester",
+                        now,
+                        now
+                )
+        ));
+
+        assertThat(uiE2eRepository.sceneByProjectAndCode(projectId, "portal-admin-login"))
+                .isPresent()
+                .get()
+                .extracting(UiE2eScene::riskLevel)
+                .isEqualTo("HIGH");
+        assertThat(uiE2eRepository.sceneSteps(sceneId))
+                .singleElement()
+                .extracting(UiE2eSceneStep::stepType)
+                .isEqualTo("LOGIN");
+
+        UiE2eScene approved = new UiE2eScene(
+                sceneId,
+                projectId,
+                "app-db",
+                "env-db",
+                "portal-admin-login",
+                "Portal admin login approved",
+                "APPROVED",
+                "CRITICAL",
+                "{\"pageRefs\":[]}",
+                "[\"critical\"]",
+                "db-tester",
+                "db-updater",
+                null,
+                now,
+                now.plusSeconds(1)
+        );
+        uiE2eRepository.updateScene(approved);
+        uiE2eRepository.replaceSceneSteps(sceneId, List.of(
+                new UiE2eSceneStep(
+                        UUID.randomUUID(),
+                        sceneId,
+                        projectId,
+                        1,
+                        "ASSERT",
+                        "{\"action\":\"check\"}",
+                        "{\"preferred\":\"role\"}",
+                        "{\"expected\":\"dashboard\"}",
+                        "{\"timeoutSeconds\":3}",
+                        "db-updater",
+                        "db-updater",
+                        now.plusSeconds(1),
+                        now.plusSeconds(1)
+                )
+        ));
+
+        UiE2eSceneQuery query = new UiE2eSceneQuery(projectId, "app-db", "env-db", "APPROVED", "CRITICAL", "critical", "portal", 0, 10);
+        assertThat(uiE2eRepository.countScenes(query)).isEqualTo(1);
+        assertThat(uiE2eRepository.scenes(query))
+                .singleElement()
+                .extracting(UiE2eScene::name)
+                .isEqualTo("Portal admin login approved");
+        assertThat(uiE2eRepository.sceneSteps(sceneId))
+                .singleElement()
+                .extracting(UiE2eSceneStep::stepType)
+                .isEqualTo("ASSERT");
+
+        uiE2eRepository.archiveScene(new UiE2eScene(
+                sceneId,
+                projectId,
+                "app-db",
+                "env-db",
+                "portal-admin-login",
+                "Portal admin login approved",
+                "ARCHIVED",
+                "CRITICAL",
+                "{\"pageRefs\":[]}",
+                "[\"critical\"]",
+                "db-tester",
+                "db-archiver",
+                now.plusSeconds(2),
+                now,
+                now.plusSeconds(2)
+        ));
+
+        assertThat(uiE2eRepository.scene(sceneId))
+                .isPresent()
+                .get()
+                .extracting(UiE2eScene::status)
                 .isEqualTo("ARCHIVED");
     }
 

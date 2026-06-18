@@ -61,7 +61,7 @@ public class UiE2eHealthService {
                         Map.entry("healthApiReady", true),
                         Map.entry("permissionSeedReady", true),
                         Map.entry("databaseSchemaReady", true),
-                        Map.entry("sceneControlPlaneReady", false),
+                        Map.entry("sceneControlPlaneReady", true),
                         Map.entry("bundleSummaryReady", false),
                         Map.entry("bundleReviewReady", false),
                         Map.entry("runControlPlaneReady", false),
