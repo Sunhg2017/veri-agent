@@ -59,6 +59,13 @@
 | `veri-agent.test-data.record-summary-max-bytes` | `2048` | 单条记录脱敏摘要大小上限。 |
 | `veri-agent.test-data.default-lease-ttl-seconds` | `1800` | 默认租借 TTL。 |
 | `veri-agent.test-data.max-lease-ttl-seconds` | `14400` | 最大租借 TTL。 |
+| `veri-agent.test-data.worker-enabled` | `true` | 是否启用 WP8 内置后台 worker。 |
+| `veri-agent.test-data.worker-interval-ms` | `5000` | worker 固定延迟轮询间隔。 |
+| `veri-agent.test-data.worker-initial-delay-ms` | `30000` | worker 启动延迟。 |
+| `veri-agent.test-data.worker-id` | `wp8-test-data-worker` | 记录在 worker tick、审计和任务摘要中的 worker 标识。 |
+| `veri-agent.test-data.worker-task-batch-size` | `10` | 单个 worker tick 可认领的待处理任务上限。 |
+| `veri-agent.test-data.lease-recovery-batch-size` | `50` | 单个 worker tick 可回收的过期租约上限。 |
+| `veri-agent.test-data.account-health-check-batch-size` | `100` | 单个 worker tick 可扫描的账号健康检查上限。 |
 | `veri-agent.test-data.cleanup-enabled` | `false` | 默认不执行破坏性清理，只记录任务。 |
 | `veri-agent.test-data.export-enabled` | `true` | 允许导出脱敏摘要。 |
 
@@ -68,7 +75,7 @@
 
 | 方法 | 路径 | 权限 | 说明 |
 |---|---|---|---|
-| `GET` | `/health` | 匿名健康检查 | 返回 WP8 开关、限制和 M1 foundation 安全策略摘要；只表达 schema、权限、审计字典等基础面就绪，不代表 CRUD、租借执行或清理 worker 已可用。 |
+| `GET` | `/health` | 匿名健康检查 | 返回 WP8 开关、限制、worker 配置和安全策略摘要；控制面 worker 已可观测，但 `cleanup-enabled=false` 时仍不会执行破坏性清理。 |
 | `POST` | `/data-sets` | `testData:manage` | 创建数据集。 |
 | `GET` | `/data-sets` | `testData:read` | 按项目、应用、环境、状态分页查询数据集。 |
 | `GET` | `/data-sets/{id}` | `testData:read` | 查询数据集详情和记录摘要。 |
@@ -160,9 +167,10 @@
 4. 租借响应只返回 `leaseTokenDigest`、账号摘要和 `secretRefDigest`；不返回凭据明文、租借 token 明文或 `secret_ref_cipher`。
 5. `POST /leases/{id}/renew` 只允许未过期 `ACTIVE` 租借续租，TTL 不得超过 `max-lease-ttl-seconds`。
 6. `POST /leases/{id}/release` 为终态幂等；账号释放后默认回到 `AVAILABLE`，失败场景可转入 `LOCKED`。
-7. 过期回收当前提供应用服务入口和 DB 查询能力，但不启用 scheduler worker。
-8. `data-tasks` 当前只记录准备、刷新、清理和回滚任务的控制面状态；`cleanupEnabled=false` 不触发破坏性清理 adapter。
-9. 租借脱敏导出受 `testData:export` 和 `veri-agent.test-data.export-enabled` 控制，只返回 `schemaVersion/exportedAt/lease/pool/account/lifecycleSummary/redactionPolicy`；其中 lease 只包含 holder、状态、时间戳、`requestDigest`、`leaseTokenDigest`、释放原因存在标记和释放原因 digest，pool/account 只包含摘要、digest、安全 key 名和健康状态，不返回 secretRef 原文、租借 token 明文、释放原因原文、健康摘要原文、scope/lease policy 值、token、cookie 或 Authorization header。
+7. `TestDataWorkerService` 以进程内 fixed-delay 方式运行单 JVM 受控 worker，单次 tick 顺序执行过期租约回收、账号健康检查和待处理任务认领；方法级同步与 repository 条件更新共同避免同 JVM 重入和重复认领。
+8. `data-tasks` 当前由 worker 推进准备、刷新、回滚和清理任务的控制面终态；`PREPARE/REFRESH` 仅校验数据集为 `READY` 并写入摘要，`ROLLBACK` 只记录控制面成功，`CLEANUP` 无论开关是否打开都不会触发破坏性 adapter，而是以 `CLEANUP_TASK_NOT_ALLOWED` 失败并保留审计证据。
+9. 账号健康检查只做控制面一致性修复，不登录外部系统、不读取凭据：无 active lease 的 `LEASED/EXPIRED` 账号会被收敛到 `LOCKED`，存在 active lease 的 `AVAILABLE` 账号会被修正回 `LEASED`。
+10. 租借脱敏导出受 `testData:export` 和 `veri-agent.test-data.export-enabled` 控制，只返回 `schemaVersion/exportedAt/lease/pool/account/lifecycleSummary/redactionPolicy`；其中 lease 只包含 holder、状态、时间戳、`requestDigest`、`leaseTokenDigest`、释放原因存在标记和释放原因 digest，pool/account 只包含摘要、digest、安全 key 名和健康状态，不返回 secretRef 原文、租借 token 明文、释放原因原文、健康摘要原文、scope/lease policy 值、token、cookie 或 Authorization header。
 
 ## 6. 关键请求体
 

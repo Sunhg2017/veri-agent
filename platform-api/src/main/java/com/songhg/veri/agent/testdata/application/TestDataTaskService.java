@@ -7,6 +7,7 @@ import com.songhg.veri.agent.common.api.PageResponse;
 import com.songhg.veri.agent.common.error.BusinessException;
 import com.songhg.veri.agent.common.error.ErrorCode;
 import com.songhg.veri.agent.common.trace.TraceContext;
+import com.songhg.veri.agent.common.util.SensitiveTextSanitizer;
 import com.songhg.veri.agent.testdata.application.command.CreateTestDataTaskCommand;
 import com.songhg.veri.agent.testdata.application.command.RetryTestDataTaskCommand;
 import com.songhg.veri.agent.testdata.application.port.TestDataRepository;
@@ -16,10 +17,13 @@ import com.songhg.veri.agent.testdata.application.view.TestDataTaskResponse;
 import com.songhg.veri.agent.testdata.config.TestDataProperties;
 import com.songhg.veri.agent.testdata.domain.TestDataSet;
 import com.songhg.veri.agent.testdata.domain.TestDataTask;
-import java.time.Instant;
 import java.nio.charset.StandardCharsets;
+import java.time.Instant;
+import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.regex.Pattern;
@@ -36,6 +40,12 @@ public class TestDataTaskService {
     private static final Set<String> SENSITIVE_KEYWORDS = Set.of(
             "secret", "token", "password", "passwd", "cookie", "credential", "apikey", "api_key"
     );
+    private static final int MAX_ERROR_SUMMARY_LENGTH = 512;
+    private static final String TASK_EXECUTION_MODE = "CONTROL_PLANE_ONLY";
+    private static final String TASK_ERROR_DATA_SET_REQUIRED = "TEST_DATA_TASK_DATA_SET_REQUIRED";
+    private static final String TASK_ERROR_DATA_SET_NOT_READY = "TEST_DATA_SET_NOT_READY";
+    private static final String TASK_ERROR_CLEANUP_NOT_ALLOWED = "CLEANUP_TASK_NOT_ALLOWED";
+    private static final String TASK_ERROR_EXECUTION_FAILED = "TEST_DATA_TASK_EXECUTION_FAILED";
     private static final TypeReference<Map<String, Object>> MAP_TYPE = new TypeReference<>() {
     };
 
@@ -176,6 +186,55 @@ public class TestDataTaskService {
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "测试数据任务不存在"));
     }
 
+    @Transactional(readOnly = true)
+    List<TestDataTask> pendingTasks(int limit) {
+        assertEnabled();
+        return repository.pendingDataTasks(Math.max(1, limit));
+    }
+
+    /**
+     * Claims one pending task into RUNNING and closes it with an explicit terminal status.
+     *
+     * <p>The worker currently manages control-plane-only execution: it validates references, records bounded result
+     * summaries, and applies policy failures like `CLEANUP_TASK_NOT_ALLOWED`, but it still never runs a destructive
+     * cleanup adapter or persists raw payload values.</p>
+     */
+    @Transactional(noRollbackFor = BusinessException.class)
+    Optional<String> processPendingTask(UUID id, String workerId) {
+        assertEnabled();
+        TestDataTask queued = requireTask(id);
+        if (!"PENDING".equals(queued.status())) {
+            return Optional.empty();
+        }
+        Instant startedAt = Instant.now();
+        TestDataTask running = new TestDataTask(
+                queued.id(),
+                queued.projectId(),
+                queued.dataSetId(),
+                queued.taskType(),
+                "RUNNING",
+                queued.requestKey(),
+                queued.targetRef(),
+                queued.attempt(),
+                queued.resultSummaryJson(),
+                null,
+                null,
+                TraceContext.getOrCreateTraceId(),
+                queued.createdBy(),
+                startedAt,
+                null,
+                queued.createdAt(),
+                startedAt
+        );
+        if (!repository.claimPendingDataTask(running)) {
+            return Optional.empty();
+        }
+        TaskExecutionOutcome outcome = executeClaimedTask(running, workerId);
+        persistTerminalTask(outcome.task());
+        auditTask(outcome.task(), "test_data.task.completed", outcome.auditPayload());
+        return Optional.of(outcome.task().status());
+    }
+
     private TestDataTaskQuery normalizeQuery(TestDataTaskQuery query) {
         return new TestDataTaskQuery(
                 query.projectId() == null ? null : contextClient.projectContext(query.projectId()).resourceId(),
@@ -235,8 +294,10 @@ public class TestDataTaskService {
     private Map<String, Object> policy() {
         return Map.of(
                 "cleanupEnabled", properties.cleanupEnabled(),
+                "workerEnabled", properties.workerEnabled(),
                 "destructiveCleanupTriggered", false,
-                "workerReady", false,
+                "destructiveCleanupAdapterReady", false,
+                "workerReady", true,
                 "rawRecordPayloadStored", false
         );
     }
@@ -285,6 +346,179 @@ public class TestDataTaskService {
             throw new BusinessException(ErrorCode.VALIDATION_ERROR, "必填文本不能为空");
         }
         return boundedNullable(value, maxLength);
+    }
+
+    private TaskExecutionOutcome executeClaimedTask(TestDataTask running, String workerId) {
+        try {
+            return switch (running.taskType()) {
+                case "PREPARE", "REFRESH" -> executeReadyDataSetTask(running, workerId);
+                case "ROLLBACK" -> executeRollbackTask(running, workerId);
+                case "CLEANUP" -> executeCleanupTask(running, workerId);
+                default -> failedOutcome(
+                        running,
+                        TASK_ERROR_EXECUTION_FAILED,
+                        "测试数据任务类型暂不支持",
+                        workerId,
+                        null
+                );
+            };
+        } catch (RuntimeException exception) {
+            return failedOutcome(
+                    running,
+                    TASK_ERROR_EXECUTION_FAILED,
+                    sanitizedErrorSummary(exception.getMessage()),
+                    workerId,
+                    null
+            );
+        }
+    }
+
+    private TaskExecutionOutcome executeReadyDataSetTask(TestDataTask running, String workerId) {
+        if (running.dataSetId() == null) {
+            return failedOutcome(running, TASK_ERROR_DATA_SET_REQUIRED, "任务缺少 dataSetId", workerId, null);
+        }
+        TestDataSet dataSet = requireDataSet(running.dataSetId());
+        if (!running.projectId().equals(dataSet.projectId()) || !"READY".equals(dataSet.status())) {
+            return failedOutcome(running, TASK_ERROR_DATA_SET_NOT_READY, "数据集未处于 READY 状态", workerId, dataSet);
+        }
+        Map<String, Object> summary = workerSummary(running, workerId);
+        summary.put("dataSetReady", true);
+        appendDataSetSignals(summary, dataSet);
+        return succeededOutcome(running, summary, workerId);
+    }
+
+    private TaskExecutionOutcome executeRollbackTask(TestDataTask running, String workerId) {
+        Map<String, Object> summary = workerSummary(running, workerId);
+        summary.put("rollbackReady", true);
+        if (running.dataSetId() != null) {
+            appendDataSetSignals(summary, requireDataSet(running.dataSetId()));
+        }
+        return succeededOutcome(running, summary, workerId);
+    }
+
+    private TaskExecutionOutcome executeCleanupTask(TestDataTask running, String workerId) {
+        String reason = properties.cleanupEnabled()
+                ? "破坏性清理 adapter 尚未启用，任务仅完成控制面校验"
+                : "清理开关未启用，任务只记录控制面状态";
+        return failedOutcome(running, TASK_ERROR_CLEANUP_NOT_ALLOWED, reason, workerId, null);
+    }
+
+    private TaskExecutionOutcome succeededOutcome(TestDataTask running, Map<String, Object> summary, String workerId) {
+        Instant finishedAt = Instant.now();
+        summary.put("processedAt", finishedAt.toString());
+        TestDataTask succeeded = new TestDataTask(
+                running.id(),
+                running.projectId(),
+                running.dataSetId(),
+                running.taskType(),
+                "SUCCEEDED",
+                running.requestKey(),
+                running.targetRef(),
+                running.attempt(),
+                safeSummaryJson(summary),
+                null,
+                null,
+                running.traceId(),
+                running.createdBy(),
+                running.startedAt(),
+                finishedAt,
+                running.createdAt(),
+                finishedAt
+        );
+        return new TaskExecutionOutcome(
+                succeeded,
+                completedAuditPayload(succeeded, workerId)
+        );
+    }
+
+    private TaskExecutionOutcome failedOutcome(
+            TestDataTask running,
+            String errorCode,
+            String errorSummary,
+            String workerId,
+            TestDataSet dataSet
+    ) {
+        Instant finishedAt = Instant.now();
+        Map<String, Object> summary = workerSummary(running, workerId);
+        if (dataSet != null) {
+            appendDataSetSignals(summary, dataSet);
+        }
+        summary.put("processedAt", finishedAt.toString());
+        summary.put("failureCode", errorCode);
+        TestDataTask failed = new TestDataTask(
+                running.id(),
+                running.projectId(),
+                running.dataSetId(),
+                running.taskType(),
+                "FAILED",
+                running.requestKey(),
+                running.targetRef(),
+                running.attempt(),
+                safeSummaryJson(summary),
+                boundedNullable(errorCode, 64),
+                sanitizedErrorSummary(errorSummary),
+                running.traceId(),
+                running.createdBy(),
+                running.startedAt(),
+                finishedAt,
+                running.createdAt(),
+                finishedAt
+        );
+        return new TaskExecutionOutcome(
+                failed,
+                completedAuditPayload(failed, workerId)
+        );
+    }
+
+    private Map<String, Object> workerSummary(TestDataTask running, String workerId) {
+        Map<String, Object> summary = new LinkedHashMap<>(readMap(running.resultSummaryJson()));
+        summary.put("workerManaged", true);
+        summary.put("workerEnabled", properties.workerEnabled());
+        summary.put("workerId", boundedNullable(workerId, 128));
+        summary.put("taskType", running.taskType());
+        summary.put("executionMode", TASK_EXECUTION_MODE);
+        summary.put("cleanupEnabled", properties.cleanupEnabled());
+        summary.put("destructiveCleanupTriggered", false);
+        summary.put("destructiveCleanupAdapterReady", false);
+        return summary;
+    }
+
+    private void appendDataSetSignals(Map<String, Object> summary, TestDataSet dataSet) {
+        summary.put("dataSetId", dataSet.id().toString());
+        summary.put("dataSetCode", dataSet.code());
+        summary.put("dataSetStatus", dataSet.status());
+        summary.put("recordCount", repository.countRecords(dataSet.id()));
+        summary.put("sourceType", dataSet.sourceType());
+    }
+
+    private void persistTerminalTask(TestDataTask task) {
+        if (!repository.updateDataTaskIfRequestKeyAvailable(task)) {
+            throw new BusinessException(ErrorCode.INTERNAL_ERROR, "测试数据任务终态写入失败");
+        }
+    }
+
+    private Map<String, Object> completedAuditPayload(TestDataTask task, String workerId) {
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("taskType", task.taskType());
+        payload.put("status", task.status());
+        payload.put("destructiveCleanupTriggered", false);
+        if (StringUtils.hasText(workerId)) {
+            payload.put("workerId", boundedNullable(workerId, 128));
+        }
+        if (StringUtils.hasText(task.errorCode())) {
+            payload.put("errorCode", task.errorCode());
+        }
+        return payload;
+    }
+
+    private Map<String, Object> auditPayload(Map<String, Object> raw) {
+        Map<String, Object> payload = new LinkedHashMap<>();
+        raw.forEach((key, value) -> {
+            if (value != null) {
+                payload.put(key, value);
+            }
+        });
+        return payload;
     }
 
     private String safeSummaryJson(Map<String, Object> value) {
@@ -338,6 +572,14 @@ public class TestDataTaskService {
         }
     }
 
+    private String sanitizedErrorSummary(String value) {
+        return SensitiveTextSanitizer.sanitizedErrorSummary(
+                value,
+                "测试数据任务执行失败",
+                MAX_ERROR_SUMMARY_LENGTH
+        );
+    }
+
     private String json(Object value) {
         try {
             return objectMapper.writeValueAsString(value);
@@ -355,5 +597,8 @@ public class TestDataTaskService {
         } catch (JsonProcessingException exception) {
             throw new BusinessException(ErrorCode.INTERNAL_ERROR, "测试数据任务 JSON 读取失败");
         }
+    }
+
+    private record TaskExecutionOutcome(TestDataTask task, Map<String, Object> auditPayload) {
     }
 }

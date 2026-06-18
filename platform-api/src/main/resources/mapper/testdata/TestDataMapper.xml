@@ -433,6 +433,27 @@
         select 1 from locked
     </select>
 
+    <select id="pendingDataTasks" resultMap="dataTaskMap">
+        select <include refid="dataTaskColumns"/>
+        from test_data_task
+        where status = 'PENDING'
+        order by created_at asc, id asc
+        limit #{limit}
+    </select>
+
+    <update id="claimPendingDataTask">
+        update test_data_task set
+            status = #{status},
+            error_code = #{errorCode},
+            error_summary = #{errorSummary},
+            trace_id = #{traceId},
+            started_at = #{startedAt},
+            finished_at = #{finishedAt},
+            updated_at = #{updatedAt}
+        where id = #{id}
+          and status = 'PENDING'
+    </update>
+
     <update id="updateDataTaskIfRequestKeyAvailable">
         update test_data_task set
             status = #{status},
@@ -593,6 +614,14 @@
         where id = #{id}
     </select>
 
+    <select id="pooledAccountsForHealthCheck" resultMap="pooledAccountMap">
+        select <include refid="pooledAccountColumns"/>
+        from test_pooled_account
+        where status != 'ARCHIVED'
+        order by updated_at asc, id asc
+        limit #{limit}
+    </select>
+
     <select id="firstAvailableAccount" resultMap="pooledAccountMap">
         select <include refid="pooledAccountColumns"/>
         from test_pooled_account
@@ -638,6 +667,15 @@
         select project_id
         from test_account_lease
         where id = #{id}
+    </select>
+
+    <select id="activeLeaseByAccount" resultMap="accountLeaseMap">
+        select <include refid="accountLeaseColumns"/>
+        from test_account_lease
+        where account_id = #{accountId}
+          and status = 'ACTIVE'
+        order by expires_at desc, updated_at desc
+        limit 1
     </select>
 
     <select id="activeExpiredLeases" resultMap="accountLeaseMap">

@@ -169,8 +169,8 @@ M4 已推进租借、释放和清理任务后端切片：测试工程师或后�
 2. 租借只选择 `READY` 账号池中的 `AVAILABLE` 账号，并按角色标签匹配；服务端通过条件更新和 active lease 唯一约束防止同一账号并发重复占用。
 3. 租借响应只返回账号摘要、`secretRefDigest` 和 `leaseTokenDigest`，不返回账号凭据、租借 token 明文或 `secret://` 原文。
 4. active 租借可续租，TTL 受平台最大值限制；释放后账号默认回到 `AVAILABLE`，也可按失败策略转入 `LOCKED`。
-5. 过期回收能力当前以服务方法和 repository 验证落地，未启用独立 scheduler worker；health 中 `cleanupWorkerReady=false`。
-6. 清理任务 API 只创建、查询和重试控制面记录，`cleanupEnabled=false` 时仍不执行破坏性清理 adapter；真实清理执行和跨 WP adapter 仍按后续准出。
+5. 过期回收、待处理任务执行和账号健康检查已由 `platform-api` 内置受控 worker 管理；health 中 `cleanupWorkerReady/taskExecutionWorkerReady/leaseRecoveryWorkerReady/accountHealthCheckWorkerReady=true`，但该 worker 仅运行控制面状态推进，不调用破坏性清理 adapter。
+6. 清理任务 API 仍默认以控制面记录和审计为主；`cleanupEnabled=false` 时直接返回 `CLEANUP_TASK_NOT_ALLOWED`，即使显式打开开关，当前也只确认 adapter 尚未准出，不执行真实破坏性清理。
 
 M5 已推进跨 WP 引用契约后端切片：WP9 可通过 `TestDataCrossWpReferenceService` 申请和释放账号租借引用，WP7 可通过同一服务读取账号摘要和 `secretRefDigest`，WP10 可读取准备、租借和清理证据。产品边界如下：
 

@@ -241,6 +241,15 @@ public class InMemoryTestDataRepository implements TestDataRepository {
     }
 
     @Override
+    public List<TestPooledAccount> pooledAccountsForHealthCheck(int limit) {
+        return pooledAccounts.values().stream()
+                .filter(account -> !"ARCHIVED".equals(account.status()))
+                .sorted(Comparator.comparing(TestPooledAccount::updatedAt).thenComparing(TestPooledAccount::id))
+                .limit(limit)
+                .toList();
+    }
+
+    @Override
     public Optional<TestPooledAccount> firstAvailableAccount(UUID poolId, List<String> roleTags) {
         return pooledAccounts.values().stream()
                 .filter(account -> poolId.equals(account.poolId()))
@@ -389,6 +398,16 @@ public class InMemoryTestDataRepository implements TestDataRepository {
     }
 
     @Override
+    public Optional<TestAccountLease> activeLeaseByAccount(UUID accountId) {
+        return accountLeases.values().stream()
+                .filter(lease -> accountId.equals(lease.accountId()))
+                .filter(lease -> "ACTIVE".equals(lease.status()))
+                .sorted(Comparator.comparing(TestAccountLease::expiresAt).reversed()
+                        .thenComparing(TestAccountLease::updatedAt).reversed())
+                .findFirst();
+    }
+
+    @Override
     public List<TestAccountLease> activeExpiredLeases(Instant now, int limit) {
         return accountLeases.values().stream()
                 .filter(lease -> "ACTIVE".equals(lease.status()))
@@ -405,6 +424,28 @@ public class InMemoryTestDataRepository implements TestDataRepository {
         }
         dataTasks.put(task.id(), task);
         return true;
+    }
+
+    @Override
+    public List<TestDataTask> pendingDataTasks(int limit) {
+        return dataTasks.values().stream()
+                .filter(task -> "PENDING".equals(task.status()))
+                .sorted(Comparator.comparing(TestDataTask::createdAt).thenComparing(TestDataTask::id))
+                .limit(limit)
+                .toList();
+    }
+
+    @Override
+    public boolean claimPendingDataTask(TestDataTask task) {
+        boolean[] updated = {false};
+        dataTasks.computeIfPresent(task.id(), (ignored, current) -> {
+            if (!"PENDING".equals(current.status())) {
+                return current;
+            }
+            updated[0] = true;
+            return task;
+        });
+        return updated[0];
     }
 
     @Override

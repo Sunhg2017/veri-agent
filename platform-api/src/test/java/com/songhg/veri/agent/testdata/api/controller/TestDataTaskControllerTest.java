@@ -24,7 +24,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @SpringBootTest(properties = {
-        "veri-agent.auth.token-secret=test-auth-secret-32-byte-minimum!"
+        "veri-agent.auth.token-secret=test-auth-secret-32-byte-minimum!",
+        "veri-agent.auth.access-token-ttl-minutes=30",
+        "veri-agent.auth.session-cleanup-retention-seconds=86400"
 })
 @AutoConfigureMockMvc
 @DirtiesContext(classMode = DirtiesContext.ClassMode.BEFORE_EACH_TEST_METHOD)
@@ -70,7 +72,9 @@ class TestDataTaskControllerTest {
                 .andExpect(jsonPath("$.traceId", startsWith("trc_")))
                 .andExpect(jsonPath("$.data.status").value("PENDING"))
                 .andExpect(jsonPath("$.data.policy.destructiveCleanupTriggered").value(false))
-                .andExpect(jsonPath("$.data.policy.workerReady").value(false))
+                .andExpect(jsonPath("$.data.policy.workerReady").value(true))
+                .andExpect(jsonPath("$.data.policy.workerEnabled").value(true))
+                .andExpect(jsonPath("$.data.policy.destructiveCleanupAdapterReady").value(false))
                 .andReturn();
         UUID taskId = UUID.fromString(JsonPath.read(created.getResponse().getContentAsString(), "$.data.id"));
 

@@ -162,6 +162,11 @@ public class JdbcTestDataRepository implements TestDataRepository {
     }
 
     @Override
+    public List<TestPooledAccount> pooledAccountsForHealthCheck(int limit) {
+        return mapper.pooledAccountsForHealthCheck(limit);
+    }
+
+    @Override
     public Optional<TestPooledAccount> firstAvailableAccount(UUID poolId, List<String> roleTags) {
         return Optional.ofNullable(mapper.firstAvailableAccount(poolId, roleTags));
     }
@@ -227,6 +232,11 @@ public class JdbcTestDataRepository implements TestDataRepository {
     }
 
     @Override
+    public Optional<TestAccountLease> activeLeaseByAccount(UUID accountId) {
+        return Optional.ofNullable(mapper.activeLeaseByAccount(accountId));
+    }
+
+    @Override
     public List<TestAccountLease> activeExpiredLeases(Instant now, int limit) {
         return mapper.activeExpiredLeases(now, limit);
     }
@@ -239,6 +249,16 @@ public class JdbcTestDataRepository implements TestDataRepository {
     @Override
     public void lockDataTaskRequestKey(String projectId, String requestKey) {
         mapper.lockDataTaskRequestKey("wp8:test-data-task:" + projectId + ":" + requestKey);
+    }
+
+    @Override
+    public List<TestDataTask> pendingDataTasks(int limit) {
+        return mapper.pendingDataTasks(limit);
+    }
+
+    @Override
+    public boolean claimPendingDataTask(TestDataTask task) {
+        return mapper.claimPendingDataTask(task) == 1;
     }
 
     @Override

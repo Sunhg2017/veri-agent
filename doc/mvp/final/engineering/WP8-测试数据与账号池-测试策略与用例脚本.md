@@ -191,7 +191,7 @@ bash db/validation/run_wp1_db_validation.sh
 
 1. 这组门禁覆盖租借申请、`requestKey` 幂等、无可用账号冲突、续租 TTL、释放终态幂等、过期回收服务方法、清理任务创建/查询/重试边界、OpenAPI contract、权限字面量集中和 profile 边界。
 2. `DbProfileRepositoryContractTest` 覆盖 active lease 唯一约束、账号条件更新、租借/清理任务持久化和 `secret_ref_cipher` 非投影。
-3. release 模式仍需追加 `wp8_account_lease_concurrency_smoke.sh` 或等价外部并发 smoke；当前后端切片未启用 scheduler cleanup worker、前端工作台、WP7/WP9 adapter 和脱敏导出。
+3. release 模式仍需追加 `wp8_account_lease_concurrency_smoke.sh` 或等价外部并发 smoke；当前后端切片虽已启用受控 worker，但仍未启用真实破坏性 cleanup adapter、前端工作台、WP7/WP9 adapter 和脱敏导出。
 
 ### M5 跨 WP 引用最小门禁
 

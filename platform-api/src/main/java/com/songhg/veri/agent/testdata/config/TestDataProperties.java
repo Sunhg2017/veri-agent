@@ -11,6 +11,20 @@ import org.springframework.boot.context.properties.bind.DefaultValue;
 public record TestDataProperties(
         /** Enables WP8 control-plane APIs. */
         @DefaultValue("true") boolean enabled,
+        /** Enables the managed WP8 backend worker loop. */
+        @DefaultValue("true") boolean workerEnabled,
+        /** Fixed delay for the managed WP8 backend worker loop. */
+        @DefaultValue("5000") int workerIntervalMs,
+        /** Startup delay for the managed WP8 backend worker loop. */
+        @DefaultValue("30000") int workerInitialDelayMs,
+        /** Worker ID recorded in worker ticks and managed updates. */
+        @DefaultValue("wp8-test-data-worker") String workerId,
+        /** Maximum pending tasks claimed by one managed worker tick. */
+        @DefaultValue("10") int workerTaskBatchSize,
+        /** Maximum expired leases recovered by one managed worker tick. */
+        @DefaultValue("50") int leaseRecoveryBatchSize,
+        /** Maximum pooled accounts checked by one managed worker tick. */
+        @DefaultValue("100") int accountHealthCheckBatchSize,
         /** Maximum records tracked by one data set. */
         @DefaultValue("10000") int recordMaxCount,
         /** Maximum sanitized summary bytes per record. */
@@ -24,6 +38,17 @@ public record TestDataProperties(
         /** Allows redacted summary export. */
         @DefaultValue("true") boolean exportEnabled
 ) {
+    private static final int DEFAULT_WORKER_INTERVAL_MS = 5_000;
+    private static final int MAX_WORKER_INTERVAL_MS = 600_000;
+    private static final int DEFAULT_WORKER_INITIAL_DELAY_MS = 30_000;
+    private static final int MAX_WORKER_INITIAL_DELAY_MS = 3_600_000;
+    private static final String DEFAULT_WORKER_ID = "wp8-test-data-worker";
+    private static final int DEFAULT_WORKER_TASK_BATCH_SIZE = 10;
+    private static final int MAX_WORKER_TASK_BATCH_SIZE = 500;
+    private static final int DEFAULT_LEASE_RECOVERY_BATCH_SIZE = 50;
+    private static final int MAX_LEASE_RECOVERY_BATCH_SIZE = 1_000;
+    private static final int DEFAULT_ACCOUNT_HEALTH_CHECK_BATCH_SIZE = 100;
+    private static final int MAX_ACCOUNT_HEALTH_CHECK_BATCH_SIZE = 1_000;
     private static final int DEFAULT_RECORD_MAX_COUNT = 10_000;
     private static final int MAX_RECORD_MAX_COUNT = 1_000_000;
     private static final int DEFAULT_RECORD_SUMMARY_MAX_BYTES = 2_048;
@@ -33,6 +58,73 @@ public record TestDataProperties(
 
     @ConstructorBinding
     public TestDataProperties {
+    }
+
+    public TestDataProperties(
+            boolean enabled,
+            int recordMaxCount,
+            int recordSummaryMaxBytes,
+            int defaultLeaseTtlSeconds,
+            int maxLeaseTtlSeconds,
+            boolean cleanupEnabled,
+            boolean exportEnabled
+    ) {
+        this(
+                enabled,
+                true,
+                DEFAULT_WORKER_INTERVAL_MS,
+                DEFAULT_WORKER_INITIAL_DELAY_MS,
+                DEFAULT_WORKER_ID,
+                DEFAULT_WORKER_TASK_BATCH_SIZE,
+                DEFAULT_LEASE_RECOVERY_BATCH_SIZE,
+                DEFAULT_ACCOUNT_HEALTH_CHECK_BATCH_SIZE,
+                recordMaxCount,
+                recordSummaryMaxBytes,
+                defaultLeaseTtlSeconds,
+                maxLeaseTtlSeconds,
+                cleanupEnabled,
+                exportEnabled
+        );
+    }
+
+    public int effectiveWorkerIntervalMs() {
+        return boundedPositive(workerIntervalMs, DEFAULT_WORKER_INTERVAL_MS, MAX_WORKER_INTERVAL_MS);
+    }
+
+    public int effectiveWorkerInitialDelayMs() {
+        return boundedPositive(
+                workerInitialDelayMs,
+                DEFAULT_WORKER_INITIAL_DELAY_MS,
+                MAX_WORKER_INITIAL_DELAY_MS
+        );
+    }
+
+    public String effectiveWorkerId() {
+        return boundedText(workerId, DEFAULT_WORKER_ID, 128);
+    }
+
+    public int effectiveWorkerTaskBatchSize() {
+        return boundedPositive(
+                workerTaskBatchSize,
+                DEFAULT_WORKER_TASK_BATCH_SIZE,
+                MAX_WORKER_TASK_BATCH_SIZE
+        );
+    }
+
+    public int effectiveLeaseRecoveryBatchSize() {
+        return boundedPositive(
+                leaseRecoveryBatchSize,
+                DEFAULT_LEASE_RECOVERY_BATCH_SIZE,
+                MAX_LEASE_RECOVERY_BATCH_SIZE
+        );
+    }
+
+    public int effectiveAccountHealthCheckBatchSize() {
+        return boundedPositive(
+                accountHealthCheckBatchSize,
+                DEFAULT_ACCOUNT_HEALTH_CHECK_BATCH_SIZE,
+                MAX_ACCOUNT_HEALTH_CHECK_BATCH_SIZE
+        );
     }
 
     public int effectiveRecordMaxCount() {
@@ -63,5 +155,13 @@ public record TestDataProperties(
             return defaultValue;
         }
         return Math.min(value, maxValue);
+    }
+
+    private static String boundedText(String value, String defaultValue, int maxLength) {
+        if (value == null || value.isBlank()) {
+            return defaultValue;
+        }
+        String trimmed = value.trim();
+        return trimmed.length() > maxLength ? trimmed.substring(0, maxLength) : trimmed;
     }
 }

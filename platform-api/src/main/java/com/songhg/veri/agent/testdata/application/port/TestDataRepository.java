@@ -69,6 +69,8 @@ public interface TestDataRepository {
 
     Optional<String> pooledAccountProjectScopeId(UUID id);
 
+    List<TestPooledAccount> pooledAccountsForHealthCheck(int limit);
+
     Optional<TestPooledAccount> firstAvailableAccount(UUID poolId, List<String> roleTags);
 
     boolean markAccountLeased(UUID accountId, String updatedBy);
@@ -95,6 +97,8 @@ public interface TestDataRepository {
 
     Optional<String> accountLeaseProjectScopeId(UUID id);
 
+    Optional<TestAccountLease> activeLeaseByAccount(UUID accountId);
+
     List<TestAccountLease> activeExpiredLeases(Instant now, int limit);
 
     boolean insertDataTaskIfAbsent(TestDataTask task);
@@ -104,6 +108,10 @@ public interface TestDataRepository {
      */
     default void lockDataTaskRequestKey(String projectId, String requestKey) {
     }
+
+    List<TestDataTask> pendingDataTasks(int limit);
+
+    boolean claimPendingDataTask(TestDataTask task);
 
     boolean updateDataTaskIfRequestKeyAvailable(TestDataTask task);
 

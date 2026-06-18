@@ -7,6 +7,7 @@ import com.songhg.veri.agent.integration.application.view.PlatformContext;
 import com.songhg.veri.agent.testdata.application.command.CreateTestDataTaskCommand;
 import com.songhg.veri.agent.testdata.application.command.RetryTestDataTaskCommand;
 import com.songhg.veri.agent.testdata.application.query.TestDataTaskPageRequest;
+import com.songhg.veri.agent.testdata.domain.TestDataSet;
 import com.songhg.veri.agent.testdata.config.TestDataProperties;
 import com.songhg.veri.agent.testdata.domain.TestDataTask;
 import com.songhg.veri.agent.testdata.infrastructure.InMemoryTestDataRepository;
@@ -158,6 +159,56 @@ class TestDataTaskServiceTest {
     }
 
     @Test
+    void processesPrepareTaskIntoSucceededWorkerSummary() {
+        ServiceFixture fixture = fixture(true);
+        TestDataSet dataSet = readyDataSet();
+        fixture.repository().insertDataSet(dataSet);
+        var task = fixture.service().createTask(new CreateTestDataTaskCommand(
+                "project-alpha",
+                dataSet.id(),
+                "PREPARE",
+                "prepare-001",
+                "data-set:" + dataSet.code(),
+                Map.of("reason", "nightly prepare")
+        ));
+
+        var outcome = fixture.service().processPendingTask(task.id(), "wp8-test-worker");
+        var processed = fixture.service().task(task.id());
+
+        assertThat(outcome).contains("SUCCEEDED");
+        assertThat(processed.status()).isEqualTo("SUCCEEDED");
+        assertThat(processed.startedAt()).isNotNull();
+        assertThat(processed.finishedAt()).isNotNull();
+        assertThat(processed.resultSummary()).containsEntry("workerManaged", true);
+        assertThat(processed.resultSummary()).containsEntry("dataSetReady", true);
+        assertThat(processed.resultSummary()).containsEntry("dataSetCode", dataSet.code());
+        assertThat(processed.resultSummary()).containsEntry("executionMode", "CONTROL_PLANE_ONLY");
+    }
+
+    @Test
+    void failsCleanupTaskWhenDestructiveAdapterIsNotReady() {
+        ServiceFixture fixture = fixture(true);
+        var task = fixture.service().createTask(new CreateTestDataTaskCommand(
+                "project-alpha",
+                null,
+                "CLEANUP",
+                "cleanup-worker-001",
+                "lease:run-001",
+                Map.of("reason", "release")
+        ));
+
+        var outcome = fixture.service().processPendingTask(task.id(), "wp8-test-worker");
+        var processed = fixture.service().task(task.id());
+
+        assertThat(outcome).contains("FAILED");
+        assertThat(processed.status()).isEqualTo("FAILED");
+        assertThat(processed.errorCode()).isEqualTo("CLEANUP_TASK_NOT_ALLOWED");
+        assertThat(processed.errorSummary()).contains("控制面状态");
+        assertThat(processed.resultSummary()).containsEntry("failureCode", "CLEANUP_TASK_NOT_ALLOWED");
+        assertThat(processed.resultSummary()).containsEntry("destructiveCleanupAdapterReady", false);
+    }
+
+    @Test
     void rejectsRetryWhenRequestKeyConflictsWithAnotherTask() {
         ServiceFixture fixture = fixture(true);
         fixture.service().createTask(new CreateTestDataTaskCommand(
@@ -244,6 +295,29 @@ class TestDataTaskServiceTest {
         TestDataTaskPageRequest request = new TestDataTaskPageRequest();
         request.setProjectId("project-alpha");
         return request;
+    }
+
+    private TestDataSet readyDataSet() {
+        Instant now = Instant.now();
+        return new TestDataSet(
+                java.util.UUID.randomUUID(),
+                "project-alpha",
+                "app-alpha",
+                "env-staging",
+                "dataset-ready",
+                "Dataset ready",
+                "READY",
+                "{\"fields\":[{\"name\":\"customerId\",\"type\":\"STRING\"}]}",
+                "INTERNAL",
+                "{\"mode\":\"MANUAL_CONFIRM\"}",
+                "MANUAL",
+                "a".repeat(64),
+                "wp8-tester",
+                "wp8-tester",
+                null,
+                now,
+                now
+        );
     }
 
     private record ServiceFixture(TestDataTaskService service, InMemoryTestDataRepository repository) {

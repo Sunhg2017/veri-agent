@@ -71,6 +71,8 @@ public interface TestDataMapper {
 
     String pooledAccountProjectScopeId(@Param("id") UUID id);
 
+    List<TestPooledAccount> pooledAccountsForHealthCheck(@Param("limit") int limit);
+
     TestPooledAccount firstAvailableAccount(@Param("poolId") UUID poolId, @Param("roleTags") List<String> roleTags);
 
     int markAccountLeased(@Param("accountId") UUID accountId, @Param("updatedBy") String updatedBy);
@@ -104,11 +106,17 @@ public interface TestDataMapper {
 
     String accountLeaseProjectScopeId(@Param("id") UUID id);
 
+    TestAccountLease activeLeaseByAccount(@Param("accountId") UUID accountId);
+
     List<TestAccountLease> activeExpiredLeases(@Param("now") Instant now, @Param("limit") int limit);
 
     int insertDataTaskIfAbsent(TestDataTask task);
 
     int lockDataTaskRequestKey(@Param("lockKey") String lockKey);
+
+    List<TestDataTask> pendingDataTasks(@Param("limit") int limit);
+
+    int claimPendingDataTask(TestDataTask task);
 
     int updateDataTaskIfRequestKeyAvailable(TestDataTask task);
 

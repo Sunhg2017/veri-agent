@@ -1,6 +1,13 @@
 veri-agent:
   test-data:
     enabled: ${WP8_TEST_DATA_ENABLED:true}
+    worker-enabled: ${WP8_TEST_DATA_WORKER_ENABLED:true}
+    worker-interval-ms: ${WP8_TEST_DATA_WORKER_INTERVAL_MS:5000}
+    worker-initial-delay-ms: ${WP8_TEST_DATA_WORKER_INITIAL_DELAY_MS:30000}
+    worker-id: ${WP8_TEST_DATA_WORKER_ID:wp8-test-data-worker}
+    worker-task-batch-size: ${WP8_TEST_DATA_WORKER_TASK_BATCH_SIZE:10}
+    lease-recovery-batch-size: ${WP8_TEST_DATA_LEASE_RECOVERY_BATCH_SIZE:50}
+    account-health-check-batch-size: ${WP8_TEST_DATA_ACCOUNT_HEALTH_CHECK_BATCH_SIZE:100}
     record-max-count: ${WP8_RECORD_MAX_COUNT:10000}
     record-summary-max-bytes: ${WP8_RECORD_SUMMARY_MAX_BYTES:2048}
     default-lease-ttl-seconds: ${WP8_DEFAULT_LEASE_TTL_SECONDS:1800}
