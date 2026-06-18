@@ -1,9 +1,11 @@
 package com.songhg.veri.agent.uie2e.infrastructure;
 
 import com.songhg.veri.agent.uie2e.application.query.UiE2eBundleQuery;
+import com.songhg.veri.agent.uie2e.application.query.UiE2eRunQuery;
 import com.songhg.veri.agent.uie2e.application.port.UiE2eRepository;
 import com.songhg.veri.agent.uie2e.domain.UiE2eBundle;
 import com.songhg.veri.agent.uie2e.domain.UiE2eBundleReview;
+import com.songhg.veri.agent.uie2e.domain.UiE2eRun;
 import com.songhg.veri.agent.uie2e.application.query.UiE2eSceneQuery;
 import com.songhg.veri.agent.uie2e.domain.UiE2eScene;
 import com.songhg.veri.agent.uie2e.domain.UiE2eSceneStep;
@@ -130,5 +132,40 @@ public class JdbcUiE2eRepository implements UiE2eRepository {
     @Override
     public List<UiE2eBundleReview> bundleReviews(UUID bundleId) {
         return mapper.bundleReviews(bundleId);
+    }
+
+    @Override
+    public void insertRun(UiE2eRun run) {
+        mapper.insertRun(run);
+    }
+
+    @Override
+    public void updateRun(UiE2eRun run) {
+        mapper.updateRun(run);
+    }
+
+    @Override
+    public Optional<UiE2eRun> run(UUID id) {
+        return Optional.ofNullable(mapper.run(id));
+    }
+
+    @Override
+    public Optional<UiE2eRun> runByProjectSceneAndRequestKey(String projectId, UUID sceneId, String requestKey) {
+        return Optional.ofNullable(mapper.runByProjectSceneAndRequestKey(projectId, sceneId, requestKey));
+    }
+
+    @Override
+    public List<UiE2eRun> runs(UiE2eRunQuery query) {
+        return mapper.runs(query);
+    }
+
+    @Override
+    public long countRuns(UiE2eRunQuery query) {
+        return mapper.countRuns(query);
+    }
+
+    @Override
+    public Optional<String> runProjectScopeId(UUID id) {
+        return Optional.ofNullable(mapper.runProjectScopeId(id));
     }
 }

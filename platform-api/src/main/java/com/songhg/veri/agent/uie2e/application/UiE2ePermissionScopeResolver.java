@@ -1,9 +1,11 @@
 package com.songhg.veri.agent.uie2e.application;
 
 import com.songhg.veri.agent.uie2e.application.command.CreateUiE2eBundleCommand;
+import com.songhg.veri.agent.uie2e.application.command.CreateUiE2eRunCommand;
 import com.songhg.veri.agent.authorization.application.ResourceScope;
 import com.songhg.veri.agent.uie2e.application.command.CreateUiE2eSceneCommand;
 import com.songhg.veri.agent.uie2e.application.query.UiE2eBundlePageRequest;
+import com.songhg.veri.agent.uie2e.application.query.UiE2eRunPageRequest;
 import com.songhg.veri.agent.uie2e.application.query.UiE2eScenePageRequest;
 import java.util.UUID;
 import org.springframework.stereotype.Service;
@@ -15,15 +17,18 @@ public class UiE2ePermissionScopeResolver {
     private final UiE2ePlatformContextClient contextClient;
     private final UiE2eSceneService sceneService;
     private final UiE2eBundleService bundleService;
+    private final UiE2eRunService runService;
 
     public UiE2ePermissionScopeResolver(
             UiE2ePlatformContextClient contextClient,
             UiE2eSceneService sceneService,
-            UiE2eBundleService bundleService
+            UiE2eBundleService bundleService,
+            UiE2eRunService runService
     ) {
         this.contextClient = contextClient;
         this.sceneService = sceneService;
         this.bundleService = bundleService;
+        this.runService = runService;
     }
 
     public ResourceScope sceneRequest(CreateUiE2eSceneCommand command) {
@@ -60,6 +65,24 @@ public class UiE2ePermissionScopeResolver {
 
     public ResourceScope bundle(UUID id) {
         return ResourceScope.project(bundleService.bundleProjectScopeId(id));
+    }
+
+    public ResourceScope runRequest(CreateUiE2eRunCommand command) {
+        if (command != null && StringUtils.hasText(command.projectId())) {
+            return project(command.projectId());
+        }
+        return ResourceScope.platform();
+    }
+
+    public ResourceScope runList(UiE2eRunPageRequest request) {
+        if (request != null && StringUtils.hasText(request.getProjectId())) {
+            return project(request.getProjectId());
+        }
+        return ResourceScope.platform();
+    }
+
+    public ResourceScope run(UUID id) {
+        return ResourceScope.project(runService.runProjectScopeId(id));
     }
 
     private ResourceScope project(String projectId) {

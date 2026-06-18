@@ -70,6 +70,8 @@ class UiE2eHealthControllerTest {
                 .andExpect(jsonPath("$.data.policy.databaseSchemaReady").value(true))
                 .andExpect(jsonPath("$.data.policy.bundleSummaryReady").value(true))
                 .andExpect(jsonPath("$.data.policy.bundleReviewReady").value(true))
+                .andExpect(jsonPath("$.data.policy.runControlPlaneReady").value(true))
+                .andExpect(jsonPath("$.data.policy.runnerPortReady").value(true))
                 .andExpect(jsonPath("$.data.policy.wp8RunnerAccountContractReady").value(true))
                 .andExpect(jsonPath("$.data.policy.runnerDefaultDisabled").value(true))
                 .andExpect(jsonPath("$.data.policy.videoCaptureDefaultDisabled").value(false))

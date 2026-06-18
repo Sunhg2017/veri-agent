@@ -80,6 +80,29 @@
         </constructor>
     </resultMap>
 
+    <resultMap id="runMap" type="com.songhg.veri.agent.uie2e.domain.UiE2eRun">
+        <constructor>
+            <arg column="id" javaType="java.util.UUID"/>
+            <arg column="scene_id" javaType="java.util.UUID"/>
+            <arg column="bundle_id" javaType="java.util.UUID"/>
+            <arg column="project_id" javaType="java.lang.String"/>
+            <arg column="status" javaType="java.lang.String"/>
+            <arg column="request_key" javaType="java.lang.String"/>
+            <arg column="runner_mode" javaType="java.lang.String"/>
+            <arg column="base_url_digest" javaType="java.lang.String"/>
+            <arg column="account_lease_ref" javaType="java.lang.String"/>
+            <arg column="account_summary_json" javaType="java.lang.String"/>
+            <arg column="failure_code" javaType="java.lang.String"/>
+            <arg column="failure_summary" javaType="java.lang.String"/>
+            <arg column="trace_id" javaType="java.lang.String"/>
+            <arg column="created_by" javaType="java.lang.String"/>
+            <arg column="started_at" javaType="java.time.Instant"/>
+            <arg column="finished_at" javaType="java.time.Instant"/>
+            <arg column="created_at" javaType="java.time.Instant"/>
+            <arg column="updated_at" javaType="java.time.Instant"/>
+        </constructor>
+    </resultMap>
+
     <sql id="sceneColumns">
         id, project_id, application_id, environment_id, code, name, status, risk_level,
         source_summary_json::text as source_summary_json, tags_json::text as tags_json,
@@ -109,6 +132,13 @@
         created_by, updated_by, created_at, updated_at
     </sql>
 
+    <sql id="runColumns">
+        r.id, r.scene_id, r.bundle_id, r.project_id, r.status, r.request_key, r.runner_mode,
+        r.base_url_digest, r.account_lease_ref, r.account_summary_json::text as account_summary_json,
+        r.failure_code, r.failure_summary, r.trace_id, r.created_by, r.started_at, r.finished_at,
+        r.created_at, r.updated_at
+    </sql>
+
     <sql id="sceneWhere">
         <where>
             <if test="query.projectId != null">project_id = #{query.projectId}</if>
@@ -136,6 +166,24 @@
                     position(lower(#{query.keyword}) in lower(coalesce(s.code, ''))) &gt; 0
                     or position(lower(#{query.keyword}) in lower(coalesce(s.name, ''))) &gt; 0
                     or position(lower(#{query.keyword}) in lower(coalesce(b.bundle_digest, ''))) &gt; 0
+                )
+            </if>
+        </where>
+    </sql>
+
+    <sql id="runWhere">
+        <where>
+            <if test="query.projectId != null">r.project_id = #{query.projectId}</if>
+            <if test="query.sceneId != null">and r.scene_id = #{query.sceneId}</if>
+            <if test="query.bundleId != null">and r.bundle_id = #{query.bundleId}</if>
+            <if test="query.status != null">and r.status = #{query.status}</if>
+            <if test="query.keyword != null">
+                and (
+                    position(lower(#{query.keyword}) in lower(coalesce(s.code, ''))) &gt; 0
+                    or position(lower(#{query.keyword}) in lower(coalesce(s.name, ''))) &gt; 0
+                    or position(lower(#{query.keyword}) in lower(coalesce(r.request_key, ''))) &gt; 0
+                    or position(lower(#{query.keyword}) in lower(coalesce(r.failure_code, ''))) &gt; 0
+                    or position(lower(#{query.keyword}) in lower(coalesce(r.trace_id, ''))) &gt; 0
                 )
             </if>
         </where>
@@ -334,5 +382,74 @@
         from ui_e2e_bundle_review
         where bundle_id = #{bundleId}
         order by reviewed_at desc nulls last, created_at desc, id desc
+    </select>
+
+    <insert id="insertRun">
+        insert into ui_e2e_run (
+            id, scene_id, bundle_id, project_id, status, request_key, runner_mode, base_url_digest,
+            account_lease_ref, account_summary_json, failure_code, failure_summary, trace_id, created_by,
+            started_at, finished_at, created_at, updated_at
+        ) values (
+            #{id}, #{sceneId}, #{bundleId}, #{projectId}, #{status}, #{requestKey}, #{runnerMode}, #{baseUrlDigest},
+            #{accountLeaseRef}, cast(coalesce(#{accountSummaryJson}, '{}') as jsonb), #{failureCode}, #{failureSummary},
+            #{traceId}, #{createdBy}, #{startedAt}, #{finishedAt}, #{createdAt}, #{updatedAt}
+        )
+    </insert>
+
+    <update id="updateRun">
+        update ui_e2e_run set
+            status = #{status},
+            request_key = #{requestKey},
+            runner_mode = #{runnerMode},
+            base_url_digest = #{baseUrlDigest},
+            account_lease_ref = #{accountLeaseRef},
+            account_summary_json = cast(coalesce(#{accountSummaryJson}, '{}') as jsonb),
+            failure_code = #{failureCode},
+            failure_summary = #{failureSummary},
+            trace_id = #{traceId},
+            created_by = #{createdBy},
+            started_at = #{startedAt},
+            finished_at = #{finishedAt},
+            updated_at = #{updatedAt}
+        where id = #{id}
+    </update>
+
+    <select id="run" resultMap="runMap">
+        select <include refid="runColumns"/>
+        from ui_e2e_run r
+        where r.id = #{id}
+    </select>
+
+    <select id="runByProjectSceneAndRequestKey" resultMap="runMap">
+        select <include refid="runColumns"/>
+        from ui_e2e_run r
+        where r.project_id = #{projectId}
+          and r.scene_id = #{sceneId}
+          and r.request_key = #{requestKey}
+        order by r.created_at desc, r.id desc
+        limit 1
+    </select>
+
+    <select id="runs" resultMap="runMap">
+        select <include refid="runColumns"/>
+        from ui_e2e_run r
+        join ui_e2e_scene s on s.id = r.scene_id
+        <include refid="runWhere"/>
+        order by r.updated_at desc, r.id desc
+        offset #{query.offset}
+        limit #{query.limit}
+    </select>
+
+    <select id="countRuns" resultType="long">
+        select count(*)
+        from ui_e2e_run r
+        join ui_e2e_scene s on s.id = r.scene_id
+        <include refid="runWhere"/>
+    </select>
+
+    <select id="runProjectScopeId" resultType="string">
+        select project_id
+        from ui_e2e_run
+        where id = #{id}
     </select>
 </mapper>

@@ -1,8 +1,10 @@
 package com.songhg.veri.agent.uie2e.infrastructure.mapper;
 
 import com.songhg.veri.agent.uie2e.application.query.UiE2eBundleQuery;
+import com.songhg.veri.agent.uie2e.application.query.UiE2eRunQuery;
 import com.songhg.veri.agent.uie2e.domain.UiE2eBundle;
 import com.songhg.veri.agent.uie2e.domain.UiE2eBundleReview;
+import com.songhg.veri.agent.uie2e.domain.UiE2eRun;
 import com.songhg.veri.agent.uie2e.application.query.UiE2eSceneQuery;
 import com.songhg.veri.agent.uie2e.domain.UiE2eScene;
 import com.songhg.veri.agent.uie2e.domain.UiE2eSceneStep;
@@ -55,4 +57,22 @@ public interface UiE2eMapper {
     void insertBundleReview(UiE2eBundleReview review);
 
     List<UiE2eBundleReview> bundleReviews(@Param("bundleId") UUID bundleId);
+
+    void insertRun(UiE2eRun run);
+
+    void updateRun(UiE2eRun run);
+
+    UiE2eRun run(@Param("id") UUID id);
+
+    UiE2eRun runByProjectSceneAndRequestKey(
+            @Param("projectId") String projectId,
+            @Param("sceneId") UUID sceneId,
+            @Param("requestKey") String requestKey
+    );
+
+    List<UiE2eRun> runs(@Param("query") UiE2eRunQuery query);
+
+    long countRuns(@Param("query") UiE2eRunQuery query);
+
+    String runProjectScopeId(@Param("id") UUID id);
 }

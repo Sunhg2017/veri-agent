@@ -1,8 +1,10 @@
 package com.songhg.veri.agent.uie2e.application.port;
 
 import com.songhg.veri.agent.uie2e.application.query.UiE2eBundleQuery;
+import com.songhg.veri.agent.uie2e.application.query.UiE2eRunQuery;
 import com.songhg.veri.agent.uie2e.domain.UiE2eBundle;
 import com.songhg.veri.agent.uie2e.domain.UiE2eBundleReview;
+import com.songhg.veri.agent.uie2e.domain.UiE2eRun;
 import com.songhg.veri.agent.uie2e.application.query.UiE2eSceneQuery;
 import com.songhg.veri.agent.uie2e.domain.UiE2eScene;
 import com.songhg.veri.agent.uie2e.domain.UiE2eSceneStep;
@@ -51,4 +53,18 @@ public interface UiE2eRepository {
     void insertBundleReview(UiE2eBundleReview review);
 
     List<UiE2eBundleReview> bundleReviews(UUID bundleId);
+
+    void insertRun(UiE2eRun run);
+
+    void updateRun(UiE2eRun run);
+
+    Optional<UiE2eRun> run(UUID id);
+
+    Optional<UiE2eRun> runByProjectSceneAndRequestKey(String projectId, UUID sceneId, String requestKey);
+
+    List<UiE2eRun> runs(UiE2eRunQuery query);
+
+    long countRuns(UiE2eRunQuery query);
+
+    Optional<String> runProjectScopeId(UUID id);
 }

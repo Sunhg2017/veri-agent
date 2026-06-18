@@ -34,6 +34,11 @@ class UiE2eOpenApiContractTest {
                 .andExpect(jsonPath("$.paths['/api/v1/ui-e2e/bundles/{id}'].get").exists())
                 .andExpect(jsonPath("$.paths['/api/v1/ui-e2e/bundles/{id}/submit-review'].post").exists())
                 .andExpect(jsonPath("$.paths['/api/v1/ui-e2e/bundles/{id}/approve'].post").exists())
-                .andExpect(jsonPath("$.paths['/api/v1/ui-e2e/bundles/{id}/reject'].post").exists());
+                .andExpect(jsonPath("$.paths['/api/v1/ui-e2e/bundles/{id}/reject'].post").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/ui-e2e/runs'].post").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/ui-e2e/runs'].get").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/ui-e2e/runs/{id}'].get").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/ui-e2e/runs/{id}/cancel'].post").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/ui-e2e/runs/{id}/export'].get").exists());
     }
 }

@@ -66,9 +66,11 @@ import com.songhg.veri.agent.testdata.domain.TestPooledAccount;
 import com.songhg.veri.agent.testdata.infrastructure.JdbcTestDataRepository;
 import com.songhg.veri.agent.uie2e.application.port.UiE2eRepository;
 import com.songhg.veri.agent.uie2e.application.query.UiE2eBundleQuery;
+import com.songhg.veri.agent.uie2e.application.query.UiE2eRunQuery;
 import com.songhg.veri.agent.uie2e.application.query.UiE2eSceneQuery;
 import com.songhg.veri.agent.uie2e.domain.UiE2eBundle;
 import com.songhg.veri.agent.uie2e.domain.UiE2eBundleReview;
+import com.songhg.veri.agent.uie2e.domain.UiE2eRun;
 import com.songhg.veri.agent.uie2e.domain.UiE2eScene;
 import com.songhg.veri.agent.uie2e.domain.UiE2eSceneStep;
 import com.songhg.veri.agent.uie2e.infrastructure.JdbcUiE2eRepository;
@@ -520,6 +522,121 @@ class DbProfileRepositoryContractTest {
                 .isEqualTo("SUBMITTED");
 
         assertThat(uiE2eRepository.bundleProjectScopeId(bundleId)).contains(projectId);
+    }
+
+    @Test
+    void uiE2eRepositoryPersistsRunsThroughJdbc() {
+        Instant now = Instant.now();
+        UUID sceneId = UUID.randomUUID();
+        UUID bundleId = UUID.randomUUID();
+        UUID runId = UUID.randomUUID();
+        String projectId = "project-wp7-run-db-" + UUID.randomUUID();
+        String requestKey = "wp7-run-db-001";
+
+        uiE2eRepository.insertScene(new UiE2eScene(
+                sceneId,
+                projectId,
+                "app-db",
+                "env-db",
+                "portal-run-db",
+                "Portal run db",
+                "APPROVED",
+                "HIGH",
+                "{\"pageRefs\":[]}",
+                "[\"run\"]",
+                "db-tester",
+                "db-tester",
+                null,
+                now,
+                now
+        ));
+        uiE2eRepository.insertBundle(new UiE2eBundle(
+                bundleId,
+                sceneId,
+                projectId,
+                "APPROVED",
+                "a".repeat(64),
+                "{\"templateVersion\":\"wp7-playwright-summary-v1\"}",
+                "{\"requiredFixtures\":[\"page\"]}",
+                "{\"status\":\"PASSED\",\"findingCount\":0}",
+                "db-reviewer",
+                "db-reviewer",
+                now,
+                now,
+                null,
+                "db-tester",
+                "db-reviewer",
+                null,
+                now,
+                now
+        ));
+
+        uiE2eRepository.insertRun(new UiE2eRun(
+                runId,
+                sceneId,
+                bundleId,
+                projectId,
+                "RUNNING",
+                requestKey,
+                "MANAGED",
+                "b".repeat(64),
+                UUID.randomUUID().toString(),
+                "{\"accountLeaseRef\":\"lease-001\",\"secretRefDigest\":\"c".repeat(1) + "\"}",
+                null,
+                null,
+                "trc_wp7_run_db",
+                "db-tester",
+                now,
+                null,
+                now,
+                now
+        ));
+
+        assertThat(uiE2eRepository.run(runId))
+                .isPresent()
+                .get()
+                .satisfies(run -> {
+                    assertThat(run.status()).isEqualTo("RUNNING");
+                    assertThat(run.requestKey()).isEqualTo(requestKey);
+                    assertThat(run.accountSummaryJson()).contains("accountLeaseRef");
+                });
+        assertThat(uiE2eRepository.runByProjectSceneAndRequestKey(projectId, sceneId, requestKey))
+                .isPresent()
+                .get()
+                .extracting(UiE2eRun::id)
+                .isEqualTo(runId);
+
+        uiE2eRepository.updateRun(new UiE2eRun(
+                runId,
+                sceneId,
+                bundleId,
+                projectId,
+                "CANCELED",
+                requestKey,
+                "MANAGED",
+                "b".repeat(64),
+                UUID.randomUUID().toString(),
+                "{\"accountLeaseRef\":\"lease-001\",\"secretRefDigest\":\"digest-001\"}",
+                "UI_E2E_RUNNER_CANCELED",
+                "runner cancel accepted",
+                "trc_wp7_run_db",
+                "db-updater",
+                now,
+                now.plusSeconds(5),
+                now,
+                now.plusSeconds(5)
+        ));
+
+        UiE2eRunQuery query = new UiE2eRunQuery(projectId, sceneId, bundleId, "CANCELED", "wp7-run-db", 0, 10);
+        assertThat(uiE2eRepository.countRuns(query)).isEqualTo(1);
+        assertThat(uiE2eRepository.runs(query))
+                .singleElement()
+                .satisfies(run -> {
+                    assertThat(run.status()).isEqualTo("CANCELED");
+                    assertThat(run.failureCode()).isEqualTo("UI_E2E_RUNNER_CANCELED");
+                    assertThat(run.finishedAt()).isEqualTo(now.plusSeconds(5));
+                });
+        assertThat(uiE2eRepository.runProjectScopeId(runId)).contains(projectId);
     }
 
     @Test

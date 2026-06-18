@@ -1,12 +1,14 @@
 package com.songhg.veri.agent.uie2e.infrastructure;
 
 import com.songhg.veri.agent.uie2e.application.query.UiE2eBundleQuery;
+import com.songhg.veri.agent.uie2e.application.query.UiE2eRunQuery;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.songhg.veri.agent.uie2e.application.port.UiE2eRepository;
 import com.songhg.veri.agent.uie2e.application.query.UiE2eSceneQuery;
 import com.songhg.veri.agent.uie2e.domain.UiE2eBundle;
 import com.songhg.veri.agent.uie2e.domain.UiE2eBundleReview;
+import com.songhg.veri.agent.uie2e.domain.UiE2eRun;
 import com.songhg.veri.agent.uie2e.domain.UiE2eScene;
 import com.songhg.veri.agent.uie2e.domain.UiE2eSceneStep;
 import java.io.UncheckedIOException;
@@ -37,6 +39,7 @@ public class InMemoryUiE2eRepository implements UiE2eRepository {
     private final ConcurrentHashMap<String, UiE2eSceneStep> steps = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<UUID, UiE2eBundle> bundles = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, UiE2eBundleReview> bundleReviews = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<UUID, UiE2eRun> runs = new ConcurrentHashMap<>();
 
     @Override
     public void insertScene(UiE2eScene scene) {
@@ -173,6 +176,52 @@ public class InMemoryUiE2eRepository implements UiE2eRepository {
                 .toList();
     }
 
+    @Override
+    public void insertRun(UiE2eRun run) {
+        if (StringUtils.hasText(run.requestKey())
+                && runByProjectSceneAndRequestKey(run.projectId(), run.sceneId(), run.requestKey()).isPresent()) {
+            throw new DuplicateKeyException("Duplicate ui-e2e run request key");
+        }
+        runs.put(run.id(), run);
+    }
+
+    @Override
+    public void updateRun(UiE2eRun run) {
+        runs.put(run.id(), run);
+    }
+
+    @Override
+    public Optional<UiE2eRun> run(UUID id) {
+        return Optional.ofNullable(runs.get(id));
+    }
+
+    @Override
+    public Optional<UiE2eRun> runByProjectSceneAndRequestKey(String projectId, UUID sceneId, String requestKey) {
+        return runs.values().stream()
+                .filter(run -> projectId.equals(run.projectId()))
+                .filter(run -> sceneId.equals(run.sceneId()))
+                .filter(run -> requestKey.equals(run.requestKey()))
+                .findFirst();
+    }
+
+    @Override
+    public List<UiE2eRun> runs(UiE2eRunQuery query) {
+        return filteredRuns(query)
+                .skip(query.offset())
+                .limit(query.limit())
+                .toList();
+    }
+
+    @Override
+    public long countRuns(UiE2eRunQuery query) {
+        return filteredRuns(query).count();
+    }
+
+    @Override
+    public Optional<String> runProjectScopeId(UUID id) {
+        return run(id).map(UiE2eRun::projectId);
+    }
+
     private Stream<UiE2eScene> filteredScenes(UiE2eSceneQuery query) {
         return scenes.values().stream()
                 .filter(scene -> query.projectId() == null || query.projectId().equals(scene.projectId()))
@@ -239,5 +288,27 @@ public class InMemoryUiE2eRepository implements UiE2eRepository {
 
     private String bundleReviewKey(UUID bundleId, UUID reviewId) {
         return bundleId + ":" + reviewId;
+    }
+
+    private Stream<UiE2eRun> filteredRuns(UiE2eRunQuery query) {
+        return runs.values().stream()
+                .filter(run -> query.projectId() == null || query.projectId().equals(run.projectId()))
+                .filter(run -> query.sceneId() == null || query.sceneId().equals(run.sceneId()))
+                .filter(run -> query.bundleId() == null || query.bundleId().equals(run.bundleId()))
+                .filter(run -> query.status() == null || query.status().equals(run.status()))
+                .filter(run -> runKeywordMatches(run, query.keyword()))
+                .sorted(Comparator.comparing(UiE2eRun::updatedAt).reversed().thenComparing(UiE2eRun::id));
+    }
+
+    private boolean runKeywordMatches(UiE2eRun run, String keyword) {
+        if (!StringUtils.hasText(keyword)) {
+            return true;
+        }
+        String lowered = keyword.toLowerCase(Locale.ROOT);
+        UiE2eScene scene = scenes.get(run.sceneId());
+        return contains(run.requestKey(), lowered)
+                || contains(run.failureCode(), lowered)
+                || contains(run.traceId(), lowered)
+                || (scene != null && (contains(scene.code(), lowered) || contains(scene.name(), lowered)));
     }
 }
