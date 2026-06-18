@@ -40,6 +40,12 @@ AI 驱动的端到端企业级测试平台。WP1、WP2、WP3、WP4 是研发任�
 | `doc/mvp/final/engineering/WP5-AI用例生成与评审-测试策略与用例脚本.md` | WP5 测试策略、功能/安全/前端用例、质量评测指标和脚本入口建议。 |
 | `doc/mvp/final/engineering/WP6-OpenAPI接口自动化-发布准出说明.md` | WP6 发布准出、验证记录、跳过项、风险、回滚和五角色结论。 |
 | `doc/mvp/final/engineering/WP6-Runner-Runbook.md` | WP6 runner smoke、开关、allowlist、排障和回滚说明。 |
+| `doc/mvp/final/engineering/WP7-Web管理后台UI-E2E-正式启动准备.md` | WP7 Web 管理后台 UI/E2E 的范围冻结、里程碑、风险和启动准入。 |
+| `doc/mvp/final/engineering/WP7-Web管理后台UI-E2E-需求文档与PRD.md` | WP7 需求文档和产品 PRD，定义用户场景、功能范围、业务规则和产品验收标准。 |
+| `doc/mvp/final/engineering/WP7-Web管理后台UI-E2E-技术设计与接口契约.md` | WP7 服务端技术设计、数据模型、状态机、runner port、跨 WP 契约和 API 草案。 |
+| `doc/mvp/final/engineering/WP7-Web管理后台UI-E2E-前端页面设计.md` | WP7 前端工作台、路由、权限、状态、响应式和可测性设计。 |
+| `doc/mvp/final/engineering/WP7-Web管理后台UI-E2E-测试策略与用例脚本.md` | WP7 测试策略、浏览器 smoke、runner smoke、脱敏扫描和质量门禁建议。 |
+| `doc/mvp/final/engineering/WP7-Web管理后台UI-E2E-研发任务拆解.md` | WP7 Epic/Story/Task 研发拆解、实施顺序和 P0 完成定义。 |
 | `doc/mvp/final/engineering/WP8-测试数据与账号池-正式启动准备.md` | WP8 测试数据与账号池的范围冻结、里程碑、风险和启动准入。 |
 | `doc/mvp/final/engineering/WP8-测试数据与账号池-需求文档与PRD.md` | WP8 需求文档和产品 PRD，定义数据集、账号池、租借、清理和验收标准。 |
 | `doc/mvp/final/engineering/WP8-测试数据与账号池-技术设计与接口契约.md` | WP8 服务端技术设计、数据模型、状态机、权限、审计和 API 契约草案。 |
