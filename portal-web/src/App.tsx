@@ -30,12 +30,20 @@ import {
 } from './api/auth';
 import { ApiError, clearAuthToken, getAuthToken, setAuthToken, setRefreshToken, setSessionId } from './api/client';
 import { fetchHealth, type HealthResult } from './api/health';
+import {
+  fetchNotifications,
+  fetchUnreadNotificationCount,
+  markAllNotificationsRead,
+  markNotificationRead,
+  type UserNotification
+} from './api/notifications';
 import { AssetWorkbench } from './components/AssetWorkbench';
 import { ApiAutomationWorkbench } from './components/ApiAutomationWorkbench';
 import { DocumentInputConsole } from './components/DocumentInputConsole';
 import { ExecutionWorkbench } from './components/ExecutionWorkbench';
 import { ModelAccessConsole } from './components/ModelAccessConsole';
 import { ManagementPage } from './components/AppManagementPage';
+import { NotificationCenter } from './components/NotificationCenter';
 import { OverviewPage } from './components/AppOverviewPage';
 import { ReportsWorkbench } from './components/ReportsWorkbench';
 import { TestDesignWorkbench } from './components/TestDesignWorkbench';
@@ -268,6 +276,10 @@ export function App() {
   const [auditExportState, setAuditExportState] = useState<{ loading: boolean; error?: string }>({ loading: false });
   const [auditOutboxFilters, setAuditOutboxFilters] = useState<AuditOutboxFilters>({ status: '', traceId: '', search: '' });
   const [auditOutboxLoad, setAuditOutboxLoad] = useState<{ loading: boolean; error?: string }>({ loading: false });
+  const [notificationOpen, setNotificationOpen] = useState(false);
+  const [notificationItems, setNotificationItems] = useState<UserNotification[]>([]);
+  const [notificationUnreadCount, setNotificationUnreadCount] = useState(0);
+  const [notificationLoad, setNotificationLoad] = useState<{ loading: boolean; loaded: boolean }>({ loading: false, loaded: false });
 
   // -- Toast --
   const { addToast, toastContainer } = useToast();
@@ -330,6 +342,33 @@ export function App() {
     }
   }, [currentUser?.must_change_password, currentUser?.user_id]);
 
+  useEffect(() => {
+    if (!currentUser || currentUser.must_change_password) {
+      setNotificationOpen(false);
+      setNotificationItems([]);
+      setNotificationUnreadCount(0);
+      setNotificationLoad({ loading: false, loaded: false });
+      return;
+    }
+    void refreshUnreadNotificationCount();
+    void refreshNotifications(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentUser]);
+
+  useEffect(() => {
+    if (!currentUser || currentUser.must_change_password) {
+      return undefined;
+    }
+    const timer = window.setInterval(() => {
+      void refreshUnreadNotificationCount();
+      if (notificationOpen) {
+        void refreshNotifications(true);
+      }
+    }, 30000);
+    return () => window.clearInterval(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentUser, notificationOpen]);
+
   /* ---------- API helpers ---------- */
 
   const refreshManagementData = useCallback(async () => {
@@ -359,6 +398,43 @@ export function App() {
       setAuditOutboxLoad({ loading: false, error: err instanceof Error ? err.message : '加载失败' });
     }
   }, [auditOutboxFilters, currentUser]);
+
+  const refreshUnreadNotificationCount = useCallback(async () => {
+    if (!getAuthToken() || !currentUser || currentUser.must_change_password) {
+      setNotificationUnreadCount(0);
+      return;
+    }
+    try {
+      const response = await fetchUnreadNotificationCount();
+      setNotificationUnreadCount(response.data.unreadCount);
+    } catch {
+      setNotificationUnreadCount(0);
+    }
+  }, [currentUser]);
+
+  const refreshNotifications = useCallback(async (force = false) => {
+    if (!getAuthToken() || !currentUser || currentUser.must_change_password) {
+      setNotificationItems([]);
+      setNotificationUnreadCount(0);
+      setNotificationLoad({ loading: false, loaded: false });
+      return;
+    }
+    if (!force && notificationLoad.loading) {
+      return;
+    }
+    setNotificationLoad((prev) => ({ loading: true, loaded: prev.loaded }));
+    try {
+      const [listResponse, unreadResponse] = await Promise.all([
+        fetchNotifications({ size: 8 }),
+        fetchUnreadNotificationCount()
+      ]);
+      setNotificationItems(listResponse.data.items);
+      setNotificationUnreadCount(unreadResponse.data.unreadCount);
+      setNotificationLoad({ loading: false, loaded: true });
+    } catch {
+      setNotificationLoad((prev) => ({ loading: false, loaded: prev.loaded }));
+    }
+  }, [currentUser, notificationLoad.loading]);
 
   /* ---------- Auth actions ---------- */
 
@@ -398,6 +474,10 @@ export function App() {
     setAuditExportState({ loading: false });
     setAuditOutboxFilters({ status: '', traceId: '', search: '' });
     setAuditOutboxLoad({ loading: false });
+    setNotificationOpen(false);
+    setNotificationItems([]);
+    setNotificationUnreadCount(0);
+    setNotificationLoad({ loading: false, loaded: false });
     setLoginForm(initialLoginForm);
     setPasswordDialogOpen(false);
     setPasswordForm(initialPasswordForm);
@@ -562,6 +642,35 @@ export function App() {
     }
   }
 
+  async function onToggleNotifications() {
+    const nextOpen = !notificationOpen;
+    setNotificationOpen(nextOpen);
+    if (nextOpen) {
+      await refreshNotifications(true);
+    }
+  }
+
+  async function onMarkNotificationRead(id: string) {
+    try {
+      const response = await markNotificationRead(id);
+      setNotificationItems((prev) => prev.map((item) => item.id === id ? response.data : item));
+      setNotificationUnreadCount((prev) => Math.max(0, prev - 1));
+    } catch (err: unknown) {
+      addToast('error', err instanceof Error ? err.message : '通知状态更新失败');
+    }
+  }
+
+  async function onMarkAllNotificationsRead() {
+    try {
+      const response = await markAllNotificationsRead();
+      const readAt = new Date().toISOString();
+      setNotificationItems((prev) => prev.map((item) => item.unread ? { ...item, unread: false, readAt } : item));
+      setNotificationUnreadCount(response.data.unreadCount);
+    } catch (err: unknown) {
+      addToast('error', err instanceof Error ? err.message : '通知状态更新失败');
+    }
+  }
+
   /* ---------- Render helpers ---------- */
 
   function renderWorkspacePage() {
@@ -612,6 +721,18 @@ export function App() {
     return (
       <div className="topbar-actions">
         <HealthBadge health={health} />
+        {currentUser && (
+          <NotificationCenter
+            open={notificationOpen}
+            loading={notificationLoad.loading}
+            unreadCount={notificationUnreadCount}
+            items={notificationItems}
+            onToggle={() => void onToggleNotifications()}
+            onClose={() => setNotificationOpen(false)}
+            onMarkRead={(id) => void onMarkNotificationRead(id)}
+            onMarkAllRead={() => void onMarkAllNotificationsRead()}
+          />
+        )}
         {currentUser && (
           <div className="auth-panel">
             <div className="auth-info">

@@ -25,6 +25,7 @@ import com.songhg.veri.agent.reporting.config.ReportingProperties;
 import com.songhg.veri.agent.reporting.domain.ReportEvidenceManifest;
 import com.songhg.veri.agent.reporting.domain.ReportExecutionReport;
 import com.songhg.veri.agent.reporting.domain.ReportFailureDiagnosis;
+import com.songhg.veri.agent.notification.application.AsyncTaskNotificationService;
 import com.songhg.veri.agent.testdata.application.TestDataCrossWpReferenceService;
 import com.songhg.veri.agent.testdesign.application.TestDesignCrossWpReportEvidenceService;
 import java.time.Duration;
@@ -62,6 +63,7 @@ public class ReportService {
     private final ReportDiagnosisAiInvoker diagnosisAiInvoker;
     private final ReportEvidenceAssembler evidenceAssembler;
     private final ReportingEventPublisher eventPublisher;
+    private final AsyncTaskNotificationService notificationService;
 
     public ReportService(
             ReportingRepository repository,
@@ -74,7 +76,8 @@ public class ReportService {
             ReportingActorResolver actorResolver,
             ReportingPlatformContextClient contextClient,
             ObjectMapper objectMapper,
-            ReportingEventPublisher eventPublisher
+            ReportingEventPublisher eventPublisher,
+            AsyncTaskNotificationService notificationService
     ) {
         this.repository = repository;
         this.executionRunService = executionRunService;
@@ -95,6 +98,7 @@ public class ReportService {
                 jsonSupport
         );
         this.eventPublisher = eventPublisher;
+        this.notificationService = notificationService;
     }
 
     /**
@@ -217,6 +221,7 @@ public class ReportService {
                         "errorCode", "REPORT_GENERATION_TIMEOUT"
                 ));
                 publishTerminalWebhook(failed, "FAILED");
+                notificationService.notifyReportFailed(failed);
             }
         }
         return recoveredCount;
@@ -269,6 +274,7 @@ public class ReportService {
                 "diagnosisStatus", bundle.failureDiagnosis().status()
         ));
         publishTerminalWebhook(ready, "READY");
+        notificationService.notifyReportReady(ready);
         return Optional.of("READY");
     }
 
@@ -901,6 +907,7 @@ public class ReportService {
                 "errorCode", failed.failedCode()
         ));
         publishTerminalWebhook(failed, "FAILED");
+        notificationService.notifyReportFailed(failed);
     }
 
     private void publishTerminalWebhook(ReportExecutionReport report, String terminalStatus) {

@@ -12,6 +12,7 @@ import com.songhg.veri.agent.execution.application.view.ExecutionNodeRunResponse
 import com.songhg.veri.agent.execution.application.view.ExecutionRunDetailResponse;
 import com.songhg.veri.agent.execution.application.view.ExecutionRunExportResponse;
 import com.songhg.veri.agent.modelaccess.application.ModelInvocationService;
+import com.songhg.veri.agent.notification.infrastructure.InMemoryUserNotificationRepository;
 import com.songhg.veri.agent.reporting.application.view.ReportGenerationWorkerTickResponse;
 import com.songhg.veri.agent.reporting.domain.ReportExecutionReport;
 import com.songhg.veri.agent.reporting.infrastructure.InMemoryReportingRepository;
@@ -28,6 +29,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
@@ -43,6 +45,11 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 @SpringBootTest(properties = {
         "veri-agent.auth.token-secret=test-auth-secret-32-byte-minimum!",
+        "veri-agent.auth.access-token-ttl-minutes=30",
+        "veri-agent.auth.session-cleanup-retention-seconds=86400",
+        "veri-agent.audit.retention-days=365",
+        "veri-agent.audit.min-retention-days=30",
+        "veri-agent.audit.retention-cleanup-batch-size=1000",
         "veri-agent.reporting.async-generation-enabled=true",
         "veri-agent.reporting.generation-worker-enabled=true",
         "veri-agent.reporting.generation-worker-id=wp10-test-worker",
@@ -53,6 +60,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         "veri-agent.reporting.schema-version=wp10-test-report-v1"
 })
 @AutoConfigureMockMvc
+@ActiveProfiles("local")
 @DirtiesContext(classMode = DirtiesContext.ClassMode.BEFORE_EACH_TEST_METHOD)
 class ReportGenerationWorkerServiceTest {
 
@@ -70,6 +78,9 @@ class ReportGenerationWorkerServiceTest {
 
     @Autowired
     private InMemoryReportingRepository reportingRepository;
+
+    @Autowired
+    private InMemoryUserNotificationRepository notificationRepository;
 
     @MockitoBean
     private ExecutionRunService executionRunService;
@@ -131,6 +142,7 @@ class ReportGenerationWorkerServiceTest {
                 .andExpect(jsonPath("$.data.summary.diagnosisPrimaryCategory").value("NO_FAILURE"))
                 .andExpect(jsonPath("$.data.evidenceManifests.length()").value(2))
                 .andExpect(jsonPath("$.data.latestDiagnosis.status").value("RULE_READY"));
+        assertThat(notificationRepository.countUnread(userIdFromToken(ownerToken))).isEqualTo(1);
         verify(executionRunService).runProjectScopeId(runId);
         verify(executionRunService).exportRun(runId);
     }
@@ -171,6 +183,7 @@ class ReportGenerationWorkerServiceTest {
                         "missing [REDACTED_SECRET_REF] [REDACTED]"))
                 .andExpect(jsonPath("$.data.summary.generationStatus").value("FAILED"))
                 .andExpect(jsonPath("$.data.summary.failureSummaryStored").value(true));
+        assertThat(notificationRepository.countUnread(userIdFromToken(ownerToken))).isEqualTo(1);
     }
 
     @Test
@@ -259,7 +272,7 @@ class ReportGenerationWorkerServiceTest {
     }
 
     private String userAccessToken(List<String> roles) {
-        return tokenService.issue(new AuthUserRecord(
+        AuthUserRecord user = new AuthUserRecord(
                 UUID.randomUUID(),
                 "wp10-worker-user-" + UUID.randomUUID(),
                 "WP10 Worker User",
@@ -268,8 +281,17 @@ class ReportGenerationWorkerServiceTest {
                 false,
                 1,
                 roles
-        )).accessToken();
+        );
+        String token = tokenService.issue(user).accessToken();
+        TOKEN_USER_IDS.put(token, user.userId());
+        return token;
     }
+
+    private UUID userIdFromToken(String token) {
+        return TOKEN_USER_IDS.get(token);
+    }
+
+    private static final java.util.Map<String, UUID> TOKEN_USER_IDS = new java.util.concurrent.ConcurrentHashMap<>();
 
     private ExecutionRunExportResponse successRunExport(UUID runId, String projectId) {
         Instant startedAt = Instant.parse("2026-06-16T10:00:00Z");
