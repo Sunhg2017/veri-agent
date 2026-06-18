@@ -48,6 +48,7 @@ import {
 import { canUseButton, hasPermission } from '../permissions';
 import {
   blankUiE2eSceneDraft,
+  buildUiE2eWorkbenchOverview,
   buildUiE2eFlakyPayload,
   buildUiE2eRunPayload,
   buildUiE2eScenePayload,
@@ -127,13 +128,10 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
     [flakyMarks, selectedFlakyId]
   );
 
-  const summary = useMemo(() => {
-    const approvedScenes = scenes.filter((scene) => scene.status === 'APPROVED').length;
-    const reviewingBundles = bundles.filter((bundle) => bundle.status === 'REVIEWING').length;
-    const activeRuns = runs.filter((run) => isUiE2eRunActiveStatus(run.status)).length;
-    const confirmedFlaky = flakyMarks.filter((mark) => mark.status === 'CONFIRMED_FLAKY').length;
-    return { approvedScenes, reviewingBundles, activeRuns, confirmedFlaky };
-  }, [bundles, flakyMarks, runs, scenes]);
+  const overview = useMemo(
+    () => buildUiE2eWorkbenchOverview(health, scenes, bundles, runs, flakyMarks),
+    [health, scenes, bundles, runs, flakyMarks]
+  );
 
   const refreshWorkbench = useCallback(async () => {
     if (!props.signedIn || !canRead) {
@@ -458,10 +456,12 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
   return (
     <div className="ui-e2e-workbench" data-testid="ui-e2e-workbench">
       <section className="metrics-grid">
-        <Metric icon={<CheckCircle2 size={20} />} label="APPROVED 场景" value={String(summary.approvedScenes)} desc={health?.runnerMode || '等待加载'} tone="success" />
-        <Metric icon={<FileText size={20} />} label="待评审脚本包" value={String(summary.reviewingBundles)} desc={health?.artifactPolicy ? 'artifact policy ready' : '等待加载'} tone="info" />
-        <Metric icon={<Play size={20} />} label="活跃运行" value={String(summary.activeRuns)} desc={health?.runnerEnabled ? 'runner ON' : 'runner OFF'} tone="warning" />
-        <Metric icon={<Bug size={20} />} label="CONFIRMED_FLAKY" value={String(summary.confirmedFlaky)} desc={health?.exportEnabled ? 'export ON' : 'export OFF'} tone="danger" />
+        <Metric icon={<CheckCircle2 size={20} />} label="APPROVED 场景" value={String(overview.approvedScenes)} desc={health?.runnerMode || '等待加载'} tone="success" />
+        <Metric icon={<FileText size={20} />} label="待评审脚本包" value={String(overview.reviewingBundles)} desc={health?.artifactPolicy ? 'artifact policy ready' : '等待加载'} tone="info" />
+        <Metric icon={<Play size={20} />} label="活跃运行" value={String(overview.activeRuns)} desc={overview.runnerLabel} tone={overview.runnerTone} />
+        <Metric icon={<AlertTriangle size={20} />} label="最近失败" value={String(overview.recentFailures)} desc={overview.blockedRuns ? `blocked=${overview.blockedRuns}` : '无阻断运行'} tone={overview.recentFailures ? 'danger' : overview.blockedRuns ? 'warning' : 'success'} />
+        <Metric icon={<ShieldCheck size={20} />} label="allowlist" value={overview.allowlistLabel} desc={health ? `${health.allowlistHostCount} hosts` : '等待加载'} tone={overview.allowlistTone} />
+        <Metric icon={<Bug size={20} />} label="CONFIRMED_FLAKY" value={String(overview.confirmedFlaky)} desc={health?.exportEnabled ? 'export ON' : 'export OFF'} tone={overview.confirmedFlaky ? 'warning' : 'info'} />
       </section>
 
       <div className="ui-e2e-layout">
@@ -488,15 +488,17 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
                   <InfoBlock title="maxConcurrency" value={String(health.maxConcurrency)} />
                   <InfoBlock title="defaultTimeout" value={`${health.defaultTimeoutSeconds}s`} />
                   <InfoBlock title="maxScenesPerRun" value={String(health.maxScenesPerRun)} />
+                  <InfoBlock title="recentFailures" value={String(overview.recentFailures)} />
+                  <InfoBlock title="blockedRuns" value={String(overview.blockedRuns)} />
                 </div>
                 <PolicySummary policy={{ ...health.credentialPolicy, ...health.artifactPolicy, ...health.policy }} />
               </>
             ) : (
               <div className="notice info">等待加载 UI E2E 健康摘要。</div>
             )}
-            {!health?.runnerEnabled && (
-              <div className="notice warning">当前 runner 默认关闭，手动创建运行会返回 BLOCKED 摘要，用于验证控制面与权限链路。</div>
-            )}
+            {overview.notices.map((notice) => (
+              <div className={`notice ${notice.tone}`} key={notice.message}>{notice.message}</div>
+            ))}
             <StateLine state={loadState} />
           </Panel>
 

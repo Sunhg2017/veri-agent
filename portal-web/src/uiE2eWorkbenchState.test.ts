@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   blankUiE2eSceneDraft,
+  buildUiE2eWorkbenchOverview,
   buildUiE2eFlakyPayload,
   buildUiE2eRunPayload,
   buildUiE2eScenePayload,
@@ -183,6 +184,118 @@ describe('ui e2e workbench state helpers', () => {
     expect(isUiE2eRunActiveStatus('BLOCKED')).toBe(false);
     expect(isUiE2eRunActiveStatus('SUCCEEDED')).toBe(false);
     expect(isUiE2eRunActiveStatus(undefined)).toBe(false);
+  });
+
+  it('builds a control-plane overview with health and risk notices', () => {
+    const overview = buildUiE2eWorkbenchOverview(
+      {
+        service: 'ui-e2e',
+        status: 'UP',
+        enabled: true,
+        runnerEnabled: false,
+        runnerMode: 'DISABLED',
+        defaultTimeoutSeconds: 180,
+        maxTimeoutSeconds: 600,
+        maxScenesPerRun: 5,
+        maxConcurrency: 2,
+        allowlistEnabled: false,
+        allowlistHostCount: 0,
+        exportEnabled: true,
+        supportedNodeTypes: ['UI_TEST'],
+        credentialPolicy: {},
+        artifactPolicy: {},
+        policy: {}
+      },
+      [
+        {
+          id: 'scene-1',
+          projectId: 'project-alpha',
+          code: 'portal-login',
+          name: 'Portal login',
+          status: 'APPROVED',
+          riskLevel: 'HIGH',
+          tags: [],
+          sourceSummary: {},
+          stepCount: 2
+        },
+        {
+          id: 'scene-2',
+          projectId: 'project-alpha',
+          code: 'portal-search',
+          name: 'Portal search',
+          status: 'DRAFT',
+          riskLevel: 'MEDIUM',
+          tags: [],
+          sourceSummary: {},
+          stepCount: 1
+        }
+      ],
+      [
+        {
+          id: 'bundle-1',
+          projectId: 'project-alpha',
+          sceneId: 'scene-1',
+          status: 'REVIEWING',
+          staticCheckSummary: {}
+        }
+      ],
+      [
+        {
+          id: 'run-1',
+          projectId: 'project-alpha',
+          sceneId: 'scene-1',
+          bundleId: 'bundle-1',
+          status: 'RUNNING',
+          runnerMode: 'MANAGED',
+          accountSummary: {}
+        },
+        {
+          id: 'run-2',
+          projectId: 'project-alpha',
+          sceneId: 'scene-1',
+          bundleId: 'bundle-1',
+          status: 'FAILED',
+          runnerMode: 'MANAGED',
+          accountSummary: {}
+        },
+        {
+          id: 'run-3',
+          projectId: 'project-alpha',
+          sceneId: 'scene-1',
+          bundleId: 'bundle-1',
+          status: 'BLOCKED',
+          runnerMode: 'DISABLED',
+          accountSummary: {}
+        }
+      ],
+      [
+        {
+          id: 'flaky-1',
+          projectId: 'project-alpha',
+          status: 'CONFIRMED_FLAKY'
+        }
+      ]
+    );
+
+    expect(overview).toMatchObject({
+      approvedScenes: 1,
+      reviewingBundles: 1,
+      activeRuns: 1,
+      recentFailures: 1,
+      blockedRuns: 1,
+      confirmedFlaky: 1,
+      runnerLabel: 'OFF · DISABLED',
+      runnerTone: 'warning',
+      allowlistLabel: 'OFF',
+      allowlistTone: 'warning'
+    });
+    expect(overview.notices.map((item) => item.message)).toEqual(expect.arrayContaining([
+      '当前 runner 默认关闭，手动创建运行会返回 BLOCKED 摘要，用于验证控制面与权限链路。',
+      'baseUrl allowlist 当前关闭，发布前应确认受控目标范围已经收口。',
+      '最近列表中有 1 条 FAILED/TIMEOUT 运行，建议优先查看 failureCode 和 traceId。',
+      '最近列表中有 1 条 BLOCKED 运行，通常需要复核 runner、租借或审批状态。',
+      '当前共有 1 条 CONFIRMED_FLAKY 标记，可作为后续诊断和治理输入。'
+    ]));
   });
 
   it('hydrates and resets scene drafts predictably', () => {

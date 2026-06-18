@@ -1,6 +1,11 @@
 import type {
   CreateUiE2eRunPayload,
   CreateUiE2eScenePayload,
+  UiE2eBundleSummary,
+  UiE2eFlakyMark,
+  UiE2eHealth,
+  UiE2eRunSummary,
+  UiE2eSceneSummary,
   UiE2eSceneDetail,
   UiE2eSceneStepPayload,
   UpdateUiE2eScenePayload,
@@ -46,6 +51,27 @@ export type UiE2eFlakyDraft = {
   status: string;
   reasonCode: string;
   reasonSummary: string;
+};
+
+export type UiE2eWorkbenchTone = 'success' | 'info' | 'warning' | 'danger';
+
+export type UiE2eWorkbenchNotice = {
+  tone: 'info' | 'warning';
+  message: string;
+};
+
+export type UiE2eWorkbenchOverview = {
+  approvedScenes: number;
+  reviewingBundles: number;
+  activeRuns: number;
+  recentFailures: number;
+  blockedRuns: number;
+  confirmedFlaky: number;
+  runnerLabel: string;
+  runnerTone: UiE2eWorkbenchTone;
+  allowlistLabel: string;
+  allowlistTone: UiE2eWorkbenchTone;
+  notices: UiE2eWorkbenchNotice[];
 };
 
 export const initialUiE2eSceneStepDraft: UiE2eSceneStepDraft = {
@@ -104,6 +130,66 @@ const requestKeyPattern = /^[A-Za-z0-9_.:-]{1,128}$/;
 
 export function isUiE2eRunActiveStatus(status?: string) {
   return status === 'QUEUED' || status === 'RUNNING';
+}
+
+export function buildUiE2eWorkbenchOverview(
+  health: UiE2eHealth | null,
+  scenes: UiE2eSceneSummary[],
+  bundles: UiE2eBundleSummary[],
+  runs: UiE2eRunSummary[],
+  flakyMarks: UiE2eFlakyMark[]
+): UiE2eWorkbenchOverview {
+  const approvedScenes = scenes.filter((scene) => scene.status === 'APPROVED').length;
+  const reviewingBundles = bundles.filter((bundle) => bundle.status === 'REVIEWING').length;
+  const activeRuns = runs.filter((run) => isUiE2eRunActiveStatus(run.status)).length;
+  const recentFailures = runs.filter((run) => ['FAILED', 'TIMEOUT'].includes(run.status)).length;
+  const blockedRuns = runs.filter((run) => run.status === 'BLOCKED').length;
+  const confirmedFlaky = flakyMarks.filter((mark) => mark.status === 'CONFIRMED_FLAKY').length;
+
+  const notices: UiE2eWorkbenchNotice[] = [];
+  if (health?.status && health.status !== 'UP') {
+    notices.push({ tone: 'warning', message: `健康状态为 ${health.status}，请先确认控制面服务可用性。` });
+  }
+  if (health && !health.runnerEnabled) {
+    notices.push({ tone: 'warning', message: '当前 runner 默认关闭，手动创建运行会返回 BLOCKED 摘要，用于验证控制面与权限链路。' });
+  }
+  if (health && !health.allowlistEnabled) {
+    notices.push({ tone: 'warning', message: 'baseUrl allowlist 当前关闭，发布前应确认受控目标范围已经收口。' });
+  }
+  if (recentFailures > 0) {
+    notices.push({ tone: 'warning', message: `最近列表中有 ${recentFailures} 条 FAILED/TIMEOUT 运行，建议优先查看 failureCode 和 traceId。` });
+  }
+  if (blockedRuns > 0) {
+    notices.push({ tone: 'info', message: `最近列表中有 ${blockedRuns} 条 BLOCKED 运行，通常需要复核 runner、租借或审批状态。` });
+  }
+  if (confirmedFlaky > 0) {
+    notices.push({ tone: 'info', message: `当前共有 ${confirmedFlaky} 条 CONFIRMED_FLAKY 标记，可作为后续诊断和治理输入。` });
+  }
+
+  const runnerLabel = health ? `${health.runnerEnabled ? 'ON' : 'OFF'} · ${health.runnerMode || 'UNKNOWN'}` : '等待加载';
+  const runnerTone: UiE2eWorkbenchTone = !health
+    ? 'info'
+    : health.status !== 'UP'
+      ? 'danger'
+      : health.runnerEnabled
+        ? 'success'
+        : 'warning';
+  const allowlistLabel = health ? (health.allowlistEnabled ? `ON (${health.allowlistHostCount})` : 'OFF') : '等待加载';
+  const allowlistTone: UiE2eWorkbenchTone = !health ? 'info' : health.allowlistEnabled ? 'success' : 'warning';
+
+  return {
+    approvedScenes,
+    reviewingBundles,
+    activeRuns,
+    recentFailures,
+    blockedRuns,
+    confirmedFlaky,
+    runnerLabel,
+    runnerTone,
+    allowlistLabel,
+    allowlistTone,
+    notices
+  };
 }
 
 export function buildUiE2eScenePayload(draft: UiE2eSceneDraft): { payload?: CreateUiE2eScenePayload; issues: string[] } {
