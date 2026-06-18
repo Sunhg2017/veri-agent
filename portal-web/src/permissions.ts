@@ -7,6 +7,7 @@ export type PageKey =
   | 'asset-library'
   | 'test-design'
   | 'api-automation'
+  | 'ui-e2e'
   | 'execution'
   | 'test-data'
   | 'reports'
@@ -88,6 +89,12 @@ export type Permission =
   | 'apiAutomation:review'
   | 'apiAutomation:execute'
   | 'apiAutomation:export'
+  | 'uiE2e:read'
+  | 'uiE2e:manage'
+  | 'uiE2e:review'
+  | 'uiE2e:execute'
+  | 'uiE2e:export'
+  | 'uiE2e:flaky'
   | 'execution:read'
   | 'execution:manage'
   | 'execution:trigger'
@@ -155,6 +162,11 @@ export type ButtonKey =
   | 'apiAutomation:review'
   | 'apiAutomation:execute'
   | 'apiAutomation:export'
+  | 'uiE2e:manage'
+  | 'uiE2e:review'
+  | 'uiE2e:execute'
+  | 'uiE2e:export'
+  | 'uiE2e:flaky'
   | 'execution:manage'
   | 'execution:trigger'
   | 'execution:admin'
@@ -179,6 +191,7 @@ export const pageReadPermissions: Partial<Record<PageKey, Permission>> = {
   'asset-library': 'asset:read',
   'test-design': 'testDesign:read',
   'api-automation': 'apiAutomation:read',
+  'ui-e2e': 'uiE2e:read',
   execution: 'execution:read',
   'test-data': 'testData:read',
   reports: 'report:read',
@@ -265,6 +278,11 @@ const buttonPermissionGroups: Record<ButtonKey, Permission[][]> = {
   'apiAutomation:review': [['apiAutomation:review']],
   'apiAutomation:execute': [['apiAutomation:execute']],
   'apiAutomation:export': [['apiAutomation:export']],
+  'uiE2e:manage': [['uiE2e:manage']],
+  'uiE2e:review': [['uiE2e:review']],
+  'uiE2e:execute': [['uiE2e:execute']],
+  'uiE2e:export': [['uiE2e:export']],
+  'uiE2e:flaky': [['uiE2e:flaky']],
   'execution:manage': [['execution:manage']],
   'execution:trigger': [['execution:trigger']],
   'execution:admin': [['execution:admin']],

@@ -37,6 +37,7 @@ describe('WP1 permission helpers', () => {
       'asset:read',
       'testDesign:read',
       'apiAutomation:read',
+      'uiE2e:read',
       'execution:read',
       'testData:read',
       'report:read',
@@ -51,6 +52,7 @@ describe('WP1 permission helpers', () => {
     expect(canAccessPage(currentUser, 'asset-library')).toBe(true);
     expect(canAccessPage(currentUser, 'test-design')).toBe(true);
     expect(canAccessPage(currentUser, 'api-automation')).toBe(true);
+    expect(canAccessPage(currentUser, 'ui-e2e')).toBe(true);
     expect(canAccessPage(currentUser, 'execution')).toBe(true);
     expect(canAccessPage(currentUser, 'test-data')).toBe(true);
     expect(canAccessPage(currentUser, 'reports')).toBe(true);
@@ -81,6 +83,11 @@ describe('WP1 permission helpers', () => {
   it('requires WP9 execution read permission for the execution workbench', () => {
     expect(canAccessPage(user(['apiAutomation:read']), 'execution')).toBe(false);
     expect(canAccessPage(user(['execution:read']), 'execution')).toBe(true);
+  });
+
+  it('requires WP7 ui e2e read permission for the ui e2e workbench', () => {
+    expect(canAccessPage(user(['apiAutomation:read']), 'ui-e2e')).toBe(false);
+    expect(canAccessPage(user(['uiE2e:read']), 'ui-e2e')).toBe(true);
   });
 
   it('requires WP8 test data read permission for the test data workbench', () => {
@@ -207,6 +214,12 @@ describe('WP1 permission helpers', () => {
     expect(canUseButton(user(['apiAutomation:review']), 'apiAutomation:review')).toBe(true);
     expect(canUseButton(user(['apiAutomation:execute']), 'apiAutomation:execute')).toBe(true);
     expect(canUseButton(user(['apiAutomation:export']), 'apiAutomation:export')).toBe(true);
+    expect(canUseButton(user(['uiE2e:manage']), 'uiE2e:manage')).toBe(true);
+    expect(canUseButton(user(['uiE2e:review']), 'uiE2e:review')).toBe(true);
+    expect(canUseButton(user(['uiE2e:execute']), 'uiE2e:execute')).toBe(true);
+    expect(canUseButton(user(['uiE2e:export']), 'uiE2e:export')).toBe(true);
+    expect(canUseButton(user(['uiE2e:flaky']), 'uiE2e:flaky')).toBe(true);
+    expect(canUseButton(user(['uiE2e:read']), 'uiE2e:execute')).toBe(false);
     expect(canUseButton(user(['execution:manage']), 'execution:manage')).toBe(true);
     expect(canUseButton(user(['execution:read']), 'execution:manage')).toBe(false);
     expect(canUseButton(user(['execution:trigger']), 'execution:trigger')).toBe(true);

@@ -11,6 +11,7 @@ import {
   LayoutDashboard,
   Link2,
   LogOut,
+  MonitorPlay,
   ServerCog,
   Settings,
   ShieldCheck,
@@ -50,6 +51,7 @@ import { OverviewPage } from './components/AppOverviewPage';
 import { ReportsWorkbench } from './components/ReportsWorkbench';
 import { TestDesignWorkbench } from './components/TestDesignWorkbench';
 import { TestDataWorkbench } from './components/TestDataWorkbench';
+import { UiE2eWorkbench } from './components/UiE2eWorkbench';
 import { useToast } from './components/Toast';
 import {
   assignUserRole,
@@ -145,6 +147,13 @@ const pages: PageDefinition[] = [
     title: '接口自动化',
     description: '导入 OpenAPI 规格，解析接口摘要并维护 endpoint snapshot。',
     icon: ClipboardList
+  },
+  {
+    key: 'ui-e2e',
+    label: 'UI E2E',
+    title: 'UI E2E',
+    description: '管理 WP7 场景、脚本包、运行摘要和 flaky 治理。',
+    icon: MonitorPlay
   },
   {
     key: 'execution',
@@ -783,6 +792,8 @@ export function App() {
         return <TestDesignWorkbench signedIn={signedIn} currentUser={currentUser} />;
       case 'api-automation':
         return <ApiAutomationWorkbench signedIn={signedIn} currentUser={currentUser} />;
+      case 'ui-e2e':
+        return <UiE2eWorkbench signedIn={signedIn} currentUser={currentUser} />;
       case 'execution':
         return <ExecutionWorkbench signedIn={signedIn} currentUser={currentUser} />;
       case 'test-data':

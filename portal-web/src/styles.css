@@ -3973,6 +3973,139 @@ tbody tr:hover td {
 }
 
 /* ============================================================
+   WP7 UI E2E
+   ============================================================ */
+
+.ui-e2e-workbench {
+  display: grid;
+  gap: var(--space-lg);
+}
+
+.ui-e2e-layout {
+  display: grid;
+  grid-template-columns: minmax(360px, 0.95fr) minmax(520px, 1.2fr);
+  gap: var(--space-lg);
+  align-items: start;
+}
+
+.ui-e2e-list-column,
+.ui-e2e-detail-column {
+  display: grid;
+  gap: var(--space-lg);
+  min-width: 0;
+}
+
+.ui-e2e-filter-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-sm);
+  align-items: end;
+}
+
+.ui-e2e-form {
+  display: grid;
+  gap: var(--space-md);
+}
+
+.ui-e2e-health-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--space-sm);
+  margin-bottom: var(--space-md);
+}
+
+.ui-e2e-list {
+  display: grid;
+  gap: var(--space-sm);
+}
+
+.ui-e2e-list-item {
+  width: 100%;
+  min-height: 92px;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 4px var(--space-sm);
+  align-items: start;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text-secondary);
+  text-align: left;
+  cursor: pointer;
+  transition: border-color var(--transition-fast), background var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+.ui-e2e-list-item:hover,
+.ui-e2e-list-item.active {
+  border-color: var(--primary);
+  background: var(--primary-bg);
+  box-shadow: var(--shadow-xs);
+}
+
+.ui-e2e-list-item strong,
+.ui-e2e-list-item span,
+.ui-e2e-list-item small {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.ui-e2e-list-item strong {
+  color: var(--text-primary);
+  font-size: var(--font-size-sm);
+}
+
+.ui-e2e-list-item > span:not(.badge),
+.ui-e2e-list-item small {
+  grid-column: 1 / -1;
+}
+
+.ui-e2e-list-item small {
+  color: var(--text-tertiary);
+  font-size: var(--font-size-xs);
+}
+
+.ui-e2e-card-list {
+  display: grid;
+  gap: var(--space-sm);
+  margin-top: var(--space-md);
+}
+
+.ui-e2e-section-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-sm);
+}
+
+.ui-e2e-step-editor {
+  display: grid;
+  gap: var(--space-sm);
+}
+
+.ui-e2e-step-card {
+  display: grid;
+  gap: var(--space-sm);
+  padding: 12px;
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-sm);
+  background: var(--bg-alt);
+}
+
+.ui-e2e-step-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-sm);
+}
+
+.ui-e2e-step-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-sm);
+}
+
+/* ============================================================
    WP10 报告诊断
    ============================================================ */
 
@@ -4269,6 +4402,7 @@ tbody tr:hover td {
   .test-data-export-grid,
   .test-data-record-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .execution-layout,
+  .ui-e2e-layout,
   .test-data-layout,
   .reports-layout { grid-template-columns: 1fr; }
   .execution-policy-grid,
@@ -4359,7 +4493,10 @@ tbody tr:hover td {
   .report-summary-grid,
   .report-diagnosis-grid,
   .report-section-grid,
-  .report-filter-grid { grid-template-columns: 1fr; }
+  .report-filter-grid,
+  .ui-e2e-filter-grid,
+  .ui-e2e-health-grid,
+  .ui-e2e-step-grid { grid-template-columns: 1fr; }
   .test-design-quality-distribution { grid-template-columns: 1fr; }
   .test-design-prompt-trend-row { grid-template-columns: 1fr; }
   .test-design-evaluation-row,
