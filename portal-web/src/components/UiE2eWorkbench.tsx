@@ -56,6 +56,7 @@ import {
   initialUiE2eRunDraft,
   initialUiE2eSceneDraft,
   initialUiE2eSceneStepDraft,
+  isUiE2eRunActiveStatus,
   prettyJson,
   sceneDraftFromDetail,
   type UiE2eFlakyDraft,
@@ -129,7 +130,7 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
   const summary = useMemo(() => {
     const approvedScenes = scenes.filter((scene) => scene.status === 'APPROVED').length;
     const reviewingBundles = bundles.filter((bundle) => bundle.status === 'REVIEWING').length;
-    const activeRuns = runs.filter((run) => run.status === 'QUEUED' || run.status === 'RUNNING').length;
+    const activeRuns = runs.filter((run) => isUiE2eRunActiveStatus(run.status)).length;
     const confirmedFlaky = flakyMarks.filter((mark) => mark.status === 'CONFIRMED_FLAKY').length;
     return { approvedScenes, reviewingBundles, activeRuns, confirmedFlaky };
   }, [bundles, flakyMarks, runs, scenes]);
@@ -217,6 +218,23 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
     }
   }, [canRead]);
 
+  const refreshActiveRunSnapshot = useCallback(async (runId: string) => {
+    if (!runId || !props.signedIn || !canRead) {
+      return;
+    }
+    try {
+      const [runResult, runListResult] = await Promise.all([
+        fetchUiE2eRun(runId),
+        fetchUiE2eRuns({ ...compactFilters(runFilters), size: 20 })
+      ]);
+      setRunDetail(runResult.data);
+      setRuns(runListResult.data.items);
+      setSelectedRunId((current) => retainSelection(current, runListResult.data.items));
+    } catch {
+      // Keep the latest successful snapshot on screen and let manual refresh recover if needed.
+    }
+  }, [canRead, props.signedIn, runFilters]);
+
   useEffect(() => {
     void refreshWorkbench();
   }, [refreshWorkbench]);
@@ -232,6 +250,16 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
   useEffect(() => {
     void refreshRunDetail(selectedRunId);
   }, [refreshRunDetail, selectedRunId]);
+
+  useEffect(() => {
+    if (!selectedRunId || !isUiE2eRunActiveStatus(runDetail?.status)) {
+      return;
+    }
+    const timer = window.setTimeout(() => {
+      void refreshActiveRunSnapshot(selectedRunId);
+    }, 3000);
+    return () => window.clearTimeout(timer);
+  }, [refreshActiveRunSnapshot, runDetail?.status, selectedRunId]);
 
   if (!props.signedIn) {
     return <div className="notice warning">请先登录后查看 UI E2E 工作台。</div>;
@@ -382,7 +410,7 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
   }
 
   async function onCancelRun() {
-    if (!runDetail || !canExecute) return;
+    if (!runDetail || !canExecute || !isUiE2eRunActiveStatus(runDetail.status)) return;
     setRunActionState({ loading: true });
     try {
       const result = await cancelUiE2eRun(runDetail.id, { reason: runDraft.reason });
@@ -725,7 +753,7 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
                 <button className="btn btn-primary" type="submit" disabled={!canExecute || runActionState.loading}>
                   <Play size={16} />创建运行
                 </button>
-                <button className="btn btn-secondary" type="button" onClick={() => void onCancelRun()} disabled={!canExecute || runActionState.loading || !runDetail}>
+                <button className="btn btn-secondary" type="button" onClick={() => void onCancelRun()} disabled={!canExecute || runActionState.loading || !runDetail || !isUiE2eRunActiveStatus(runDetail.status)}>
                   <Square size={16} />取消运行
                 </button>
                 <button className="btn btn-secondary" type="button" onClick={() => void onExportRun()} disabled={!canExport || runActionState.loading || !runDetail}>
@@ -1091,6 +1119,9 @@ function RunDetailPanel(props: { detail: UiE2eRunDetail | null; exported: UiE2eR
         <InfoBlock title="accountSummary" value={formatRecord(props.detail.accountSummary)} />
         <InfoBlock title="executionSummary" value={formatRecord(executionSummary)} />
       </div>
+      {isUiE2eRunActiveStatus(props.detail.status) && (
+        <div className="notice info">当前运行仍在进行中，工作台会自动刷新运行详情和列表状态。</div>
+      )}
       {props.detail.failureCode === 'UI_E2E_RUNNER_DISABLED' && (
         <div className="notice warning">当前环境 runner 默认关闭，运行被控制面安全地标记为 BLOCKED，用于验证审批、租借和导出链路。</div>
       )}

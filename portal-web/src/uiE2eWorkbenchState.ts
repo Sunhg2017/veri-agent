@@ -102,6 +102,10 @@ export const initialUiE2eFlakyDraft: UiE2eFlakyDraft = {
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const requestKeyPattern = /^[A-Za-z0-9_.:-]{1,128}$/;
 
+export function isUiE2eRunActiveStatus(status?: string) {
+  return status === 'QUEUED' || status === 'RUNNING';
+}
+
 export function buildUiE2eScenePayload(draft: UiE2eSceneDraft): { payload?: CreateUiE2eScenePayload; issues: string[] } {
   const { payload: partialPayload, issues } = buildUiE2eScenePayloadBase(draft);
   if (!draft.projectId.trim()) issues.push('请填写 scene projectId');

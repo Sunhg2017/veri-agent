@@ -6,6 +6,7 @@ import {
   buildUiE2eScenePayload,
   buildUiE2eSceneUpdatePayload,
   initialUiE2eSceneDraft,
+  isUiE2eRunActiveStatus,
   prettyJson,
   sceneDraftFromDetail,
   splitTags
@@ -174,6 +175,14 @@ describe('ui e2e workbench state helpers', () => {
   it('keeps tag splitting and pretty json deterministic', () => {
     expect(splitTags(' smoke, admin，portal  login ')).toEqual(['smoke', 'admin', 'portal', 'login']);
     expect(prettyJson({ aggregateOnly: true, count: 2 })).toBe('{\n  "aggregateOnly": true,\n  "count": 2\n}');
+  });
+
+  it('recognizes active run statuses for polling and action gating', () => {
+    expect(isUiE2eRunActiveStatus('QUEUED')).toBe(true);
+    expect(isUiE2eRunActiveStatus('RUNNING')).toBe(true);
+    expect(isUiE2eRunActiveStatus('BLOCKED')).toBe(false);
+    expect(isUiE2eRunActiveStatus('SUCCEEDED')).toBe(false);
+    expect(isUiE2eRunActiveStatus(undefined)).toBe(false);
   });
 
   it('hydrates and resets scene drafts predictably', () => {
