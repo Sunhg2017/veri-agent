@@ -192,6 +192,61 @@ class TestDataSetControllerTest {
     }
 
     @Test
+    void generatesSyntheticRecordsOnlyForGeneratedDataSets() throws Exception {
+        String token = userAccessToken(List.of("ProjectOwner@PROJECT:project-alpha"));
+
+        MvcResult created = mockMvc.perform(post("/api/v1/test-data/data-sets")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(createGeneratedDataSetRequest("dataset-generated"))))
+                .andExpect(status().isCreated())
+                .andReturn();
+        UUID generatedDataSetId = UUID.fromString(JsonPath.read(created.getResponse().getContentAsString(), "$.data.id"));
+
+        mockMvc.perform(post("/api/v1/test-data/data-sets/{id}/generate-records", generatedDataSetId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "count", 2,
+                                "recordKeyPrefix", "generated-customer",
+                                "tags", List.of("smoke")
+                        ))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.generatedCount").value(2))
+                .andExpect(jsonPath("$.data.records", hasSize(2)))
+                .andExpect(jsonPath("$.data.records[0].recordKey", startsWith("generated-customer-")))
+                .andExpect(jsonPath("$.data.records[0].tags", hasSize(3)))
+                .andExpect(jsonPath("$.data.records[0].maskedSummary.customerId").exists())
+                .andExpect(content().string(not(containsString("secret://wp8/raw-source"))))
+                .andExpect(content().string(not(containsString("raw-ssn-1234"))));
+
+        mockMvc.perform(post("/api/v1/test-data/data-sets/{id}/generate-records", generatedDataSetId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "count", 1000,
+                                "recordKeyPrefix", "too-many"
+                        ))))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
+
+        MvcResult manualCreated = mockMvc.perform(post("/api/v1/test-data/data-sets")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(createDataSetRequest("dataset-manual"))))
+                .andExpect(status().isCreated())
+                .andReturn();
+        UUID manualDataSetId = UUID.fromString(JsonPath.read(manualCreated.getResponse().getContentAsString(), "$.data.id"));
+
+        mockMvc.perform(post("/api/v1/test-data/data-sets/{id}/generate-records", manualDataSetId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of("count", 1))))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("INVALID_STATE"));
+    }
+
+    @Test
     void rejectsInvalidSchemaDuplicateCodeAndArchiveStatusPatch() throws Exception {
         String token = userAccessToken(List.of("ProjectOwner@PROJECT:project-alpha"));
 
@@ -288,6 +343,17 @@ class TestDataSetControllerTest {
         ));
         request.put("sourceType", "EXTERNAL_REF");
         request.put("sourceRefDigest", DIGEST_B);
+        return request;
+    }
+
+    private Map<String, Object> createGeneratedDataSetRequest(String code) {
+        Map<String, Object> request = createDataSetRequest(code);
+        request.put("sourceType", "GENERATED");
+        request.put("schema", Map.of("fields", List.of(
+                Map.of("name", "customerId", "type", "STRING"),
+                Map.of("name", "active", "type", "BOOLEAN"),
+                Map.of("name", "riskScore", "type", "NUMBER", "sensitive", true)
+        )));
         return request;
     }
 

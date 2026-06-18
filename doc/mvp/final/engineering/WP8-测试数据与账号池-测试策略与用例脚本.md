@@ -22,7 +22,7 @@
 
 | 范围 | 覆盖点 |
 |---|---|
-| 数据集 | CRUD、归档、schema 校验、敏感字段、记录摘要、外部引用 digest。 |
+| 数据集 | CRUD、归档、schema 校验、敏感字段、记录摘要、外部引用 digest、`GENERATED` 数据集自动造数。 |
 | 账号池 | CRUD、账号新增/更新、secretRef 替换、角色标签、健康状态。 |
 | 租借 | 申请、并发冲突、requestKey 幂等、续租、释放、过期、撤销。 |
 | 清理任务 | 创建、状态流、失败、重试、清理开关关闭。 |
@@ -49,6 +49,7 @@
 | 创建合法数据集 | 返回 `READY/DRAFT` 状态，schema 摘要和敏感字段计数正确。 |
 | 数据集 code 重复 | 返回稳定冲突错误，不覆盖旧数据集。 |
 | 写入敏感记录摘要 | 响应和 DB 可查询摘要不包含敏感原文。 |
+| 生成模拟记录摘要 | 仅 `GENERATED` 数据集可生成；生成结果只包含 digest、masked summary、tags 和规则化样本值。 |
 | 归档数据集 | 新引用被阻断，历史引用可只读查询。 |
 | 创建账号池 | 绑定项目、应用、环境和默认 TTL。 |
 | 新增账号 secretRef | 只返回 `secretRefDigest`，不返回 secretRef 原文。 |
@@ -78,6 +79,7 @@
 | 释放并创建清理任务 | payload 不包含 secret 或数据正文。 |
 | 清理任务失败 | 展示错误摘要和重试/人工确认入口。 |
 | 导出面板 | 显示 redaction policy，不展示 secretRef 原文；租借导出只展示 digest、keys 和 presence 标记。 |
+| 自动造数面板 | 仅 `GENERATED` 数据集可提交；count/prefix/tags 提交成功后记录摘要刷新，失败时展示 traceId。 |
 | 响应式主链路 | 桌面和 390px 均可完成数据集、账号池、租借、释放和任务查看。 |
 
 ## 6. 安全专项
@@ -309,6 +311,15 @@ M6C 定向测试矩阵：
 | `TestDataOpenApiContractTest` | OpenAPI 路径 | `/data-sets/{id}/export` 出现在 `/v3/api-docs` | 契约缺失 |
 | `portal-web/src/api/testData.test.ts` | 前端 helper 和 normalizer | `exportTestDataSet` 路径正确；normalizer 只保留 `maskedSummaryKeys`，redaction policy 保留布尔安全声明 | 前端模型吸收 maskedSummary 值；policy 被误删 |
 | `portal-web/e2e/wp8-test-data.smoke.playwright.ts` | 浏览器导出链路 | 点击“导出摘要”；展示 `wp8-data-set-export-v1` 和 policy；DOM 不含 `secret://` 或敏感测试值 | 导出按钮不可用；导出结果泄露原文 |
+
+M6E 定向测试矩阵：
+
+| 测试/脚本 | 覆盖范围 | 必须断言 | 失败条件 |
+|---|---|---|---|
+| `TestDataSetControllerTest` | `POST /api/v1/test-data/data-sets/{id}/generate-records` | 仅 `GENERATED` 数据集可生成；返回 `generatedCount`、record digest、masked summary 和 tags；响应不含 secret 原文 | 非 `GENERATED` 数据集也可生成；生成结果泄露原文；数量上限失效 |
+| `TestDataSetServiceTest` | 生成式数据集应用服务 | schema 字段类型被规则化填充；生成记录计数正确；摘要仍受大小和数量上限约束 | digest 非法；记录数量越界；非 `GENERATED` 数据集未阻断 |
+| `TestDataOpenApiContractTest` | OpenAPI 路径 | `/data-sets/{id}/generate-records` 出现在 `/v3/api-docs` | 契约缺失 |
+| `portal-web/src/api/testData.test.ts` | 前端 helper 和 normalizer | `generateTestDataRecords` 路径、payload 和 normalizer 正确；只保留安全摘要字段 | 前端发送脏 payload；吸收敏感原文；路径偏离后端契约 |
 
 M6C 未执行项和风险边界：
 

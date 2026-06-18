@@ -82,6 +82,7 @@
 | `PATCH` | `/data-sets/{id}` | `testData:manage` | 更新名称、状态、schema、清理策略。 |
 | `POST` | `/data-sets/{id}/archive` | `testData:manage` | 归档数据集，阻断新引用。 |
 | `POST` | `/data-sets/{id}/records` | `testData:manage` | 批量写入脱敏记录摘要或外部引用。 |
+| `POST` | `/data-sets/{id}/generate-records` | `testData:manage` | 对 `GENERATED` 数据集按 schema 自动生成脱敏记录摘要。 |
 | `GET` | `/data-sets/{id}/export` | `testData:export` | 导出数据集脱敏摘要、字段计数、摘要键名和 redaction policy。 |
 | `POST` | `/data-tasks` | `testData:cleanup` | 创建准备、刷新、清理或回滚任务。 |
 | `GET` | `/data-tasks` | `testData:read` | 查询任务列表。 |
@@ -109,6 +110,7 @@
 - `PATCH /api/v1/test-data/data-sets/{id}`
 - `POST /api/v1/test-data/data-sets/{id}/archive`
 - `POST /api/v1/test-data/data-sets/{id}/records`
+- `POST /api/v1/test-data/data-sets/{id}/generate-records`
 - `GET /api/v1/test-data/data-sets/{id}/export`
 
 实现约束：
@@ -120,6 +122,7 @@
 5. 数据集归档后禁止继续修改或导入记录摘要。
 6. 控制面总开关 `veri-agent.test-data.enabled=false` 时，业务 API 返回 `INVALID_STATE`，health API 保持可观测。
 7. 数据集脱敏导出受 `testData:export` 和 `veri-agent.test-data.export-enabled` 控制，只返回 `schemaVersion/exportedAt/dataSet/recordCount/schemaFieldCount/sensitiveFieldCount/records/redactionPolicy`；其中 records 只包含 `recordKey/recordDigest/externalRefDigest/tags/maskedSummaryKeys/createdAt/updatedAt`，不返回 maskedSummary 值、完整 record payload、secretRef 原文、token、cookie 或 Authorization header。
+8. `POST /data-sets/{id}/generate-records` 仅允许 `sourceType=GENERATED` 且状态为 `DRAFT/READY` 的数据集调用；生成逻辑只基于 schema 字段类型构造规则化样本摘要，生成后仍通过既有 `test_data_record` 摘要模型持久化，不新增敏感字段存储面。
 
 ### M3 已落地切片
 
@@ -194,6 +197,37 @@
     "ttlSeconds": 86400
   },
   "sourceType": "MANUAL"
+}
+```
+
+### 生成模拟记录摘要
+
+```json
+{
+  "count": 3,
+  "recordKeyPrefix": "checkout-user",
+  "tags": ["smoke", "generated"]
+}
+```
+
+响应只返回摘要与 digest：
+
+```json
+{
+  "dataSetId": "uuid",
+  "generatedCount": 3,
+  "records": [
+    {
+      "recordKey": "checkout-user-001",
+      "recordDigest": "64-char-sha256",
+      "maskedSummary": {
+        "customerId": "customerId-sample-1",
+        "active": false,
+        "riskScore": "riskScore-masked-1"
+      },
+      "tags": ["generated", "synthetic", "smoke"]
+    }
+  ]
 }
 ```
 

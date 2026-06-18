@@ -88,6 +88,13 @@ export interface TestDataRecordImport {
   policy: Record<string, unknown>;
 }
 
+export interface TestDataRecordGeneration {
+  dataSetId: string;
+  generatedCount: number;
+  records: TestDataRecord[];
+  policy: Record<string, unknown>;
+}
+
 export interface TestAccountPoolSummary {
   id: string;
   projectId: string;
@@ -285,6 +292,12 @@ export interface ImportTestDataRecordsPayload {
   }>;
 }
 
+export interface GenerateTestDataRecordsPayload {
+  count: number;
+  recordKeyPrefix?: string;
+  tags?: string[];
+}
+
 export interface TestAccountPoolPayload {
   projectId?: string;
   applicationId?: string;
@@ -394,6 +407,17 @@ export async function importTestDataRecords(
     body: JSON.stringify(sanitizeRecordImportPayload(payload))
   });
   return { ...response, data: normalizeTestDataRecordImport(response.data) };
+}
+
+export async function generateTestDataRecords(
+  dataSetId: string,
+  payload: GenerateTestDataRecordsPayload
+): Promise<ApiResponse<TestDataRecordGeneration>> {
+  const response = await requestJson<unknown>(`${TEST_DATA_BASE}/data-sets/${encodeURIComponent(dataSetId)}/generate-records`, {
+    method: 'POST',
+    body: JSON.stringify(sanitizeGenerateRecordsPayload(payload))
+  });
+  return { ...response, data: normalizeTestDataRecordGeneration(response.data) };
 }
 
 export async function fetchTestAccountPools(filters: TestAccountPoolFilters = {}): Promise<ApiResponse<PageResponse<TestAccountPoolSummary>>> {
@@ -604,6 +628,16 @@ export function normalizeTestDataRecordImport(input: unknown): TestDataRecordImp
   return {
     dataSetId: stringValue(read(value, 'dataSetId', 'data_set_id')),
     importedCount: numberValue(read(value, 'importedCount', 'imported_count'), 0),
+    records: arrayValue(read(value, 'records')).map(normalizeTestDataRecord),
+    policy: sanitizeObject(read(value, 'policy'))
+  };
+}
+
+export function normalizeTestDataRecordGeneration(input: unknown): TestDataRecordGeneration {
+  const value = objectValue(input);
+  return {
+    dataSetId: stringValue(read(value, 'dataSetId', 'data_set_id')),
+    generatedCount: numberValue(read(value, 'generatedCount', 'generated_count'), 0),
     records: arrayValue(read(value, 'records')).map(normalizeTestDataRecord),
     policy: sanitizeObject(read(value, 'policy'))
   };
@@ -840,6 +874,13 @@ function sanitizeRecordImportPayload(payload: ImportTestDataRecordsPayload) {
       maskedSummary: record.maskedSummary ? sanitizeObject(record.maskedSummary) : undefined,
       tags: record.tags?.filter(Boolean)
     }))
+  };
+}
+
+function sanitizeGenerateRecordsPayload(payload: GenerateTestDataRecordsPayload) {
+  return {
+    ...cleanObject(payload),
+    tags: payload.tags?.filter(Boolean)
   };
 }
 

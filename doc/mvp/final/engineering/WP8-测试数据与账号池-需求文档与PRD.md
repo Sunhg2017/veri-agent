@@ -39,6 +39,7 @@ WP6 已具备 OpenAPI 接口自动化能力，WP9 已具备执行编排和任务
 |---|---|
 | 数据集目录 | 创建、查询、更新、归档数据集，保存 schema 摘要、字段敏感级别、适用环境和清理策略。 |
 | 数据样本引用 | 保存数据样本摘要、外部数据位置引用或生成参数摘要；不保存生产敏感原文。 |
+| 模拟数据生成 | 对 `GENERATED` 数据集按 schema 自动构造脱敏记录摘要，降低仅支持外部导入的使用门槛。 |
 | 账号池目录 | 按项目、应用、环境、角色管理账号池，支持账号状态、标签、并发限制和健康状态。 |
 | 密钥引用 | 账号密码、token、cookie 等凭据只通过 `secretRef` 引用，不在 WP8 表或前端响应中展示明文。 |
 | 租借状态机 | 支持 `AVAILABLE/LEASED/LOCKED/EXPIRED/DISABLED` 和租借记录 `ACTIVE/RELEASED/EXPIRED/REVOKED`。 |
@@ -77,8 +78,9 @@ WP6 已具备 OpenAPI 接口自动化能力，WP9 已具备执行编排和任务
 1. 测试工程师选择项目、应用和环境。
 2. 新建数据集，填写名称、用途、字段 schema、敏感字段和清理策略。
 3. 上传或录入样本摘要，或填写外部数据引用。
-4. 平台校验字段敏感标记、项目 scope 和数据大小限制。
-5. 数据集进入 `READY` 后可被 WP6/WP7/WP9 引用。
+4. 若数据集 `sourceType=GENERATED`，用户可按 schema 自动生成一批模拟记录摘要。
+5. 平台校验字段敏感标记、项目 scope、生成数量和数据大小限制。
+6. 数据集进入 `READY` 后可被 WP6/WP7/WP9 引用。
 
 ### 7.2 账号池维护
 
@@ -194,6 +196,13 @@ M6C 已推进数据集脱敏导出摘要：测试工程师可通过 `#test-data`
 1. 导出入口同时受 `testData:export` 权限和 `veri-agent.test-data.export-enabled` 控制。
 2. 导出摘要不展示 maskedSummary 值、完整记录正文、`secretRef` 原文、token、cookie 或 Authorization header。
 3. 当前不提供文件下载，不导出租借摘要或清理审计摘要；这些能力按后续增强独立准出。
+
+M6E 已推进模拟数据生成：测试工程师可对 `sourceType=GENERATED` 的数据集通过 `POST /api/v1/test-data/data-sets/{id}/generate-records` 或 `#test-data` 工作台“自动造数”入口，按 schema 自动生成一批脱敏记录摘要。产品边界如下：
+
+1. 仅 `GENERATED` 数据集支持自动造数；`MANUAL/EXTERNAL_REF` 仍通过记录摘要导入维护数据。
+2. 生成结果只保存 `recordKey/recordDigest/maskedSummary/tags` 等脱敏摘要，不保存完整 payload、敏感原文或 secret 引用明文。
+3. 生成逻辑当前基于 schema 字段类型使用规则化样本值，不调用外部模型、第三方造数服务或真实业务系统。
+4. 生成数量仍受 `record-max-count`、单条摘要大小和数据集状态限制；`ARCHIVED` 或非可写状态数据集不可生成。
 
 M6D 已推进租借脱敏导出摘要：测试工程师可通过 `#test-data` 工作台的租借 tab 点击“导出摘要”，查看 schema version、租借状态、holder、账号摘要、账号池摘要、`leaseTokenDigest`、`requestDigest`、释放原因 digest、健康摘要 digest、过滤后的安全 key 名和 redaction policy。产品边界如下：
 

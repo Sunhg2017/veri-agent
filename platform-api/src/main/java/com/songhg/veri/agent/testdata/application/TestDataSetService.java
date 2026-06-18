@@ -8,11 +8,13 @@ import com.songhg.veri.agent.common.error.BusinessException;
 import com.songhg.veri.agent.common.error.ErrorCode;
 import com.songhg.veri.agent.integration.application.view.PlatformContext;
 import com.songhg.veri.agent.testdata.application.command.CreateTestDataSetCommand;
+import com.songhg.veri.agent.testdata.application.command.GenerateTestDataRecordsCommand;
 import com.songhg.veri.agent.testdata.application.command.ImportTestDataRecordsCommand;
 import com.songhg.veri.agent.testdata.application.command.UpdateTestDataSetCommand;
 import com.songhg.veri.agent.testdata.application.port.TestDataRepository;
 import com.songhg.veri.agent.testdata.application.query.TestDataSetPageRequest;
 import com.songhg.veri.agent.testdata.application.query.TestDataSetQuery;
+import com.songhg.veri.agent.testdata.application.view.TestDataRecordGenerationResponse;
 import com.songhg.veri.agent.testdata.application.view.TestDataRecordImportResponse;
 import com.songhg.veri.agent.testdata.application.view.TestDataRecordResponse;
 import com.songhg.veri.agent.testdata.application.view.TestDataSetDetailResponse;
@@ -23,8 +25,11 @@ import com.songhg.veri.agent.testdata.domain.TestDataRecord;
 import com.songhg.veri.agent.testdata.domain.TestDataSet;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -243,6 +248,70 @@ public class TestDataSetService {
     }
 
     /**
+     * Generates bounded synthetic record summaries from the dataset schema.
+     * The generated payload stays on the control plane: it only persists masked summaries, digests and tags.
+     */
+    @Transactional(noRollbackFor = BusinessException.class)
+    public TestDataRecordGenerationResponse generateRecords(UUID dataSetId, GenerateTestDataRecordsCommand command) {
+        assertEnabled();
+        TestDataSet dataSet = requireDataSet(dataSetId);
+        assertGeneratable(dataSet);
+        if (!"DRAFT".equals(dataSet.status()) && !"READY".equals(dataSet.status())) {
+            throw new BusinessException(ErrorCode.INVALID_STATE, "当前数据集状态不可生成记录摘要");
+        }
+        int count = command.count();
+        List<TestDataRecord> existingRecords = repository.records(dataSetId);
+        if (existingRecords.size() + count > properties.effectiveRecordMaxCount()) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "数据集记录数量超过上限");
+        }
+        Instant now = Instant.now();
+        String actor = actorResolver.currentActor();
+        Map<String, Object> schema = readMap(dataSet.schemaJson());
+        List<Map<String, Object>> schemaFields = schemaFields(schema);
+        String prefix = StringUtils.hasText(command.recordKeyPrefix())
+                ? boundedText(command.recordKeyPrefix(), 96)
+                : defaultGeneratedRecordKeyPrefix(dataSet);
+        Set<String> existingKeys = new HashSet<>();
+        existingRecords.forEach(record -> existingKeys.add(record.recordKey()));
+        List<String> tags = generatedTags(command.tags());
+        List<TestDataRecord> generatedRecords = new ArrayList<>();
+        for (int i = 1; i <= count; i++) {
+            String recordKey = nextGeneratedRecordKey(prefix, existingKeys, i);
+            Map<String, Object> maskedSummary = generatedSummary(dataSet, schemaFields, recordKey, i);
+            assertSummarySize(maskedSummary);
+            TestDataRecord record = new TestDataRecord(
+                    UUID.randomUUID(),
+                    dataSet.id(),
+                    dataSet.projectId(),
+                    recordKey,
+                    "ACTIVE",
+                    sha256(recordKey + "|" + json(maskedSummary) + "|" + dataSet.id()),
+                    json(maskedSummary),
+                    null,
+                    json(tags),
+                    actor,
+                    actor,
+                    now,
+                    now
+            );
+            generatedRecords.add(record);
+            existingKeys.add(recordKey);
+        }
+        repository.upsertRecords(generatedRecords);
+        auditDataSet(dataSet, "test_data.record.generated", Map.of(
+                "generatedCount", generatedRecords.size(),
+                "recordCount", repository.countRecords(dataSetId),
+                "sourceType", dataSet.sourceType()
+        ));
+        return new TestDataRecordGenerationResponse(
+                dataSetId,
+                generatedRecords.size(),
+                generatedRecords.stream().map(this::recordResponse).toList(),
+                dataPolicy()
+        );
+    }
+
+    /**
      * Builds the WP8 data-set export as an audit-safe metadata snapshot.
      * The export intentionally carries record digests, tags and masked-summary keys only; masked values and raw payloads stay out.
      */
@@ -319,6 +388,102 @@ public class TestDataSetService {
                 now,
                 now
         );
+    }
+
+    private void assertGeneratable(TestDataSet dataSet) {
+        if (!"GENERATED".equals(dataSet.sourceType())) {
+            throw new BusinessException(ErrorCode.INVALID_STATE, "仅 GENERATED 数据集支持自动生成记录摘要");
+        }
+    }
+
+    private String defaultGeneratedRecordKeyPrefix(TestDataSet dataSet) {
+        return dataSet.code() + ":gen";
+    }
+
+    private String nextGeneratedRecordKey(String prefix, Set<String> existingKeys, int index) {
+        String candidate = prefix + "-" + String.format(Locale.ROOT, "%03d", index);
+        int retry = index;
+        while (existingKeys.contains(candidate)) {
+            retry++;
+            candidate = prefix + "-" + String.format(Locale.ROOT, "%03d", retry);
+        }
+        return boundedRecordKey(candidate);
+    }
+
+    private List<String> generatedTags(List<String> tags) {
+        Set<String> normalized = new java.util.LinkedHashSet<>();
+        normalized.add("generated");
+        normalized.add("synthetic");
+        if (tags != null) {
+            tags.stream()
+                    .filter(StringUtils::hasText)
+                    .map(value -> boundedText(value, 64))
+                    .forEach(normalized::add);
+        }
+        return List.copyOf(normalized);
+    }
+
+    private Map<String, Object> generatedSummary(
+            TestDataSet dataSet,
+            List<Map<String, Object>> schemaFields,
+            String recordKey,
+            int index
+    ) {
+        Map<String, Object> summary = new LinkedHashMap<>();
+        summary.put("recordKey", recordKey);
+        summary.put("recordIndex", index);
+        summary.put("dataSetCode", dataSet.code());
+        summary.put("sourceType", dataSet.sourceType());
+        if (schemaFields.isEmpty()) {
+            summary.put("syntheticValue", dataSet.code() + "-sample-" + index);
+            return summary;
+        }
+        for (Map<String, Object> field : schemaFields) {
+            Object name = field.get("name");
+            Object type = field.get("type");
+            if (name instanceof String fieldName && type instanceof String fieldType) {
+                summary.put(fieldName, generatedValue(fieldName, fieldType, field, index));
+            }
+        }
+        return summary;
+    }
+
+    private Object generatedValue(String fieldName, String fieldType, Map<String, Object> field, int index) {
+        boolean sensitive = Boolean.TRUE.equals(field.get("sensitive"));
+        String base = fieldName + (sensitive ? "-masked-" : "-sample-") + index;
+        return switch (fieldType) {
+            case "NUMBER" -> index;
+            case "BOOLEAN" -> index % 2 == 0;
+            case "DATE" -> String.format(Locale.ROOT, "2026-06-%02d", (index - 1) % 28 + 1);
+            case "DATETIME" -> Instant.parse("2026-06-15T00:00:00Z").plusSeconds(index * 60L).toString();
+            case "OBJECT" -> Map.of(
+                    "generated", true,
+                    "field", fieldName,
+                    "index", index
+            );
+            case "ARRAY" -> List.of(base);
+            default -> base;
+        };
+    }
+
+    private List<Map<String, Object>> schemaFields(Map<String, Object> schema) {
+        Object fields = schema.get("fields");
+        if (!(fields instanceof List<?> fieldList)) {
+            return List.of();
+        }
+        List<Map<String, Object>> normalizedFields = new ArrayList<>();
+        for (Object field : fieldList) {
+            if (field instanceof Map<?, ?> fieldMap) {
+                Map<String, Object> normalizedField = new LinkedHashMap<>();
+                fieldMap.forEach((key, value) -> {
+                    if (key instanceof String stringKey) {
+                        normalizedField.put(stringKey, value);
+                    }
+                });
+                normalizedFields.add(normalizedField);
+            }
+        }
+        return normalizedFields;
     }
 
     /**
@@ -626,6 +791,15 @@ public class TestDataSetService {
             return objectMapper.writeValueAsString(value);
         } catch (JsonProcessingException exception) {
             throw new BusinessException(ErrorCode.BAD_REQUEST, "JSON 无法序列化");
+        }
+    }
+
+    private String sha256(String value) {
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            return HexFormat.of().formatHex(digest.digest(value.getBytes(StandardCharsets.UTF_8)));
+        } catch (NoSuchAlgorithmException exception) {
+            throw new IllegalStateException("SHA-256 is required", exception);
         }
     }
 

@@ -5,6 +5,7 @@ import com.songhg.veri.agent.common.error.BusinessException;
 import com.songhg.veri.agent.common.error.ErrorCode;
 import com.songhg.veri.agent.integration.application.view.PlatformContext;
 import com.songhg.veri.agent.testdata.application.command.CreateTestDataSetCommand;
+import com.songhg.veri.agent.testdata.application.command.GenerateTestDataRecordsCommand;
 import com.songhg.veri.agent.testdata.application.command.ImportTestDataRecordsCommand;
 import com.songhg.veri.agent.testdata.application.query.TestDataSetPageRequest;
 import com.songhg.veri.agent.testdata.config.TestDataProperties;
@@ -99,6 +100,67 @@ class TestDataSetServiceTest {
                     assertThat(record.maskedSummaryKeys()).containsExactlyInAnyOrder("recordId", "customerEmail");
                 });
         assertThat(exported.redactionPolicy()).containsEntry("maskedSummaryValuesExported", false);
+    }
+
+    @Test
+    void generatesSyntheticRecordsForGeneratedDataSet() {
+        TestDataSetService service = service(true, 10, 512);
+        var dataSet = service.createDataSet(new CreateTestDataSetCommand(
+                "project-alpha",
+                null,
+                null,
+                "dataset-generated",
+                "Dataset generated",
+                "READY",
+                Map.of("fields", List.of(
+                        Map.of("name", "customerId", "type", "STRING"),
+                        Map.of("name", "active", "type", "BOOLEAN"),
+                        Map.of("name", "riskScore", "type", "NUMBER", "sensitive", true)
+                )),
+                "INTERNAL",
+                Map.of("mode", "MANUAL_CONFIRM"),
+                "GENERATED",
+                null
+        ));
+
+        var generated = service.generateRecords(dataSet.id(), new GenerateTestDataRecordsCommand(
+                2,
+                "generated-customer",
+                List.of("smoke")
+        ));
+
+        assertThat(generated.generatedCount()).isEqualTo(2);
+        assertThat(generated.records()).hasSize(2);
+        assertThat(generated.records().get(0).recordKey()).startsWith("generated-customer-");
+        assertThat(generated.records().get(0).recordDigest()).hasSize(64);
+        assertThat(generated.records().get(0).tags()).contains("generated", "synthetic", "smoke");
+        assertThat(generated.records().get(0).maskedSummary()).containsKeys("customerId", "active", "riskScore");
+        assertThat(service.dataSet(dataSet.id()).records()).hasSize(2);
+    }
+
+    @Test
+    void rejectsSyntheticGenerationForNonGeneratedDataSet() {
+        TestDataSetService service = service(true, 10, 512);
+        var dataSet = service.createDataSet(new CreateTestDataSetCommand(
+                "project-alpha",
+                null,
+                null,
+                "dataset-manual",
+                "Dataset manual",
+                "READY",
+                Map.of("fields", List.of(Map.of("name", "customerId", "type", "STRING"))),
+                "INTERNAL",
+                Map.of("mode", "MANUAL_CONFIRM"),
+                "MANUAL",
+                null
+        ));
+
+        assertThatThrownBy(() -> service.generateRecords(dataSet.id(), new GenerateTestDataRecordsCommand(
+                1,
+                null,
+                List.of()
+        ))).isInstanceOfSatisfying(BusinessException.class, exception ->
+                assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.INVALID_STATE));
     }
 
     @Test

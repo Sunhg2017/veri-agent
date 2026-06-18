@@ -10,6 +10,7 @@ import {
   Play,
   RefreshCw,
   RotateCcw,
+  Sparkles,
   ShieldCheck,
   Trash2,
   Upload
@@ -37,6 +38,7 @@ import {
   fetchTestDataSets,
   fetchTestDataTask,
   fetchTestDataTasks,
+  generateTestDataRecords,
   importTestDataRecords,
   releaseTestAccountLease,
   renewTestAccountLease,
@@ -85,6 +87,12 @@ type RecordDraft = {
   recordDigest: string;
   maskedSummaryText: string;
   externalRefDigest: string;
+  tagsText: string;
+};
+
+type GenerateDraft = {
+  count: number;
+  recordKeyPrefix: string;
   tagsText: string;
 };
 
@@ -148,7 +156,7 @@ const initialDataSetDraft: DataSetDraft = {
   environmentId: '',
   code: '',
   name: '',
-  status: 'ACTIVE',
+  status: 'DRAFT',
   sensitivityLevel: 'INTERNAL',
   sourceType: 'MANUAL',
   sourceRefDigest: '',
@@ -164,13 +172,19 @@ const initialRecordDraft: RecordDraft = {
   tagsText: ''
 };
 
+const initialGenerateDraft: GenerateDraft = {
+  count: 3,
+  recordKeyPrefix: '',
+  tagsText: 'smoke'
+};
+
 const initialPoolDraft: PoolDraft = {
   projectId: '',
   applicationId: '',
   environmentId: '',
   code: '',
   name: '',
-  status: 'ACTIVE',
+  status: 'DRAFT',
   defaultTtlSeconds: 1800,
   leasePolicyText: '{"maxConcurrentLeases":1}'
 };
@@ -236,6 +250,7 @@ export function TestDataWorkbench(props: { signedIn: boolean; currentUser: Curre
   const [leaseExport, setLeaseExport] = useState<TestAccountLeaseExport | null>(null);
   const [dataSetDraft, setDataSetDraft] = useState<DataSetDraft>(initialDataSetDraft);
   const [recordDraft, setRecordDraft] = useState<RecordDraft>(initialRecordDraft);
+  const [generateDraft, setGenerateDraft] = useState<GenerateDraft>(initialGenerateDraft);
   const [poolDraft, setPoolDraft] = useState<PoolDraft>(initialPoolDraft);
   const [accountDraft, setAccountDraft] = useState<AccountDraft>(initialAccountDraft);
   const [leaseDraft, setLeaseDraft] = useState<LeaseDraft>(initialLeaseDraft);
@@ -496,6 +511,24 @@ export function TestDataWorkbench(props: { signedIn: boolean; currentUser: Curre
       setDataSetExportState({ loading: false, success: '脱敏导出摘要已生成', traceId: result.trace_id });
     } catch (error: unknown) {
       setDataSetExportState(errorState(error, '脱敏导出失败'));
+    }
+  }
+
+  async function onGenerateRecords(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!selectedDataSetId || !canManage) return;
+    setDataSetState({ loading: true });
+    try {
+      const result = await generateTestDataRecords(selectedDataSetId, {
+        count: generateDraft.count,
+        recordKeyPrefix: optionalText(generateDraft.recordKeyPrefix),
+        tags: splitList(generateDraft.tagsText)
+      });
+      setDataSetState({ loading: false, success: `已生成 ${result.data.generatedCount} 条模拟记录`, traceId: result.trace_id });
+      await refreshDataSetDetail(selectedDataSetId);
+      await refreshWorkbench();
+    } catch (error: unknown) {
+      setDataSetState(errorState(error, '模拟记录生成失败'));
     }
   }
 
@@ -849,8 +882,8 @@ export function TestDataWorkbench(props: { signedIn: boolean; currentUser: Curre
               <Field label="sourceType">
                 <select value={dataSetDraft.sourceType} onChange={(event) => setDataSetDraftValue('sourceType', event.target.value)}>
                   <option value="MANUAL">MANUAL</option>
-                  <option value="IMPORT">IMPORT</option>
-                  <option value="EXTERNAL">EXTERNAL</option>
+                  <option value="GENERATED">GENERATED</option>
+                  <option value="EXTERNAL_REF">EXTERNAL_REF</option>
                 </select>
               </Field>
             </div>
@@ -889,6 +922,7 @@ export function TestDataWorkbench(props: { signedIn: boolean; currentUser: Curre
               </table>
             </div>
             <RecordImportForm />
+            <RecordGenerateForm />
             <RecordList />
             <DataSetExportPanel />
           </div>
@@ -1143,6 +1177,45 @@ export function TestDataWorkbench(props: { signedIn: boolean; currentUser: Curre
     );
   }
 
+  function RecordGenerateForm() {
+    const generatedSource = dataSetDetail?.sourceType === 'GENERATED';
+    return (
+      <form className="test-data-subform" onSubmit={onGenerateRecords}>
+        <div className="test-data-subheader">
+          <strong>生成模拟记录</strong>
+          <button className="btn btn-secondary btn-sm" type="submit" disabled={!selectedDataSetId || !generatedSource || !canManage || dataSetState.loading}>
+            <Sparkles size={15} />
+            自动造数
+          </button>
+        </div>
+        {!generatedSource && (
+          <div className="table-empty">仅 `GENERATED` 数据集支持自动造数；其他来源类型继续使用导入记录摘要。</div>
+        )}
+        <div className="form-grid">
+          <Field label="count">
+            <input
+              type="number"
+              min={1}
+              max={200}
+              value={generateDraft.count}
+              onChange={(event) => setGenerateDraftValue('count', Number(event.target.value))}
+            />
+          </Field>
+          <Field label="recordKeyPrefix">
+            <input
+              value={generateDraft.recordKeyPrefix}
+              onChange={(event) => setGenerateDraftValue('recordKeyPrefix', event.target.value)}
+              placeholder={dataSetDetail ? `${dataSetDetail.code}:gen` : 'dataset:gen'}
+            />
+          </Field>
+          <Field label="tags">
+            <input value={generateDraft.tagsText} onChange={(event) => setGenerateDraftValue('tagsText', event.target.value)} />
+          </Field>
+        </div>
+      </form>
+    );
+  }
+
   function RecordList() {
     return (
       <div className="test-data-subform">
@@ -1345,6 +1418,11 @@ export function TestDataWorkbench(props: { signedIn: boolean; currentUser: Curre
     setDataSetState({ loading: false });
   }
 
+  function setGenerateDraftValue<K extends keyof GenerateDraft>(key: K, value: GenerateDraft[K]) {
+    setGenerateDraft((current) => ({ ...current, [key]: value }));
+    setDataSetState({ loading: false });
+  }
+
   function setPoolDraftValue<K extends keyof PoolDraft>(key: K, value: PoolDraft[K]) {
     setPoolDraft((current) => ({ ...current, [key]: value }));
     setPoolState({ loading: false });
@@ -1412,8 +1490,8 @@ function StateLine(props: { state: WorkState }) {
 function StatusSelect(props: { value: string; onChange: (value: string) => void }) {
   return (
     <select value={props.value} onChange={(event) => props.onChange(event.target.value)}>
-      <option value="ACTIVE">ACTIVE</option>
       <option value="DRAFT">DRAFT</option>
+      <option value="READY">READY</option>
       <option value="DISABLED">DISABLED</option>
       <option value="ARCHIVED">ARCHIVED</option>
     </select>

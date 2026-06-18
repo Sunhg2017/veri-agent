@@ -20,10 +20,12 @@ import {
   fetchTestDataSets,
   fetchTestDataTask,
   fetchTestDataTasks,
+  generateTestDataRecords,
   importTestDataRecords,
   normalizeTestAccountLease,
   normalizeTestAccountLeaseExport,
   normalizeTestAccountPoolDetail,
+  normalizeTestDataRecordGeneration,
   normalizeTestDataSetDetail,
   normalizeTestDataSetExport,
   normalizeTestDataTask,
@@ -55,9 +57,9 @@ describe('WP8 test data API helpers', () => {
       environment_id: 'staging',
       code: 'login-users',
       name: 'Login users',
-      status: 'ACTIVE',
+      status: 'READY',
       sensitivity_level: 'CONFIDENTIAL',
-      source_type: 'IMPORT',
+      source_type: 'GENERATED',
       source_ref_digest: 'digest-source',
       record_count: '2',
       cleanup_policy: { password: 'raw', mode: 'MANUAL' },
@@ -213,6 +215,27 @@ describe('WP8 test data API helpers', () => {
       }
     });
 
+    expect(normalizeTestDataRecordGeneration({
+      data_set_id: 'ds-1',
+      generated_count: '2',
+      records: [{
+        id: 'rec-1',
+        data_set_id: 'ds-1',
+        project_id: 'project-alpha',
+        record_key: 'generated-001',
+        status: 'ACTIVE',
+        record_digest: 'digest-record',
+        masked_summary: { customerId: 'customer-1', riskScore: 'riskScore-masked-1' },
+        tags: ['generated', 'synthetic']
+      }],
+      policy: { rawRecordPayloadStored: false, secret: 'raw' }
+    })).toMatchObject({
+      dataSetId: 'ds-1',
+      generatedCount: 2,
+      records: [{ recordKey: 'generated-001', tags: ['generated', 'synthetic'] }],
+      policy: { rawRecordPayloadStored: false }
+    });
+
     expect(normalizeTestAccountLeaseExport({
       schema_version: 'wp8-account-lease-export-v1',
       exported_at: '2026-06-15T00:00:00Z',
@@ -299,6 +322,7 @@ describe('WP8 test data API helpers', () => {
     await fetchTestDataSets({ projectId: 'project-alpha', status: 'ACTIVE', keyword: 'login', size: 10 });
     await fetchTestDataSet('ds-1');
     await exportTestDataSet('ds-1');
+    await generateTestDataRecords('ds-1', { count: 2, recordKeyPrefix: 'generated', tags: ['smoke'] });
     await fetchTestAccountPools({ projectId: 'project-alpha', environmentId: 'staging' });
     await fetchTestAccountPool('pool-1');
     await fetchTestAccountLeases({ projectId: 'project-alpha', poolId: 'pool-1', status: 'ACTIVE' });
@@ -314,22 +338,26 @@ describe('WP8 test data API helpers', () => {
     );
     expect(requestJsonMock).toHaveBeenNthCalledWith(3, '/api/v1/test-data/data-sets/ds-1');
     expect(requestJsonMock).toHaveBeenNthCalledWith(4, '/api/v1/test-data/data-sets/ds-1/export');
+    expect(requestJsonMock).toHaveBeenNthCalledWith(5, '/api/v1/test-data/data-sets/ds-1/generate-records', {
+      method: 'POST',
+      body: JSON.stringify({ count: 2, recordKeyPrefix: 'generated', tags: ['smoke'] })
+    });
     expect(requestJsonMock).toHaveBeenNthCalledWith(
-      5,
+      6,
       '/api/v1/test-data/account-pools?projectId=project-alpha&environmentId=staging'
     );
-    expect(requestJsonMock).toHaveBeenNthCalledWith(6, '/api/v1/test-data/account-pools/pool-1');
+    expect(requestJsonMock).toHaveBeenNthCalledWith(7, '/api/v1/test-data/account-pools/pool-1');
     expect(requestJsonMock).toHaveBeenNthCalledWith(
-      7,
+      8,
       '/api/v1/test-data/leases?projectId=project-alpha&poolId=pool-1&status=ACTIVE'
     );
-    expect(requestJsonMock).toHaveBeenNthCalledWith(8, '/api/v1/test-data/leases/lease-1');
-    expect(requestJsonMock).toHaveBeenNthCalledWith(9, '/api/v1/test-data/leases/lease-1/export');
+    expect(requestJsonMock).toHaveBeenNthCalledWith(9, '/api/v1/test-data/leases/lease-1');
+    expect(requestJsonMock).toHaveBeenNthCalledWith(10, '/api/v1/test-data/leases/lease-1/export');
     expect(requestJsonMock).toHaveBeenNthCalledWith(
-      10,
+      11,
       '/api/v1/test-data/data-tasks?projectId=project-alpha&taskType=CLEANUP&status=FAILED'
     );
-    expect(requestJsonMock).toHaveBeenNthCalledWith(11, '/api/v1/test-data/data-tasks/task-1');
+    expect(requestJsonMock).toHaveBeenNthCalledWith(12, '/api/v1/test-data/data-tasks/task-1');
   });
 
   it('wraps mutating endpoints and keeps secretRef write-only', async () => {
@@ -351,6 +379,7 @@ describe('WP8 test data API helpers', () => {
         maskedSummary: { username: 'admin', secretRef: 'secret://wp8/raw' }
       }]
     });
+    await generateTestDataRecords('ds-1', { count: 2, recordKeyPrefix: 'generated', tags: ['smoke'] });
     await createTestAccountPool({
       projectId: 'project-alpha',
       code: 'admin-pool',
@@ -400,41 +429,45 @@ describe('WP8 test data API helpers', () => {
       method: 'POST',
       body: expect.stringContaining('digest-record')
     });
-    expect(requestJsonMock).toHaveBeenNthCalledWith(5, '/api/v1/test-data/account-pools', {
+    expect(requestJsonMock).toHaveBeenNthCalledWith(5, '/api/v1/test-data/data-sets/ds-1/generate-records', {
+      method: 'POST',
+      body: JSON.stringify({ count: 2, recordKeyPrefix: 'generated', tags: ['smoke'] })
+    });
+    expect(requestJsonMock).toHaveBeenNthCalledWith(6, '/api/v1/test-data/account-pools', {
       method: 'POST',
       body: expect.stringContaining('admin-pool')
     });
-    expect(requestJsonMock).toHaveBeenNthCalledWith(6, '/api/v1/test-data/account-pools/pool-1', {
+    expect(requestJsonMock).toHaveBeenNthCalledWith(7, '/api/v1/test-data/account-pools/pool-1', {
       method: 'PATCH',
       body: JSON.stringify({ name: 'Admin pool v2' })
     });
-    expect(requestJsonMock).toHaveBeenNthCalledWith(7, '/api/v1/test-data/account-pools/pool-1/disable', { method: 'POST' });
-    expect(requestJsonMock).toHaveBeenNthCalledWith(8, '/api/v1/test-data/account-pools/pool-1/archive', { method: 'POST' });
-    expect(requestJsonMock).toHaveBeenNthCalledWith(9, '/api/v1/test-data/account-pools/pool-1/accounts', {
+    expect(requestJsonMock).toHaveBeenNthCalledWith(8, '/api/v1/test-data/account-pools/pool-1/disable', { method: 'POST' });
+    expect(requestJsonMock).toHaveBeenNthCalledWith(9, '/api/v1/test-data/account-pools/pool-1/archive', { method: 'POST' });
+    expect(requestJsonMock).toHaveBeenNthCalledWith(10, '/api/v1/test-data/account-pools/pool-1/accounts', {
       method: 'POST',
       body: expect.stringContaining('secret://wp8/admin-01')
     });
-    expect(requestJsonMock).toHaveBeenNthCalledWith(10, '/api/v1/test-data/accounts/acc-1', {
+    expect(requestJsonMock).toHaveBeenNthCalledWith(11, '/api/v1/test-data/accounts/acc-1', {
       method: 'PATCH',
       body: expect.not.stringContaining('secretRef')
     });
-    expect(requestJsonMock).toHaveBeenNthCalledWith(11, '/api/v1/test-data/leases', {
+    expect(requestJsonMock).toHaveBeenNthCalledWith(12, '/api/v1/test-data/leases', {
       method: 'POST',
       body: expect.stringContaining('lease-run-1')
     });
-    expect(requestJsonMock).toHaveBeenNthCalledWith(12, '/api/v1/test-data/leases/lease-1/renew', {
+    expect(requestJsonMock).toHaveBeenNthCalledWith(13, '/api/v1/test-data/leases/lease-1/renew', {
       method: 'POST',
       body: JSON.stringify({ ttlSeconds: 900 })
     });
-    expect(requestJsonMock).toHaveBeenNthCalledWith(13, '/api/v1/test-data/leases/lease-1/release', {
+    expect(requestJsonMock).toHaveBeenNthCalledWith(14, '/api/v1/test-data/leases/lease-1/release', {
       method: 'POST',
       body: JSON.stringify({ releaseReason: 'done', accountStatus: 'AVAILABLE' })
     });
-    expect(requestJsonMock).toHaveBeenNthCalledWith(14, '/api/v1/test-data/data-tasks', {
+    expect(requestJsonMock).toHaveBeenNthCalledWith(15, '/api/v1/test-data/data-tasks', {
       method: 'POST',
       body: expect.stringContaining('cleanup-1')
     });
-    expect(requestJsonMock).toHaveBeenNthCalledWith(15, '/api/v1/test-data/data-tasks/task-1/retry', {
+    expect(requestJsonMock).toHaveBeenNthCalledWith(16, '/api/v1/test-data/data-tasks/task-1/retry', {
       method: 'POST',
       body: JSON.stringify({ requestKey: 'cleanup-1-retry' })
     });
@@ -443,9 +476,10 @@ describe('WP8 test data API helpers', () => {
     expect(createDataSetBody.schema).toEqual({ username: 'string' });
     expect(createDataSetBody.cleanupPolicy).toEqual({ mode: 'MANUAL' });
     expect(JSON.stringify(bodyAt(4))).not.toContain('secret://wp8/raw');
-    expect(JSON.stringify(bodyAt(5))).not.toContain('credential');
-    expect(bodyAt(9).scopeSummary).toEqual({ tenant: 'alpha' });
-    expect(JSON.stringify(bodyAt(14))).not.toContain('raw-cookie');
+    expect(bodyAt(5)).toEqual({ count: 2, recordKeyPrefix: 'generated', tags: ['smoke'] });
+    expect(JSON.stringify(bodyAt(6))).not.toContain('credential');
+    expect(bodyAt(10).scopeSummary).toEqual({ tenant: 'alpha' });
+    expect(JSON.stringify(bodyAt(15))).not.toContain('raw-cookie');
   });
 
   it('redacts nested sensitive values but preserves digests', () => {

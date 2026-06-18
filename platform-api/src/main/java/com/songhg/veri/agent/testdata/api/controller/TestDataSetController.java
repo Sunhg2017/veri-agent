@@ -6,9 +6,11 @@ import com.songhg.veri.agent.common.api.PageResponse;
 import com.songhg.veri.agent.common.openapi.ApiVersion;
 import com.songhg.veri.agent.testdata.application.TestDataSetService;
 import com.songhg.veri.agent.testdata.application.command.CreateTestDataSetCommand;
+import com.songhg.veri.agent.testdata.application.command.GenerateTestDataRecordsCommand;
 import com.songhg.veri.agent.testdata.application.command.ImportTestDataRecordsCommand;
 import com.songhg.veri.agent.testdata.application.command.UpdateTestDataSetCommand;
 import com.songhg.veri.agent.testdata.application.query.TestDataSetPageRequest;
+import com.songhg.veri.agent.testdata.application.view.TestDataRecordGenerationResponse;
 import com.songhg.veri.agent.testdata.application.view.TestDataRecordImportResponse;
 import com.songhg.veri.agent.testdata.application.view.TestDataSetDetailResponse;
 import com.songhg.veri.agent.testdata.application.view.TestDataSetExportResponse;
@@ -77,6 +79,15 @@ public class TestDataSetController {
             @Valid @RequestBody ImportTestDataRecordsCommand command
     ) {
         return service.importRecords(id, command);
+    }
+
+    @PostMapping("/{id}/generate-records")
+    @RequirePermission(value = PermissionCodes.TEST_DATA_MANAGE, scope = TestDataPermissionScopes.DATA_SET)
+    public TestDataRecordGenerationResponse generateRecords(
+            @PathVariable UUID id,
+            @Valid @RequestBody GenerateTestDataRecordsCommand command
+    ) {
+        return service.generateRecords(id, command);
     }
 
     @GetMapping("/{id}/export")
