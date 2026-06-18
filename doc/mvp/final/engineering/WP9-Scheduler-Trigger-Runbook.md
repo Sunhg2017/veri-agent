@@ -4,12 +4,12 @@
 |---|---|
 | 工作包 | WP9 执行编排与任务调度 |
 | 文档性质 | scheduler、cron、webhook、恢复、重放、密钥和发布准出 runbook |
-| 当前口径 | 已提供后台 scheduler loop、生产 CRON scanner、webhook HTTP smoke、CRON 容量/backlog smoke、CI 签名样例、worker 托管 readiness 和 release gate |
+| 当前口径 | 已切换为 XXL-JOB 统一调度；保留后台 worker/service 核心逻辑、生产 CRON scanner、webhook HTTP smoke、CRON 容量/backlog smoke、CI 签名样例、worker 托管 readiness 和 release gate |
 | 日期 | 2026-06-14 |
 
 ## 1. 适用范围
 
-本 Runbook 适用于 WP9 开发、预发和生产发布准出。WP9 当前仍由 `platform-api` 承载执行编排控制面，默认关闭 scheduler、webhook 和 cron 外部触发；只有显式开启配置和 trigger 状态后才会认领队列或接受外部事件。WP9 不直接调用 runner adapter，`API_TEST` 节点只通过 WP6 应用服务调度已审批 script bundle。
+本 Runbook 适用于 WP9 开发、预发和生产发布准出。WP9 当前仍由 `platform-api` 承载执行编排控制面，所有定时任务统一由 XXL-JOB 调度；只有显式开启 `veri-agent.xxl-job.enabled=true`、在 XXL-JOB Admin 中配置对应 job，并将 trigger 状态切到启用后，后台 worker 才会认领队列或接受外部事件。WP9 不直接调用 runner adapter，`API_TEST` 节点只通过 WP6 应用服务调度已审批 script bundle。
 
 ## 2. 开关和配置
 
@@ -18,6 +18,9 @@
 | `WP9_SCHEDULER_ENABLED` / `veri-agent.execution.scheduler-enabled` | `false` | 是否启用后台 scheduler loop。 |
 | `WP9_WEBHOOK_ENABLED` / `veri-agent.execution.webhook-enabled` | `false` | 是否允许 `/api/v1/execution/webhooks/{id}` 接收外部触发。 |
 | `WP9_CRON_ENABLED` / `veri-agent.execution.cron-enabled` | `false` | 是否启用 CRON trigger 扫描。 |
+| `PLATFORM_XXL_JOB_ENABLED` / `veri-agent.xxl-job.enabled` | `false` | 是否启动 XXL-JOB executor 并注册所有调度 handler。 |
+| `PLATFORM_XXL_JOB_ADMIN_ADDRESSES` / `veri-agent.xxl-job.admin-addresses` | 空 | XXL-JOB Admin 地址，多个地址逗号分隔。未配置时 executor 可启动，但不会向 admin 注册。 |
+| `PLATFORM_XXL_JOB_EXECUTOR_APPNAME` / `veri-agent.xxl-job.executor.appname` | `platform-api` | XXL-JOB executor 名称，需与 Admin 中执行器配置保持一致。 |
 | `WP9_WEBHOOK_CLOCK_SKEW_SECONDS` / `veri-agent.execution.webhook-clock-skew-seconds` | `300` | webhook 签名时间戳允许偏移，服务端按 `1..86400` 归一化。 |
 | `veri-agent.execution.scheduler-interval-ms` | `5000` | scheduler fixed delay，服务端按安全边界归一化。 |
 | `veri-agent.execution.scheduler-initial-delay-ms` | `30000` | scheduler 初始延迟。 |
@@ -26,7 +29,24 @@
 | `veri-agent.execution.node-heartbeat-timeout-seconds` | `180` | node heartbeat/claim 恢复参考超时。 |
 | `veri-agent.execution.recovery-batch-size` | `50` | 单次恢复扫描批量。 |
 
-生产建议分阶段启用：先 `scheduler-enabled=true` 验证手动 run 调度，再启 `webhook-enabled=true` 联调外部 CI，最后启 `cron-enabled=true` 扫描到期 CRON trigger。
+生产建议分阶段启用：先 `PLATFORM_XXL_JOB_ENABLED=true` 并在 Admin 中只配置 `executionSchedulerJob` 验证手动 run 调度，再启 `webhook-enabled=true` 联调外部 CI，最后启 `cron-enabled=true` 扫描到期 CRON trigger。
+
+## 2.1 XXL-JOB Handler 对照表
+
+| Handler | 归属 | 说明 |
+|---|---|---|
+| `executionSchedulerJob` | WP9 | 执行 recovery、due CRON scan、queue claim 和 dispatch。 |
+| `testDataWorkerJob` | WP8 | 执行数据任务、租约回收、账号健康检查。 |
+| `reportGenerationWorkerJob` | WP10 | 执行报告异步生成与 stale recovery。 |
+| `authSessionCleanupJob` | WP1 | 清理过期/撤销会话。 |
+| `auditRetentionCleanupJob` | WP1 | 清理审计保留窗口外数据。 |
+| `documentInputEventRecoveryJob` | WP4 | 重发持久化文档输入事件。 |
+| `documentWebhookAutoRetryJob` | WP4 | 自动重试失败 webhook。 |
+| `documentInputRetentionCleanupJob` | WP4 | 执行文档输入保留清理。 |
+| `testDesignEventRecoveryJob` | WP5 | 重发异步生成任务。 |
+| `testDesignPublishEventRecoveryJob` | WP5 | 重发异步发布任务。 |
+| `testDesignPublishCompensationJob` | WP5 | 执行已有关联用例的发布补偿。 |
+| `notificationStreamHeartbeatJob` | 通用 | 推送 SSE heartbeat；必须在 Admin 中配置广播路由，让每个实例维护自己的内存订阅。 |
 
 ## 2.1 Worker 托管角色
 

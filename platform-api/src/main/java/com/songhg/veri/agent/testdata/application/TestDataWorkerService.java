@@ -5,18 +5,14 @@ import com.songhg.veri.agent.common.util.SensitiveTextSanitizer;
 import com.songhg.veri.agent.testdata.application.view.TestDataWorkerTickResponse;
 import com.songhg.veri.agent.testdata.config.TestDataProperties;
 import com.songhg.veri.agent.testdata.domain.TestDataTask;
-import java.time.Duration;
 import java.time.Instant;
 import java.util.Optional;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.scheduling.annotation.SchedulingConfigurer;
-import org.springframework.scheduling.config.FixedDelayTask;
-import org.springframework.scheduling.config.ScheduledTaskRegistrar;
 import org.springframework.stereotype.Service;
 
 @Service
-public class TestDataWorkerService implements SchedulingConfigurer {
+public class TestDataWorkerService {
 
     private static final Logger log = LoggerFactory.getLogger(TestDataWorkerService.class);
     private static final int MAX_ERROR_SUMMARY_LENGTH = 512;
@@ -38,15 +34,9 @@ public class TestDataWorkerService implements SchedulingConfigurer {
         this.properties = properties;
     }
 
-    @Override
-    public void configureTasks(ScheduledTaskRegistrar taskRegistrar) {
-        taskRegistrar.addFixedDelayTask(new FixedDelayTask(
-                this::runBySchedule,
-                Duration.ofMillis(scheduledFixedDelayMillis()),
-                Duration.ofMillis(scheduledInitialDelayMillis())
-        ));
-    }
-
+    /**
+     * Keeps the legacy manual entry point so tests and ad-hoc maintenance can still reuse the safe wrapper.
+     */
     public void runBySchedule() {
         if (!properties.workerEnabled()) {
             return;

@@ -14,7 +14,6 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.event.EventListener;
-import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -45,7 +44,9 @@ public class DocumentInputEventRecoveryService {
         recoverSafely("startup");
     }
 
-    @Scheduled(cron = "${veri-agent.document-input.event-recovery-cron:0 */2 * * * *}")
+    /**
+     * Keeps the legacy manual entry point so tests and ad-hoc maintenance can still reuse the safe wrapper.
+     */
     public void recoverBySchedule() {
         recoverSafely("schedule");
     }

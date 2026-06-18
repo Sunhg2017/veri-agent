@@ -1,0 +1,13 @@
+veri-agent:
+  xxl-job:
+    enabled: ${PLATFORM_XXL_JOB_ENABLED:false}
+    admin-addresses: ${PLATFORM_XXL_JOB_ADMIN_ADDRESSES:}
+    access-token: ${PLATFORM_XXL_JOB_ACCESS_TOKEN:}
+    request-timeout-seconds: ${PLATFORM_XXL_JOB_REQUEST_TIMEOUT_SECONDS:3}
+    executor:
+      appname: ${PLATFORM_XXL_JOB_EXECUTOR_APPNAME:platform-api}
+      address: ${PLATFORM_XXL_JOB_EXECUTOR_ADDRESS:}
+      ip: ${PLATFORM_XXL_JOB_EXECUTOR_IP:}
+      port: ${PLATFORM_XXL_JOB_EXECUTOR_PORT:0}
+      log-path: ${PLATFORM_XXL_JOB_EXECUTOR_LOG_PATH:}
+      log-retention-days: ${PLATFORM_XXL_JOB_EXECUTOR_LOG_RETENTION_DAYS:30}

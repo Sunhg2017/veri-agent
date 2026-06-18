@@ -7,3 +7,6 @@ spring:
   flyway:
     enabled: false
 
+veri-agent:
+  xxl-job:
+    enabled: false

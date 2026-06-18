@@ -9,7 +9,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Profile;
-import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
 @Profile("db")
@@ -44,7 +43,9 @@ public class AuditRetentionCleanupService {
         this.clock = clock;
     }
 
-    @Scheduled(cron = "${veri-agent.audit.retention-cleanup-cron:0 45 3 * * *}")
+    /**
+     * Keeps the legacy manual entry point so tests and ad-hoc maintenance can still reuse the feature flag gate.
+     */
     public void cleanupByRetentionPolicy() {
         if (!properties.retentionCleanupEnabled()) {
             return;

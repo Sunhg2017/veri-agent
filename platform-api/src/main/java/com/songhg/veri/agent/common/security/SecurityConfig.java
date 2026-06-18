@@ -13,6 +13,7 @@ import com.songhg.veri.agent.integration.application.PlatformIntegrationProperti
 import com.songhg.veri.agent.management.config.ManagementProperties;
 import com.songhg.veri.agent.modelaccess.config.ModelAccessProperties;
 import com.songhg.veri.agent.reporting.config.ReportingProperties;
+import com.songhg.veri.agent.scheduling.config.XxlJobProperties;
 import com.songhg.veri.agent.testdesign.config.TestDesignProperties;
 import com.songhg.veri.agent.testdata.config.TestDataProperties;
 import jakarta.servlet.DispatcherType;
@@ -49,6 +50,7 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
         ExecutionProperties.class,
         TestDataProperties.class,
         ReportingProperties.class,
+        XxlJobProperties.class,
         SecretProviderProperties.class,
         AuditRetentionProperties.class,
         ManagementProperties.class,

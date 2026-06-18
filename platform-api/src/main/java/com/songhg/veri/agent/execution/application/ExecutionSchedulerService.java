@@ -16,14 +16,11 @@ import java.util.Map;
 import java.util.Optional;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.scheduling.annotation.SchedulingConfigurer;
-import org.springframework.scheduling.config.FixedDelayTask;
-import org.springframework.scheduling.config.ScheduledTaskRegistrar;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
 @Service
-public class ExecutionSchedulerService implements SchedulingConfigurer {
+public class ExecutionSchedulerService {
 
     private static final Logger log = LoggerFactory.getLogger(ExecutionSchedulerService.class);
     private static final int MAX_ERROR_SUMMARY_LENGTH = 512;
@@ -43,17 +40,8 @@ public class ExecutionSchedulerService implements SchedulingConfigurer {
     }
 
     /**
-     * Registers the managed loop with bounded configuration values instead of raw environment placeholders.
+     * Keeps the legacy manual entry point so tests and ad-hoc maintenance can still reuse the safe wrapper.
      */
-    @Override
-    public void configureTasks(ScheduledTaskRegistrar taskRegistrar) {
-        taskRegistrar.addFixedDelayTask(new FixedDelayTask(
-                this::runBySchedule,
-                Duration.ofMillis(scheduledFixedDelayMillis()),
-                Duration.ofMillis(scheduledInitialDelayMillis())
-        ));
-    }
-
     public void runBySchedule() {
         if (!properties.schedulerEnabled()) {
             return;

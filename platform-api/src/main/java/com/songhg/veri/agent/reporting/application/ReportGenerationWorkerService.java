@@ -5,18 +5,14 @@ import com.songhg.veri.agent.common.util.SensitiveTextSanitizer;
 import com.songhg.veri.agent.reporting.application.view.ReportGenerationWorkerTickResponse;
 import com.songhg.veri.agent.reporting.config.ReportingProperties;
 import com.songhg.veri.agent.reporting.domain.ReportExecutionReport;
-import java.time.Duration;
 import java.time.Instant;
 import java.util.Optional;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.scheduling.annotation.SchedulingConfigurer;
-import org.springframework.scheduling.config.FixedDelayTask;
-import org.springframework.scheduling.config.ScheduledTaskRegistrar;
 import org.springframework.stereotype.Service;
 
 @Service
-public class ReportGenerationWorkerService implements SchedulingConfigurer {
+public class ReportGenerationWorkerService {
 
     private static final Logger log = LoggerFactory.getLogger(ReportGenerationWorkerService.class);
     private static final int MAX_ERROR_SUMMARY_LENGTH = 512;
@@ -30,17 +26,8 @@ public class ReportGenerationWorkerService implements SchedulingConfigurer {
     }
 
     /**
-     * Registers a bounded worker loop so persisted QUEUED reports are eventually processed without external callers.
+     * Keeps the legacy manual entry point so tests and ad-hoc maintenance can still reuse the safe wrapper.
      */
-    @Override
-    public void configureTasks(ScheduledTaskRegistrar taskRegistrar) {
-        taskRegistrar.addFixedDelayTask(new FixedDelayTask(
-                this::runBySchedule,
-                Duration.ofMillis(scheduledFixedDelayMillis()),
-                Duration.ofMillis(scheduledInitialDelayMillis())
-        ));
-    }
-
     public void runBySchedule() {
         if (!properties.generationWorkerEnabled()) {
             return;

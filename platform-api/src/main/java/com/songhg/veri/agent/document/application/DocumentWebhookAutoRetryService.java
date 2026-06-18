@@ -8,11 +8,7 @@ import com.songhg.veri.agent.document.domain.DocumentWebhookEvent;
 import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
-
-
-
 @Service
 public class DocumentWebhookAutoRetryService {
 
@@ -35,7 +31,9 @@ public class DocumentWebhookAutoRetryService {
         this.metrics = metrics;
     }
 
-    @Scheduled(cron = "${veri-agent.document-input.webhook-auto-retry-cron:0 */5 * * * *}")
+    /**
+     * Keeps the legacy manual entry point so tests and ad-hoc maintenance can still reuse the feature flag gate.
+     */
     public void retryBySchedule() {
         if (!properties.inputEnabled() || !properties.webhookEnabled() || !properties.webhookAutoRetryEnabled()) {
             return;

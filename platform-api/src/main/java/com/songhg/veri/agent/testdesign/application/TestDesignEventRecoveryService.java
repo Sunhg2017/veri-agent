@@ -10,10 +10,9 @@ import java.time.Instant;
 import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Value;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.event.EventListener;
-import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -24,18 +23,24 @@ public class TestDesignEventRecoveryService {
     private final TestDesignRepository repository;
     private final TestDesignEventPublisher eventPublisher;
     private final TestDesignProperties properties;
-    private final String recoveryCron;
-
+    @Autowired
     public TestDesignEventRecoveryService(
             TestDesignRepository repository,
             TestDesignEventPublisher eventPublisher,
-            TestDesignProperties properties,
-            @Value("${veri-agent.test-design.event-recovery-cron:0 */2 * * * *}") String recoveryCron
+            TestDesignProperties properties
     ) {
         this.repository = repository;
         this.eventPublisher = eventPublisher;
         this.properties = properties;
-        this.recoveryCron = recoveryCron;
+    }
+
+    TestDesignEventRecoveryService(
+            TestDesignRepository repository,
+            TestDesignEventPublisher eventPublisher,
+            TestDesignProperties properties,
+            String ignoredRecoveryCron
+    ) {
+        this(repository, eventPublisher, properties);
     }
 
     @EventListener(ApplicationReadyEvent.class)
@@ -43,7 +48,9 @@ public class TestDesignEventRecoveryService {
         recoverSafely("startup");
     }
 
-    @Scheduled(cron = "${veri-agent.test-design.event-recovery-cron:0 */2 * * * *}")
+    /**
+     * Keeps the legacy manual entry point so tests and ad-hoc maintenance can still reuse the safe wrapper.
+     */
     public void recoverBySchedule() {
         recoverSafely("schedule");
     }
@@ -70,7 +77,7 @@ public class TestDesignEventRecoveryService {
             log.info(
                     "WP5 test design generation recovery completed, trigger={}, queuedTasks={}, timedOutRunningTasks={}, "
                             + "queuedTaskCount={}, runningTaskCount={}, oldestQueuedAgeSeconds={}, "
-                            + "staleRunningTaskCount={}, queueLagWarning={}, timeoutWarning={}, cron={}",
+                            + "staleRunningTaskCount={}, queueLagWarning={}, timeoutWarning={}",
                     trigger,
                     queuedTasks.size(),
                     timedOutRunningTasks,
@@ -79,8 +86,7 @@ public class TestDesignEventRecoveryService {
                     runtimeSignals.oldestQueuedAgeSeconds(),
                     runtimeSignals.staleRunningTaskCount(),
                     runtimeSignals.queueLagWarning(),
-                    runtimeSignals.timeoutWarning(),
-                    recoveryCron
+                    runtimeSignals.timeoutWarning()
             );
         }
         return new RecoveryResult(

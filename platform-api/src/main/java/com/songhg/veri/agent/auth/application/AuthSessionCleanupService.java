@@ -6,7 +6,6 @@ import io.micrometer.core.instrument.MeterRegistry;
 import java.time.Clock;
 import java.time.Instant;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -38,7 +37,9 @@ public class AuthSessionCleanupService {
         this.meterRegistry = meterRegistry;
     }
 
-    @Scheduled(fixedDelayString = "${veri-agent.auth.session-cleanup-interval-ms:3600000}")
+    /**
+     * Keeps the legacy manual entry point so tests and ad-hoc maintenance can still reuse the feature flag gate.
+     */
     public void cleanupExpiredSessions() {
         if (!properties.sessionCleanupEnabled()) {
             return;

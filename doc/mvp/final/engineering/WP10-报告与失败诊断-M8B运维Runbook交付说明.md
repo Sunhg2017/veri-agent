@@ -23,6 +23,14 @@ M8B 目标是完成 WP10-8.3 运维 Runbook，让运维、QA、发布负责人�
 3. 不新增真实生产自动恢复任务、外部缺陷系统写入、PDF/Word 完整报告、趋势报表或 WP3/WP5 evidence adapter。
 4. 不替代后续 WP10 发布准出总说明和剩余工作盘点。
 
+## 附记：2026-06-18 调度底座更新
+
+WP10 报告异步生成 worker 已从 Spring `@Scheduled`/`SchedulingConfigurer` 切换到 XXL-JOB 统一调度。运维侧新增要求：
+
+1. 启动 `platform-api` 异步 worker 前需设置 `PLATFORM_XXL_JOB_ENABLED=true`，并在 XXL-JOB Admin 中配置 `reportGenerationWorkerJob`。
+2. 若同实例同时承载站内通知 SSE，`notificationStreamHeartbeatJob` 需要配置为广播路由，否则只有被选中的 executor 实例会发送 heartbeat。
+3. 原 `veri-agent.reporting.generation-worker-interval-ms` 等参数仍保留为兼容配置，但只用于手工入口/测试边界说明，不再直接驱动 Spring 本地调度。
+
 ## 3. 涉及模块
 
 | 模块 | 影响 |

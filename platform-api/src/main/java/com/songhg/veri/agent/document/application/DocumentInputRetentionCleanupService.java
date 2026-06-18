@@ -8,9 +8,7 @@ import java.time.Clock;
 import java.time.Instant;
 import java.util.Map;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
-
 
 @Service
 public class DocumentInputRetentionCleanupService {
@@ -45,7 +43,9 @@ public class DocumentInputRetentionCleanupService {
         this.contextClient = contextClient;
     }
 
-    @Scheduled(cron = "${veri-agent.document-input.retention-cleanup-cron:0 30 3 * * *}")
+    /**
+     * Keeps the legacy manual entry point so tests and ad-hoc maintenance can still reuse the feature flag gate.
+     */
     public void cleanupByRetentionPolicy() {
         if (!properties.retentionCleanupEnabled()) {
             return;

@@ -10,7 +10,6 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicLong;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
-import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
@@ -91,7 +90,6 @@ public class NotificationStreamService {
         sendToUser(userId, "unread-count", Map.of("unreadCount", unreadCount));
     }
 
-    @Scheduled(fixedDelayString = "${veri-agent.notification.stream-heartbeat-interval-ms:15000}")
     public void heartbeat() {
         Instant now = Instant.now();
         subscribers.forEach((userId, emitters) -> emitters.forEach((subscriberId, emitter) ->

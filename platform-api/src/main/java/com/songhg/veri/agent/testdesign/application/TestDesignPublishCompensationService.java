@@ -7,8 +7,7 @@ import com.songhg.veri.agent.testdesign.domain.TestDesignPublishRecord;
 import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.scheduling.annotation.Scheduled;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -19,23 +18,35 @@ public class TestDesignPublishCompensationService {
     private final TestDesignRepository repository;
     private final TestDesignPublishService publishService;
     private final TestDesignProperties properties;
-    private final String compensationCron;
-
+    @Autowired
     public TestDesignPublishCompensationService(
             TestDesignRepository repository,
             TestDesignPublishService publishService,
-            TestDesignProperties properties,
-            @Value("${veri-agent.test-design.publish-compensation-cron:0 */5 * * * *}") String compensationCron
+            TestDesignProperties properties
     ) {
         this.repository = repository;
         this.publishService = publishService;
         this.properties = properties;
-        this.compensationCron = compensationCron;
     }
 
-    @Scheduled(cron = "${veri-agent.test-design.publish-compensation-cron:0 */5 * * * *}")
+    TestDesignPublishCompensationService(
+            TestDesignRepository repository,
+            TestDesignPublishService publishService,
+            TestDesignProperties properties,
+            String ignoredCompensationCron
+    ) {
+        this(repository, publishService, properties);
+    }
+
+    /**
+     * Keeps the legacy manual entry point so tests and ad-hoc maintenance can still reuse the safe wrapper.
+     */
     public void compensateBySchedule() {
-        compensateSafely("schedule");
+        try {
+            compensateFailedLinkedCandidates("schedule");
+        } catch (RuntimeException exception) {
+            log.warn("WP5 publish compensation skipped, trigger={}, message={}", "schedule", exception.getMessage());
+        }
     }
 
     /**
@@ -94,9 +105,8 @@ public class TestDesignPublishCompensationService {
             }
         }
         if (!candidates.isEmpty()) {
-            log.info("WP5 publish compensation completed, trigger={}, scanned={}, succeeded={}, failed={}, "
-                            + "skipped={}, cron={}",
-                    trigger, candidates.size(), succeeded, failed, skipped, compensationCron);
+            log.info("WP5 publish compensation completed, trigger={}, scanned={}, succeeded={}, failed={}, skipped={}",
+                    trigger, candidates.size(), succeeded, failed, skipped);
         }
         return new CompensationResult(trigger, candidates.size(), succeeded, failed, skipped);
     }
@@ -106,14 +116,6 @@ public class TestDesignPublishCompensationService {
             return properties.effectivePublishCompensationBatchSize();
         }
         return Math.min(100, maxItems);
-    }
-
-    private void compensateSafely(String trigger) {
-        try {
-            compensateFailedLinkedCandidates(trigger);
-        } catch (RuntimeException exception) {
-            log.warn("WP5 publish compensation skipped, trigger={}, message={}", trigger, exception.getMessage());
-        }
     }
 
     public record CompensationResult(
