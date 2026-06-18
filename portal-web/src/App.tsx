@@ -19,7 +19,7 @@ import {
   UsersRound,
   type LucideIcon
 } from 'lucide-react';
-import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import {
   changePassword,
   fetchCurrentUser,
@@ -35,6 +35,8 @@ import {
   fetchUnreadNotificationCount,
   markAllNotificationsRead,
   markNotificationRead,
+  subscribeNotificationStream,
+  type NotificationStreamEvent,
   type UserNotification
 } from './api/notifications';
 import { AssetWorkbench } from './components/AssetWorkbench';
@@ -280,6 +282,7 @@ export function App() {
   const [notificationItems, setNotificationItems] = useState<UserNotification[]>([]);
   const [notificationUnreadCount, setNotificationUnreadCount] = useState(0);
   const [notificationLoad, setNotificationLoad] = useState<{ loading: boolean; loaded: boolean }>({ loading: false, loaded: false });
+  const notificationStreamRetryRef = useRef<number | null>(null);
 
   // -- Toast --
   const { addToast, toastContainer } = useToast();
@@ -369,6 +372,68 @@ export function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentUser, notificationOpen]);
 
+  useEffect(() => {
+    if (!currentUser || currentUser.must_change_password) {
+      if (notificationStreamRetryRef.current !== null) {
+        window.clearTimeout(notificationStreamRetryRef.current);
+        notificationStreamRetryRef.current = null;
+      }
+      return undefined;
+    }
+    let disposed = false;
+    let controller: AbortController | null = null;
+
+    const connect = () => {
+      if (disposed || !getAuthToken()) {
+        return;
+      }
+      controller = new AbortController();
+      void subscribeNotificationStream(
+        (event) => {
+          if (disposed) {
+            return;
+          }
+          applyNotificationStreamEvent(event);
+        },
+        controller.signal
+      )
+        .then(() => {
+          if (disposed || controller?.signal.aborted) {
+            return;
+          }
+          notificationStreamRetryRef.current = window.setTimeout(() => {
+            notificationStreamRetryRef.current = null;
+            connect();
+          }, 1000);
+        })
+        .catch((err: unknown) => {
+          if (disposed || controller?.signal.aborted) {
+            return;
+          }
+          if (err instanceof ApiError && err.code === 'SESSION_EXPIRED') {
+            resetSignedInState();
+            addToast('info', '登录已过期，请重新登录');
+            return;
+          }
+          notificationStreamRetryRef.current = window.setTimeout(() => {
+            notificationStreamRetryRef.current = null;
+            connect();
+          }, 3000);
+        });
+    };
+
+    connect();
+    return () => {
+      disposed = true;
+      controller?.abort();
+      if (notificationStreamRetryRef.current !== null) {
+        window.clearTimeout(notificationStreamRetryRef.current);
+        notificationStreamRetryRef.current = null;
+      }
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentUser?.user_id, currentUser?.must_change_password]);
+
   /* ---------- API helpers ---------- */
 
   const refreshManagementData = useCallback(async () => {
@@ -435,6 +500,38 @@ export function App() {
       setNotificationLoad((prev) => ({ loading: false, loaded: prev.loaded }));
     }
   }, [currentUser, notificationLoad.loading]);
+
+  const applyNotificationStreamEvent = useCallback((event: NotificationStreamEvent) => {
+    if (event.type === 'unread-count' || event.type === 'connected') {
+      setNotificationUnreadCount(event.unreadCount);
+      return;
+    }
+    if (event.type === 'heartbeat') {
+      return;
+    }
+    if (event.type === 'notification-created') {
+      setNotificationUnreadCount(event.unreadCount);
+      setNotificationItems((prev) => {
+        const deduped = prev.filter((item) => item.id !== event.notification.id);
+        return [event.notification, ...deduped].slice(0, 8);
+      });
+      setNotificationLoad((prev) => ({ ...prev, loaded: true }));
+      return;
+    }
+    if (event.type === 'notification-read') {
+      setNotificationUnreadCount(event.unreadCount);
+      setNotificationItems((prev) => prev.map((item) =>
+        item.id === event.notification.id ? event.notification : item
+      ));
+      return;
+    }
+    if (event.type === 'notification-read-all') {
+      setNotificationUnreadCount(event.unreadCount);
+      setNotificationItems((prev) => prev.map((item) =>
+        item.unread ? { ...item, unread: false, readAt: event.readAt ?? item.readAt } : item
+      ));
+    }
+  }, []);
 
   /* ---------- Auth actions ---------- */
 

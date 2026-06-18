@@ -21,7 +21,10 @@ import java.util.Set;
 import java.util.UUID;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.util.StringUtils;
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 @Service
 public class UserNotificationService implements NotificationPublisher {
@@ -37,10 +40,16 @@ public class UserNotificationService implements NotificationPublisher {
 
     private final UserNotificationRepository repository;
     private final ObjectMapper objectMapper;
+    private final NotificationStreamService streamService;
 
-    public UserNotificationService(UserNotificationRepository repository, ObjectMapper objectMapper) {
+    public UserNotificationService(
+            UserNotificationRepository repository,
+            ObjectMapper objectMapper,
+            NotificationStreamService streamService
+    ) {
         this.repository = repository;
         this.objectMapper = objectMapper;
+        this.streamService = streamService;
     }
 
     @Transactional
@@ -74,7 +83,9 @@ public class UserNotificationService implements NotificationPublisher {
                 now,
                 now
         );
-        repository.insert(notification);
+        UserNotification saved = repository.insert(notification);
+        UserNotificationResponse response = response(saved);
+        publishAfterCommit(() -> streamService.publishCreated(userId, response, repository.countUnread(userId)));
     }
 
     @Transactional(readOnly = true)
@@ -96,6 +107,12 @@ public class UserNotificationService implements NotificationPublisher {
         return new UnreadNotificationCountResponse(repository.countUnread(requireUserId(principal)));
     }
 
+    @Transactional(readOnly = true)
+    public SseEmitter stream(AuthUserPrincipal principal) {
+        UUID userId = requireUserId(principal);
+        return streamService.subscribe(userId, repository.countUnread(userId));
+    }
+
     @Transactional
     public UserNotificationResponse markRead(AuthUserPrincipal principal, UUID notificationId) {
         UUID userId = requireUserId(principal);
@@ -109,14 +126,36 @@ public class UserNotificationService implements NotificationPublisher {
             current = repository.notification(notificationId)
                     .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "通知不存在"));
         }
-        return response(current);
+        UserNotificationResponse response = response(current);
+        publishAfterCommit(() -> streamService.publishRead(userId, response, repository.countUnread(userId)));
+        return response;
     }
 
     @Transactional
     public NotificationBatchReadResponse markAllRead(AuthUserPrincipal principal) {
         UUID userId = requireUserId(principal);
-        int marked = repository.markAllRead(userId, Instant.now());
-        return new NotificationBatchReadResponse(marked, repository.countUnread(userId));
+        Instant readAt = Instant.now();
+        int marked = repository.markAllRead(userId, readAt);
+        long unreadCount = repository.countUnread(userId);
+        publishAfterCommit(() -> streamService.publishReadAll(userId, readAt, unreadCount));
+        return new NotificationBatchReadResponse(marked, unreadCount);
+    }
+
+    /**
+     * SSE subscribers only receive state that has been durably committed, so UI readers never observe
+     * transient unread counts or notifications that might still roll back.
+     */
+    private void publishAfterCommit(Runnable action) {
+        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+            action.run();
+            return;
+        }
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                action.run();
+            }
+        });
     }
 
     private NotificationQuery normalizeQuery(NotificationQuery query) {

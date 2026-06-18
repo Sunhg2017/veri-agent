@@ -1,6 +1,7 @@
 package com.songhg.veri.agent.notification.api.controller;
 
 import com.jayway.jsonpath.JsonPath;
+import com.songhg.veri.agent.notification.application.NotificationStreamService;
 import com.songhg.veri.agent.auth.infrastructure.InMemoryAuthIdentityStore;
 import com.songhg.veri.agent.notification.application.NotificationPublisher;
 import java.util.List;
@@ -19,9 +20,14 @@ import org.springframework.test.web.servlet.MvcResult;
 
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.startsWith;
+import static org.hamcrest.Matchers.containsString;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.asyncDispatch;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.request;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @SpringBootTest(properties = {
@@ -48,6 +54,9 @@ class NotificationControllerTest {
 
     @Autowired
     private NotificationPublisher notificationPublisher;
+
+    @Autowired
+    private NotificationStreamService notificationStreamService;
 
     @Test
     void listsUnreadNotificationsAndMarksThemRead() throws Exception {
@@ -114,6 +123,39 @@ class NotificationControllerTest {
     void requiresAuthentication() throws Exception {
         mockMvc.perform(get("/api/v1/notifications"))
                 .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void streamsNotificationEventsAsSse() throws Exception {
+        UUID userId = seedUser("stream_user");
+        String token = login("stream_user", "PlainPassword123");
+
+        MvcResult streamResult = mockMvc.perform(get("/api/v1/notifications/stream")
+                        .header("Authorization", "Bearer " + token)
+                        .accept(MediaType.TEXT_EVENT_STREAM))
+                .andExpect(request().asyncStarted())
+                .andReturn();
+
+        notificationPublisher.publishToUser(
+                userId,
+                "SYSTEM_INFO",
+                "平台消息",
+                "实时通知已到达",
+                "#reports",
+                Map.of("source", "stream-test")
+        );
+        notificationStreamService.completeUserStreams(userId);
+
+        mockMvc.perform(asyncDispatch(streamResult))
+                .andExpect(status().isOk())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.TEXT_EVENT_STREAM))
+                .andExpect(header().string("Cache-Control", "no-cache"))
+                .andExpect(content().string(containsString("event:connected")))
+                .andExpect(content().string(containsString("event:unread-count")))
+                .andExpect(content().string(containsString("event:notification-created")))
+                .andExpect(content().string(containsString("\"type\":\"SYSTEM_INFO\"")))
+                .andExpect(content().string(containsString("\"source\":\"stream-test\"")))
+                .andExpect(content().string(containsString("\"unreadCount\":1")));
     }
 
     private UUID seedUser(String username) {
