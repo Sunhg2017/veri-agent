@@ -20,6 +20,7 @@ import com.songhg.veri.agent.execution.infrastructure.InMemoryExecutionRepositor
 import com.songhg.veri.agent.integration.application.view.PlatformContext;
 import com.songhg.veri.agent.management.application.port.ManagementStore;
 import com.songhg.veri.agent.management.application.port.ManagementStoreRows.EnvironmentRuntimeRef;
+import com.songhg.veri.agent.notification.application.AsyncTaskNotificationService;
 import com.songhg.veri.agent.testdata.application.TestAccountLeaseService;
 import com.songhg.veri.agent.testdata.application.TestAccountPoolService;
 import com.songhg.veri.agent.testdata.application.TestDataActorResolver;
@@ -67,13 +68,15 @@ class ExecutionRunDispatchSupportTest {
             properties(),
             jsonSupport
     );
+    private final AsyncTaskNotificationService notificationService = mock(AsyncTaskNotificationService.class);
     private final ExecutionRunQueueSupport queueSupport = new ExecutionRunQueueSupport(
             repository,
             contextClient,
             properties(),
             jsonSupport,
             responseMapper,
-            accountLeaseSupport
+            accountLeaseSupport,
+            notificationService
     );
     private final ExecutionRunDispatchSupport support = new ExecutionRunDispatchSupport(
             repository,

@@ -7,6 +7,7 @@ import com.songhg.veri.agent.asset.application.view.RequirementResponse;
 import com.songhg.veri.agent.common.api.PageResponse;
 import com.songhg.veri.agent.common.error.BusinessException;
 import com.songhg.veri.agent.common.error.ErrorCode;
+import com.songhg.veri.agent.notification.application.AsyncTaskNotificationService;
 import com.songhg.veri.agent.testdesign.application.command.CreateTestDesignTaskCommand;
 import com.songhg.veri.agent.testdesign.application.port.TestDesignRepository;
 import com.songhg.veri.agent.testdesign.application.query.TestDesignTaskQuery;
@@ -73,6 +74,7 @@ public class TestDesignTaskService {
     private final TestDesignContextPolicyService contextPolicyService;
     private final TestDesignTemplateService templateService;
     private final TestDesignProperties properties;
+    private final AsyncTaskNotificationService notificationService;
     private final ObjectMapper objectMapper;
 
     public TestDesignTaskService(
@@ -86,6 +88,7 @@ public class TestDesignTaskService {
             TestDesignContextPolicyService contextPolicyService,
             TestDesignTemplateService templateService,
             TestDesignProperties properties,
+            AsyncTaskNotificationService notificationService,
             ObjectMapper objectMapper
     ) {
         this.repository = repository;
@@ -98,6 +101,7 @@ public class TestDesignTaskService {
         this.contextPolicyService = contextPolicyService;
         this.templateService = templateService;
         this.properties = properties;
+        this.notificationService = notificationService;
         this.objectMapper = objectMapper;
     }
 
@@ -331,6 +335,7 @@ public class TestDesignTaskService {
                     mergedCandidates
             );
             repository.saveTask(finished);
+            notificationService.notifyTestDesignGenerationSucceeded(finished);
             writeAudit("RETRY", "TEST_DESIGN_TASK", id, task.projectId(), Map.of(
                     "taskId", id,
                     "createdCandidateCount", createdCandidates.size(),
@@ -342,6 +347,7 @@ public class TestDesignTaskService {
             TestDesignTask failed = withTaskStatus(running, TestDesignTaskStatus.FAILED,
                     TestDesignGenerationTextSupport.safeErrorMessage(exception));
             repository.saveTask(failed);
+            notificationService.notifyTestDesignGenerationFailed(failed);
             writeAudit("RETRY", "TEST_DESIGN_TASK", id, task.projectId(), Map.of(
                     "taskId", id,
                     "result", "FAILED",
@@ -435,6 +441,7 @@ public class TestDesignTaskService {
                     attempt.candidates()
             );
             repository.saveTask(succeeded);
+            notificationService.notifyTestDesignGenerationSucceeded(succeeded);
             writeAudit("GENERATE", "TEST_DESIGN_TASK", id, running.projectId(), Map.of(
                     "taskId", id,
                     "candidateCount", attempt.candidates().size(),
@@ -445,6 +452,7 @@ public class TestDesignTaskService {
             TestDesignTask failed = withTaskStatus(running, TestDesignTaskStatus.FAILED,
                     TestDesignGenerationTextSupport.safeErrorMessage(exception));
             repository.saveTask(failed);
+            notificationService.notifyTestDesignGenerationFailed(failed);
             writeAudit("GENERATE", "TEST_DESIGN_TASK", id, running.projectId(), Map.of(
                     "taskId", id,
                     "result", "FAILED",

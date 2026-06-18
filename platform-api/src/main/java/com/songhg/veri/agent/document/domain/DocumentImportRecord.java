@@ -32,6 +32,8 @@ public record DocumentImportRecord(
         String errorMessage,
         /** 原始输入内容摘要 */
         String rawDigest,
+        /** 创建人 */
+        String createdBy,
         /** 创建时间 */
         Instant createdAt,
         /** 最近更新时间 */

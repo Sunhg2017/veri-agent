@@ -8,6 +8,7 @@ import com.songhg.veri.agent.common.event.PlatformEventPublisher;
 import com.songhg.veri.agent.common.error.BusinessException;
 import com.songhg.veri.agent.common.error.ErrorCode;
 import com.songhg.veri.agent.common.trace.TraceContext;
+import com.songhg.veri.agent.notification.application.AsyncTaskNotificationService;
 import com.songhg.veri.agent.modelaccess.application.command.ModelInvocationCommand;
 import com.songhg.veri.agent.modelaccess.application.event.ModelInvocationJobRequestedEvent;
 import com.songhg.veri.agent.modelaccess.application.port.ModelInvocationJobRepository;
@@ -20,6 +21,8 @@ import com.songhg.veri.agent.modelaccess.security.ServicePrincipal;
 import jakarta.annotation.PostConstruct;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.List;
+import java.util.Optional;
 import java.util.stream.Collectors;
 import java.util.UUID;
 import org.springframework.util.StringUtils;
@@ -37,30 +40,36 @@ public class ModelInvocationJobService {
     private final ObjectMapper objectMapper;
     private final PlatformEventPublisher eventPublisher;
     private final PlatformEventProperties eventProperties;
+    private final AsyncTaskNotificationService notificationService;
 
     public ModelInvocationJobService(
             ModelAccessProperties properties,
             ModelInvocationJobRepository repository,
             ObjectMapper objectMapper,
             PlatformEventPublisher eventPublisher,
-            PlatformEventProperties eventProperties
+            PlatformEventProperties eventProperties,
+            AsyncTaskNotificationService notificationService
     ) {
         this.properties = properties;
         this.repository = repository;
         this.objectMapper = objectMapper;
         this.eventPublisher = eventPublisher;
         this.eventProperties = eventProperties;
+        this.notificationService = notificationService;
     }
 
     @PostConstruct
     public void recoverPersistedJobs() {
         Instant now = Instant.now();
+        Instant staleBefore = now.minusMillis(properties.safeAsyncJobRunningTimeoutMs());
+        List<ModelInvocationJobRecord> staleRunningJobs = repository.runningJobsStaleBefore(staleBefore);
         repository.markRunningJobsFailed(
                 now,
-                now.minusMillis(properties.safeAsyncJobRunningTimeoutMs()),
+                staleBefore,
                 WORKER_RESTARTED_CODE,
                 "超过恢复保护窗口的运行中异步模型调用已标记失败，可重新提交"
         );
+        notifyRecoveredJobs(staleRunningJobs);
         repository.queuedJobs().forEach(this::publishJobRequested);
     }
 
@@ -101,7 +110,9 @@ public class ModelInvocationJobService {
         }
 
         if (repository.cancelQueued(jobId, Instant.now(), CANCELLED_CODE, "异步模型调用已取消")) {
-            return get(jobId);
+            ModelInvocationJobRecord canceled = job(jobId);
+            notificationService.notifyModelInvocationJobCancelled(canceled);
+            return toResult(canceled);
         }
         repository.markCancelRequested(jobId, CANCEL_REQUESTED_CODE, "异步模型调用取消请求已发送");
         return get(jobId);
@@ -124,6 +135,15 @@ public class ModelInvocationJobService {
                 event,
                 Duration.ofMillis(properties.safeAsyncJobDispatchDelayMs())
         );
+    }
+
+    private void notifyRecoveredJobs(List<ModelInvocationJobRecord> staleRunningJobs) {
+        staleRunningJobs.stream()
+                .map(ModelInvocationJobRecord::jobId)
+                .map(repository::job)
+                .flatMap(Optional::stream)
+                .filter(job -> job.status() == ModelInvocationJobStatus.FAILED)
+                .forEach(notificationService::notifyModelInvocationJobFailed);
     }
 
     private ModelInvocationJobResult toResult(ModelInvocationJobRecord job) {

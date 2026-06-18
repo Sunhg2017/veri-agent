@@ -3,6 +3,7 @@ package com.songhg.veri.agent.execution.application;
 import com.songhg.veri.agent.common.error.BusinessException;
 import com.songhg.veri.agent.common.error.ErrorCode;
 import com.songhg.veri.agent.common.util.SensitiveTextSanitizer;
+import com.songhg.veri.agent.notification.application.AsyncTaskNotificationService;
 import com.songhg.veri.agent.execution.application.command.CompleteExecutionNodeRunCommand;
 import com.songhg.veri.agent.execution.application.command.HeartbeatExecutionQueueClaimCommand;
 import com.songhg.veri.agent.execution.application.port.ExecutionRepository;
@@ -57,6 +58,7 @@ final class ExecutionRunQueueSupport {
     private final ExecutionRunJsonSupport jsonSupport;
     private final ExecutionRunResponseMapper responseMapper;
     private final ExecutionAccountLeaseSupport accountLeaseSupport;
+    private final AsyncTaskNotificationService notificationService;
 
     ExecutionRunQueueSupport(
             ExecutionRepository repository,
@@ -64,7 +66,8 @@ final class ExecutionRunQueueSupport {
             ExecutionProperties properties,
             ExecutionRunJsonSupport jsonSupport,
             ExecutionRunResponseMapper responseMapper,
-            ExecutionAccountLeaseSupport accountLeaseSupport
+            ExecutionAccountLeaseSupport accountLeaseSupport,
+            AsyncTaskNotificationService notificationService
     ) {
         this.repository = repository;
         this.contextClient = contextClient;
@@ -72,6 +75,7 @@ final class ExecutionRunQueueSupport {
         this.jsonSupport = jsonSupport;
         this.responseMapper = responseMapper;
         this.accountLeaseSupport = accountLeaseSupport;
+        this.notificationService = notificationService;
     }
 
     Optional<ExecutionQueueClaimResponse> claimNextQueuedNode(String workerId) {
@@ -258,6 +262,7 @@ final class ExecutionRunQueueSupport {
         aggregated = accountLeaseSupport.releaseTerminalRunLeases(aggregated, latestNodeRuns, now);
         if (TERMINAL_RUN_STATUSES.contains(aggregated.status())
                 && !TERMINAL_RUN_STATUSES.contains(run.status())) {
+            notificationService.notifyExecutionRunFinished(aggregated);
             auditRun(aggregated, "execution.run.completed", "SUCCESS", Map.of(
                     "status", aggregated.status(),
                     "summary", jsonSupport.readMap(aggregated.resultSummaryJson())

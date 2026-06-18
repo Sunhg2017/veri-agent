@@ -70,6 +70,7 @@ class InMemoryDocumentInputRepositoryTest {
                 "[]",
                 null,
                 "digest",
+                null,
                 Instant.now(),
                 Instant.now()
         ));
@@ -103,6 +104,7 @@ class InMemoryDocumentInputRepositoryTest {
                 "[]",
                 null,
                 "digest",
+                null,
                 Instant.now(),
                 Instant.now()
         ));

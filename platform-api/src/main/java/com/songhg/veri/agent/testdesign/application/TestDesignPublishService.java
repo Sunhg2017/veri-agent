@@ -8,6 +8,7 @@ import com.songhg.veri.agent.asset.application.view.TestCaseResponse;
 import com.songhg.veri.agent.common.api.PageResponse;
 import com.songhg.veri.agent.common.error.BusinessException;
 import com.songhg.veri.agent.common.error.ErrorCode;
+import com.songhg.veri.agent.notification.application.AsyncTaskNotificationService;
 import com.songhg.veri.agent.testdesign.application.command.TestDesignPublishCommand;
 import com.songhg.veri.agent.testdesign.application.port.TestDesignRepository;
 import com.songhg.veri.agent.testdesign.application.view.TestDesignPublishRecordResponse;
@@ -57,6 +58,7 @@ public class TestDesignPublishService {
     private final TestDesignResponseMapper responseMapper;
     private final TestDesignProperties properties;
     private final TestDesignEventPublisher eventPublisher;
+    private final AsyncTaskNotificationService notificationService;
 
     public TestDesignPublishService(
             TestDesignRepository repository,
@@ -66,7 +68,8 @@ public class TestDesignPublishService {
             TestDesignReleaseReadinessApprovalService releaseReadinessApprovalService,
             TestDesignResponseMapper responseMapper,
             TestDesignProperties properties,
-            TestDesignEventPublisher eventPublisher
+            TestDesignEventPublisher eventPublisher,
+            AsyncTaskNotificationService notificationService
     ) {
         this.repository = repository;
         this.assetService = assetService;
@@ -76,6 +79,7 @@ public class TestDesignPublishService {
         this.responseMapper = responseMapper;
         this.properties = properties;
         this.eventPublisher = eventPublisher;
+        this.notificationService = notificationService;
     }
 
     private TestDesignTaskDetailResponse task(UUID id) {
@@ -163,7 +167,10 @@ public class TestDesignPublishService {
         }
         records.forEach(repository::savePublishRecord);
         refreshTaskCountsAfterPublish(task.id(), task.status());
-        return publishResponse(taskOrThrow(task.id()), false, records);
+        TestDesignTask completedTask = taskOrThrow(task.id());
+        TestDesignPublishResponse response = publishResponse(completedTask, false, records);
+        maybeNotifyPublishFinished(completedTask, response);
+        return response;
     }
 
     private TestDesignPublishResponse previewPublish(TestDesignTask task, List<TestDesignCandidate> selected) {
@@ -219,7 +226,10 @@ public class TestDesignPublishService {
         }
         records.forEach(repository::savePublishRecord);
         refreshTaskCountsAfterPublish(task.id(), task.status());
-        return publishResponse(taskOrThrow(task.id()), false, records);
+        TestDesignTask completedTask = taskOrThrow(task.id());
+        TestDesignPublishResponse response = publishResponse(completedTask, false, records);
+        maybeNotifyPublishFinished(completedTask, response);
+        return response;
     }
 
     private void assertOfficialPublishCandidatesReady(boolean dryRun, List<UUID> requestedCandidateIds, List<TestDesignCandidate> selected) {
@@ -678,6 +688,14 @@ public class TestDesignPublishService {
         return candidates.stream()
                 .anyMatch(candidate -> TestDesignCandidateStatus.PUBLISH_QUEUED.name().equals(candidate.status())
                         || TestDesignCandidateStatus.PUBLISHING.name().equals(candidate.status()));
+    }
+
+    private void maybeNotifyPublishFinished(TestDesignTask task, TestDesignPublishResponse response) {
+        List<TestDesignCandidate> latestCandidates = repository.candidatesByTask(task.id());
+        if (hasInFlightPublishCandidate(latestCandidates)) {
+            return;
+        }
+        notificationService.notifyTestDesignPublishFinished(task, response);
     }
 
     private TestDesignCandidate withPublishedCandidate(TestDesignCandidate candidate, UUID assetCaseId, String errorMessage) {

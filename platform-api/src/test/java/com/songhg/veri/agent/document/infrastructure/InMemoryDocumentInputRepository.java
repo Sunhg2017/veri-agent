@@ -162,6 +162,7 @@ public class InMemoryDocumentInputRepository implements DocumentInputRepository 
                     existing.createdRequirementIds(),
                     existing.errorMessage(),
                     existing.rawDigest(),
+                    existing.createdBy(),
                     existing.createdAt(),
                     updatedAt
             );

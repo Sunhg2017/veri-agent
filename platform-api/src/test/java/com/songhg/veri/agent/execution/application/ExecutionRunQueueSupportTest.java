@@ -11,6 +11,7 @@ import com.songhg.veri.agent.execution.domain.ExecutionPlanNode;
 import com.songhg.veri.agent.execution.domain.ExecutionQueueClaim;
 import com.songhg.veri.agent.execution.domain.ExecutionRun;
 import com.songhg.veri.agent.execution.infrastructure.InMemoryExecutionRepository;
+import com.songhg.veri.agent.notification.application.AsyncTaskNotificationService;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
@@ -35,13 +36,15 @@ class ExecutionRunQueueSupportTest {
             properties(),
             jsonSupport
     );
+    private final AsyncTaskNotificationService notificationService = mock(AsyncTaskNotificationService.class);
     private final ExecutionRunQueueSupport support = new ExecutionRunQueueSupport(
             repository,
             contextClient,
             properties(),
             jsonSupport,
             new ExecutionRunResponseMapper(objectMapper),
-            accountLeaseSupport
+            accountLeaseSupport,
+            notificationService
     );
 
     @Test

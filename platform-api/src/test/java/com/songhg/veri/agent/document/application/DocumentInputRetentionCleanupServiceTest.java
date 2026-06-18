@@ -134,6 +134,7 @@ class DocumentInputRetentionCleanupServiceTest {
                 "[]",
                 null,
                 "digest",
+                null,
                 createdAt,
                 createdAt
         );

@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.songhg.veri.agent.common.error.BusinessException;
 import com.songhg.veri.agent.common.error.ErrorCode;
 import com.songhg.veri.agent.integration.application.view.PlatformContext;
+import com.songhg.veri.agent.notification.application.AsyncTaskNotificationService;
 import com.songhg.veri.agent.testdata.application.command.CreateTestDataTaskCommand;
 import com.songhg.veri.agent.testdata.application.command.RetryTestDataTaskCommand;
 import com.songhg.veri.agent.testdata.application.query.TestDataTaskPageRequest;
@@ -19,6 +20,7 @@ import org.junit.jupiter.api.Test;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 class TestDataTaskServiceTest {
@@ -183,6 +185,9 @@ class TestDataTaskServiceTest {
         assertThat(processed.resultSummary()).containsEntry("dataSetReady", true);
         assertThat(processed.resultSummary()).containsEntry("dataSetCode", dataSet.code());
         assertThat(processed.resultSummary()).containsEntry("executionMode", "CONTROL_PLANE_ONLY");
+        verify(fixture.notificationService()).notifyTestDataTaskFinished(org.mockito.ArgumentMatchers.argThat(
+                value -> "SUCCEEDED".equals(value.status()) && task.id().equals(value.id())
+        ));
     }
 
     @Test
@@ -206,6 +211,9 @@ class TestDataTaskServiceTest {
         assertThat(processed.errorSummary()).contains("控制面状态");
         assertThat(processed.resultSummary()).containsEntry("failureCode", "CLEANUP_TASK_NOT_ALLOWED");
         assertThat(processed.resultSummary()).containsEntry("destructiveCleanupAdapterReady", false);
+        verify(fixture.notificationService()).notifyTestDataTaskFinished(org.mockito.ArgumentMatchers.argThat(
+                value -> "FAILED".equals(value.status()) && task.id().equals(value.id())
+        ));
     }
 
     @Test
@@ -282,13 +290,15 @@ class TestDataTaskServiceTest {
         TestDataActorResolver actorResolver = mock(TestDataActorResolver.class);
         when(actorResolver.currentActor()).thenReturn("wp8-tester");
         InMemoryTestDataRepository repository = new InMemoryTestDataRepository();
+        AsyncTaskNotificationService notificationService = mock(AsyncTaskNotificationService.class);
         return new ServiceFixture(new TestDataTaskService(
                 repository,
                 contextClient,
                 actorResolver,
                 new TestDataProperties(enabled, 10, 512, 60, 120, false, true),
+                notificationService,
                 new ObjectMapper()
-        ), repository);
+        ), repository, notificationService);
     }
 
     private TestDataTaskPageRequest taskListRequest() {
@@ -320,6 +330,10 @@ class TestDataTaskServiceTest {
         );
     }
 
-    private record ServiceFixture(TestDataTaskService service, InMemoryTestDataRepository repository) {
+    private record ServiceFixture(
+            TestDataTaskService service,
+            InMemoryTestDataRepository repository,
+            AsyncTaskNotificationService notificationService
+    ) {
     }
 }

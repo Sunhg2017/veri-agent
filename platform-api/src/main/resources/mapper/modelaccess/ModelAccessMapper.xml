@@ -410,6 +410,14 @@
         order by created_at asc
     </select>
 
+    <select id="runningInvocationJobsStaleBefore" resultMap="invocationJobMap">
+        select <include refid="invocationJobColumns"/>
+        from ma_invocation_job
+        where status = 'RUNNING'
+          and updated_at &lt; #{staleBefore}
+        order by updated_at asc
+    </select>
+
     <update id="markInvocationJobRunning">
         update ma_invocation_job
         set status = 'RUNNING',

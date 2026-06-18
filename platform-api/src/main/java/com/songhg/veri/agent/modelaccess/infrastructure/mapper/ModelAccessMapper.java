@@ -66,6 +66,8 @@ public interface ModelAccessMapper {
 
     List<ModelInvocationJobRecord> queuedInvocationJobs();
 
+    List<ModelInvocationJobRecord> runningInvocationJobsStaleBefore(@Param("staleBefore") Instant staleBefore);
+
     int markInvocationJobRunning(@Param("jobId") UUID jobId, @Param("startedAt") Instant startedAt);
 
     void markInvocationJobSucceeded(

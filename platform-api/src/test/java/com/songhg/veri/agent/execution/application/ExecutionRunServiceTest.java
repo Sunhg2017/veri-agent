@@ -13,6 +13,7 @@ import com.songhg.veri.agent.execution.domain.ExecutionNodeRun;
 import com.songhg.veri.agent.execution.domain.ExecutionPlanNode;
 import com.songhg.veri.agent.execution.domain.ExecutionRun;
 import com.songhg.veri.agent.management.application.port.ManagementStore;
+import com.songhg.veri.agent.notification.application.AsyncTaskNotificationService;
 import com.songhg.veri.agent.testdata.application.TestDataCrossWpReferenceService;
 import java.time.Instant;
 import java.util.List;
@@ -40,6 +41,7 @@ class ExecutionRunServiceTest {
     private final ExecutionPlatformContextClient contextClient = mock(ExecutionPlatformContextClient.class);
     private final ExecutionActorResolver actorResolver = mock(ExecutionActorResolver.class);
     private final ApiAutomationService apiAutomationService = mock(ApiAutomationService.class);
+    private final AsyncTaskNotificationService notificationService = mock(AsyncTaskNotificationService.class);
     private final ExecutionRunService service = new ExecutionRunService(
             repository,
             dagValidator,
@@ -65,6 +67,7 @@ class ExecutionRunServiceTest {
                     1800,
                     50
             ),
+            notificationService,
             EmptyObjectProvider.of()
     );
 

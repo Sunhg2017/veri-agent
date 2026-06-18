@@ -43,6 +43,11 @@ public class JdbcModelInvocationJobRepository implements ModelInvocationJobRepos
     }
 
     @Override
+    public List<ModelInvocationJobRecord> runningJobsStaleBefore(Instant staleBefore) {
+        return mapper.runningInvocationJobsStaleBefore(staleBefore);
+    }
+
+    @Override
     public boolean markRunning(UUID jobId, Instant startedAt) {
         return mapper.markInvocationJobRunning(jobId, startedAt) == 1;
     }

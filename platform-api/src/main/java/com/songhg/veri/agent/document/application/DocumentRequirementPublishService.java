@@ -8,6 +8,7 @@ import com.songhg.veri.agent.asset.application.view.RequirementResponse;
 import com.songhg.veri.agent.common.api.PageResponse;
 import com.songhg.veri.agent.common.error.BusinessException;
 import com.songhg.veri.agent.common.error.ErrorCode;
+import com.songhg.veri.agent.notification.application.AsyncTaskNotificationService;
 import com.songhg.veri.agent.document.application.command.DocumentPublishRequest;
 import com.songhg.veri.agent.document.application.port.DocumentInputRepository;
 import com.songhg.veri.agent.document.application.view.DocumentInputMetrics;
@@ -37,6 +38,7 @@ public class DocumentRequirementPublishService {
     private final ObjectMapper objectMapper;
     private final DocumentInputMetrics metrics;
     private final DocumentInputEventPublisher eventPublisher;
+    private final AsyncTaskNotificationService notificationService;
 
     public DocumentRequirementPublishService(
             DocumentInputRepository repository,
@@ -44,7 +46,8 @@ public class DocumentRequirementPublishService {
             DocumentInputPlatformContextClient contextClient,
             ObjectMapper objectMapper,
             DocumentInputMetrics metrics,
-            DocumentInputEventPublisher eventPublisher
+            DocumentInputEventPublisher eventPublisher,
+            AsyncTaskNotificationService notificationService
     ) {
         this.repository = repository;
         this.assetService = assetService;
@@ -52,6 +55,7 @@ public class DocumentRequirementPublishService {
         this.objectMapper = objectMapper;
         this.metrics = metrics;
         this.eventPublisher = eventPublisher;
+        this.notificationService = notificationService;
     }
 
     @Transactional
@@ -105,6 +109,7 @@ public class DocumentRequirementPublishService {
                 record.createdRequirementIds(),
                 record.errorMessage(),
                 record.rawDigest(),
+                record.createdBy(),
                 record.createdAt(),
                 Instant.now()
         );
@@ -186,6 +191,7 @@ public class DocumentRequirementPublishService {
                 requirementIdsJson(requirementIds),
                 failedCount > 0 ? "部分候选项发布失败，请查看发布记录" : null,
                 running.rawDigest(),
+                running.createdBy(),
                 running.createdAt(),
                 Instant.now()
         );
@@ -194,6 +200,7 @@ public class DocumentRequirementPublishService {
                 .map(candidate -> toPublishRecord(candidate, false))
                 .toList();
         DocumentPublishResponse response = toPublishResponse(updated, false, records);
+        notificationService.notifyDocumentPublishFinished(updated, response);
         writeAudit("PUBLISH", "DOCUMENT_IMPORT", updated.id().toString(), updated.projectId(), response);
         metrics.recordPublish(false, publishResult(response), records.size());
         return response;

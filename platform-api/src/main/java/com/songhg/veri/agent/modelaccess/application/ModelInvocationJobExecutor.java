@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.songhg.veri.agent.common.error.BusinessException;
 import com.songhg.veri.agent.common.error.ErrorCode;
 import com.songhg.veri.agent.common.trace.TraceContext;
+import com.songhg.veri.agent.notification.application.AsyncTaskNotificationService;
 import com.songhg.veri.agent.modelaccess.application.command.ModelInvocationCommand;
 import com.songhg.veri.agent.modelaccess.application.port.ModelInvocationJobRepository;
 import com.songhg.veri.agent.modelaccess.application.view.ModelInvocationJobRecord;
@@ -26,15 +27,18 @@ public class ModelInvocationJobExecutor {
     private final ModelInvocationService invocationService;
     private final ModelInvocationJobRepository repository;
     private final ObjectMapper objectMapper;
+    private final AsyncTaskNotificationService notificationService;
 
     public ModelInvocationJobExecutor(
             ModelInvocationService invocationService,
             ModelInvocationJobRepository repository,
-            ObjectMapper objectMapper
+            ObjectMapper objectMapper,
+            AsyncTaskNotificationService notificationService
     ) {
         this.invocationService = invocationService;
         this.repository = repository;
         this.objectMapper = objectMapper;
+        this.notificationService = notificationService;
     }
 
     /**
@@ -51,9 +55,11 @@ public class ModelInvocationJobExecutor {
         try (TraceContext.TraceScope ignored = TraceContext.open(job.traceId())) {
             ModelInvocationResult response = invocationService.invoke(request(job), principal(job));
             repository.markSucceeded(jobId, Instant.now(), response, json(response));
+            repository.job(jobId).ifPresent(notificationService::notifyModelInvocationJobSucceeded);
             log.info("Async model invocation job succeeded, job_id={}, invocation_id={}", jobId, response.invocationId());
         } catch (RuntimeException exception) {
             repository.markFailed(jobId, Instant.now(), errorCode(exception), exception.getMessage());
+            repository.job(jobId).ifPresent(notificationService::notifyModelInvocationJobFailed);
             log.warn("Async model invocation job failed, job_id={}, error_code={}", jobId, errorCode(exception), exception);
         }
     }

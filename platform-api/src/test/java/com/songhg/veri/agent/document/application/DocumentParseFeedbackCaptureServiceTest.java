@@ -143,6 +143,7 @@ class DocumentParseFeedbackCaptureServiceTest {
                 "[]",
                 null,
                 "raw-digest",
+                null,
                 now,
                 now
         );

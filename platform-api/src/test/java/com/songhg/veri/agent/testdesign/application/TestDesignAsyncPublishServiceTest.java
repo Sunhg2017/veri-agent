@@ -12,6 +12,7 @@ import com.songhg.veri.agent.common.api.PageResponse;
 import com.songhg.veri.agent.authorization.application.AuthorizationService;
 import com.songhg.veri.agent.modelaccess.infrastructure.InMemoryModelAccessRepository;
 import com.songhg.veri.agent.modelaccess.infrastructure.InMemoryModelInvocationJobRepository;
+import com.songhg.veri.agent.notification.application.AsyncTaskNotificationService;
 import com.songhg.veri.agent.testdesign.application.command.TestDesignPublishCommand;
 import com.songhg.veri.agent.testdesign.application.view.TestDesignPublishResponse;
 import com.songhg.veri.agent.testdesign.config.TestDesignProperties;
@@ -36,6 +37,7 @@ class TestDesignAsyncPublishServiceTest {
     private final AssetService assetService = new AssetService(new com.songhg.veri.agent.asset.infrastructure.InMemoryAssetRepository(),
             platformContextClient());
     private final TestDesignEventPublisher eventPublisher = mock(TestDesignEventPublisher.class);
+    private final AsyncTaskNotificationService notificationService = mock(AsyncTaskNotificationService.class);
     private final TestDesignProperties properties = properties();
     private final TestDesignResponseMapper responseMapper = new TestDesignResponseMapper(
             new ObjectMapper().findAndRegisterModules(),
@@ -64,7 +66,8 @@ class TestDesignAsyncPublishServiceTest {
             releaseReadinessApprovalService,
             responseMapper,
             properties,
-            eventPublisher
+            eventPublisher,
+            notificationService
     );
 
     @Test
@@ -119,6 +122,9 @@ class TestDesignAsyncPublishServiceTest {
         linkRequest.setRequirementId(requirement.id());
         linkRequest.setCaseId(caseId);
         assertThat(assetService.listLinks(linkRequest).total()).isEqualTo(1);
+        verify(notificationService).notifyTestDesignPublishFinished(org.mockito.ArgumentMatchers.argThat(
+                task -> taskId.equals(task.id())
+        ), org.mockito.ArgumentMatchers.argThat(response -> response.created() == 1 && response.failed() == 0));
 
         TestDesignPublishResponse replay = publishService.processQueuedPublish(taskId, List.of(candidateId));
 

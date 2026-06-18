@@ -27,6 +27,7 @@ import com.songhg.veri.agent.execution.domain.ExecutionPlan;
 import com.songhg.veri.agent.execution.domain.ExecutionPlanNode;
 import com.songhg.veri.agent.execution.domain.ExecutionRun;
 import com.songhg.veri.agent.management.application.port.ManagementStore;
+import com.songhg.veri.agent.notification.application.AsyncTaskNotificationService;
 import com.songhg.veri.agent.testdata.application.TestDataCrossWpReferenceService;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -73,6 +74,7 @@ public class ExecutionRunService {
     private final ExecutionRunDispatchSupport dispatchSupport;
     private final ExecutionProperties properties;
     private final TransactionTemplate transactionTemplate;
+    private final AsyncTaskNotificationService notificationService;
 
     public ExecutionRunService(
             ExecutionRepository repository,
@@ -84,6 +86,7 @@ public class ExecutionRunService {
             ObjectProvider<TestDataCrossWpReferenceService> testDataServices,
             ObjectMapper objectMapper,
             ExecutionProperties properties,
+            AsyncTaskNotificationService notificationService,
             ObjectProvider<PlatformTransactionManager> transactionManagers
     ) {
         this.repository = repository;
@@ -95,6 +98,7 @@ public class ExecutionRunService {
         this.jsonSupport = new ExecutionRunJsonSupport(objectMapper);
         this.responseMapper = new ExecutionRunResponseMapper(objectMapper);
         this.properties = properties;
+        this.notificationService = notificationService;
         this.accountLeaseSupport = new ExecutionAccountLeaseSupport(
                 repository,
                 testDataServices.getIfAvailable(),
@@ -107,7 +111,8 @@ public class ExecutionRunService {
                 properties,
                 jsonSupport,
                 responseMapper,
-                accountLeaseSupport
+                accountLeaseSupport,
+                notificationService
         );
         this.transactionTemplate = OptionalTransactionTemplates.create(transactionManagers);
         this.dispatchSupport = new ExecutionRunDispatchSupport(
@@ -298,6 +303,7 @@ public class ExecutionRunService {
                 "runnerCancelAcceptedCount", runnerCancelSummary.acceptedCount(),
                 "runnerCancelFailedCount", runnerCancelSummary.failedCount()
         ));
+        notificationService.notifyExecutionRunFinished(releaseAware);
         return detail(requireRun(releaseAware.id()), false);
     }
 

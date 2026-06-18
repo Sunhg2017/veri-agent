@@ -19,6 +19,8 @@ public interface ModelInvocationJobRepository {
 
     List<ModelInvocationJobRecord> queuedJobs();
 
+    List<ModelInvocationJobRecord> runningJobsStaleBefore(Instant staleBefore);
+
     boolean markRunning(UUID jobId, Instant startedAt);
 
     void markSucceeded(UUID jobId, Instant finishedAt, ModelInvocationResult response, String responseJson);

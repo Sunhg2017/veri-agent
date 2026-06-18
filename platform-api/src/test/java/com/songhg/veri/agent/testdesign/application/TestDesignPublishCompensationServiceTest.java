@@ -13,6 +13,7 @@ import com.songhg.veri.agent.authorization.application.AuthorizationService;
 import com.songhg.veri.agent.modelaccess.application.port.ModelInvocationJobRepository;
 import com.songhg.veri.agent.modelaccess.infrastructure.InMemoryModelAccessRepository;
 import com.songhg.veri.agent.modelaccess.infrastructure.InMemoryModelInvocationJobRepository;
+import com.songhg.veri.agent.notification.application.AsyncTaskNotificationService;
 import com.songhg.veri.agent.testdesign.config.TestDesignProperties;
 import com.songhg.veri.agent.testdesign.domain.TestDesignCandidate;
 import com.songhg.veri.agent.testdesign.domain.TestDesignCandidateStatus;
@@ -53,6 +54,7 @@ class TestDesignPublishCompensationServiceTest {
                     actorResolver,
                     mock(TestDesignPlatformContextClient.class)
             );
+    private final AsyncTaskNotificationService notificationService = mock(AsyncTaskNotificationService.class);
     private final TestDesignPublishService publishService = new TestDesignPublishService(
             repository,
             assetService,
@@ -61,7 +63,8 @@ class TestDesignPublishCompensationServiceTest {
             releaseReadinessApprovalService,
             responseMapper,
             properties(true, 50),
-            mock(TestDesignEventPublisher.class)
+            mock(TestDesignEventPublisher.class),
+            notificationService
     );
 
     @Test

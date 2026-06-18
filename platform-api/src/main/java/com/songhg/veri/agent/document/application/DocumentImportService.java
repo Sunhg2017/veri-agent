@@ -6,6 +6,7 @@ import com.songhg.veri.agent.common.error.BusinessException;
 import com.songhg.veri.agent.common.error.ErrorCode;
 import com.songhg.veri.agent.common.transaction.OptionalTransactionTemplates;
 import com.songhg.veri.agent.common.util.SensitiveTextSanitizer;
+import com.songhg.veri.agent.notification.application.AsyncTaskNotificationService;
 import com.songhg.veri.agent.document.application.command.CreateDocumentImportRequest;
 import com.songhg.veri.agent.document.application.port.DocumentInputRepository;
 import com.songhg.veri.agent.document.application.query.DocumentImportQuery;
@@ -71,6 +72,7 @@ public class DocumentImportService {
     private final DocumentInputActorResolver actorResolver;
     private final DocumentInputResponseMapper responseMapper;
     private final DocumentInputEventPublisher eventPublisher;
+    private final AsyncTaskNotificationService notificationService;
     private final TransactionTemplate transactionTemplate;
 
     public DocumentImportService(
@@ -84,6 +86,7 @@ public class DocumentImportService {
             DocumentInputMetrics metrics,
             DocumentInputActorResolver actorResolver,
             DocumentInputEventPublisher eventPublisher,
+            AsyncTaskNotificationService notificationService,
             ObjectProvider<PlatformTransactionManager> transactionManagers
     ) {
         this.repository = repository;
@@ -96,6 +99,7 @@ public class DocumentImportService {
         this.actorResolver = actorResolver;
         this.responseMapper = new DocumentInputResponseMapper(repository, objectMapper);
         this.eventPublisher = eventPublisher;
+        this.notificationService = notificationService;
         this.transactionTemplate = OptionalTransactionTemplates.create(transactionManagers);
     }
 
@@ -235,6 +239,7 @@ public class DocumentImportService {
                 throw new BusinessException(ErrorCode.VALIDATION_ERROR, "未解析到有效需求");
             }
             DocumentImportRecord succeeded = completeQueuedImport(running, parsed);
+            notificationService.notifyDocumentImportSucceeded(succeeded);
             log.info("Document import event processed, import_id={}, parsed_count={}", importId, parsed.size());
             return succeeded;
         } catch (BusinessException exception) {
@@ -295,6 +300,7 @@ public class DocumentImportService {
                     running.createdRequirementIds(),
                     null,
                     running.rawDigest(),
+                    running.createdBy(),
                     running.createdAt(),
                     now
             );
@@ -369,6 +375,7 @@ public class DocumentImportService {
         ));
         UUID importId = UUID.randomUUID();
         Instant now = Instant.now();
+        String actor = actorResolver.currentActor();
         ensureImportContentSize(content);
         DocumentImportRecord record = new DocumentImportRecord(
                 importId,
@@ -385,6 +392,7 @@ public class DocumentImportService {
                 "[]",
                 null,
                 sha256(content),
+                actor,
                 now,
                 now
         );
@@ -416,10 +424,12 @@ public class DocumentImportService {
                 record.createdRequirementIds(),
                 trimToNull(errorMessage),
                 record.rawDigest(),
+                record.createdBy(),
                 record.createdAt(),
                 Instant.now()
         );
         repository.saveImport(failed);
+        notificationService.notifyDocumentImportFailed(failed);
         writeAudit("IMPORT_FAILED", "DOCUMENT_IMPORT", failed.id().toString(), failed.projectId(), failed);
         metrics.recordImport(failed.sourceType(), failed.status(), failed.totalParsed());
         log.warn("Document import event failed, import_id={}, error={}", failed.id(), failed.errorMessage());

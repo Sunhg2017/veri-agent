@@ -12,6 +12,7 @@ import com.songhg.veri.agent.common.error.BusinessException;
 import com.songhg.veri.agent.common.error.ErrorCode;
 import com.songhg.veri.agent.modelaccess.infrastructure.InMemoryModelAccessRepository;
 import com.songhg.veri.agent.modelaccess.infrastructure.InMemoryModelInvocationJobRepository;
+import com.songhg.veri.agent.notification.application.AsyncTaskNotificationService;
 import com.songhg.veri.agent.testdesign.application.command.AddTestDesignReleaseReadinessNoteCommand;
 import com.songhg.veri.agent.testdesign.application.command.RequestTestDesignReleaseReadinessApprovalCommand;
 import com.songhg.veri.agent.testdesign.application.command.ReviewTestDesignReleaseReadinessApprovalCommand;
@@ -57,6 +58,7 @@ class TestDesignPublishServiceTest {
                     actorResolver,
                     mock(TestDesignPlatformContextClient.class)
             );
+    private final AsyncTaskNotificationService notificationService = mock(AsyncTaskNotificationService.class);
     private final TestDesignPublishService publishService = new TestDesignPublishService(
             repository,
             assetService,
@@ -65,7 +67,8 @@ class TestDesignPublishServiceTest {
             releaseReadinessApprovalService,
             responseMapper,
             properties,
-            mock(TestDesignEventPublisher.class)
+            mock(TestDesignEventPublisher.class),
+            notificationService
     );
 
     @Test

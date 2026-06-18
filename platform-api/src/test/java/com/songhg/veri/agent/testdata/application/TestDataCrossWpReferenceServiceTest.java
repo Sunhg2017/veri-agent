@@ -1,6 +1,7 @@
 package com.songhg.veri.agent.testdata.application;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.songhg.veri.agent.notification.application.AsyncTaskNotificationService;
 import com.songhg.veri.agent.common.error.BusinessException;
 import com.songhg.veri.agent.common.error.ErrorCode;
 import com.songhg.veri.agent.integration.application.view.PlatformContext;
@@ -256,6 +257,7 @@ class TestDataCrossWpReferenceServiceTest {
                 contextClient,
                 actorResolver,
                 properties,
+                mock(AsyncTaskNotificationService.class),
                 objectMapper
         );
         return new Fixture(

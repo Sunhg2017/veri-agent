@@ -2,6 +2,7 @@ package com.songhg.veri.agent.testdata.application;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.songhg.veri.agent.integration.application.view.PlatformContext;
+import com.songhg.veri.agent.notification.application.AsyncTaskNotificationService;
 import com.songhg.veri.agent.testdata.application.command.AcquireTestAccountLeaseCommand;
 import com.songhg.veri.agent.testdata.application.command.CreateTestAccountPoolCommand;
 import com.songhg.veri.agent.testdata.application.command.CreateTestDataSetCommand;
@@ -195,6 +196,7 @@ class TestDataWorkerServiceTest {
                 contextClient,
                 actorResolver,
                 properties,
+                mock(AsyncTaskNotificationService.class),
                 objectMapper
         );
         TestAccountHealthCheckService healthCheckService = new TestAccountHealthCheckService(repository, contextClient);

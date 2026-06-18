@@ -8,6 +8,7 @@ import com.songhg.veri.agent.common.error.BusinessException;
 import com.songhg.veri.agent.common.error.ErrorCode;
 import com.songhg.veri.agent.common.trace.TraceContext;
 import com.songhg.veri.agent.common.util.SensitiveTextSanitizer;
+import com.songhg.veri.agent.notification.application.AsyncTaskNotificationService;
 import com.songhg.veri.agent.testdata.application.command.CreateTestDataTaskCommand;
 import com.songhg.veri.agent.testdata.application.command.RetryTestDataTaskCommand;
 import com.songhg.veri.agent.testdata.application.port.TestDataRepository;
@@ -53,6 +54,7 @@ public class TestDataTaskService {
     private final TestDataPlatformContextClient contextClient;
     private final TestDataActorResolver actorResolver;
     private final TestDataProperties properties;
+    private final AsyncTaskNotificationService notificationService;
     private final ObjectMapper objectMapper;
 
     public TestDataTaskService(
@@ -60,12 +62,14 @@ public class TestDataTaskService {
             TestDataPlatformContextClient contextClient,
             TestDataActorResolver actorResolver,
             TestDataProperties properties,
+            AsyncTaskNotificationService notificationService,
             ObjectMapper objectMapper
     ) {
         this.repository = repository;
         this.contextClient = contextClient;
         this.actorResolver = actorResolver;
         this.properties = properties;
+        this.notificationService = notificationService;
         this.objectMapper = objectMapper;
     }
 
@@ -231,6 +235,7 @@ public class TestDataTaskService {
         }
         TaskExecutionOutcome outcome = executeClaimedTask(running, workerId);
         persistTerminalTask(outcome.task());
+        notificationService.notifyTestDataTaskFinished(outcome.task());
         auditTask(outcome.task(), "test_data.task.completed", outcome.auditPayload());
         return Optional.of(outcome.task().status());
     }

@@ -1,6 +1,13 @@
 package com.songhg.veri.agent.notification.application;
 
+import com.songhg.veri.agent.document.application.view.DocumentPublishResponse;
+import com.songhg.veri.agent.document.domain.DocumentImportRecord;
+import com.songhg.veri.agent.execution.domain.ExecutionRun;
+import com.songhg.veri.agent.modelaccess.application.view.ModelInvocationJobRecord;
 import com.songhg.veri.agent.reporting.domain.ReportExecutionReport;
+import com.songhg.veri.agent.testdata.domain.TestDataTask;
+import com.songhg.veri.agent.testdesign.application.view.TestDesignPublishResponse;
+import com.songhg.veri.agent.testdesign.domain.TestDesignTask;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
@@ -57,6 +64,195 @@ public class AsyncTaskNotificationService {
         ));
     }
 
+    public void notifyDocumentImportSucceeded(DocumentImportRecord record) {
+        targetUserId(record.createdBy()).ifPresent(userId -> notificationPublisher.publishToUser(
+                userId,
+                "ASYNC_TASK_COMPLETED",
+                "文档导入已完成",
+                "异步文档解析已完成，可前往文档导入工作台查看候选需求。",
+                "#document-input",
+                Map.of(
+                        "importId", record.id(),
+                        "projectId", record.projectId(),
+                        "status", record.status().name(),
+                        "sourceType", record.sourceType().name()
+                )
+        ));
+    }
+
+    public void notifyDocumentImportFailed(DocumentImportRecord record) {
+        targetUserId(record.createdBy()).ifPresent(userId -> notificationPublisher.publishToUser(
+                userId,
+                "ASYNC_TASK_FAILED",
+                "文档导入失败",
+                asyncFailureBody("异步文档解析未完成，请在文档导入工作台查看失败详情。", record.errorMessage()),
+                "#document-input",
+                Map.of(
+                        "importId", record.id(),
+                        "projectId", record.projectId(),
+                        "status", record.status().name(),
+                        "sourceType", record.sourceType().name(),
+                        "errorMessage", safeText(record.errorMessage())
+                )
+        ));
+    }
+
+    public void notifyDocumentPublishFinished(DocumentImportRecord record, DocumentPublishResponse response) {
+        targetUserId(record.createdBy()).ifPresent(userId -> notificationPublisher.publishToUser(
+                userId,
+                response.publishFailedCount() > 0 ? "ASYNC_TASK_FAILED" : "ASYNC_TASK_COMPLETED",
+                response.publishFailedCount() > 0 ? "需求发布部分失败" : "需求发布已完成",
+                response.publishFailedCount() > 0
+                        ? asyncFailureBody("异步需求发布存在失败项，请在文档导入工作台查看发布记录。", record.errorMessage())
+                        : "异步需求发布已完成，可前往文档导入工作台查看已落库需求。",
+                "#document-input",
+                Map.of(
+                        "importId", record.id(),
+                        "projectId", record.projectId(),
+                        "status", record.status().name(),
+                        "publishedCount", response.publishedCount(),
+                        "publishFailedCount", response.publishFailedCount()
+                )
+        ));
+    }
+
+    public void notifyTestDesignGenerationSucceeded(TestDesignTask task) {
+        targetUserId(task.requestedBy()).ifPresent(userId -> notificationPublisher.publishToUser(
+                userId,
+                "ASYNC_TASK_COMPLETED",
+                "用例生成已完成",
+                "异步用例生成已完成，可前往用例设计工作台查看生成结果。",
+                "#test-design",
+                Map.of(
+                        "taskId", task.id(),
+                        "projectId", task.projectId(),
+                        "status", task.status(),
+                        "generatedCount", task.generatedCount()
+                )
+        ));
+    }
+
+    public void notifyTestDesignGenerationFailed(TestDesignTask task) {
+        targetUserId(task.requestedBy()).ifPresent(userId -> notificationPublisher.publishToUser(
+                userId,
+                "ASYNC_TASK_FAILED",
+                "用例生成失败",
+                asyncFailureBody("异步用例生成未完成，请在用例设计工作台查看失败详情。", task.errorMessage()),
+                "#test-design",
+                Map.of(
+                        "taskId", task.id(),
+                        "projectId", task.projectId(),
+                        "status", task.status(),
+                        "errorMessage", safeText(task.errorMessage())
+                )
+        ));
+    }
+
+    public void notifyTestDesignPublishFinished(TestDesignTask task, TestDesignPublishResponse response) {
+        targetUserId(task.requestedBy()).ifPresent(userId -> notificationPublisher.publishToUser(
+                userId,
+                response.failed() > 0 ? "ASYNC_TASK_FAILED" : "ASYNC_TASK_COMPLETED",
+                response.failed() > 0 ? "用例发布部分失败" : "用例发布已完成",
+                response.failed() > 0
+                        ? "异步用例发布存在失败项，请在用例设计工作台查看发布记录。"
+                        : "异步用例发布已完成，可前往用例设计工作台查看已发布结果。",
+                "#test-design",
+                Map.of(
+                        "taskId", task.id(),
+                        "projectId", task.projectId(),
+                        "createdCount", response.created(),
+                        "failedCount", response.failed(),
+                        "skippedCount", response.skipped()
+                )
+        ));
+    }
+
+    public void notifyTestDataTaskFinished(TestDataTask task) {
+        targetUserId(task.createdBy()).ifPresent(userId -> notificationPublisher.publishToUser(
+                userId,
+                "SUCCEEDED".equals(task.status()) ? "ASYNC_TASK_COMPLETED" : "ASYNC_TASK_FAILED",
+                "SUCCEEDED".equals(task.status()) ? "测试数据任务已完成" : "测试数据任务失败",
+                "SUCCEEDED".equals(task.status())
+                        ? "异步测试数据任务已完成，可前往测试数据工作台查看结果。"
+                        : asyncFailureBody("异步测试数据任务未完成，请在测试数据工作台查看失败详情。", task.errorSummary()),
+                "#test-data",
+                Map.of(
+                        "taskId", task.id(),
+                        "projectId", task.projectId(),
+                        "status", task.status(),
+                        "taskType", task.taskType(),
+                        "errorCode", safeText(task.errorCode())
+                )
+        ));
+    }
+
+    public void notifyExecutionRunFinished(ExecutionRun run) {
+        targetUserId(run.createdBy()).ifPresent(userId -> notificationPublisher.publishToUser(
+                userId,
+                executionSuccess(run.status()) ? "ASYNC_TASK_COMPLETED" : "ASYNC_TASK_FAILED",
+                executionSuccess(run.status()) ? "执行运行已完成" : "执行运行结束但存在异常",
+                executionSuccess(run.status())
+                        ? "异步执行运行已完成，可前往执行工作台查看运行详情。"
+                        : asyncFailureBody("异步执行运行已结束，但存在失败、超时或取消情况，请在执行工作台查看详情。", run.errorSummary()),
+                "#execution",
+                Map.of(
+                        "runId", run.id(),
+                        "projectId", run.projectId(),
+                        "status", run.status(),
+                        "planId", run.planId(),
+                        "errorCode", safeText(run.errorCode())
+                )
+        ));
+    }
+
+    public void notifyModelInvocationJobSucceeded(ModelInvocationJobRecord job) {
+        targetUserId(job.delegatedUserId()).ifPresent(userId -> notificationPublisher.publishToUser(
+                userId,
+                "ASYNC_TASK_COMPLETED",
+                "模型调用已完成",
+                "异步模型调用已完成，可前往模型接入工作台查看调用日志与成本。",
+                "#model-access",
+                Map.of(
+                        "jobId", job.jobId(),
+                        "status", job.status().name(),
+                        "invocationId", job.invocationId() == null ? "" : job.invocationId(),
+                        "actorService", safeText(job.actorService())
+                )
+        ));
+    }
+
+    public void notifyModelInvocationJobFailed(ModelInvocationJobRecord job) {
+        targetUserId(job.delegatedUserId()).ifPresent(userId -> notificationPublisher.publishToUser(
+                userId,
+                "ASYNC_TASK_FAILED",
+                "模型调用失败",
+                asyncFailureBody("异步模型调用未完成，请在模型接入工作台查看失败详情。", job.errorMessage()),
+                "#model-access",
+                Map.of(
+                        "jobId", job.jobId(),
+                        "status", job.status().name(),
+                        "errorCode", safeText(job.errorCode()),
+                        "actorService", safeText(job.actorService())
+                )
+        ));
+    }
+
+    public void notifyModelInvocationJobCancelled(ModelInvocationJobRecord job) {
+        targetUserId(job.delegatedUserId()).ifPresent(userId -> notificationPublisher.publishToUser(
+                userId,
+                "SYSTEM_INFO",
+                "模型调用已取消",
+                "异步模型调用已取消，可前往模型接入工作台确认当前任务状态。",
+                "#model-access",
+                Map.of(
+                        "jobId", job.jobId(),
+                        "status", job.status().name(),
+                        "errorCode", safeText(job.errorCode()),
+                        "actorService", safeText(job.actorService())
+                )
+        ));
+    }
+
     private Optional<UUID> targetUserId(String generatedBy) {
         if (!StringUtils.hasText(generatedBy)) {
             return Optional.empty();
@@ -73,5 +269,20 @@ public class AsyncTaskNotificationService {
             return "异步报告生成未完成，请在报告诊断工作台查看失败详情。";
         }
         return "异步报告生成未完成，请在报告诊断工作台查看失败详情。错误码：" + failedCode.trim();
+    }
+
+    private String asyncFailureBody(String prefix, String detail) {
+        if (!StringUtils.hasText(detail)) {
+            return prefix;
+        }
+        return prefix + " 原因：" + detail.trim();
+    }
+
+    private String safeText(String value) {
+        return value == null ? "" : value;
+    }
+
+    private boolean executionSuccess(String status) {
+        return "SUCCEEDED".equals(status);
     }
 }

@@ -100,6 +100,7 @@ class DocumentInputEventRecoveryServiceTest {
                 "[]",
                 null,
                 "digest-" + sourceRef,
+                null,
                 now,
                 now
         );

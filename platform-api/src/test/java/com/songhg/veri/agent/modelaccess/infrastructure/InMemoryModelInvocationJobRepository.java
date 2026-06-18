@@ -50,6 +50,16 @@ public class InMemoryModelInvocationJobRepository implements ModelInvocationJobR
     }
 
     @Override
+    public List<ModelInvocationJobRecord> runningJobsStaleBefore(Instant staleBefore) {
+        return jobs.values()
+                .stream()
+                .filter(job -> job.status() == ModelInvocationJobStatus.RUNNING)
+                .filter(job -> lastTouchedAt(job).isBefore(staleBefore))
+                .sorted(Comparator.comparing(this::lastTouchedAt))
+                .toList();
+    }
+
+    @Override
     public boolean markRunning(UUID jobId, Instant startedAt) {
         return updateIf(jobId, ModelInvocationJobStatus.QUEUED, job -> new ModelInvocationJobRecord(
                 job.jobId(),
@@ -153,8 +163,7 @@ public class InMemoryModelInvocationJobRepository implements ModelInvocationJobR
     public int markRunningJobsFailed(Instant finishedAt, Instant staleBefore, String errorCode, String errorMessage) {
         int updated = 0;
         for (ModelInvocationJobRecord job : jobs.values()) {
-            Instant lastTouchedAt = job.startedAt() == null ? job.createdAt() : job.startedAt();
-            if (job.status() == ModelInvocationJobStatus.RUNNING && lastTouchedAt.isBefore(staleBefore)) {
+            if (job.status() == ModelInvocationJobStatus.RUNNING && lastTouchedAt(job).isBefore(staleBefore)) {
                 markFailed(job.jobId(), finishedAt, errorCode, errorMessage);
                 updated++;
             }
@@ -186,6 +195,10 @@ public class InMemoryModelInvocationJobRepository implements ModelInvocationJobR
         return status == ModelInvocationJobStatus.SUCCEEDED
                 || status == ModelInvocationJobStatus.FAILED
                 || status == ModelInvocationJobStatus.CANCELLED;
+    }
+
+    private Instant lastTouchedAt(ModelInvocationJobRecord job) {
+        return job.startedAt() == null ? job.createdAt() : job.startedAt();
     }
 
     private interface JobUpdater {
