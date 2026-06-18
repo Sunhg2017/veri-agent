@@ -28,6 +28,7 @@ VALIDATIONS=(
   "$ROOT_DIR/db/validation/wp9_execution_validation.sql"
   "$ROOT_DIR/db/validation/wp8_test_data_validation.sql"
   "$ROOT_DIR/db/validation/wp10_reporting_validation.sql"
+  "$ROOT_DIR/db/validation/wp7_ui_e2e_validation.sql"
 )
 
 run_psql_file() {
@@ -203,6 +204,14 @@ grant select, insert, update on
     test_pooled_account,
     test_account_lease,
     test_account_role_matrix,
+    ui_e2e_scene,
+    ui_e2e_scene_step,
+    ui_e2e_bundle,
+    ui_e2e_bundle_review,
+    ui_e2e_run,
+    ui_e2e_run_step_result,
+    ui_e2e_artifact_manifest,
+    ui_e2e_flaky_mark,
     report_execution_report,
     report_evidence_manifest,
     report_failure_diagnosis,

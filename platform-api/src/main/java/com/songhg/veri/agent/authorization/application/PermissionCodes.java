@@ -115,6 +115,13 @@ public final class PermissionCodes {
     public static final String REPORT_EXPORT = "report:export";
     public static final String REPORT_MANAGE = "report:manage";
 
+    public static final String UI_E2E_READ = "uiE2e:read";
+    public static final String UI_E2E_MANAGE = "uiE2e:manage";
+    public static final String UI_E2E_REVIEW = "uiE2e:review";
+    public static final String UI_E2E_EXECUTE = "uiE2e:execute";
+    public static final String UI_E2E_EXPORT = "uiE2e:export";
+    public static final String UI_E2E_FLAKY = "uiE2e:flaky";
+
     public static final List<String> ALL = List.of(
             ROLE_READ, ROLE_CREATE, ROLE_EDIT, ROLE_BIND, ROLE_UNBIND,
             AUDIT_READ, AUDIT_EXPORT, AUDIT_WRITE_INTERNAL,
@@ -139,7 +146,8 @@ public final class PermissionCodes {
             API_AUTOMATION_REVIEW, API_AUTOMATION_EXECUTE, API_AUTOMATION_EXPORT,
             EXECUTION_READ, EXECUTION_MANAGE, EXECUTION_TRIGGER, EXECUTION_ADMIN, EXECUTION_EXPORT,
             TEST_DATA_READ, TEST_DATA_MANAGE, TEST_DATA_LEASE, TEST_DATA_CLEANUP, TEST_DATA_EXPORT,
-            REPORT_READ, REPORT_GENERATE, REPORT_DIAGNOSE, REPORT_EXPORT, REPORT_MANAGE
+            REPORT_READ, REPORT_GENERATE, REPORT_DIAGNOSE, REPORT_EXPORT, REPORT_MANAGE,
+            UI_E2E_READ, UI_E2E_MANAGE, UI_E2E_REVIEW, UI_E2E_EXECUTE, UI_E2E_EXPORT, UI_E2E_FLAKY
     );
 
     private static final String ARCHIVED_STATUS = "ARCHIVED";

@@ -44,6 +44,20 @@ wp10_report_tables as (
         'report_export_manifest'
     )
 ),
+wp7_ui_e2e_tables as (
+    select t.oid, t.relname
+    from tables t
+    where t.relname in (
+        'ui_e2e_scene',
+        'ui_e2e_scene_step',
+        'ui_e2e_bundle',
+        'ui_e2e_bundle_review',
+        'ui_e2e_run',
+        'ui_e2e_run_step_result',
+        'ui_e2e_artifact_manifest',
+        'ui_e2e_flaky_mark'
+    )
+),
 owned_by_app_or_readonly as (
     select c.relname
     from pg_class c
@@ -284,6 +298,42 @@ checks as (
             else 'FAIL'
         end as status,
         'runtime role may append and read WP5 release readiness approval notes but must not UPDATE/DELETE/TRUNCATE note records' as details
+    union all
+    select
+        'release.wp7_ui_e2e_tables.runtime_access' as check_name,
+        case
+            when not exists (select 1 from app_role_exists) then 'FAIL'
+            when (select count(*) from wp7_ui_e2e_tables) <> 8 then 'FAIL'
+            when exists (
+                select 1
+                from wp7_ui_e2e_tables t
+                where not coalesce(has_table_privilege((select app_role from settings), t.oid, 'SELECT'), false)
+                   or not coalesce(has_table_privilege((select app_role from settings), t.oid, 'INSERT'), false)
+                   or not coalesce(has_table_privilege((select app_role from settings), t.oid, 'UPDATE'), false)
+                   or coalesce(has_table_privilege((select app_role from settings), t.oid, 'DELETE'), false)
+                   or coalesce(has_table_privilege((select app_role from settings), t.oid, 'TRUNCATE'), false)
+            ) then 'FAIL'
+            else 'PASS'
+        end as status,
+        'runtime role may create/update WP7 aggregate UI/E2E metadata but must not DELETE/TRUNCATE UI/E2E tables' as details
+    union all
+    select
+        'release.wp7_ui_e2e_tables.readonly_access' as check_name,
+        case
+            when not exists (select 1 from readonly_role_exists) then 'FAIL'
+            when (select count(*) from wp7_ui_e2e_tables) <> 8 then 'FAIL'
+            when exists (
+                select 1
+                from wp7_ui_e2e_tables t
+                where not coalesce(has_table_privilege((select readonly_role from settings), t.oid, 'SELECT'), false)
+                   or coalesce(has_table_privilege((select readonly_role from settings), t.oid, 'INSERT'), false)
+                   or coalesce(has_table_privilege((select readonly_role from settings), t.oid, 'UPDATE'), false)
+                   or coalesce(has_table_privilege((select readonly_role from settings), t.oid, 'DELETE'), false)
+                   or coalesce(has_table_privilege((select readonly_role from settings), t.oid, 'TRUNCATE'), false)
+            ) then 'FAIL'
+            else 'PASS'
+        end as status,
+        'readonly role may SELECT WP7 aggregate UI/E2E metadata but must not write UI/E2E tables' as details
     union all
     select
         'release.wp10_reporting_tables.runtime_access' as check_name,
