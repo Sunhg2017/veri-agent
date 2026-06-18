@@ -149,6 +149,7 @@ class OpenApiContractTest {
                 .andExpect(jsonPath("$.paths['/api/v1/api-automation/runs/{id}'].get").exists())
                 .andExpect(jsonPath("$.paths['/api/v1/api-automation/runs/{id}/cancel'].post").exists())
                 .andExpect(jsonPath("$.paths['/api/v1/api-automation/runs/{id}/export'].get").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/ui-e2e/health'].get").exists())
                 .andExpect(jsonPath("$.paths['/api/v1/execution/health'].get").exists())
                 .andExpect(jsonPath("$.paths['/api/v1/execution/plans'].get").exists())
                 .andExpect(jsonPath("$.paths['/api/v1/execution/plans'].post").exists())

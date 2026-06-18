@@ -16,6 +16,7 @@ import com.songhg.veri.agent.reporting.config.ReportingProperties;
 import com.songhg.veri.agent.scheduling.config.XxlJobProperties;
 import com.songhg.veri.agent.testdesign.config.TestDesignProperties;
 import com.songhg.veri.agent.testdata.config.TestDataProperties;
+import com.songhg.veri.agent.uie2e.config.UiE2eProperties;
 import jakarta.servlet.DispatcherType;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.beans.factory.ObjectProvider;
@@ -49,6 +50,7 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
         ApiAutomationProperties.class,
         ExecutionProperties.class,
         TestDataProperties.class,
+        UiE2eProperties.class,
         ReportingProperties.class,
         XxlJobProperties.class,
         SecretProviderProperties.class,
@@ -97,6 +99,7 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/api/v1/api-automation/health").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/v1/execution/health").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/v1/test-data/health").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/v1/ui-e2e/health").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/v1/reports/health").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/v1/document-input/webhooks/**").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/v1/execution/webhooks/**").permitAll()

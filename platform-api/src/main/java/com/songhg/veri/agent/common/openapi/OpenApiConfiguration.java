@@ -153,6 +153,9 @@ public class OpenApiConfiguration {
         if (packageName.contains(".apiautomation.")) {
             return "WP6 API Automation";
         }
+        if (packageName.contains(".uie2e.")) {
+            return "WP7 UI E2E";
+        }
         if (packageName.contains(".testdata.")) {
             return "WP8 Test Data";
         }

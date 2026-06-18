@@ -47,6 +47,11 @@ class SecurityConfigTest {
                 .andExpect(jsonPath("$.traceId", startsWith("trc_")))
                 .andExpect(jsonPath("$.data.status").value("UP"));
 
+        mockMvc.perform(get("/api/v1/ui-e2e/health"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.traceId", startsWith("trc_")))
+                .andExpect(jsonPath("$.data.status").value("UP"));
+
         mockMvc.perform(get("/api/v1/reports/health"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.traceId", startsWith("trc_")))
