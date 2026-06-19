@@ -8,6 +8,7 @@
     "build": "tsc -b && vite build",
     "test": "vitest run",
     "test:e2e": "playwright test",
+    "test:wp7-smoke": "playwright test e2e/wp7-ui-e2e.smoke.playwright.ts",
     "test:wp4-smoke": "playwright test e2e/wp4-document-input.smoke.playwright.ts",
     "test:wp6-smoke": "playwright test e2e/wp6-api-automation.smoke.playwright.ts",
     "test:wp8-smoke": "playwright test e2e/wp8-test-data.smoke.playwright.ts",
