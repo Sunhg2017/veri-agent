@@ -576,6 +576,25 @@
         limit #{limit}
     </select>
 
+    <select id="followUpNodeRuns" resultMap="nodeRunMap">
+        select <include refid="nodeRunColumns"/>
+        from execution_node_run nr
+        join execution_run er on er.id = nr.run_id
+        where nr.status = 'RUNNING'
+          and nr.runner_type = 'WP7_UI'
+          and nr.external_run_id is not null
+          and er.status = 'RUNNING'
+          and coalesce(nr.result_summary_json, '') like '%"wp7AsyncFollowUpRequired":true%'
+          and not exists (
+            select 1
+            from execution_queue_claim qc
+            where qc.node_run_id = nr.id
+              and qc.status = 'CLAIMED'
+          )
+        order by coalesce(nr.heartbeat_at, nr.updated_at, nr.started_at, nr.created_at) asc, nr.attempt asc
+        limit #{limit}
+    </select>
+
     <select id="activeQueueClaim" resultMap="queueClaimMap">
         select <include refid="queueClaimColumns"/>
         from execution_queue_claim

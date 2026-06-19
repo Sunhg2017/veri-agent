@@ -30,6 +30,8 @@ import com.songhg.veri.agent.management.application.port.ManagementStore;
 import com.songhg.veri.agent.notification.application.AsyncTaskNotificationService;
 import com.songhg.veri.agent.testdata.application.TestDataCrossWpReferenceService;
 import com.songhg.veri.agent.uie2e.application.UiE2eRunService;
+import com.songhg.veri.agent.uie2e.application.command.CancelUiE2eRunCommand;
+import com.songhg.veri.agent.uie2e.application.view.UiE2eRunDetailResponse;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -419,6 +421,15 @@ public class ExecutionRunService {
     }
 
     public ExecutionRunDetailResponse dispatchClaimedUiTestNodeRun(DispatchExecutionNodeRunCommand command) {
+        if (command != null && command.nodeRunId() != null) {
+            Optional<ExecutionNodeRun> nodeRun = repository.nodeRun(command.nodeRunId());
+            if (nodeRun.isPresent()
+                    && "WP7_UI".equals(nodeRun.get().runnerType())
+                    && StringUtils.hasText(nodeRun.get().externalRunId())
+                    && Boolean.TRUE.equals(jsonSupport.readMap(nodeRun.get().resultSummaryJson()).get("wp7AsyncFollowUpRequired"))) {
+                return dispatchSupport.followUpClaimedUiTestNodeRun(command);
+            }
+        }
         return dispatchSupport.dispatchClaimedUiTestNodeRun(command);
     }
 
@@ -670,9 +681,13 @@ public class ExecutionRunService {
     private RunnerCancelSummary cancelDispatchedRunnerNodes(List<ExecutionNodeRun> nodeRuns) {
         List<RunnerCancelAttempt> attempts = nodeRuns.stream()
                 .filter(nodeRun -> CANCELABLE_NODE_STATUSES.contains(nodeRun.status()))
-                .filter(nodeRun -> "WP6_API".equals(nodeRun.runnerType()))
                 .filter(nodeRun -> StringUtils.hasText(nodeRun.externalRunId()))
-                .map(this::cancelDispatchedWp6Run)
+                .map(nodeRun -> switch (nodeRun.runnerType()) {
+                    case "WP6_API" -> cancelDispatchedWp6Run(nodeRun);
+                    case "WP7_UI" -> cancelDispatchedWp7Run(nodeRun);
+                    default -> null;
+                })
+                .filter(Objects::nonNull)
                 .toList();
         return new RunnerCancelSummary(attempts);
     }
@@ -696,6 +711,44 @@ public class ExecutionRunService {
                     accepted,
                     accepted ? null : "EXECUTION_RUNNER_CANCEL_NOT_ACCEPTED",
                     accepted ? null : "WP6 runner cancel was not accepted"
+            );
+        } catch (BusinessException exception) {
+            return RunnerCancelAttempt.failed(
+                    nodeRun.id(),
+                    SensitiveTextSanitizer.boundedNullableText(exception.getErrorCode().name(), 64),
+                    queueSupport.terminalErrorSummary("FAILED", exception.getMessage())
+            );
+        } catch (RuntimeException exception) {
+            return RunnerCancelAttempt.failed(
+                    nodeRun.id(),
+                    "EXECUTION_RUNNER_CANCEL_FAILED",
+                    queueSupport.terminalErrorSummary("FAILED", exception.getMessage())
+            );
+        }
+    }
+
+    private RunnerCancelAttempt cancelDispatchedWp7Run(ExecutionNodeRun nodeRun) {
+        UUID wp7RunId = uuidOrNull(nodeRun.externalRunId());
+        if (wp7RunId == null) {
+            return RunnerCancelAttempt.failed(
+                    nodeRun.id(),
+                    "EXECUTION_RUNNER_CANCEL_ID_INVALID",
+                    "Dispatched WP7 run id is invalid"
+            );
+        }
+        try {
+            UiE2eRunDetailResponse response = uiE2eRunService.cancelRun(
+                    wp7RunId,
+                    new CancelUiE2eRunCommand("wp9 execution run canceled")
+            );
+            String status = response == null ? null : response.status();
+            boolean accepted = "CANCELED".equals(status);
+            return new RunnerCancelAttempt(
+                    nodeRun.id(),
+                    true,
+                    accepted,
+                    accepted ? null : "EXECUTION_RUNNER_CANCEL_NOT_ACCEPTED",
+                    accepted ? null : "WP7 runner cancel was not accepted"
             );
         } catch (BusinessException exception) {
             return RunnerCancelAttempt.failed(

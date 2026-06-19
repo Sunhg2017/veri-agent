@@ -58,6 +58,8 @@ public interface ExecutionMapper {
 
     List<ExecutionNodeRun> queuedNodeRuns(@Param("limit") int limit);
 
+    List<ExecutionNodeRun> followUpNodeRuns(@Param("limit") int limit);
+
     int insertQueueClaim(ExecutionQueueClaim claim);
 
     void updateQueueClaim(ExecutionQueueClaim claim);

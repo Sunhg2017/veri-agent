@@ -48,6 +48,8 @@ public interface ExecutionRepository {
 
     List<ExecutionNodeRun> queuedNodeRuns(int limit);
 
+    List<ExecutionNodeRun> followUpNodeRuns(int limit);
+
     boolean tryInsertQueueClaim(ExecutionQueueClaim claim);
 
     void updateQueueClaim(ExecutionQueueClaim claim);

@@ -113,6 +113,11 @@ public class JdbcExecutionRepository implements ExecutionRepository {
     }
 
     @Override
+    public List<ExecutionNodeRun> followUpNodeRuns(int limit) {
+        return mapper.followUpNodeRuns(limit);
+    }
+
+    @Override
     public boolean tryInsertQueueClaim(ExecutionQueueClaim claim) {
         return mapper.insertQueueClaim(claim) > 0;
     }

@@ -47,6 +47,7 @@ public class ExecutionHealthService {
                         Map.entry("wp6DispatchViaApplicationService", true),
                         Map.entry("wp7DispatchReady", true),
                         Map.entry("wp7DispatchViaApplicationService", true),
+                        Map.entry("wp7AsyncFollowUpReady", true),
                         Map.entry("wp8AccountLeaseAdapterReady", true),
                         Map.entry("accountLeaseAutoAcquireReleaseReady", true),
                         Map.entry("accountLeaseStoredFields",

@@ -16,6 +16,8 @@ import com.songhg.veri.agent.management.application.port.ManagementStore;
 import com.songhg.veri.agent.notification.application.AsyncTaskNotificationService;
 import com.songhg.veri.agent.testdata.application.TestDataCrossWpReferenceService;
 import com.songhg.veri.agent.uie2e.application.UiE2eRunService;
+import com.songhg.veri.agent.uie2e.application.command.CancelUiE2eRunCommand;
+import com.songhg.veri.agent.uie2e.application.view.UiE2eRunDetailResponse;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
@@ -184,6 +186,36 @@ class ExecutionRunServiceTest {
     }
 
     @Test
+    void cancelRunPropagatesWp7RunnerCancelForDispatchedUiNode() {
+        UUID runId = UUID.randomUUID();
+        UUID planId = UUID.randomUUID();
+        UUID uiNodeId = UUID.randomUUID();
+        UUID wp7RunId = UUID.randomUUID();
+        AtomicReference<ExecutionRun> runState = new AtomicReference<>(activeRun(runId, planId));
+        AtomicReference<List<ExecutionNodeRun>> nodeState = new AtomicReference<>(List.of(
+                nodeRun(runId, uiNodeId, "RUNNING", "WP7_UI", wp7RunId.toString())
+        ));
+        stubMutableRunState(runId, planId, uiNodeId, UUID.randomUUID(), runState, nodeState);
+        when(uiE2eRunService.cancelRun(eq(wp7RunId), any(CancelUiE2eRunCommand.class)))
+                .thenReturn(wp7Run(wp7RunId, "CANCELED"));
+
+        ExecutionRunDetailResponse response = service.cancelRun(runId);
+
+        assertThat(response.status()).isEqualTo("CANCELED");
+        assertThat(response.resultSummary())
+                .containsEntry("runnerCancelAttempted", true)
+                .containsEntry("runnerCancelAcceptedCount", 1)
+                .containsEntry("runnerCancelFailedCount", 0);
+        assertThat(response.nodes()).singleElement().satisfies(node -> {
+            assertThat(node.status()).isEqualTo("CANCELED");
+            assertThat(node.resultSummary())
+                    .containsEntry("runnerCancelAttempted", true)
+                    .containsEntry("runnerCancelAccepted", true);
+        });
+        verify(uiE2eRunService).cancelRun(eq(wp7RunId), any(CancelUiE2eRunCommand.class));
+    }
+
+    @Test
     void cancelTerminalRunDoesNotCallRunnerOrMutateState() {
         UUID runId = UUID.randomUUID();
         UUID planId = UUID.randomUUID();
@@ -327,6 +359,36 @@ class ExecutionRunServiceTest {
                         now
                 ),
                 List.of()
+        );
+    }
+
+    private UiE2eRunDetailResponse wp7Run(UUID id, String status) {
+        Instant now = Instant.now();
+        return new UiE2eRunDetailResponse(
+                id,
+                "project-alpha",
+                UUID.randomUUID(),
+                "portal-login",
+                "Portal Login",
+                "APPROVED",
+                UUID.randomUUID(),
+                "APPROVED",
+                status,
+                "wp9-ui-request",
+                "MANAGED",
+                null,
+                null,
+                "trc_wp7",
+                Map.of("accountLeaseRef", UUID.randomUUID().toString()),
+                Map.of(),
+                List.of(),
+                List.of(),
+                null,
+                now.minusSeconds(10),
+                "CANCELED".equals(status) ? now : null,
+                now.minusSeconds(20),
+                now,
+                false
         );
     }
 

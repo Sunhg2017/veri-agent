@@ -392,6 +392,117 @@ class ExecutionRunDispatchSupportTest {
                 assertThat(claim.status()).isEqualTo("COMPLETED"));
     }
 
+    @Test
+    void dispatchClaimedUiTestNodeKeepsNodeRunningWhenWp7RunIsAsync() throws Exception {
+        UUID projectId = UUID.randomUUID();
+        UUID sceneId = UUID.randomUUID();
+        UUID bundleId = UUID.randomUUID();
+        UUID accountPoolId = seedUiAccountPool(projectId);
+        SeededDispatchNode seed = seedClaimedUiNode(projectId, sceneId, bundleId, accountPoolId);
+        UUID wp7RunId = UUID.randomUUID();
+        when(uiE2eRunService.createRun(any())).thenAnswer(invocation -> {
+            CreateUiE2eRunCommand command = invocation.getArgument(0);
+            return wp7Run(
+                    wp7RunId,
+                    projectId.toString(),
+                    sceneId,
+                    bundleId,
+                    command.accountLeaseRef(),
+                    "RUNNING",
+                    "MANAGED"
+            );
+        });
+
+        ExecutionRunDetailResponse response = support.dispatchClaimedUiTestNodeRun(new DispatchExecutionNodeRunCommand(
+                seed.nodeRun().id(),
+                CLAIM_TOKEN,
+                null,
+                null,
+                null,
+                null,
+                null
+        ));
+
+        assertThat(response.status()).isEqualTo("RUNNING");
+        assertThat(response.resultSummary())
+                .containsEntry("runnerDispatched", true)
+                .containsEntry("wp7AsyncFollowUpPending", true)
+                .containsEntry("wp7LastObservedStatus", "RUNNING");
+        assertThat(response.nodes()).singleElement().satisfies(node -> {
+            assertThat(node.status()).isEqualTo("RUNNING");
+            assertThat(node.externalRunId()).isEqualTo(wp7RunId.toString());
+            assertThat(node.resultSummary())
+                    .containsEntry("runnerDispatched", true)
+                    .containsEntry("wp7Status", "RUNNING")
+                    .containsEntry("wp7TerminalSnapshot", false)
+                    .containsEntry("wp7AsyncFollowUpRequired", true);
+        });
+        assertThat(repository.queueClaimByToken(CLAIM_TOKEN)).hasValueSatisfying(claim ->
+                assertThat(claim.status()).isEqualTo("COMPLETED"));
+    }
+
+    @Test
+    void followUpClaimedUiTestNodeCompletesWhenWp7RunTurnsTerminal() throws Exception {
+        UUID projectId = UUID.randomUUID();
+        UUID sceneId = UUID.randomUUID();
+        UUID bundleId = UUID.randomUUID();
+        UUID accountPoolId = seedUiAccountPool(projectId);
+        SeededDispatchNode seed = seedClaimedUiNode(projectId, sceneId, bundleId, accountPoolId);
+        UUID wp7RunId = UUID.randomUUID();
+        when(uiE2eRunService.createRun(any())).thenAnswer(invocation -> {
+            CreateUiE2eRunCommand command = invocation.getArgument(0);
+            return wp7Run(
+                    wp7RunId,
+                    projectId.toString(),
+                    sceneId,
+                    bundleId,
+                    command.accountLeaseRef(),
+                    "RUNNING",
+                    "MANAGED"
+            );
+        });
+        support.dispatchClaimedUiTestNodeRun(new DispatchExecutionNodeRunCommand(
+                seed.nodeRun().id(),
+                CLAIM_TOKEN,
+                null,
+                null,
+                null,
+                null,
+                null
+        ));
+        reClaimRunningUiNode(seed.nodeRun().id());
+        when(uiE2eRunService.run(wp7RunId)).thenReturn(wp7Run(
+                wp7RunId,
+                projectId.toString(),
+                sceneId,
+                bundleId,
+                UUID.fromString(String.valueOf(jsonSupport.readMap(
+                        repository.nodeRun(seed.nodeRun().id()).orElseThrow().resultSummaryJson()
+                ).get("accountLeaseRef"))),
+                "SUCCEEDED",
+                "MANAGED"
+        ));
+
+        ExecutionRunDetailResponse response = support.followUpClaimedUiTestNodeRun(new DispatchExecutionNodeRunCommand(
+                seed.nodeRun().id(),
+                CLAIM_TOKEN,
+                null,
+                null,
+                null,
+                null,
+                null
+        ));
+
+        assertThat(response.status()).isEqualTo("SUCCEEDED");
+        assertThat(response.nodes()).singleElement().satisfies(node -> {
+            assertThat(node.status()).isEqualTo("SUCCEEDED");
+            assertThat(node.resultSummary())
+                    .containsEntry("wp7Status", "SUCCEEDED")
+                    .containsEntry("wp7TerminalSnapshot", true)
+                    .containsEntry("wp7AsyncFollowUpRequired", false);
+        });
+    }
+
     private SeededDispatchNode seedClaimedApiNode(UUID projectId, UUID bundleId, UUID caseId)
             throws JsonProcessingException {
         return seedClaimedApiNode(projectId, bundleId, caseId, null);
@@ -600,6 +711,23 @@ class ExecutionRunDispatchSupportTest {
                 now.minusSeconds(10)
         ));
         return new SeededDispatchNode(runId, nodeRun);
+    }
+
+    private void reClaimRunningUiNode(UUID nodeRunId) {
+        ExecutionQueueClaim existing = repository.queueClaimByToken(CLAIM_TOKEN).orElseThrow();
+        Instant now = Instant.now();
+        repository.updateQueueClaim(new ExecutionQueueClaim(
+                existing.id(),
+                existing.nodeRunId(),
+                existing.claimToken(),
+                existing.workerId(),
+                existing.claimedAt(),
+                now,
+                now.plusSeconds(60),
+                "CLAIMED",
+                existing.createdAt(),
+                now
+        ));
     }
 
     private UUID seedAccountPool(UUID projectId) {

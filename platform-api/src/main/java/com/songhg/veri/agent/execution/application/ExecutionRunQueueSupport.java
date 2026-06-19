@@ -90,6 +90,12 @@ final class ExecutionRunQueueSupport {
                 return claimed;
             }
         }
+        for (ExecutionNodeRun candidate : repository.followUpNodeRuns(properties.effectiveRecoveryBatchSize())) {
+            Optional<ExecutionQueueClaimResponse> claimed = claimFollowUpNode(candidate, normalizedWorkerId, now);
+            if (claimed.isPresent()) {
+                return claimed;
+            }
+        }
         return Optional.empty();
     }
 
@@ -401,6 +407,67 @@ final class ExecutionRunQueueSupport {
                 .findFirst()
                 .orElse(null);
         return Optional.of(toQueueClaimResponse(claim, runningNode, runningRun, planNode));
+    }
+
+    /**
+     * Re-claims a RUNNING node that already dispatched an external WP7 run and is waiting for the scheduler to poll the
+     * latest aggregate snapshot back into WP9.
+     */
+    private Optional<ExecutionQueueClaimResponse> claimFollowUpNode(
+            ExecutionNodeRun candidate,
+            String workerId,
+            Instant now
+    ) {
+        ExecutionRun run = repository.run(candidate.runId()).orElse(null);
+        if (run == null || !"RUNNING".equals(run.status()) || !"RUNNING".equals(candidate.status())) {
+            return Optional.empty();
+        }
+        ExecutionQueueClaim claim = new ExecutionQueueClaim(
+                UUID.randomUUID(),
+                candidate.id(),
+                "wp9_claim_" + UUID.randomUUID().toString().replace("-", ""),
+                workerId,
+                now,
+                now,
+                now.plusSeconds(properties.effectiveNodeHeartbeatTimeoutSeconds()),
+                "CLAIMED",
+                now,
+                now
+        );
+        if (!repository.tryInsertQueueClaim(claim)) {
+            return Optional.empty();
+        }
+        ExecutionNodeRun followUpNode = new ExecutionNodeRun(
+                candidate.id(),
+                candidate.runId(),
+                candidate.planNodeId(),
+                candidate.status(),
+                candidate.attempt(),
+                candidate.runnerType(),
+                candidate.externalRunId(),
+                candidate.errorCode(),
+                candidate.errorSummary(),
+                jsonSupport.mergedSummary(candidate.resultSummaryJson(), Map.of(
+                        "schedulerFollowUpClaimCreated", true,
+                        "lastFollowUpClaimAt", now.toString(),
+                        "runnerDispatched", true
+                )),
+                now,
+                candidate.queuedAt(),
+                candidate.startedAt(),
+                candidate.finishedAt(),
+                candidate.createdAt(),
+                now
+        );
+        if (!repository.updateNodeRunIfStatus(followUpNode, "RUNNING")) {
+            releaseClaim(claim, now);
+            return Optional.empty();
+        }
+        ExecutionPlanNode planNode = repository.planNodes(run.planId()).stream()
+                .filter(node -> node.id().equals(candidate.planNodeId()))
+                .findFirst()
+                .orElse(null);
+        return Optional.of(toQueueClaimResponse(claim, followUpNode, run, planNode));
     }
 
     private void releaseClaim(ExecutionQueueClaim claim, Instant now) {

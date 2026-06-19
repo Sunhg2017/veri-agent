@@ -146,6 +146,25 @@ public class InMemoryExecutionRepository implements ExecutionRepository {
     }
 
     @Override
+    public List<ExecutionNodeRun> followUpNodeRuns(int limit) {
+        return nodeRuns.values().stream()
+                .filter(nodeRun -> "RUNNING".equals(nodeRun.status()))
+                .filter(nodeRun -> "WP7_UI".equals(nodeRun.runnerType()))
+                .filter(nodeRun -> StringUtils.hasText(nodeRun.externalRunId()))
+                .filter(nodeRun -> StringUtils.hasText(nodeRun.resultSummaryJson())
+                        && nodeRun.resultSummaryJson().contains("\"wp7AsyncFollowUpRequired\":true"))
+                .filter(nodeRun -> run(nodeRun.runId())
+                        .map(run -> "RUNNING".equals(run.status()))
+                        .orElse(false))
+                .filter(nodeRun -> activeQueueClaim(nodeRun.id()).isEmpty())
+                .sorted(Comparator
+                        .comparing((ExecutionNodeRun nodeRun) -> recoveryBaseTime(nodeRun))
+                        .thenComparing(ExecutionNodeRun::attempt))
+                .limit(limit)
+                .toList();
+    }
+
+    @Override
     public boolean tryInsertQueueClaim(ExecutionQueueClaim claim) {
         boolean hasActiveClaim = queueClaims.values().stream()
                 .anyMatch(existing -> claim.nodeRunId().equals(existing.nodeRunId())

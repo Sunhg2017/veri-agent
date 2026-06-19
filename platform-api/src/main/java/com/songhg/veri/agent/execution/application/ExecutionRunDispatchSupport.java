@@ -84,7 +84,6 @@ final class ExecutionRunDispatchSupport {
         this.responseMapper = responseMapper;
         this.transactionBridge = transactionBridge;
     }
-
     ExecutionRunDetailResponse dispatchClaimedApiTestNodeRun(DispatchExecutionNodeRunCommand command) {
         if (command == null || command.nodeRunId() == null || !StringUtils.hasText(command.claimToken())) {
             throw new BusinessException(ErrorCode.VALIDATION_ERROR, "EXECUTION_QUEUE_CLAIM_REQUIRED");
@@ -113,7 +112,6 @@ final class ExecutionRunDispatchSupport {
                 () -> completeDispatchedApiTestNodeRun(preparation, wp6Run)
         );
     }
-
     ExecutionRunDetailResponse dispatchClaimedUiTestNodeRun(DispatchExecutionNodeRunCommand command) {
         if (command == null || command.nodeRunId() == null || !StringUtils.hasText(command.claimToken())) {
             throw new BusinessException(ErrorCode.VALIDATION_ERROR, "EXECUTION_QUEUE_CLAIM_REQUIRED");
@@ -144,7 +142,21 @@ final class ExecutionRunDispatchSupport {
                 () -> completeDispatchedUiTestNodeRun(preparation, wp7Run)
         );
     }
-
+    ExecutionRunDetailResponse followUpClaimedUiTestNodeRun(DispatchExecutionNodeRunCommand command) {
+        if (command == null || command.nodeRunId() == null || !StringUtils.hasText(command.claimToken())) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "EXECUTION_QUEUE_CLAIM_REQUIRED");
+        }
+        UiTestFollowUpPreparation preparation = transactionBridge.inExecutionTransaction(
+                () -> prepareUiTestFollowUp(command)
+        );
+        if (preparation.replayResponse() != null) {
+            return preparation.replayResponse();
+        }
+        UiE2eRunDetailResponse wp7Run = uiE2eRunService.run(preparation.wp7RunId());
+        return transactionBridge.inExecutionTransaction(
+                () -> completeUiTestFollowUp(preparation, wp7Run)
+        );
+    }
     private ApiTestDispatchPreparation prepareApiTestDispatch(DispatchExecutionNodeRunCommand command) {
         ExecutionQueueClaim claim = repository.queueClaimByToken(command.claimToken())
                 .orElseThrow(() -> new BusinessException(ErrorCode.INVALID_STATE, "EXECUTION_QUEUE_CLAIM_INVALID"));
@@ -236,6 +248,38 @@ final class ExecutionRunDispatchSupport {
                 null
         );
     }
+    private UiTestFollowUpPreparation prepareUiTestFollowUp(DispatchExecutionNodeRunCommand command) {
+        if (uiE2eRunService == null) {
+            throw new BusinessException(ErrorCode.INVALID_STATE, "EXECUTION_WP7_DISPATCH_UNAVAILABLE");
+        }
+        ExecutionQueueClaim claim = repository.queueClaimByToken(command.claimToken())
+                .orElseThrow(() -> new BusinessException(ErrorCode.INVALID_STATE, "EXECUTION_QUEUE_CLAIM_INVALID"));
+        if (!command.nodeRunId().equals(claim.nodeRunId())) {
+            throw new BusinessException(ErrorCode.INVALID_STATE, "EXECUTION_QUEUE_CLAIM_NODE_MISMATCH");
+        }
+        ExecutionNodeRun nodeRun = repository.nodeRun(command.nodeRunId())
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "执行节点运行不存在"));
+        Instant now = Instant.now();
+        if ("COMPLETED".equals(claim.status()) && COMPLETABLE_NODE_STATUSES.contains(nodeRun.status())) {
+            return UiTestFollowUpPreparation.replay(detail(requireRun(nodeRun.runId()), false));
+        }
+        if (!"CLAIMED".equals(claim.status()) || !claim.expiresAt().isAfter(now) || !"RUNNING".equals(nodeRun.status())) {
+            throw new BusinessException(ErrorCode.INVALID_STATE, "EXECUTION_QUEUE_CLAIM_NOT_ACTIVE");
+        }
+        if (!"WP7_UI".equals(nodeRun.runnerType()) || !StringUtils.hasText(nodeRun.externalRunId())) {
+            throw new BusinessException(ErrorCode.INVALID_STATE, "EXECUTION_NODE_DISPATCH_UNSUPPORTED");
+        }
+        UUID wp7RunId = uuidOrNull(nodeRun.externalRunId());
+        if (wp7RunId == null) {
+            throw new BusinessException(ErrorCode.INVALID_STATE, "EXECUTION_WP7_RUN_ID_INVALID");
+        }
+        ExecutionRun run = requireRun(nodeRun.runId());
+        Map<String, Object> summary = jsonSupport.readMap(nodeRun.resultSummaryJson());
+        if (!Boolean.TRUE.equals(summary.get("wp7AsyncFollowUpRequired"))) {
+            return UiTestFollowUpPreparation.replay(detail(run, false));
+        }
+        return new UiTestFollowUpPreparation(nodeRun.id(), command.claimToken(), wp7RunId, null);
+    }
 
     private ExecutionRunDetailResponse completeDispatchedApiTestNodeRun(
             ApiTestDispatchPreparation preparation,
@@ -312,6 +356,24 @@ final class ExecutionRunDispatchSupport {
                 || !"RUNNING".equals(nodeRun.status())) {
             throw new BusinessException(ErrorCode.INVALID_STATE, "EXECUTION_QUEUE_CLAIM_NOT_ACTIVE");
         }
+        if (!wp7TerminalStatus(wp7Run.status())) {
+            ExecutionNodeRun waiting = uiTestFollowUpNodeRun(nodeRun, preparation, wp7Run, completedAt);
+            repository.updateNodeRuns(List.of(waiting));
+            repository.updateRun(markRunFollowUpPending(requireRun(waiting.runId()), completedAt, wp7Run.status()));
+            repository.updateQueueClaim(new ExecutionQueueClaim(
+                    claim.id(),
+                    claim.nodeRunId(),
+                    claim.claimToken(),
+                    claim.workerId(),
+                    claim.claimedAt(),
+                    completedAt,
+                    claim.expiresAt(),
+                    "COMPLETED",
+                    claim.createdAt(),
+                    completedAt
+            ));
+            return detail(requireRun(waiting.runId()), false);
+        }
         String targetStatus = wp9StatusFromWp7(wp7Run.status());
         ExecutionNodeRun completed = new ExecutionNodeRun(
                 nodeRun.id(),
@@ -324,6 +386,102 @@ final class ExecutionRunDispatchSupport {
                 queueSupport.terminalErrorCode(targetStatus, wp7DispatchErrorCode(targetStatus, wp7Run)),
                 queueSupport.terminalErrorSummary(targetStatus, wp7Run.failureSummary()),
                 jsonSupport.mergedSummary(nodeRun.resultSummaryJson(), wp7DispatchSummary(wp7Run, preparation, completedAt)),
+                completedAt,
+                nodeRun.queuedAt(),
+                nodeRun.startedAt(),
+                completedAt,
+                nodeRun.createdAt(),
+                completedAt
+        );
+        repository.updateNodeRuns(List.of(completed));
+        repository.updateQueueClaim(new ExecutionQueueClaim(
+                claim.id(),
+                claim.nodeRunId(),
+                claim.claimToken(),
+                claim.workerId(),
+                claim.claimedAt(),
+                completedAt,
+                claim.expiresAt(),
+                "COMPLETED",
+                claim.createdAt(),
+                completedAt
+        ));
+        return queueSupport.aggregateRunAfterNodeCompletion(completed.runId(), completedAt);
+    }
+
+    private ExecutionRunDetailResponse completeUiTestFollowUp(
+            UiTestFollowUpPreparation preparation,
+            UiE2eRunDetailResponse wp7Run
+    ) {
+        ExecutionQueueClaim claim = repository.queueClaimByToken(preparation.claimToken())
+                .orElseThrow(() -> new BusinessException(ErrorCode.INVALID_STATE, "EXECUTION_QUEUE_CLAIM_INVALID"));
+        if (!preparation.nodeRunId().equals(claim.nodeRunId())) {
+            throw new BusinessException(ErrorCode.INVALID_STATE, "EXECUTION_QUEUE_CLAIM_NODE_MISMATCH");
+        }
+        ExecutionNodeRun nodeRun = repository.nodeRun(preparation.nodeRunId())
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "执行节点运行不存在"));
+        Instant completedAt = Instant.now();
+        if ("COMPLETED".equals(claim.status()) && COMPLETABLE_NODE_STATUSES.contains(nodeRun.status())) {
+            return detail(requireRun(nodeRun.runId()), false);
+        }
+        if (!"CLAIMED".equals(claim.status())
+                || !claim.expiresAt().isAfter(completedAt)
+                || !"RUNNING".equals(nodeRun.status())) {
+            throw new BusinessException(ErrorCode.INVALID_STATE, "EXECUTION_QUEUE_CLAIM_NOT_ACTIVE");
+        }
+        if (!wp7TerminalStatus(wp7Run.status())) {
+            ExecutionNodeRun heartbeat = new ExecutionNodeRun(
+                    nodeRun.id(),
+                    nodeRun.runId(),
+                    nodeRun.planNodeId(),
+                    nodeRun.status(),
+                    nodeRun.attempt(),
+                    nodeRun.runnerType(),
+                    nodeRun.externalRunId(),
+                    nodeRun.errorCode(),
+                    nodeRun.errorSummary(),
+                    jsonSupport.mergedSummary(nodeRun.resultSummaryJson(), Map.of(
+                            "lastFollowUpAt", completedAt.toString(),
+                            "wp7Status", wp7Run.status(),
+                            "wp7TerminalSnapshot", false,
+                            "wp7AsyncFollowUpRequired", true,
+                            "runnerDispatched", true
+                    )),
+                    completedAt,
+                    nodeRun.queuedAt(),
+                    nodeRun.startedAt(),
+                    nodeRun.finishedAt(),
+                    nodeRun.createdAt(),
+                    completedAt
+            );
+            repository.updateNodeRuns(List.of(heartbeat));
+            repository.updateRun(markRunFollowUpPending(requireRun(nodeRun.runId()), completedAt, wp7Run.status()));
+            repository.updateQueueClaim(new ExecutionQueueClaim(
+                    claim.id(),
+                    claim.nodeRunId(),
+                    claim.claimToken(),
+                    claim.workerId(),
+                    claim.claimedAt(),
+                    completedAt,
+                    claim.expiresAt(),
+                    "COMPLETED",
+                    claim.createdAt(),
+                    completedAt
+            ));
+            return detail(requireRun(nodeRun.runId()), false);
+        }
+        String targetStatus = wp9StatusFromWp7(wp7Run.status());
+        ExecutionNodeRun completed = new ExecutionNodeRun(
+                nodeRun.id(),
+                nodeRun.runId(),
+                nodeRun.planNodeId(),
+                targetStatus,
+                nodeRun.attempt(),
+                nodeRun.runnerType(),
+                wp7Run.id().toString(),
+                queueSupport.terminalErrorCode(targetStatus, wp7DispatchErrorCode(targetStatus, wp7Run)),
+                queueSupport.terminalErrorSummary(targetStatus, wp7Run.failureSummary()),
+                jsonSupport.mergedSummary(nodeRun.resultSummaryJson(), wp7DispatchSummary(wp7Run, completedAt)),
                 completedAt,
                 nodeRun.queuedAt(),
                 nodeRun.startedAt(),
@@ -386,6 +544,59 @@ final class ExecutionRunDispatchSupport {
                         "sourceErrorCode", sourceErrorCode(exception)
                 )
         ));
+    }
+
+    private ExecutionNodeRun uiTestFollowUpNodeRun(
+            ExecutionNodeRun nodeRun,
+            UiTestDispatchPreparation preparation,
+            UiE2eRunDetailResponse wp7Run,
+            Instant now
+    ) {
+        return new ExecutionNodeRun(
+                nodeRun.id(),
+                nodeRun.runId(),
+                nodeRun.planNodeId(),
+                "RUNNING",
+                nodeRun.attempt(),
+                nodeRun.runnerType(),
+                wp7Run.id().toString(),
+                null,
+                null,
+                jsonSupport.mergedSummary(nodeRun.resultSummaryJson(), wp7DispatchSummary(wp7Run, preparation, now)),
+                now,
+                nodeRun.queuedAt(),
+                nodeRun.startedAt(),
+                null,
+                nodeRun.createdAt(),
+                now
+        );
+    }
+
+    private ExecutionRun markRunFollowUpPending(ExecutionRun run, Instant now, String wp7Status) {
+        return new ExecutionRun(
+                run.id(),
+                run.planId(),
+                run.projectId(),
+                run.status(),
+                run.triggerType(),
+                run.requestKey(),
+                run.sourceEventId(),
+                run.attempt(),
+                run.traceId(),
+                jsonSupport.mergedSummary(run.resultSummaryJson(), Map.of(
+                        "runnerDispatched", true,
+                        "wp7AsyncFollowUpPending", true,
+                        "wp7LastObservedStatus", wp7Status,
+                        "wp7LastObservedAt", now.toString()
+                )),
+                run.errorCode(),
+                run.errorSummary(),
+                run.createdBy(),
+                run.startedAt(),
+                run.finishedAt(),
+                run.createdAt(),
+                now
+        );
     }
 
     private void renewClaimForDispatch(ExecutionQueueClaim claim, ExecutionPlanNode planNode, Instant now) {
@@ -849,6 +1060,44 @@ final class ExecutionRunDispatchSupport {
         return summary;
     }
 
+    private Map<String, Object> wp7DispatchSummary(
+            UiE2eRunDetailResponse wp7Run,
+            Instant completedAt
+    ) {
+        Map<String, Object> summary = new LinkedHashMap<>();
+        Map<String, Object> accountSummary = wp7Run.accountSummary() == null ? Map.of() : wp7Run.accountSummary();
+        Map<String, Object> executionSummary = wp7Run.executionSummary() == null ? Map.of() : wp7Run.executionSummary();
+        summary.put("completedStatus", wp9StatusFromWp7(wp7Run.status()));
+        summary.put("completedAt", completedAt.toString());
+        summary.put("runnerDispatched", true);
+        summary.put("wp7DispatchReady", true);
+        summary.put("wp7RunId", wp7Run.id().toString());
+        summary.put("wp7Status", wp7Run.status());
+        summary.put("wp7RunnerMode", wp7Run.runnerMode());
+        summary.put("wp7TraceId", wp7Run.traceId());
+        summary.put("wp7SceneId", wp7Run.sceneId().toString());
+        summary.put("wp7SceneCode", wp7Run.sceneCode());
+        summary.put("wp7SceneStatus", wp7Run.sceneStatus());
+        summary.put("wp7BundleId", wp7Run.bundleId().toString());
+        summary.put("wp7BundleStatus", wp7Run.bundleStatus());
+        summary.put("wp7StepResultCount", wp7Run.stepResults() == null ? 0 : wp7Run.stepResults().size());
+        summary.put("wp7ArtifactCount", wp7Run.artifacts() == null ? 0 : wp7Run.artifacts().size());
+        summary.put("wp7FlakyStatus", wp7Run.flakyMark() == null ? null : wp7Run.flakyMark().status());
+        summary.put("wp7StepStatusCounts", executionSummary.getOrDefault("stepStatusCounts", Map.of()));
+        summary.put("wp7FailureBucketCounts", executionSummary.getOrDefault("failureBucketCounts", Map.of()));
+        summary.put("wp7ArtifactTypes", executionSummary.getOrDefault("artifactTypes", List.of()));
+        summary.put("wp7BaseUrlDigest", executionSummary.get("baseUrlDigest"));
+        summary.put("accountLeaseRef", accountSummary.get("accountLeaseRef"));
+        summary.put("accountLeaseSecretRefDigest", accountSummary.get("secretRefDigest"));
+        summary.put("wp7TerminalSnapshot", wp7TerminalStatus(wp7Run.status()));
+        summary.put("wp7AsyncFollowUpRequired", !wp7TerminalStatus(wp7Run.status()));
+        summary.put("rawBaseUrlStored", false);
+        summary.put("secretRefPlaintextStored", false);
+        summary.put("rawArtifactStored", false);
+        summary.put("rawRunnerOutputStored", false);
+        return summary;
+    }
+
     private Map<String, Integer> wp6ResultCounts(List<ApiAutomationRunResultResponse> results) {
         Map<String, Integer> counts = new LinkedHashMap<>();
         if (results == null) {
@@ -873,11 +1122,9 @@ final class ExecutionRunDispatchSupport {
         return repository.run(id)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "执行运行不存在"));
     }
-
     interface TransactionBridge {
         <T> T inExecutionTransaction(Supplier<T> action);
     }
-
     private record ApiTestDispatchPreparation(
             UUID nodeRunId,
             String claimToken,
@@ -907,11 +1154,10 @@ final class ExecutionRunDispatchSupport {
                     List.of(),
                     false,
                     false,
-                    replayResponse
+                replayResponse
             );
         }
     }
-
     private record UiTestDispatchPreparation(
             UUID nodeRunId,
             String claimToken,
@@ -937,11 +1183,17 @@ final class ExecutionRunDispatchSupport {
                     null,
                     null,
                     null,
-                    replayResponse
+                replayResponse
             );
         }
     }
-
-    private record ResolvedDispatchTarget(String baseUrl, String baseUrlSource, String baseUrlRef, String environmentKey) {
+    private record UiTestFollowUpPreparation(
+            UUID nodeRunId,
+            String claimToken,
+            UUID wp7RunId,
+            ExecutionRunDetailResponse replayResponse
+    ) {
+        private static UiTestFollowUpPreparation replay(ExecutionRunDetailResponse replayResponse) { return new UiTestFollowUpPreparation(null, null, null, replayResponse); }
     }
+    private record ResolvedDispatchTarget(String baseUrl, String baseUrlSource, String baseUrlRef, String environmentKey) {}
 }

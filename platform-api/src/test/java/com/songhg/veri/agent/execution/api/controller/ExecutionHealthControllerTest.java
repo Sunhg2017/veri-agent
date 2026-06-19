@@ -51,6 +51,7 @@ class ExecutionHealthControllerTest {
                 .andExpect(jsonPath("$.data.policy.wp6DispatchViaApplicationService").value(true))
                 .andExpect(jsonPath("$.data.policy.wp7DispatchReady").value(true))
                 .andExpect(jsonPath("$.data.policy.wp7DispatchViaApplicationService").value(true))
+                .andExpect(jsonPath("$.data.policy.wp7AsyncFollowUpReady").value(true))
                 .andExpect(jsonPath("$.data.policy.schedulerLoopReady").value(true))
                 .andExpect(jsonPath("$.data.policy.schedulerUsesQueueClaim").value(true))
                 .andExpect(jsonPath("$.data.policy.triggerControlPlaneReady").value(true))
