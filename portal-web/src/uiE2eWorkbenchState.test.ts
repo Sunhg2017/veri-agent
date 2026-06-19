@@ -7,6 +7,7 @@ import {
   buildUiE2eFlakyQueueOverview,
   buildUiE2eRunCreationReadiness,
   buildUiE2eRunDiagnosis,
+  buildUiE2eRunFlakyGuidance,
   buildUiE2eRunListSummary,
   buildUiE2eRunQueueOverview,
   buildUiE2eSceneListSummary,
@@ -192,6 +193,17 @@ describe('ui e2e workbench state helpers', () => {
     expect(invalid.issues).toContain('请填写 flaky projectId');
     expect(invalid.issues).toContain('sceneId 和 runId 至少填写一个');
     expect(invalid.issues).toContain('请选择 flaky status');
+
+    const missingReason = buildUiE2eFlakyPayload({
+      projectId: 'project-alpha',
+      sceneId: '55555555-5555-4555-8555-555555555555',
+      runId: '',
+      status: 'FLAKY_CANDIDATE',
+      reasonCode: 'locator-drift',
+      reasonSummary: ''
+    });
+    expect(missingReason.payload).toBeUndefined();
+    expect(missingReason.issues).toContain('请填写 flaky reasonSummary');
   });
 
   it('keeps tag splitting and pretty json deterministic', () => {
@@ -568,6 +580,93 @@ describe('ui e2e workbench state helpers', () => {
       '检查 runner 回传的 artifact storageRef 与 digest 是否完整。',
       '当前运行已标记为 CONFIRMED_FLAKY，可优先按不稳定场景治理而不是直接回归 blocker。'
     ]));
+  });
+
+  it('builds run flaky guidance for failed, confirmed, and successful runs', () => {
+    const failed = buildUiE2eRunFlakyGuidance({
+      id: 'run-failed',
+      projectId: 'project-alpha',
+      sceneId: 'scene-1',
+      bundleId: 'bundle-1',
+      status: 'FAILED',
+      runnerMode: 'MANAGED',
+      failureCode: 'UI_E2E_BASE_URL_NOT_ALLOWED',
+      accountSummary: {},
+      flakyStatus: 'NONE',
+      executionSummary: {
+        failureBucketCounts: {
+          LOCATOR: 2
+        }
+      },
+      stepResults: [],
+      artifacts: [],
+      idempotentReplay: false
+    });
+    expect(failed).toMatchObject({
+      tone: 'warning',
+      label: '建议记录候选'
+    });
+    expect(failed.presets).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        status: 'FLAKY_CANDIDATE',
+        reasonCode: 'locator-drift'
+      }),
+      expect.objectContaining({
+        status: 'CONFIRMED_FLAKY',
+        reasonCode: 'locator-drift'
+      })
+    ]));
+
+    const confirmed = buildUiE2eRunFlakyGuidance({
+      id: 'run-confirmed',
+      projectId: 'project-alpha',
+      sceneId: 'scene-1',
+      bundleId: 'bundle-1',
+      status: 'FAILED',
+      runnerMode: 'MANAGED',
+      accountSummary: {},
+      flakyStatus: 'CONFIRMED_FLAKY',
+      executionSummary: {},
+      stepResults: [],
+      artifacts: [],
+      flakyMark: {
+        id: 'flaky-1',
+        projectId: 'project-alpha',
+        runId: 'run-confirmed',
+        status: 'CONFIRMED_FLAKY',
+        reasonCode: 'locator-drift',
+        reasonSummary: '定位偶发漂移'
+      },
+      idempotentReplay: false
+    });
+    expect(confirmed).toMatchObject({
+      tone: 'warning',
+      label: '已确认抖动'
+    });
+    expect(confirmed.presets).toEqual(expect.arrayContaining([
+      expect.objectContaining({ status: 'WAIVED' }),
+      expect.objectContaining({ status: 'FLAKY_CANDIDATE' })
+    ]));
+
+    const succeeded = buildUiE2eRunFlakyGuidance({
+      id: 'run-succeeded',
+      projectId: 'project-alpha',
+      sceneId: 'scene-1',
+      bundleId: 'bundle-1',
+      status: 'SUCCEEDED',
+      runnerMode: 'MANAGED',
+      accountSummary: {},
+      flakyStatus: 'NONE',
+      executionSummary: {},
+      stepResults: [],
+      artifacts: [],
+      idempotentReplay: false
+    });
+    expect(succeeded).toMatchObject({
+      tone: 'success',
+      label: '当前运行稳定',
+      presets: []
+    });
   });
 
   it('explains failure buckets and artifact block reasons', () => {

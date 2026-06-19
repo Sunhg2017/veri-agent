@@ -170,6 +170,21 @@ export type UiE2eRunCreationReadiness = {
   checks: string[];
 };
 
+export type UiE2eRunFlakyPreset = {
+  status: 'FLAKY_CANDIDATE' | 'CONFIRMED_FLAKY' | 'WAIVED';
+  label: string;
+  tone: UiE2eWorkbenchTone;
+  reasonCode: string;
+  reasonSummary: string;
+};
+
+export type UiE2eRunFlakyGuidance = {
+  tone: UiE2eWorkbenchNoticeTone;
+  label: string;
+  summary: string;
+  presets: UiE2eRunFlakyPreset[];
+};
+
 export type UiE2eFlakyListSummary = {
   headline: string;
   detail: string;
@@ -900,6 +915,138 @@ export function buildUiE2eRunDiagnosis(detail: UiE2eRunDetail): UiE2eRunDiagnosi
   };
 }
 
+export function buildUiE2eRunFlakyGuidance(detail: UiE2eRunDetail): UiE2eRunFlakyGuidance {
+  const failureBucketCounts = numberRecord(detail.executionSummary?.failureBucketCounts);
+  const primaryFailureBucket = sortedCountEntries(failureBucketCounts)[0]?.[0];
+  const currentMark = detail.flakyMark;
+  const currentStatus = currentMark?.status || detail.flakyStatus || 'NONE';
+  const reasonCode = currentMark?.reasonCode || runFlakyReasonCode(detail.failureCode, primaryFailureBucket);
+  const reasonLead = currentMark?.reasonSummary || runFlakyReasonLead(detail, primaryFailureBucket);
+
+  if (isUiE2eRunActiveStatus(detail.status)) {
+    return {
+      tone: 'info',
+      label: '等待终态',
+      summary: '运行仍在进行中，建议待终态后再决定是否标记为 Flaky。',
+      presets: []
+    };
+  }
+
+  if (currentStatus === 'CONFIRMED_FLAKY') {
+    return {
+      tone: 'warning',
+      label: '已确认抖动',
+      summary: '当前运行已经进入 CONFIRMED_FLAKY 治理池，可继续豁免或回退为候选观察。',
+      presets: [
+        {
+          status: 'WAIVED',
+          label: '标记豁免',
+          tone: 'info',
+          reasonCode,
+          reasonSummary: `${reasonLead} 人工复核后暂时豁免，不作为当前回归阻断依据。`
+        },
+        {
+          status: 'FLAKY_CANDIDATE',
+          label: '回退候选',
+          tone: 'info',
+          reasonCode,
+          reasonSummary: `${reasonLead} 当前先回退为候选抖动，继续观察后续运行表现。`
+        }
+      ]
+    };
+  }
+
+  if (currentStatus === 'FLAKY_CANDIDATE') {
+    return {
+      tone: 'info',
+      label: '候选已记录',
+      summary: '当前运行已被记录为 FLAKY_CANDIDATE，可继续升级为确认抖动或豁免。',
+      presets: [
+        {
+          status: 'CONFIRMED_FLAKY',
+          label: '确认抖动',
+          tone: 'warning',
+          reasonCode,
+          reasonSummary: `${reasonLead} 经人工复核后确认属于稳定复现的抖动样本。`
+        },
+        {
+          status: 'WAIVED',
+          label: '标记豁免',
+          tone: 'info',
+          reasonCode,
+          reasonSummary: `${reasonLead} 当前先豁免，不作为版本回归阻断项。`
+        }
+      ]
+    };
+  }
+
+  if (currentStatus === 'WAIVED') {
+    return {
+      tone: 'info',
+      label: '当前已豁免',
+      summary: '该运行已经被豁免；如果环境或场景再次波动，可以重新回到候选或确认状态。',
+      presets: [
+        {
+          status: 'FLAKY_CANDIDATE',
+          label: '重新候选',
+          tone: 'info',
+          reasonCode,
+          reasonSummary: `${reasonLead} 当前重新纳入候选抖动观察范围。`
+        },
+        {
+          status: 'CONFIRMED_FLAKY',
+          label: '恢复确认',
+          tone: 'warning',
+          reasonCode,
+          reasonSummary: `${reasonLead} 当前恢复为已确认抖动，继续纳入治理池。`
+        }
+      ]
+    };
+  }
+
+  if (detail.status === 'FAILED' || detail.status === 'TIMEOUT') {
+    return {
+      tone: 'warning',
+      label: '建议记录候选',
+      summary: primaryFailureBucket
+        ? `当前运行落在 ${primaryFailureBucket} 失败桶，可先记录为候选抖动并持续观察。`
+        : '当前运行已失败/超时，可先记录为候选抖动，再结合 traceId 和失败摘要复核。',
+      presets: [
+        {
+          status: 'FLAKY_CANDIDATE',
+          label: '标记候选',
+          tone: 'info',
+          reasonCode,
+          reasonSummary: `${reasonLead} 建议先作为候选抖动继续观察。`
+        },
+        {
+          status: 'CONFIRMED_FLAKY',
+          label: '直接确认',
+          tone: 'warning',
+          reasonCode,
+          reasonSummary: `${reasonLead} 结合当前运行信号，人工判断已可直接确认抖动。`
+        }
+      ]
+    };
+  }
+
+  if (detail.status === 'SUCCEEDED') {
+    return {
+      tone: 'success',
+      label: '当前运行稳定',
+      summary: '本次运行已成功，暂无额外 Flaky 标记建议；如属于长期波动场景，可按场景维度继续治理。',
+      presets: []
+    };
+  }
+
+  return {
+    tone: 'info',
+    label: '暂不建议标记',
+    summary: '当前运行更适合先处理控制面阻断、取消或上下文问题，再决定是否进入 Flaky 治理。',
+    presets: []
+  };
+}
+
 export function buildUiE2eFlakyQueueOverview(flakyMarks: UiE2eFlakyMark[]): UiE2eFlakyQueueOverview {
   return {
     focusOptions: [
@@ -1204,6 +1351,7 @@ export function buildUiE2eFlakyPayload(draft: UiE2eFlakyDraft): { payload?: Upse
   if (draft.sceneId.trim() && !uuidPattern.test(draft.sceneId.trim())) issues.push('sceneId 需要是 UUID');
   if (draft.runId.trim() && !uuidPattern.test(draft.runId.trim())) issues.push('runId 需要是 UUID');
   if (!draft.status.trim()) issues.push('请选择 flaky status');
+  if (draft.status.trim() !== 'NONE' && !draft.reasonSummary.trim()) issues.push('请填写 flaky reasonSummary');
   if (draft.reasonSummary.length > 512) issues.push('reasonSummary 最多 512 字符');
 
   if (issues.length) {
@@ -1403,6 +1551,57 @@ function artifactBlockedReasonAction(reason?: string) {
     default:
       return reason ? `复核 artifact captureBlockedReason=${reason} 对应的 runner 回传逻辑。` : undefined;
   }
+}
+
+function runFlakyReasonCode(failureCode?: string, failureBucket?: string) {
+  switch ((failureBucket || '').trim().toUpperCase()) {
+    case 'LOCATOR':
+      return 'locator-drift';
+    case 'ENVIRONMENT_TIMEOUT':
+      return 'env-timeout';
+    case 'ASSERTION':
+      return 'assertion-variance';
+    case 'AUTHORIZATION':
+      return 'permission-variance';
+    case 'ACCOUNT':
+      return 'account-instability';
+    case 'TEST_DATA':
+      return 'data-precondition';
+    case 'RUNNER':
+      return 'runner-variance';
+    case 'UNKNOWN':
+      return 'unknown-instability';
+    default:
+      break;
+  }
+  switch ((failureCode || '').trim()) {
+    case 'UI_E2E_RUNNER_DISABLED':
+      return 'runner-disabled';
+    case 'UI_E2E_RUNNER_CANCELED':
+      return 'runner-canceled';
+    case 'UI_E2E_ACCOUNT_LEASE_INVALID':
+      return 'account-lease-invalid';
+    case 'UI_E2E_BASE_URL_NOT_ALLOWED':
+      return 'base-url-not-allowed';
+    case 'UI_E2E_RESOURCE_SCOPE_DENIED':
+      return 'resource-scope-denied';
+    case 'UI_E2E_SCENE_NOT_READY':
+      return 'scene-not-ready';
+    case 'UI_E2E_BUNDLE_NOT_READY':
+      return 'bundle-not-ready';
+    default:
+      return 'run-summary';
+  }
+}
+
+function runFlakyReasonLead(detail: UiE2eRunDetail, failureBucket?: string) {
+  if (failureBucket) {
+    return `运行在 ${failureBucket} 失败桶出现波动。`;
+  }
+  if (detail.failureCode) {
+    return `运行返回 ${detail.failureCode} 失败信号。`;
+  }
+  return `运行当前状态为 ${detail.status}，建议结合 traceId 和步骤摘要继续观察。`;
 }
 
 function numberRecord(value: unknown) {

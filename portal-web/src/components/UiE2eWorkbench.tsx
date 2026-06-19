@@ -51,6 +51,7 @@ import {
   buildUiE2eBundleListSummary,
   buildUiE2eBundleQueueOverview,
   buildUiE2eFlakyListSummary,
+  buildUiE2eRunFlakyGuidance,
   buildUiE2eFlakyQueueOverview,
   buildUiE2eRunCreationReadiness,
   buildUiE2eRunDiagnosis,
@@ -551,8 +552,12 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
 
   async function onUpsertFlaky(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    await persistFlakyDraft(flakyDraft);
+  }
+
+  async function persistFlakyDraft(draft: UiE2eFlakyDraft) {
     if (!canFlaky) return;
-    const { payload, issues } = buildUiE2eFlakyPayload(flakyDraft);
+    const { payload, issues } = buildUiE2eFlakyPayload(draft);
     if (!payload || issues.length) {
       setFlakyActionState({ loading: false, error: issues.join('；') });
       return;
@@ -568,6 +573,22 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
     } catch (error: unknown) {
       setFlakyActionState({ loading: false, error: error instanceof Error ? error.message : '更新 Flaky 标记失败' });
     }
+  }
+
+  async function onApplyRunFlakyPreset(status: UiE2eFlakyDraft['status'], reasonCode: string, reasonSummary: string) {
+    if (!runDetail) {
+      return;
+    }
+    const nextDraft: UiE2eFlakyDraft = {
+      projectId: runDetail.projectId,
+      sceneId: runDetail.sceneId,
+      runId: runDetail.id,
+      status,
+      reasonCode,
+      reasonSummary
+    };
+    setFlakyDraft(nextDraft);
+    await persistFlakyDraft(nextDraft);
   }
 
   return (
@@ -1156,7 +1177,14 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
         <section className="ui-e2e-detail-column">
           <SceneDetailPanel detail={sceneDetail} state={sceneActionState} />
           <BundleDetailPanel detail={bundleDetail} state={bundleActionState} />
-          <RunDetailPanel detail={runDetail} exported={runExport} state={runActionState} />
+          <RunDetailPanel
+            detail={runDetail}
+            exported={runExport}
+            state={runActionState}
+            canFlaky={canFlaky}
+            flakyState={flakyActionState}
+            onApplyFlakyPreset={(status, reasonCode, reasonSummary) => void onApplyRunFlakyPreset(status, reasonCode, reasonSummary)}
+          />
           <FlakyDetailPanel item={selectedFlaky} state={flakyActionState} />
         </section>
       </div>
@@ -1369,12 +1397,20 @@ function BundleDetailPanel(props: { detail: UiE2eBundleDetail | null; state: Wor
   );
 }
 
-function RunDetailPanel(props: { detail: UiE2eRunDetail | null; exported: UiE2eRunExport | null; state: WorkState }) {
+function RunDetailPanel(props: {
+  detail: UiE2eRunDetail | null;
+  exported: UiE2eRunExport | null;
+  state: WorkState;
+  canFlaky: boolean;
+  flakyState: WorkState;
+  onApplyFlakyPreset: (status: UiE2eFlakyDraft['status'], reasonCode: string, reasonSummary: string) => void;
+}) {
   if (!props.detail) {
     return <EmptyPanel title="运行详情" desc="选择 run 后查看步骤结果、失败分类、artifact manifest 和导出摘要。" />;
   }
   const executionSummary = props.detail.executionSummary;
   const diagnosis = buildUiE2eRunDiagnosis(props.detail);
+  const flakyGuidance = buildUiE2eRunFlakyGuidance(props.detail);
   return (
     <Panel title="运行详情" desc={`${props.detail.projectId} · ${props.detail.sceneCode || props.detail.sceneId}`}>
       <div className="report-detail-header">
@@ -1412,6 +1448,33 @@ function RunDetailPanel(props: { detail: UiE2eRunDetail | null; exported: UiE2eR
           {diagnosis.nextActions.map((item) => <span key={item}>{item}</span>)}
         </div>
       ) : null}
+      <div className={`notice ${flakyGuidance.tone}`}>
+        <strong>Flaky 治理 · {flakyGuidance.label}</strong>
+        <span>{flakyGuidance.summary}</span>
+      </div>
+      {props.canFlaky ? (
+        flakyGuidance.presets.length ? (
+          <div className="report-actions-row">
+            {flakyGuidance.presets.map((preset) => (
+              <button
+                className={`btn ${preset.status === 'CONFIRMED_FLAKY' ? 'btn-primary' : 'btn-secondary'} btn-sm`}
+                key={`${preset.status}-${preset.reasonCode}`}
+                type="button"
+                title={preset.reasonSummary}
+                disabled={props.flakyState.loading}
+                onClick={() => props.onApplyFlakyPreset(preset.status, preset.reasonCode, preset.reasonSummary)}
+              >
+                <Bug size={15} />{preset.label}
+              </button>
+            ))}
+          </div>
+        ) : (
+          <div className="notice info">当前运行暂无快捷 Flaky 动作，仍可在下方 Flaky 面板按场景或运行手动治理。</div>
+        )
+      ) : (
+        <div className="notice info">当前账号缺少 `uiE2e:flaky` 权限，因此这里只展示治理建议，不开放快捷标记。</div>
+      )}
+      <StateLine state={props.flakyState} />
       {props.detail.failureCode === 'UI_E2E_EXPORT_DISABLED' && (
         <div className="notice warning">当前环境禁用了 run export；仍可在工作台内继续查看聚合详情与 traceId。</div>
       )}
@@ -1433,7 +1496,7 @@ function RunDetailPanel(props: { detail: UiE2eRunDetail | null; exported: UiE2eR
       ) : (
         <div className="notice info">可导出 aggregate-only 运行摘要，不包含 secretRef 明文、原始 DOM 或 artifact 正文。</div>
       )}
-      <StateLine state={props.state} />
+      {props.state.error || props.state.success || props.state.traceId || props.state.loading ? <StateLine state={props.state} /> : null}
     </Panel>
   );
 }
