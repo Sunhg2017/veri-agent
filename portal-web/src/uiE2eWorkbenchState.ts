@@ -162,6 +162,14 @@ export type UiE2eRunListSummary = {
   signals: string[];
 };
 
+export type UiE2eRunCreationReadiness = {
+  ready: boolean;
+  tone: UiE2eWorkbenchNoticeTone;
+  label: string;
+  summary: string;
+  checks: string[];
+};
+
 export type UiE2eFlakyListSummary = {
   headline: string;
   detail: string;
@@ -665,6 +673,110 @@ export function buildUiE2eRunListSummary(run: UiE2eRunSummary): UiE2eRunListSumm
     headline: failureLabel || `runner=${run.runnerMode}`,
     detail,
     signals
+  };
+}
+
+export function buildUiE2eRunCreationReadiness(input: {
+  health: UiE2eHealth | null;
+  draft: Pick<UiE2eRunDraft, 'projectId' | 'sceneId' | 'bundleId' | 'baseUrlRef' | 'accountLeaseRef'>;
+  scene?: Pick<UiE2eSceneSummary, 'code' | 'status'> | null;
+  bundle?: Pick<UiE2eBundleSummary, 'status' | 'sceneCode' | 'sceneStatus'> | null;
+}): UiE2eRunCreationReadiness {
+  const { health, draft, scene, bundle } = input;
+  const checks: string[] = [];
+  const missingFields: string[] = [];
+
+  if (!draft.projectId.trim()) {
+    missingFields.push('projectId');
+  }
+  if (!draft.sceneId.trim()) {
+    missingFields.push('sceneId');
+  }
+  if (!draft.bundleId.trim()) {
+    missingFields.push('bundleId');
+  }
+  if (!draft.baseUrlRef.trim()) {
+    missingFields.push('baseUrlRef');
+  }
+  if (!draft.accountLeaseRef.trim()) {
+    missingFields.push('accountLeaseRef');
+  }
+
+  if (health) {
+    pushUnique(checks, `runner=${health.runnerEnabled ? 'ON' : 'OFF'}:${health.runnerMode || 'UNKNOWN'}`);
+  } else {
+    pushUnique(checks, 'health=pending');
+  }
+  if (scene?.status) {
+    pushUnique(checks, `scene=${scene.status}`);
+  } else if (draft.sceneId.trim()) {
+    pushUnique(checks, 'scene=list-miss');
+  }
+  if (bundle?.status) {
+    pushUnique(checks, `bundle=${bundle.status}`);
+  } else if (draft.bundleId.trim()) {
+    pushUnique(checks, 'bundle=list-miss');
+  }
+  if (missingFields.length) {
+    pushUnique(checks, `missing=${missingFields.join(',')}`);
+  }
+
+  if (missingFields.length) {
+    return {
+      ready: false,
+      tone: 'info',
+      label: '填写运行参数',
+      summary: `请先补全 ${missingFields.join(' / ')}，再触发单次 UI 运行。`,
+      checks
+    };
+  }
+
+  if (health && !health.runnerEnabled) {
+    return {
+      ready: false,
+      tone: 'warning',
+      label: 'Runner Disabled',
+      summary: '当前环境 runner 默认关闭，工作台只验证控制面链路，不会创建真实浏览器运行。',
+      checks
+    };
+  }
+
+  if (scene && scene.status !== 'APPROVED') {
+    return {
+      ready: false,
+      tone: 'warning',
+      label: 'Scene Not Ready',
+      summary: `当前场景 ${scene.code || draft.sceneId} 状态为 ${scene.status}，需先到 APPROVED 才能进入运行链路。`,
+      checks
+    };
+  }
+
+  if (bundle && bundle.status !== 'APPROVED') {
+    return {
+      ready: false,
+      tone: 'warning',
+      label: 'Bundle Not Ready',
+      summary: `当前脚本包 ${bundle.sceneCode || draft.bundleId} 状态为 ${bundle.status}，需先批准后再创建运行。`,
+      checks
+    };
+  }
+
+  if (bundle?.sceneStatus && bundle.sceneStatus !== 'APPROVED') {
+    return {
+      ready: false,
+      tone: 'warning',
+      label: 'Scene Bundle Mismatch',
+      summary: `当前 bundle 关联的场景状态为 ${bundle.sceneStatus}，建议先确认场景仍处于 APPROVED。`,
+      checks
+    };
+  }
+
+  return {
+    ready: true,
+    tone: 'success',
+    label: 'Ready To Run',
+    summary: '当前参数已满足前端已知准入条件；提交后仍会由后端继续校验 allowlist、账号租借和幂等约束。',
+    checks
   };
 }
 

@@ -52,6 +52,7 @@ import {
   buildUiE2eBundleQueueOverview,
   buildUiE2eFlakyListSummary,
   buildUiE2eFlakyQueueOverview,
+  buildUiE2eRunCreationReadiness,
   buildUiE2eRunDiagnosis,
   buildUiE2eRunListSummary,
   buildUiE2eRunQueueOverview,
@@ -171,6 +172,31 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
     () => filterUiE2eFlakyMarksByFocusMode(flakyMarks, flakyFocusMode),
     [flakyFocusMode, flakyMarks]
   );
+  const selectedSceneSummary = useMemo(
+    () => scenes.find((scene) => scene.id === runDraft.sceneId) ?? null,
+    [runDraft.sceneId, scenes]
+  );
+  const selectedBundleSummary = useMemo(
+    () => bundles.find((bundle) => bundle.id === runDraft.bundleId) ?? null,
+    [bundles, runDraft.bundleId]
+  );
+  const runCreationReadiness = useMemo(
+    () => buildUiE2eRunCreationReadiness({
+      health,
+      draft: runDraft,
+      scene: selectedSceneSummary,
+      bundle: selectedBundleSummary
+    }),
+    [health, runDraft, selectedBundleSummary, selectedSceneSummary]
+  );
+  const runCreateDisabled = !canExecute || runActionState.loading || !runCreationReadiness.ready;
+  const runCreateButtonTitle = !canExecute
+    ? undefined
+    : runActionState.loading
+      ? '运行请求处理中，请稍候。'
+      : !runCreationReadiness.ready
+        ? runCreationReadiness.summary
+        : undefined;
 
   const refreshWorkbench = useCallback(async () => {
     if (!props.signedIn || !canRead) {
@@ -910,17 +936,31 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
                   <input value={runDraft.reason} onChange={(event) => setRunDraftValue('reason', event.target.value)} placeholder="可选触发原因" disabled={!canExecute || runActionState.loading} />
                 </Field>
               </div>
+              <div className={`notice ${runCreationReadiness.tone}`}>
+                <strong>{runCreationReadiness.label}</strong>
+                <span>{runCreationReadiness.summary}</span>
+                {runCreationReadiness.checks.length ? (
+                  <span>{runCreationReadiness.checks.join(' · ')}</span>
+                ) : null}
+              </div>
               <div className="report-actions-row">
-                <button className="btn btn-primary" type="submit" disabled={!canExecute || runActionState.loading}>
-                  <Play size={16} />创建运行
-                </button>
-                <button className="btn btn-secondary" type="button" onClick={() => void onCancelRun()} disabled={!canExecute || runActionState.loading || !runDetail || !isUiE2eRunActiveStatus(runDetail.status)}>
-                  <Square size={16} />取消运行
-                </button>
+                {canExecute && (
+                  <>
+                    <button className="btn btn-primary" type="submit" disabled={runCreateDisabled} title={runCreateButtonTitle}>
+                      <Play size={16} />创建运行
+                    </button>
+                    <button className="btn btn-secondary" type="button" onClick={() => void onCancelRun()} disabled={runActionState.loading || !runDetail || !isUiE2eRunActiveStatus(runDetail.status)}>
+                      <Square size={16} />取消运行
+                    </button>
+                  </>
+                )}
                 <button className="btn btn-secondary" type="button" onClick={() => void onExportRun()} disabled={!canExport || runActionState.loading || !runDetail}>
                   <Download size={16} />导出摘要
                 </button>
               </div>
+              {!canExecute && (
+                <div className="notice info">当前账号缺少 `uiE2e:execute` 权限，因此运行与取消按钮不会开放。</div>
+              )}
               <StateLine state={runActionState} />
             </form>
             <form className="ui-e2e-filter-grid" onSubmit={(event) => { event.preventDefault(); void refreshWorkbench(); }}>

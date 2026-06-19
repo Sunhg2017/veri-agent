@@ -5,6 +5,7 @@ import {
   buildUiE2eBundleQueueOverview,
   buildUiE2eFlakyListSummary,
   buildUiE2eFlakyQueueOverview,
+  buildUiE2eRunCreationReadiness,
   buildUiE2eRunDiagnosis,
   buildUiE2eRunListSummary,
   buildUiE2eRunQueueOverview,
@@ -355,6 +356,150 @@ describe('ui e2e workbench state helpers', () => {
       '如需真实浏览器执行，请先切换到 runner 已启用的环境或打开对应开关。',
       '继续核对审批、租借和 aggregate-only 导出链路是否按预期工作。'
     ]));
+  });
+
+  it('builds run creation readiness for missing fields, runner disabled, and ready states', () => {
+    expect(buildUiE2eRunCreationReadiness({
+      health: null,
+      draft: {
+        projectId: '',
+        sceneId: '',
+        bundleId: '',
+        baseUrlRef: '',
+        accountLeaseRef: ''
+      }
+    })).toMatchObject({
+      ready: false,
+      tone: 'info',
+      label: '填写运行参数',
+      summary: '请先补全 projectId / sceneId / bundleId / baseUrlRef / accountLeaseRef，再触发单次 UI 运行。',
+      checks: expect.arrayContaining(['health=pending', 'missing=projectId,sceneId,bundleId,baseUrlRef,accountLeaseRef'])
+    });
+
+    expect(buildUiE2eRunCreationReadiness({
+      health: {
+        service: 'ui-e2e',
+        status: 'UP',
+        enabled: true,
+        runnerEnabled: false,
+        runnerMode: 'DISABLED',
+        defaultTimeoutSeconds: 60,
+        maxTimeoutSeconds: 300,
+        maxScenesPerRun: 1,
+        maxConcurrency: 2,
+        allowlistEnabled: true,
+        allowlistHostCount: 2,
+        exportEnabled: true,
+        supportedNodeTypes: ['UI_TEST'],
+        credentialPolicy: {},
+        artifactPolicy: {},
+        policy: {}
+      },
+      draft: {
+        projectId: 'project-alpha',
+        sceneId: 'scene-1',
+        bundleId: 'bundle-1',
+        baseUrlRef: 'env:staging',
+        accountLeaseRef: '11111111-1111-4111-8111-111111111111'
+      },
+      scene: {
+        code: 'portal-login',
+        status: 'APPROVED'
+      },
+      bundle: {
+        status: 'APPROVED',
+        sceneCode: 'portal-login',
+        sceneStatus: 'APPROVED'
+      }
+    })).toMatchObject({
+      ready: false,
+      tone: 'warning',
+      label: 'Runner Disabled',
+      checks: expect.arrayContaining(['runner=OFF:DISABLED', 'scene=APPROVED', 'bundle=APPROVED'])
+    });
+
+    expect(buildUiE2eRunCreationReadiness({
+      health: {
+        service: 'ui-e2e',
+        status: 'UP',
+        enabled: true,
+        runnerEnabled: true,
+        runnerMode: 'MANAGED',
+        defaultTimeoutSeconds: 60,
+        maxTimeoutSeconds: 300,
+        maxScenesPerRun: 1,
+        maxConcurrency: 2,
+        allowlistEnabled: true,
+        allowlistHostCount: 2,
+        exportEnabled: true,
+        supportedNodeTypes: ['UI_TEST'],
+        credentialPolicy: {},
+        artifactPolicy: {},
+        policy: {}
+      },
+      draft: {
+        projectId: 'project-alpha',
+        sceneId: 'scene-1',
+        bundleId: 'bundle-1',
+        baseUrlRef: 'env:staging',
+        accountLeaseRef: '11111111-1111-4111-8111-111111111111'
+      },
+      scene: {
+        code: 'portal-login',
+        status: 'DRAFT'
+      },
+      bundle: {
+        status: 'REVIEWING',
+        sceneCode: 'portal-login',
+        sceneStatus: 'DRAFT'
+      }
+    })).toMatchObject({
+      ready: false,
+      tone: 'warning',
+      label: 'Scene Not Ready'
+    });
+
+    expect(buildUiE2eRunCreationReadiness({
+      health: {
+        service: 'ui-e2e',
+        status: 'UP',
+        enabled: true,
+        runnerEnabled: true,
+        runnerMode: 'MANAGED',
+        defaultTimeoutSeconds: 60,
+        maxTimeoutSeconds: 300,
+        maxScenesPerRun: 1,
+        maxConcurrency: 2,
+        allowlistEnabled: true,
+        allowlistHostCount: 2,
+        exportEnabled: true,
+        supportedNodeTypes: ['UI_TEST'],
+        credentialPolicy: {},
+        artifactPolicy: {},
+        policy: {}
+      },
+      draft: {
+        projectId: 'project-alpha',
+        sceneId: 'scene-1',
+        bundleId: 'bundle-1',
+        baseUrlRef: 'env:staging',
+        accountLeaseRef: '11111111-1111-4111-8111-111111111111'
+      },
+      scene: {
+        code: 'portal-login',
+        status: 'APPROVED'
+      },
+      bundle: {
+        status: 'APPROVED',
+        sceneCode: 'portal-login',
+        sceneStatus: 'APPROVED'
+      }
+    })).toMatchObject({
+      ready: true,
+      tone: 'success',
+      label: 'Ready To Run',
+      checks: expect.arrayContaining(['runner=ON:MANAGED', 'scene=APPROVED', 'bundle=APPROVED'])
+    });
   });
 
   it('builds run diagnosis for flaky failed runs with blocked artifacts', () => {
