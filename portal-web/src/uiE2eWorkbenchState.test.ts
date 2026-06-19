@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
   blankUiE2eSceneDraft,
+  buildUiE2eBundleListSummary,
+  buildUiE2eBundleQueueOverview,
   buildUiE2eRunDiagnosis,
   buildUiE2eRunListSummary,
   buildUiE2eRunQueueOverview,
@@ -12,9 +14,11 @@ import {
   explainUiE2eArtifactCaptureBlockedReason,
   explainUiE2eFailureBucket,
   extractUiE2eArtifactCaptureBlockedReason,
+  filterUiE2eBundlesByFocusMode,
   filterUiE2eRunsByFocusMode,
   initialUiE2eSceneDraft,
   isUiE2eRunActiveStatus,
+  labelUiE2eBundleFocusMode,
   labelUiE2eRunFocusMode,
   prettyJson,
   sceneDraftFromDetail,
@@ -418,6 +422,95 @@ describe('ui e2e workbench state helpers', () => {
     expect(extractUiE2eArtifactCaptureBlockedReason({ captureBlockedReason: 'runnerDisabled' })).toBe('runnerDisabled');
     expect(explainUiE2eArtifactCaptureBlockedReason('runnerDisabled')).toContain('runner 默认关闭');
     expect(explainUiE2eArtifactCaptureBlockedReason(undefined)).toContain('artifact capture 被阻断');
+  });
+
+  it('builds bundle queue focus counts and filters bundles by focus mode', () => {
+    const bundles = [
+      {
+        id: 'bundle-1',
+        projectId: 'project-alpha',
+        sceneId: 'scene-1',
+        status: 'REVIEWING',
+        bundleDigest: 'digest-1',
+        staticCheckStatus: 'PASSED',
+        staticCheckSummary: {}
+      },
+      {
+        id: 'bundle-2',
+        projectId: 'project-alpha',
+        sceneId: 'scene-1',
+        status: 'STATIC_CHECK_FAILED',
+        bundleDigest: 'digest-2',
+        staticCheckStatus: 'SCRIPT_STATIC_CHECK_FAILED',
+        staticCheckSummary: {}
+      },
+      {
+        id: 'bundle-3',
+        projectId: 'project-alpha',
+        sceneId: 'scene-1',
+        status: 'REJECTED',
+        bundleDigest: 'digest-3',
+        staticCheckStatus: 'PASSED',
+        staticCheckSummary: {}
+      },
+      {
+        id: 'bundle-4',
+        projectId: 'project-alpha',
+        sceneId: 'scene-1',
+        status: 'APPROVED',
+        bundleDigest: 'digest-4',
+        staticCheckStatus: 'PASSED',
+        staticCheckSummary: {}
+      }
+    ];
+
+    const overview = buildUiE2eBundleQueueOverview(bundles);
+    expect(overview.focusOptions).toEqual(expect.arrayContaining([
+      expect.objectContaining({ mode: 'reviewing', count: 1, tone: 'info' }),
+      expect.objectContaining({ mode: 'submittable', count: 2, tone: 'warning' }),
+      expect.objectContaining({ mode: 'approved', count: 1, tone: 'success' }),
+      expect.objectContaining({ mode: 'staticFailed', count: 1, tone: 'danger' }),
+      expect.objectContaining({ mode: 'rejected', count: 1, tone: 'danger' })
+    ]));
+
+    expect(filterUiE2eBundlesByFocusMode(bundles, 'reviewing').map((bundle) => bundle.id)).toEqual(['bundle-1']);
+    expect(filterUiE2eBundlesByFocusMode(bundles, 'submittable').map((bundle) => bundle.id)).toEqual(['bundle-2', 'bundle-3']);
+    expect(filterUiE2eBundlesByFocusMode(bundles, 'approved').map((bundle) => bundle.id)).toEqual(['bundle-4']);
+    expect(filterUiE2eBundlesByFocusMode(bundles, 'staticFailed').map((bundle) => bundle.id)).toEqual(['bundle-2']);
+    expect(filterUiE2eBundlesByFocusMode(bundles, 'rejected').map((bundle) => bundle.id)).toEqual(['bundle-3']);
+    expect(labelUiE2eBundleFocusMode('reviewing')).toBe('待审批');
+  });
+
+  it('builds a concise bundle list summary for reviewing and static-check-failed bundles', () => {
+    expect(buildUiE2eBundleListSummary({
+      id: 'bundle-1',
+      projectId: 'project-alpha',
+      sceneId: 'scene-1',
+      sceneStatus: 'APPROVED',
+      status: 'REVIEWING',
+      bundleDigest: 'digest-1',
+      staticCheckStatus: 'PASSED',
+      staticCheckSummary: {}
+    })).toMatchObject({
+      headline: '等待审批',
+      signals: ['static=PASSED', 'scene=APPROVED', 'digest-ready', 'review-pending'],
+      detail: '脚本包已送审，待 review 决定是否允许进入运行链路。'
+    });
+
+    expect(buildUiE2eBundleListSummary({
+      id: 'bundle-2',
+      projectId: 'project-alpha',
+      sceneId: 'scene-2',
+      sceneStatus: 'DRAFT',
+      status: 'STATIC_CHECK_FAILED',
+      bundleDigest: 'digest-2',
+      staticCheckStatus: 'SCRIPT_STATIC_CHECK_FAILED',
+      staticCheckSummary: {}
+    })).toMatchObject({
+      headline: 'STATIC_CHECK_FAILED',
+      signals: ['static=STATIC_CHECK_FAILED', 'scene=DRAFT', 'digest-ready'],
+      detail: '静态校验未通过，建议先处理摘要中的失败项后再送审。'
+    });
   });
 
   it('builds run queue focus counts and filters runs by focus mode', () => {

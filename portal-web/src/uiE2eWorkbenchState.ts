@@ -77,6 +77,20 @@ export type UiE2eWorkbenchOverview = {
   notices: UiE2eWorkbenchNotice[];
 };
 
+export type UiE2eBundleFocusMode = 'all' | 'reviewing' | 'submittable' | 'approved' | 'staticFailed' | 'rejected';
+
+export type UiE2eBundleFocusOption = {
+  mode: Exclude<UiE2eBundleFocusMode, 'all'>;
+  label: string;
+  desc: string;
+  count: number;
+  tone: UiE2eWorkbenchTone;
+};
+
+export type UiE2eBundleQueueOverview = {
+  focusOptions: UiE2eBundleFocusOption[];
+};
+
 export type UiE2eRunFocusMode = 'all' | 'active' | 'failures' | 'blocked' | 'flaky' | 'runnerDisabled';
 
 export type UiE2eRunFocusOption = {
@@ -100,6 +114,12 @@ export type UiE2eRunDiagnosis = {
   rawArtifactDownloadReady: boolean;
   signals: string[];
   nextActions: string[];
+};
+
+export type UiE2eBundleListSummary = {
+  headline: string;
+  detail: string;
+  signals: string[];
 };
 
 export type UiE2eRunListSummary = {
@@ -223,6 +243,144 @@ export function buildUiE2eWorkbenchOverview(
     allowlistLabel,
     allowlistTone,
     notices
+  };
+}
+
+export function buildUiE2eBundleQueueOverview(bundles: UiE2eBundleSummary[]): UiE2eBundleQueueOverview {
+  return {
+    focusOptions: [
+      {
+        mode: 'reviewing',
+        label: '待审批',
+        desc: '聚焦 REVIEWING，方便快速处理批准或驳回决策。',
+        count: filterUiE2eBundlesByFocusMode(bundles, 'reviewing').length,
+        tone: 'info'
+      },
+      {
+        mode: 'submittable',
+        label: '待送审',
+        desc: '聚焦 DRAFT/REJECTED/STATIC_CHECK_FAILED，确认是否已满足再次送审条件。',
+        count: filterUiE2eBundlesByFocusMode(bundles, 'submittable').length,
+        tone: 'warning'
+      },
+      {
+        mode: 'approved',
+        label: '可执行',
+        desc: '聚焦 APPROVED，优先挑选可直接进入运行链路的 bundle。',
+        count: filterUiE2eBundlesByFocusMode(bundles, 'approved').length,
+        tone: 'success'
+      },
+      {
+        mode: 'staticFailed',
+        label: '静态校验失败',
+        desc: '聚焦静态校验未通过的 bundle，优先复核摘要中的失败项。',
+        count: filterUiE2eBundlesByFocusMode(bundles, 'staticFailed').length,
+        tone: 'danger'
+      },
+      {
+        mode: 'rejected',
+        label: '已驳回',
+        desc: '聚焦 REJECTED，回看评审意见后决定是否修正重提。',
+        count: filterUiE2eBundlesByFocusMode(bundles, 'rejected').length,
+        tone: 'danger'
+      }
+    ]
+  };
+}
+
+export function filterUiE2eBundlesByFocusMode(bundles: UiE2eBundleSummary[], mode: UiE2eBundleFocusMode) {
+  switch (mode) {
+    case 'reviewing':
+      return bundles.filter((bundle) => bundle.status === 'REVIEWING');
+    case 'submittable':
+      return bundles.filter((bundle) => isUiE2eBundleSubmittableStatus(bundle.status));
+    case 'approved':
+      return bundles.filter((bundle) => bundle.status === 'APPROVED');
+    case 'staticFailed':
+      return bundles.filter((bundle) => isUiE2eBundleStaticFailed(bundle));
+    case 'rejected':
+      return bundles.filter((bundle) => bundle.status === 'REJECTED');
+    case 'all':
+    default:
+      return bundles;
+  }
+}
+
+export function labelUiE2eBundleFocusMode(mode: UiE2eBundleFocusMode) {
+  switch (mode) {
+    case 'reviewing':
+      return '待审批';
+    case 'submittable':
+      return '待送审';
+    case 'approved':
+      return '可执行';
+    case 'staticFailed':
+      return '静态校验失败';
+    case 'rejected':
+      return '已驳回';
+    case 'all':
+    default:
+      return '全部脚本包';
+  }
+}
+
+export function buildUiE2eBundleListSummary(bundle: UiE2eBundleSummary): UiE2eBundleListSummary {
+  const staticCheckLabel = compactUiE2eStaticCheckStatus(bundle.staticCheckStatus);
+  const signals: string[] = [];
+  if (staticCheckLabel) {
+    pushUnique(signals, `static=${staticCheckLabel}`);
+  }
+  if (bundle.sceneStatus) {
+    pushUnique(signals, `scene=${bundle.sceneStatus}`);
+  }
+  if (bundle.bundleDigest) {
+    pushUnique(signals, 'digest-ready');
+  }
+  if (bundle.status === 'REVIEWING') {
+    pushUnique(signals, 'review-pending');
+  }
+  if (bundle.status === 'APPROVED') {
+    pushUnique(signals, 'run-ready');
+  }
+  if (bundle.status === 'REJECTED') {
+    pushUnique(signals, 'needs-resubmit');
+  }
+  if (bundle.status === 'DRAFT') {
+    pushUnique(signals, 'draft');
+  }
+
+  let detail: string;
+  if (isUiE2eBundleStaticFailed(bundle)) {
+    detail = '静态校验未通过，建议先处理摘要中的失败项后再送审。';
+  } else if (bundle.status === 'REVIEWING') {
+    detail = '脚本包已送审，待 review 决定是否允许进入运行链路。';
+  } else if (bundle.status === 'APPROVED') {
+    detail = '脚本包已批准，可继续用于创建 UI 运行。';
+  } else if (bundle.status === 'REJECTED') {
+    detail = '脚本包已驳回，修正后可再次送审。';
+  } else if (bundle.status === 'ARCHIVED') {
+    detail = '脚本包已归档，不再参与新的运行申请。';
+  } else {
+    detail = '脚本包已生成，可先查看静态校验摘要与场景状态。';
+  }
+
+  let headline: string;
+  if (isUiE2eBundleStaticFailed(bundle)) {
+    headline = staticCheckLabel || 'STATIC_CHECK_FAILED';
+  } else if (bundle.status === 'REVIEWING') {
+    headline = '等待审批';
+  } else if (bundle.status === 'APPROVED') {
+    headline = '可创建运行';
+  } else if (bundle.status === 'REJECTED') {
+    headline = '需要修正后重提';
+  } else {
+    headline = staticCheckLabel ? `static=${staticCheckLabel}` : bundle.status;
+  }
+
+  return {
+    headline,
+    detail,
+    signals
   };
 }
 
@@ -896,6 +1054,21 @@ function booleanFromUnknown(value: unknown, fallback = false) {
 
 function isUiE2eRunFailureStatus(status?: string) {
   return status === 'FAILED' || status === 'TIMEOUT';
+}
+
+function isUiE2eBundleSubmittableStatus(status?: string) {
+  return status === 'DRAFT' || status === 'REJECTED' || status === 'STATIC_CHECK_FAILED';
+}
+
+function isUiE2eBundleStaticFailed(bundle: UiE2eBundleSummary) {
+  return bundle.status === 'STATIC_CHECK_FAILED' || bundle.staticCheckStatus === 'SCRIPT_STATIC_CHECK_FAILED';
+}
+
+function compactUiE2eStaticCheckStatus(staticCheckStatus?: string) {
+  if (!staticCheckStatus) {
+    return undefined;
+  }
+  return staticCheckStatus.startsWith('SCRIPT_') ? staticCheckStatus.slice('SCRIPT_'.length) : staticCheckStatus;
 }
 
 function compactUiE2eFailureCode(failureCode?: string) {

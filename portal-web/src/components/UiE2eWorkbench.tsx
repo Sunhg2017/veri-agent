@@ -48,6 +48,8 @@ import {
 import { canUseButton, hasPermission } from '../permissions';
 import {
   blankUiE2eSceneDraft,
+  buildUiE2eBundleListSummary,
+  buildUiE2eBundleQueueOverview,
   buildUiE2eRunDiagnosis,
   buildUiE2eRunListSummary,
   buildUiE2eRunQueueOverview,
@@ -59,15 +61,18 @@ import {
   explainUiE2eArtifactCaptureBlockedReason,
   explainUiE2eFailureBucket,
   extractUiE2eArtifactCaptureBlockedReason,
+  filterUiE2eBundlesByFocusMode,
   filterUiE2eRunsByFocusMode,
   initialUiE2eFlakyDraft,
   initialUiE2eRunDraft,
   initialUiE2eSceneDraft,
   initialUiE2eSceneStepDraft,
   isUiE2eRunActiveStatus,
+  labelUiE2eBundleFocusMode,
   labelUiE2eRunFocusMode,
   prettyJson,
   sceneDraftFromDetail,
+  type UiE2eBundleFocusMode,
   type UiE2eFlakyDraft,
   type UiE2eRunFocusMode,
   type UiE2eRunDraft,
@@ -108,6 +113,7 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
   const [bundleFilters, setBundleFilters] = useState<SimpleFilters>(initialFilters);
   const [runFilters, setRunFilters] = useState<SimpleFilters>(initialFilters);
   const [flakyFilters, setFlakyFilters] = useState<SimpleFilters>(initialFilters);
+  const [bundleFocusMode, setBundleFocusMode] = useState<UiE2eBundleFocusMode>('all');
   const [runFocusMode, setRunFocusMode] = useState<UiE2eRunFocusMode>('all');
 
   const [selectedSceneId, setSelectedSceneId] = useState('');
@@ -142,6 +148,8 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
     () => buildUiE2eWorkbenchOverview(health, scenes, bundles, runs, flakyMarks),
     [health, scenes, bundles, runs, flakyMarks]
   );
+  const bundleQueueOverview = useMemo(() => buildUiE2eBundleQueueOverview(bundles), [bundles]);
+  const visibleBundles = useMemo(() => filterUiE2eBundlesByFocusMode(bundles, bundleFocusMode), [bundles, bundleFocusMode]);
   const runQueueOverview = useMemo(() => buildUiE2eRunQueueOverview(runs), [runs]);
   const visibleRuns = useMemo(() => filterUiE2eRunsByFocusMode(runs, runFocusMode), [runs, runFocusMode]);
 
@@ -256,6 +264,19 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
   useEffect(() => {
     void refreshBundleDetail(selectedBundleId);
   }, [refreshBundleDetail, selectedBundleId]);
+
+  useEffect(() => {
+    if (visibleBundles.some((bundle) => bundle.id === selectedBundleId)) {
+      return;
+    }
+    if (!visibleBundles.length) {
+      setSelectedBundleId('');
+      setBundleDetail(null);
+      return;
+    }
+    setSelectedBundleId(visibleBundles[0].id);
+    applyBundleDefaults(visibleBundles[0]);
+  }, [selectedBundleId, visibleBundles]);
 
   useEffect(() => {
     void refreshRunDetail(selectedRunId);
@@ -729,23 +750,57 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
                 </button>
               </div>
             </form>
+            <div className="report-actions-row compact">
+              <button
+                className={`btn ${bundleFocusMode === 'all' ? 'btn-primary' : 'btn-secondary'} btn-sm`}
+                type="button"
+                onClick={() => setBundleFocusMode('all')}
+              >
+                全部 {bundles.length}
+              </button>
+              {bundleQueueOverview.focusOptions.map((option) => (
+                <button
+                  className={`btn ${bundleFocusMode === option.mode ? 'btn-primary' : 'btn-secondary'} btn-sm`}
+                  key={option.mode}
+                  type="button"
+                  onClick={() => setBundleFocusMode(option.mode)}
+                  title={option.desc}
+                >
+                  {option.label} {option.count}
+                </button>
+              ))}
+            </div>
+            {bundleFocusMode !== 'all' && (
+              <div className="notice info">
+                当前聚焦 {labelUiE2eBundleFocusMode(bundleFocusMode)}，共 {visibleBundles.length} 条；详情区会跟随当前可见列表自动保持选中项。
+              </div>
+            )}
             <ListPanel
-              items={bundles}
+              items={visibleBundles}
               selectedId={selectedBundleId}
               emptyTitle="暂无脚本包"
-              emptyDesc="选择 APPROVED 场景后生成 bundle，并通过评审后用于运行。"
+              emptyDesc={bundleFocusMode === 'all'
+                ? '选择 APPROVED 场景后生成 bundle，并通过评审后用于运行。'
+                : `当前筛选条件下没有 ${labelUiE2eBundleFocusMode(bundleFocusMode)}。`}
               onSelect={(bundle) => {
                 setSelectedBundleId(bundle.id);
                 applyBundleDefaults(bundle);
               }}
-              renderItem={(bundle) => (
-                <>
-                  <span className={`badge badge-${statusTone(bundle.status)}`}>{bundle.status}</span>
-                  <strong>{bundle.sceneCode || shortId(bundle.sceneId)}</strong>
-                  <span>{bundle.staticCheckStatus || 'STATIC_CHECK_PENDING'} · {bundle.bundleDigest || '-'}</span>
-                  <small>{bundle.updatedAt ? formatDateTime(bundle.updatedAt) : bundle.id}</small>
-                </>
-              )}
+              renderItem={(bundle) => {
+                const summary = buildUiE2eBundleListSummary(bundle);
+                return (
+                  <>
+                    <span className={`badge badge-${statusTone(bundle.status)}`}>{bundle.status}</span>
+                    <strong>{bundle.sceneCode || shortId(bundle.sceneId)}</strong>
+                    <span>{summary.headline}</span>
+                    <small>{summary.detail}</small>
+                    <small>
+                      {summary.signals.length ? `${summary.signals.join(' · ')} · ` : ''}
+                      {bundle.updatedAt ? formatDateTime(bundle.updatedAt) : bundle.id}
+                    </small>
+                  </>
+                );
+              }}
             />
           </Panel>
 
