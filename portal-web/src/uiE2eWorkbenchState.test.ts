@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 import {
   blankUiE2eSceneDraft,
   buildUiE2eRunDiagnosis,
+  buildUiE2eRunListSummary,
+  buildUiE2eRunQueueOverview,
   buildUiE2eWorkbenchOverview,
   buildUiE2eFlakyPayload,
   buildUiE2eRunPayload,
@@ -10,8 +12,10 @@ import {
   explainUiE2eArtifactCaptureBlockedReason,
   explainUiE2eFailureBucket,
   extractUiE2eArtifactCaptureBlockedReason,
+  filterUiE2eRunsByFocusMode,
   initialUiE2eSceneDraft,
   isUiE2eRunActiveStatus,
+  labelUiE2eRunFocusMode,
   prettyJson,
   sceneDraftFromDetail,
   splitTags
@@ -414,6 +418,98 @@ describe('ui e2e workbench state helpers', () => {
     expect(extractUiE2eArtifactCaptureBlockedReason({ captureBlockedReason: 'runnerDisabled' })).toBe('runnerDisabled');
     expect(explainUiE2eArtifactCaptureBlockedReason('runnerDisabled')).toContain('runner 默认关闭');
     expect(explainUiE2eArtifactCaptureBlockedReason(undefined)).toContain('artifact capture 被阻断');
+  });
+
+  it('builds run queue focus counts and filters runs by focus mode', () => {
+    const runs = [
+      {
+        id: 'run-1',
+        projectId: 'project-alpha',
+        sceneId: 'scene-1',
+        bundleId: 'bundle-1',
+        status: 'RUNNING',
+        runnerMode: 'MANAGED',
+        accountSummary: {}
+      },
+      {
+        id: 'run-2',
+        projectId: 'project-alpha',
+        sceneId: 'scene-1',
+        bundleId: 'bundle-1',
+        status: 'FAILED',
+        runnerMode: 'MANAGED',
+        failureCode: 'UI_E2E_BASE_URL_NOT_ALLOWED',
+        accountSummary: {}
+      },
+      {
+        id: 'run-3',
+        projectId: 'project-alpha',
+        sceneId: 'scene-1',
+        bundleId: 'bundle-1',
+        status: 'BLOCKED',
+        runnerMode: 'DISABLED',
+        failureCode: 'UI_E2E_RUNNER_DISABLED',
+        accountSummary: {}
+      },
+      {
+        id: 'run-4',
+        projectId: 'project-alpha',
+        sceneId: 'scene-1',
+        bundleId: 'bundle-1',
+        status: 'SUCCEEDED',
+        runnerMode: 'MANAGED',
+        flakyStatus: 'CONFIRMED_FLAKY',
+        accountSummary: {}
+      }
+    ];
+
+    const overview = buildUiE2eRunQueueOverview(runs);
+    expect(overview.focusOptions).toEqual(expect.arrayContaining([
+      expect.objectContaining({ mode: 'active', count: 1, tone: 'info' }),
+      expect.objectContaining({ mode: 'failures', count: 1, tone: 'danger' }),
+      expect.objectContaining({ mode: 'blocked', count: 1, tone: 'warning' }),
+      expect.objectContaining({ mode: 'flaky', count: 1, tone: 'warning' }),
+      expect.objectContaining({ mode: 'runnerDisabled', count: 1, tone: 'warning' })
+    ]));
+
+    expect(filterUiE2eRunsByFocusMode(runs, 'active').map((run) => run.id)).toEqual(['run-1']);
+    expect(filterUiE2eRunsByFocusMode(runs, 'failures').map((run) => run.id)).toEqual(['run-2']);
+    expect(filterUiE2eRunsByFocusMode(runs, 'blocked').map((run) => run.id)).toEqual(['run-3']);
+    expect(filterUiE2eRunsByFocusMode(runs, 'flaky').map((run) => run.id)).toEqual(['run-4']);
+    expect(filterUiE2eRunsByFocusMode(runs, 'runnerDisabled').map((run) => run.id)).toEqual(['run-3']);
+    expect(labelUiE2eRunFocusMode('failures')).toBe('失败/超时');
+  });
+
+  it('builds a concise run list summary for blocked and active runs', () => {
+    expect(buildUiE2eRunListSummary({
+      id: 'run-1',
+      projectId: 'project-alpha',
+      sceneId: 'scene-1',
+      bundleId: 'bundle-1',
+      status: 'BLOCKED',
+      runnerMode: 'DISABLED',
+      failureCode: 'UI_E2E_RUNNER_DISABLED',
+      accountSummary: {}
+    })).toMatchObject({
+      headline: 'RUNNER_DISABLED',
+      signals: ['failure=RUNNER_DISABLED', 'aggregate-only'],
+      detail: 'runner 默认关闭，控制面返回 BLOCKED 摘要。'
+    });
+
+    expect(buildUiE2eRunListSummary({
+      id: 'run-2',
+      projectId: 'project-alpha',
+      sceneId: 'scene-2',
+      bundleId: 'bundle-2',
+      status: 'RUNNING',
+      runnerMode: 'MANAGED',
+      flakyStatus: 'CONFIRMED_FLAKY',
+      accountSummary: {}
+    })).toMatchObject({
+      headline: 'runner=MANAGED',
+      signals: ['flaky=CONFIRMED_FLAKY', 'auto-refresh'],
+      detail: '运行进行中，详情面板会自动刷新最新快照。'
+    });
   });
 
   it('hydrates and resets scene drafts predictably', () => {

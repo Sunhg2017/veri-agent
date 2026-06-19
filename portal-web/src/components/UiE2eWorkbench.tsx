@@ -49,6 +49,8 @@ import { canUseButton, hasPermission } from '../permissions';
 import {
   blankUiE2eSceneDraft,
   buildUiE2eRunDiagnosis,
+  buildUiE2eRunListSummary,
+  buildUiE2eRunQueueOverview,
   buildUiE2eWorkbenchOverview,
   buildUiE2eFlakyPayload,
   buildUiE2eRunPayload,
@@ -57,14 +59,17 @@ import {
   explainUiE2eArtifactCaptureBlockedReason,
   explainUiE2eFailureBucket,
   extractUiE2eArtifactCaptureBlockedReason,
+  filterUiE2eRunsByFocusMode,
   initialUiE2eFlakyDraft,
   initialUiE2eRunDraft,
   initialUiE2eSceneDraft,
   initialUiE2eSceneStepDraft,
   isUiE2eRunActiveStatus,
+  labelUiE2eRunFocusMode,
   prettyJson,
   sceneDraftFromDetail,
   type UiE2eFlakyDraft,
+  type UiE2eRunFocusMode,
   type UiE2eRunDraft,
   type UiE2eSceneDraft,
   type UiE2eSceneStepDraft
@@ -103,6 +108,7 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
   const [bundleFilters, setBundleFilters] = useState<SimpleFilters>(initialFilters);
   const [runFilters, setRunFilters] = useState<SimpleFilters>(initialFilters);
   const [flakyFilters, setFlakyFilters] = useState<SimpleFilters>(initialFilters);
+  const [runFocusMode, setRunFocusMode] = useState<UiE2eRunFocusMode>('all');
 
   const [selectedSceneId, setSelectedSceneId] = useState('');
   const [selectedBundleId, setSelectedBundleId] = useState('');
@@ -136,6 +142,8 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
     () => buildUiE2eWorkbenchOverview(health, scenes, bundles, runs, flakyMarks),
     [health, scenes, bundles, runs, flakyMarks]
   );
+  const runQueueOverview = useMemo(() => buildUiE2eRunQueueOverview(runs), [runs]);
+  const visibleRuns = useMemo(() => filterUiE2eRunsByFocusMode(runs, runFocusMode), [runs, runFocusMode]);
 
   const refreshWorkbench = useCallback(async () => {
     if (!props.signedIn || !canRead) {
@@ -252,6 +260,20 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
   useEffect(() => {
     void refreshRunDetail(selectedRunId);
   }, [refreshRunDetail, selectedRunId]);
+
+  useEffect(() => {
+    if (visibleRuns.some((run) => run.id === selectedRunId)) {
+      return;
+    }
+    if (!visibleRuns.length) {
+      setSelectedRunId('');
+      setRunDetail(null);
+      setRunExport(null);
+      return;
+    }
+    setSelectedRunId(visibleRuns[0].id);
+    applyRunDefaults(visibleRuns[0]);
+  }, [selectedRunId, visibleRuns]);
 
   useEffect(() => {
     if (!selectedRunId || !isUiE2eRunActiveStatus(runDetail?.status)) {
@@ -793,23 +815,57 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
                 </button>
               </div>
             </form>
+            <div className="report-actions-row compact">
+              <button
+                className={`btn ${runFocusMode === 'all' ? 'btn-primary' : 'btn-secondary'} btn-sm`}
+                type="button"
+                onClick={() => setRunFocusMode('all')}
+              >
+                全部 {runs.length}
+              </button>
+              {runQueueOverview.focusOptions.map((option) => (
+                <button
+                  className={`btn ${runFocusMode === option.mode ? 'btn-primary' : 'btn-secondary'} btn-sm`}
+                  key={option.mode}
+                  type="button"
+                  onClick={() => setRunFocusMode(option.mode)}
+                  title={option.desc}
+                >
+                  {option.label} {option.count}
+                </button>
+              ))}
+            </div>
+            {runFocusMode !== 'all' && (
+              <div className="notice info">
+                当前聚焦 {labelUiE2eRunFocusMode(runFocusMode)}，共 {visibleRuns.length} 条；详情区会跟随当前可见列表自动保持选中项。
+              </div>
+            )}
             <ListPanel
-              items={runs}
+              items={visibleRuns}
               selectedId={selectedRunId}
               emptyTitle="暂无运行"
-              emptyDesc="选中 APPROVED bundle 后触发单次运行，可查看步骤摘要、artifact manifest 和失败分类。"
+              emptyDesc={runFocusMode === 'all'
+                ? '选中 APPROVED bundle 后触发单次运行，可查看步骤摘要、artifact manifest 和失败分类。'
+                : `当前筛选条件下没有 ${labelUiE2eRunFocusMode(runFocusMode)}。`}
               onSelect={(run) => {
                 setSelectedRunId(run.id);
                 applyRunDefaults(run);
               }}
-              renderItem={(run) => (
-                <>
-                  <span className={`badge badge-${statusTone(run.status)}`}>{run.status}</span>
-                  <strong>{run.sceneCode || shortId(run.sceneId)}</strong>
-                  <span>{run.failureCode || run.runnerMode} · flaky={run.flakyStatus || 'NONE'}</span>
-                  <small>{run.createdAt ? formatDateTime(run.createdAt) : run.id}</small>
-                </>
-              )}
+              renderItem={(run) => {
+                const summary = buildUiE2eRunListSummary(run);
+                return (
+                  <>
+                    <span className={`badge badge-${statusTone(run.status)}`}>{run.status}</span>
+                    <strong>{run.sceneCode || shortId(run.sceneId)}</strong>
+                    <span>{summary.headline}</span>
+                    <small>{summary.detail}</small>
+                    <small>
+                      {summary.signals.length ? `${summary.signals.join(' · ')} · ` : ''}
+                      {run.createdAt ? formatDateTime(run.createdAt) : run.id}
+                    </small>
+                  </>
+                );
+              }}
             />
           </Panel>
 

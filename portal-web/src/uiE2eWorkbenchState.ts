@@ -77,6 +77,20 @@ export type UiE2eWorkbenchOverview = {
   notices: UiE2eWorkbenchNotice[];
 };
 
+export type UiE2eRunFocusMode = 'all' | 'active' | 'failures' | 'blocked' | 'flaky' | 'runnerDisabled';
+
+export type UiE2eRunFocusOption = {
+  mode: Exclude<UiE2eRunFocusMode, 'all'>;
+  label: string;
+  desc: string;
+  count: number;
+  tone: UiE2eWorkbenchTone;
+};
+
+export type UiE2eRunQueueOverview = {
+  focusOptions: UiE2eRunFocusOption[];
+};
+
 export type UiE2eRunDiagnosis = {
   tone: UiE2eWorkbenchNoticeTone;
   label: string;
@@ -86,6 +100,12 @@ export type UiE2eRunDiagnosis = {
   rawArtifactDownloadReady: boolean;
   signals: string[];
   nextActions: string[];
+};
+
+export type UiE2eRunListSummary = {
+  headline: string;
+  detail: string;
+  signals: string[];
 };
 
 export const initialUiE2eSceneStepDraft: UiE2eSceneStepDraft = {
@@ -203,6 +223,124 @@ export function buildUiE2eWorkbenchOverview(
     allowlistLabel,
     allowlistTone,
     notices
+  };
+}
+
+export function buildUiE2eRunQueueOverview(runs: UiE2eRunSummary[]): UiE2eRunQueueOverview {
+  return {
+    focusOptions: [
+      {
+        mode: 'active',
+        label: '活跃运行',
+        desc: '聚焦 QUEUED/RUNNING，便于盯住自动刷新中的 run。',
+        count: filterUiE2eRunsByFocusMode(runs, 'active').length,
+        tone: 'info'
+      },
+      {
+        mode: 'failures',
+        label: '失败/超时',
+        desc: '聚焦 FAILED/TIMEOUT，优先排查 failureCode 与 traceId。',
+        count: filterUiE2eRunsByFocusMode(runs, 'failures').length,
+        tone: 'danger'
+      },
+      {
+        mode: 'blocked',
+        label: '阻断运行',
+        desc: '聚焦 BLOCKED，优先复核 runner、租借、审批与 allowlist。',
+        count: filterUiE2eRunsByFocusMode(runs, 'blocked').length,
+        tone: 'warning'
+      },
+      {
+        mode: 'flaky',
+        label: 'Confirmed Flaky',
+        desc: '聚焦已标记 CONFIRMED_FLAKY 的运行，方便做抖动治理。',
+        count: filterUiE2eRunsByFocusMode(runs, 'flaky').length,
+        tone: 'warning'
+      },
+      {
+        mode: 'runnerDisabled',
+        label: 'Runner Off',
+        desc: '聚焦 UI_E2E_RUNNER_DISABLED，确认 aggregate-only 控制面链路。',
+        count: filterUiE2eRunsByFocusMode(runs, 'runnerDisabled').length,
+        tone: 'warning'
+      }
+    ]
+  };
+}
+
+export function filterUiE2eRunsByFocusMode(runs: UiE2eRunSummary[], mode: UiE2eRunFocusMode) {
+  switch (mode) {
+    case 'active':
+      return runs.filter((run) => isUiE2eRunActiveStatus(run.status));
+    case 'failures':
+      return runs.filter((run) => isUiE2eRunFailureStatus(run.status));
+    case 'blocked':
+      return runs.filter((run) => run.status === 'BLOCKED');
+    case 'flaky':
+      return runs.filter((run) => run.flakyStatus === 'CONFIRMED_FLAKY');
+    case 'runnerDisabled':
+      return runs.filter((run) => run.failureCode === 'UI_E2E_RUNNER_DISABLED');
+    case 'all':
+    default:
+      return runs;
+  }
+}
+
+export function labelUiE2eRunFocusMode(mode: UiE2eRunFocusMode) {
+  switch (mode) {
+    case 'active':
+      return '活跃运行';
+    case 'failures':
+      return '失败/超时';
+    case 'blocked':
+      return '阻断运行';
+    case 'flaky':
+      return 'Confirmed Flaky';
+    case 'runnerDisabled':
+      return 'Runner Off';
+    case 'all':
+    default:
+      return '全部运行';
+  }
+}
+
+export function buildUiE2eRunListSummary(run: UiE2eRunSummary): UiE2eRunListSummary {
+  const failureLabel = compactUiE2eFailureCode(run.failureCode);
+  const signals: string[] = [];
+  if (failureLabel) {
+    pushUnique(signals, `failure=${failureLabel}`);
+  }
+  if (run.flakyStatus && run.flakyStatus !== 'NONE') {
+    pushUnique(signals, `flaky=${run.flakyStatus}`);
+  }
+  if (run.status === 'BLOCKED' && run.failureCode === 'UI_E2E_RUNNER_DISABLED') {
+    pushUnique(signals, 'aggregate-only');
+  }
+  if (isUiE2eRunActiveStatus(run.status)) {
+    pushUnique(signals, 'auto-refresh');
+  }
+
+  let detail: string;
+  if (run.failureCode === 'UI_E2E_RUNNER_DISABLED') {
+    detail = 'runner 默认关闭，控制面返回 BLOCKED 摘要。';
+  } else if (run.status === 'BLOCKED') {
+    detail = '运行在执行前被阻断，建议优先复核审批、租借与 allowlist。';
+  } else if (isUiE2eRunFailureStatus(run.status)) {
+    detail = '建议优先查看 failureCode、traceId 和运行详情诊断。';
+  } else if (run.status === 'CANCELED') {
+    detail = '运行已取消，可继续确认外部 runner 是否同步停止。';
+  } else if (isUiE2eRunActiveStatus(run.status)) {
+    detail = '运行进行中，详情面板会自动刷新最新快照。';
+  } else if (run.flakyStatus === 'CONFIRMED_FLAKY') {
+    detail = '运行已完成，但当前已标记为 CONFIRMED_FLAKY。';
+  } else {
+    detail = '运行已完成，可继续查看步骤结果和 artifact 摘要。';
+  }
+
+  return {
+    headline: failureLabel || `runner=${run.runnerMode}`,
+    detail,
+    signals
   };
 }
 
@@ -754,4 +892,15 @@ function booleanFromUnknown(value: unknown, fallback = false) {
     if (normalized === 'false') return false;
   }
   return fallback;
+}
+
+function isUiE2eRunFailureStatus(status?: string) {
+  return status === 'FAILED' || status === 'TIMEOUT';
+}
+
+function compactUiE2eFailureCode(failureCode?: string) {
+  if (!failureCode) {
+    return undefined;
+  }
+  return failureCode.startsWith('UI_E2E_') ? failureCode.slice('UI_E2E_'.length) : failureCode;
 }
