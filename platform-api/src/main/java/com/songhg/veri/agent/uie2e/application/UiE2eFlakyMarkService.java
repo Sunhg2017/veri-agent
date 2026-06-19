@@ -8,14 +8,18 @@ import com.songhg.veri.agent.uie2e.application.command.UpsertUiE2eFlakyMarkComma
 import com.songhg.veri.agent.uie2e.application.port.UiE2eRepository;
 import com.songhg.veri.agent.uie2e.application.query.UiE2eFlakyMarkPageRequest;
 import com.songhg.veri.agent.uie2e.application.query.UiE2eFlakyMarkQuery;
+import com.songhg.veri.agent.uie2e.application.query.UiE2eRunQuery;
 import com.songhg.veri.agent.uie2e.application.view.UiE2eFlakyMarkResponse;
 import com.songhg.veri.agent.uie2e.config.UiE2eProperties;
 import com.songhg.veri.agent.uie2e.domain.UiE2eFlakyMark;
 import com.songhg.veri.agent.uie2e.domain.UiE2eRun;
+import com.songhg.veri.agent.uie2e.domain.UiE2eRunStepResult;
 import com.songhg.veri.agent.uie2e.domain.UiE2eScene;
 import java.time.Instant;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import org.springframework.stereotype.Service;
@@ -26,6 +30,16 @@ import org.springframework.util.StringUtils;
 public class UiE2eFlakyMarkService {
 
     private static final Set<String> FLAKY_STATUSES = Set.of("NONE", "FLAKY_CANDIDATE", "CONFIRMED_FLAKY", "WAIVED");
+    private static final Set<String> FAILURE_BUCKETS = Set.of(
+            "LOCATOR",
+            "AUTHORIZATION",
+            "ENVIRONMENT_TIMEOUT",
+            "ACCOUNT",
+            "TEST_DATA",
+            "RUNNER",
+            "ASSERTION",
+            "UNKNOWN"
+    );
 
     private final UiE2eRepository repository;
     private final UiE2eActorResolver actorResolver;
@@ -163,14 +177,29 @@ public class UiE2eFlakyMarkService {
     }
 
     private UiE2eFlakyMarkResponse response(UiE2eFlakyMark flakyMark, UiE2eScene scene, UiE2eRun run) {
+        int linkedRunCount = scene == null
+                ? (run == null ? 0 : 1)
+                : (int) repository.countRuns(new UiE2eRunQuery(
+                        scene.projectId(),
+                        scene.id(),
+                        null,
+                        null,
+                        null,
+                        0,
+                        100
+                ));
+        String latestFailureBucket = latestFailureBucket(scene, run);
         return new UiE2eFlakyMarkResponse(
                 flakyMark.id(),
                 flakyMark.projectId(),
                 flakyMark.sceneId(),
                 scene == null ? null : scene.code(),
                 scene == null ? null : scene.name(),
+                scene == null ? null : scene.riskLevel(),
                 flakyMark.runId(),
+                linkedRunCount,
                 run == null ? null : run.status(),
+                latestFailureBucket,
                 flakyMark.status(),
                 flakyMark.reasonCode(),
                 flakyMark.reasonSummary(),
@@ -248,6 +277,66 @@ public class UiE2eFlakyMarkService {
 
     private String boundedNullable(String value, int maxLength) {
         return SensitiveTextSanitizer.boundedNullableText(value, maxLength);
+    }
+
+    private String latestFailureBucket(UiE2eScene scene, UiE2eRun run) {
+        if (run != null) {
+            String directBucket = failureBucketForRun(run);
+            if (directBucket != null) {
+                return directBucket;
+            }
+        }
+        if (scene == null) {
+            return null;
+        }
+        return repository.runs(new UiE2eRunQuery(
+                        scene.projectId(),
+                        scene.id(),
+                        null,
+                        null,
+                        null,
+                        0,
+                        20
+                )).stream()
+                .sorted(Comparator.comparing(UiE2eRun::updatedAt, Comparator.nullsLast(Comparator.reverseOrder()))
+                        .thenComparing(UiE2eRun::id, Comparator.reverseOrder()))
+                .map(this::failureBucketForRun)
+                .filter(StringUtils::hasText)
+                .findFirst()
+                .orElse(null);
+    }
+
+    private String failureBucketForRun(UiE2eRun run) {
+        Optional<String> stepBucket = repository.runStepResults(run.id()).stream()
+                .map(UiE2eRunStepResult::failureBucket)
+                .map(this::normalizeFailureBucket)
+                .filter(StringUtils::hasText)
+                .findFirst();
+        if (stepBucket.isPresent()) {
+            return stepBucket.get();
+        }
+        return failureBucketFromFailureCode(run.failureCode());
+    }
+
+    private String normalizeFailureBucket(String failureBucket) {
+        if (!StringUtils.hasText(failureBucket)) {
+            return null;
+        }
+        String normalized = failureBucket.trim().toUpperCase(Locale.ROOT);
+        return FAILURE_BUCKETS.contains(normalized) ? normalized : "UNKNOWN";
+    }
+
+    private String failureBucketFromFailureCode(String failureCode) {
+        if (!StringUtils.hasText(failureCode)) {
+            return null;
+        }
+        return switch (failureCode.trim().toUpperCase(Locale.ROOT)) {
+            case "UI_E2E_RUNNER_DISABLED", "UI_E2E_RUNNER_CANCELED" -> "RUNNER";
+            case "UI_E2E_ACCOUNT_LEASE_INVALID" -> "ACCOUNT";
+            case "UI_E2E_BASE_URL_NOT_ALLOWED" -> "ENVIRONMENT_TIMEOUT";
+            case "UI_E2E_RESOURCE_SCOPE_DENIED", "UI_E2E_SCENE_NOT_READY", "UI_E2E_BUNDLE_NOT_READY" -> "ASSERTION";
+            default -> "UNKNOWN";
+        };
     }
 
     private void assertEnabled() {

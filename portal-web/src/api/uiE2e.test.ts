@@ -217,15 +217,21 @@ describe('WP7 ui e2e API helpers', () => {
       id: 'flaky-1',
       project_id: 'project-alpha',
       scene_id: 'scene-1',
+      scene_risk_level: 'HIGH',
       run_id: 'run-1',
+      linked_run_count: '3',
       run_status: 'BLOCKED',
+      latest_failure_bucket: 'RUNNER',
       status: 'FLAKY_CANDIDATE',
       reason_code: 'LOCATOR_DRIFT',
       reason_summary: 'locator changes after deploy'
     })).toMatchObject({
       sceneId: 'scene-1',
+      sceneRiskLevel: 'HIGH',
       runId: 'run-1',
+      linkedRunCount: 3,
       runStatus: 'BLOCKED',
+      latestFailureBucket: 'RUNNER',
       reasonCode: 'LOCATOR_DRIFT'
     });
 

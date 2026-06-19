@@ -191,6 +191,13 @@ export type UiE2eFlakyListSummary = {
   signals: string[];
 };
 
+export type UiE2eFlakyDetailInsight = {
+  tone: UiE2eWorkbenchNoticeTone;
+  label: string;
+  summary: string;
+  signals: string[];
+};
+
 export const initialUiE2eSceneStepDraft: UiE2eSceneStepDraft = {
   stepType: 'LOGIN',
   actionSummaryText: '{"submitAction":"click"}',
@@ -1174,6 +1181,60 @@ export function buildUiE2eFlakyListSummary(mark: UiE2eFlakyMark): UiE2eFlakyList
   return {
     headline,
     detail,
+    signals
+  };
+}
+
+export function buildUiE2eFlakyDetailInsight(mark: UiE2eFlakyMark): UiE2eFlakyDetailInsight {
+  const signals: string[] = [];
+  if (mark.sceneRiskLevel) {
+    pushUnique(signals, `risk=${mark.sceneRiskLevel}`);
+  }
+  if (mark.linkedRunCount > 0) {
+    pushUnique(signals, `runs=${mark.linkedRunCount}`);
+  }
+  if (mark.latestFailureBucket) {
+    pushUnique(signals, `latestFailureBucket=${mark.latestFailureBucket}`);
+  }
+  if (mark.runStatus) {
+    pushUnique(signals, `runStatus=${mark.runStatus}`);
+  }
+
+  if (mark.status === 'CONFIRMED_FLAKY') {
+    return {
+      tone: mark.sceneRiskLevel === 'HIGH' || mark.sceneRiskLevel === 'CRITICAL' ? 'warning' : 'info',
+      label: '治理池',
+      summary: mark.linkedRunCount > 1
+        ? `该场景已有 ${mark.linkedRunCount} 次关联运行，建议结合最近失败桶继续做稳定性治理。`
+        : '该记录已进入 CONFIRMED_FLAKY 治理池，建议结合失败分类和审计信息持续跟踪。',
+      signals
+    };
+  }
+
+  if (mark.status === 'FLAKY_CANDIDATE') {
+    return {
+      tone: 'info',
+      label: '待复核',
+      summary: mark.latestFailureBucket
+        ? `最近失败信号集中在 ${mark.latestFailureBucket}，建议人工复核后决定是否升级为确认抖动。`
+        : '该记录仍处于候选阶段，建议优先补看关联运行和失败分类。',
+      signals
+    };
+  }
+
+  if (mark.status === 'WAIVED') {
+    return {
+      tone: 'info',
+      label: '已豁免',
+      summary: '该记录当前处于豁免状态，建议保留原因摘要与审计字段用于后续复盘。',
+      signals
+    };
+  }
+
+  return {
+    tone: mark.sceneRiskLevel === 'CRITICAL' ? 'warning' : 'info',
+    label: '观察中',
+    summary: '当前 Flaky 详情已返回，可结合风险级别、关联运行和失败信号继续观察。',
     signals
   };
 }

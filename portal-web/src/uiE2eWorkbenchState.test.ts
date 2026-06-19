@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   blankUiE2eSceneDraft,
   buildUiE2eBundleListSummary,
+  buildUiE2eFlakyDetailInsight,
   buildUiE2eBundleQueueOverview,
   buildUiE2eFlakyListSummary,
   buildUiE2eFlakyQueueOverview,
@@ -305,6 +306,7 @@ describe('ui e2e workbench state helpers', () => {
         {
           id: 'flaky-1',
           projectId: 'project-alpha',
+          linkedRunCount: 0,
           status: 'CONFIRMED_FLAKY'
         }
       ]
@@ -556,6 +558,7 @@ describe('ui e2e workbench state helpers', () => {
       flakyMark: {
         id: 'flaky-1',
         projectId: 'project-alpha',
+        linkedRunCount: 1,
         status: 'CONFIRMED_FLAKY'
       },
       idempotentReplay: false
@@ -633,6 +636,7 @@ describe('ui e2e workbench state helpers', () => {
         id: 'flaky-1',
         projectId: 'project-alpha',
         runId: 'run-confirmed',
+        linkedRunCount: 1,
         status: 'CONFIRMED_FLAKY',
         reasonCode: 'locator-drift',
         reasonSummary: '定位偶发漂移'
@@ -966,6 +970,7 @@ describe('ui e2e workbench state helpers', () => {
         sceneId: 'scene-1',
         sceneCode: 'portal-login',
         runId: 'run-1',
+        linkedRunCount: 2,
         runStatus: 'FAILED',
         status: 'FLAKY_CANDIDATE',
         reasonCode: 'locator-drift',
@@ -977,6 +982,7 @@ describe('ui e2e workbench state helpers', () => {
         sceneId: 'scene-2',
         sceneCode: 'portal-search',
         runId: 'run-2',
+        linkedRunCount: 1,
         runStatus: 'SUCCEEDED',
         status: 'CONFIRMED_FLAKY',
         reasonCode: 'env-jitter',
@@ -987,6 +993,7 @@ describe('ui e2e workbench state helpers', () => {
         projectId: 'project-alpha',
         sceneId: 'scene-3',
         sceneCode: 'portal-order',
+        linkedRunCount: 0,
         status: 'WAIVED',
         reasonCode: 'legacy-known-issue',
         reasonSummary: '历史问题暂不阻断'
@@ -1016,8 +1023,11 @@ describe('ui e2e workbench state helpers', () => {
       projectId: 'project-alpha',
       sceneId: 'scene-1',
       sceneCode: 'portal-login',
+      sceneRiskLevel: 'HIGH',
       runId: 'run-1',
+      linkedRunCount: 2,
       runStatus: 'FAILED',
+      latestFailureBucket: 'LOCATOR',
       status: 'FLAKY_CANDIDATE',
       reasonCode: 'locator-drift',
       reasonSummary: '登录页偶发定位漂移，需要继续观察',
@@ -1032,6 +1042,7 @@ describe('ui e2e workbench state helpers', () => {
       projectId: 'project-alpha',
       sceneId: 'scene-2',
       sceneCode: 'portal-search',
+      linkedRunCount: 0,
       status: 'WAIVED',
       reasonCode: 'legacy-known-issue',
       reasonSummary: '',
@@ -1040,6 +1051,42 @@ describe('ui e2e workbench state helpers', () => {
       headline: '已豁免',
       detail: '该记录已豁免，保留原因用于审计和后续复盘。',
       signals: ['reason=legacy-known-issue', 'scope=scene', 'by=pm-owner']
+    });
+  });
+
+  it('builds flaky detail insight with governance signals', () => {
+    expect(buildUiE2eFlakyDetailInsight({
+      id: 'flaky-1',
+      projectId: 'project-alpha',
+      sceneId: 'scene-1',
+      sceneCode: 'portal-login',
+      sceneName: 'Portal login',
+      sceneRiskLevel: 'CRITICAL',
+      runId: 'run-1',
+      linkedRunCount: 3,
+      runStatus: 'FAILED',
+      latestFailureBucket: 'LOCATOR',
+      status: 'CONFIRMED_FLAKY',
+      reasonCode: 'locator-drift',
+      reasonSummary: '多次部署后定位器漂移',
+      updatedBy: 'qa-owner'
+    })).toMatchObject({
+      tone: 'warning',
+      label: '治理池',
+      signals: ['risk=CRITICAL', 'runs=3', 'latestFailureBucket=LOCATOR', 'runStatus=FAILED']
+    });
+
+    expect(buildUiE2eFlakyDetailInsight({
+      id: 'flaky-2',
+      projectId: 'project-alpha',
+      sceneId: 'scene-2',
+      sceneCode: 'portal-search',
+      linkedRunCount: 1,
+      status: 'FLAKY_CANDIDATE',
+      latestFailureBucket: 'RUNNER'
+    })).toMatchObject({
+      tone: 'info',
+      label: '待复核'
     });
   });
 

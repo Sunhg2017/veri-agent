@@ -190,8 +190,11 @@ export interface UiE2eFlakyMark {
   sceneId?: string;
   sceneCode?: string;
   sceneName?: string;
+  sceneRiskLevel?: string;
   runId?: string;
+  linkedRunCount: number;
   runStatus?: string;
+  latestFailureBucket?: string;
   status: string;
   reasonCode?: string;
   reasonSummary?: string;
@@ -716,8 +719,11 @@ export function normalizeUiE2eFlakyMark(input: unknown): UiE2eFlakyMark {
     sceneId: optionalString(read(value, 'sceneId', 'scene_id')),
     sceneCode: optionalString(read(value, 'sceneCode', 'scene_code')),
     sceneName: optionalString(read(value, 'sceneName', 'scene_name')),
+    sceneRiskLevel: optionalString(read(value, 'sceneRiskLevel', 'scene_risk_level')),
     runId: optionalString(read(value, 'runId', 'run_id')),
+    linkedRunCount: numberValue(read(value, 'linkedRunCount', 'linked_run_count'), 0),
     runStatus: optionalString(read(value, 'runStatus', 'run_status')),
+    latestFailureBucket: optionalString(read(value, 'latestFailureBucket', 'latest_failure_bucket')),
     status: stringValue(read(value, 'status'), 'NONE'),
     reasonCode: optionalString(read(value, 'reasonCode', 'reason_code')),
     reasonSummary: optionalString(read(value, 'reasonSummary', 'reason_summary')),

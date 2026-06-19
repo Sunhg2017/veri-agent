@@ -132,6 +132,9 @@ class UiE2eFlakyMarkControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.id").value(sceneLevelId))
                 .andExpect(jsonPath("$.data.runId").value(runId.toString()))
+                .andExpect(jsonPath("$.data.sceneRiskLevel").value("HIGH"))
+                .andExpect(jsonPath("$.data.linkedRunCount").value(1))
+                .andExpect(jsonPath("$.data.latestFailureBucket").value("RUNNER"))
                 .andExpect(jsonPath("$.data.updatedBy").isString())
                 .andExpect(jsonPath("$.data.reasonSummary").value("locator changes after deploy"));
     }

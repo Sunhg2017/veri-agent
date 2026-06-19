@@ -53,6 +53,7 @@ import { canUseButton, hasPermission } from '../permissions';
 import {
   blankUiE2eSceneDraft,
   buildUiE2eBundleListSummary,
+  buildUiE2eFlakyDetailInsight,
   buildUiE2eBundleQueueOverview,
   buildUiE2eFlakyListSummary,
   buildUiE2eRunFlakyGuidance,
@@ -1581,6 +1582,7 @@ function FlakyDetailPanel(props: { item: UiE2eFlakyMark | null; state: WorkState
   if (!props.item) {
     return <EmptyPanel title="Flaky 详情" desc="选择 Flaky 标记后查看原因、场景和运行关联。" />;
   }
+  const insight = buildUiE2eFlakyDetailInsight(props.item);
   return (
     <Panel title="Flaky 详情" desc={`${props.item.projectId} · ${props.item.sceneCode || props.item.sceneId || '-'}`}>
       <div className="report-detail-header">
@@ -1589,17 +1591,25 @@ function FlakyDetailPanel(props: { item: UiE2eFlakyMark | null; state: WorkState
       </div>
       <div className="report-summary-grid">
         <SummaryTile label="scene" value={props.item.sceneCode || shortId(props.item.sceneId)} />
+        <SummaryTile label="riskLevel" value={props.item.sceneRiskLevel || '-'} tone={statusTone(props.item.sceneRiskLevel || 'UNKNOWN')} />
+        <SummaryTile label="linkedRuns" value={String(props.item.linkedRunCount)} />
         <SummaryTile label="runStatus" value={props.item.runStatus || '-'} />
-        <SummaryTile label="reasonCode" value={props.item.reasonCode || '-'} />
-        <SummaryTile label="updatedBy" value={props.item.updatedBy || '-'} />
+        <SummaryTile label="latestFailure" value={props.item.latestFailureBucket || '-'} tone={statusTone(props.item.runStatus || props.item.status)} />
       </div>
       <div className="report-section-grid">
+        <InfoBlock title="reasonCode" value={props.item.reasonCode || '-'} />
         <InfoBlock title="reasonSummary" value={props.item.reasonSummary || '-'} />
         <InfoBlock title="runId" value={props.item.runId || '-'} />
         <InfoBlock title="sceneName" value={props.item.sceneName || '-'} />
         <InfoBlock title="createdBy" value={props.item.createdBy || '-'} />
+        <InfoBlock title="updatedBy" value={props.item.updatedBy || '-'} />
         <InfoBlock title="createdAt" value={props.item.createdAt ? formatDateTime(props.item.createdAt) : '-'} />
         <InfoBlock title="updatedAt" value={props.item.updatedAt ? formatDateTime(props.item.updatedAt) : '-'} />
+      </div>
+      <div className={`notice ${insight.tone}`}>
+        <strong>治理提示 · {insight.label}</strong>
+        <span>{insight.summary}</span>
+        {insight.signals.length ? <span>{insight.signals.join(' · ')}</span> : null}
       </div>
       <div className="notice info">
         <strong>审计可见性</strong>
