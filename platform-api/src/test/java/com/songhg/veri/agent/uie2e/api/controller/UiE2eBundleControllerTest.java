@@ -138,6 +138,18 @@ class UiE2eBundleControllerTest {
                 .andExpect(jsonPath("$.data.redactionPolicy.aggregateOnly").value(true))
                 .andExpect(jsonPath("$.data.redactionPolicy.reviewCommentExported").value(false))
                 .andExpect(content().string(not(containsString("\"reviewComment\":\"approved\""))));
+
+        mockMvc.perform(post("/api/v1/ui-e2e/bundles/{id}/archive", bundleId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + auditorToken))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("FORBIDDEN"));
+
+        mockMvc.perform(post("/api/v1/ui-e2e/bundles/{id}/archive", bundleId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + ownerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("ARCHIVED"))
+                .andExpect(jsonPath("$.data.archivedAt").exists())
+                .andExpect(jsonPath("$.data.policy.archivable").value(false));
     }
 
     @Test

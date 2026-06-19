@@ -410,6 +410,13 @@ export async function rejectUiE2eBundle(id: string, payload: ReviewUiE2eBundlePa
   return { ...response, data: normalizeUiE2eBundleDetail(response.data) };
 }
 
+export async function archiveUiE2eBundle(id: string): Promise<ApiResponse<UiE2eBundleDetail>> {
+  const response = await requestJson<unknown>(`${UI_E2E_BASE}/bundles/${encodeURIComponent(id)}/archive`, {
+    method: 'POST'
+  });
+  return { ...response, data: normalizeUiE2eBundleDetail(response.data) };
+}
+
 export async function exportUiE2eBundle(id: string): Promise<ApiResponse<UiE2eBundleExport>> {
   const response = await requestJson<unknown>(`${UI_E2E_BASE}/bundles/${encodeURIComponent(id)}/export`);
   return { ...response, data: normalizeUiE2eBundleExport(response.data) };

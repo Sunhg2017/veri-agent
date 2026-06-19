@@ -16,6 +16,7 @@ import type { CurrentUser } from '../api/auth';
 import {
   archiveUiE2eScene,
   approveUiE2eBundle,
+  archiveUiE2eBundle,
   cancelUiE2eRun,
   createUiE2eBundle,
   createUiE2eRun,
@@ -509,6 +510,20 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
     }
   }
 
+  async function onArchiveBundle() {
+    if (!bundleDetail || !canManage || bundleDetail.status === 'ARCHIVED') return;
+    setBundleActionState({ loading: true });
+    try {
+      const result = await archiveUiE2eBundle(bundleDetail.id);
+      setBundleDetail(result.data);
+      setBundleExport(null);
+      setBundles((current) => current.map((bundle) => bundle.id === result.data.id ? summaryFromBundleDetail(result.data) : bundle));
+      setBundleActionState({ loading: false, success: '脚本包已归档', traceId: result.trace_id });
+    } catch (error: unknown) {
+      setBundleActionState({ loading: false, error: error instanceof Error ? error.message : '归档脚本包失败' });
+    }
+  }
+
   async function onExportBundle() {
     if (!bundleDetail || !canExport) return;
     setBundleActionState({ loading: true });
@@ -869,6 +884,9 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
                 </button>
                 <button className="btn btn-secondary" type="button" onClick={() => void onReviewBundle('reject')} disabled={!canReview || bundleActionState.loading || bundleDetail?.status !== 'REVIEWING'}>
                   <AlertTriangle size={16} />驳回
+                </button>
+                <button className="btn btn-secondary" type="button" onClick={() => void onArchiveBundle()} disabled={!canManage || bundleActionState.loading || !bundleDetail || bundleDetail.status === 'ARCHIVED'}>
+                  <Archive size={16} />归档
                 </button>
                 <button className="btn btn-secondary" type="button" onClick={() => void onExportBundle()} disabled={!canExport || bundleActionState.loading || !bundleDetail}>
                   <Download size={16} />导出摘要

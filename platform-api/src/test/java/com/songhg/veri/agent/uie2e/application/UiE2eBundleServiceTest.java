@@ -170,6 +170,38 @@ class UiE2eBundleServiceTest {
                 .doesNotContain("cookie=");
     }
 
+    @Test
+    void archivesBundleThroughDedicatedTransition() {
+        UiE2eSceneServiceTest.Fixture fixture = UiE2eSceneServiceTest.fixture(true);
+        UiE2eBundleService service = service(fixture);
+
+        var scene = fixture.service().createScene(new CreateUiE2eSceneCommand(
+                "project-alpha",
+                null,
+                null,
+                "portal-admin-archive-bundle",
+                "后台管理员归档脚本包",
+                "APPROVED",
+                "MEDIUM",
+                List.of("archive"),
+                Map.of(),
+                List.of(UiE2eSceneServiceTest.step("LOGIN"))
+        ));
+
+        var generated = service.createOrRefreshBundle(new CreateUiE2eBundleCommand(scene.id()));
+        var approved = service.approve(
+                service.submitReview(generated.id(), new ReviewUiE2eBundleCommand("ready")).id(),
+                new ReviewUiE2eBundleCommand("approved")
+        );
+
+        var archived = service.archiveBundle(approved.id());
+
+        assertThat(archived.status()).isEqualTo("ARCHIVED");
+        assertThat(archived.archivedAt()).isNotNull();
+        assertThat(archived.policy()).containsEntry("archivable", false);
+        assertThat(service.archiveBundle(approved.id()).status()).isEqualTo("ARCHIVED");
+    }
+
     private UiE2eBundleService service(UiE2eSceneServiceTest.Fixture fixture) {
         return new UiE2eBundleService(
                 fixture.repository(),

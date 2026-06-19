@@ -58,6 +58,12 @@ public class UiE2eBundleController {
         return service.exportBundle(id);
     }
 
+    @PostMapping("/{id}/archive")
+    @RequirePermission(value = PermissionCodes.UI_E2E_MANAGE, scope = UiE2ePermissionScopes.BUNDLE)
+    public UiE2eBundleDetailResponse archiveBundle(@PathVariable UUID id) {
+        return service.archiveBundle(id);
+    }
+
     @PostMapping("/{id}/submit-review")
     @RequirePermission(value = PermissionCodes.UI_E2E_REVIEW, scope = UiE2ePermissionScopes.BUNDLE)
     public UiE2eBundleDetailResponse submitReview(

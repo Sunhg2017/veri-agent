@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { requestJson } from './client';
 import {
   approveUiE2eBundle,
+  archiveUiE2eBundle,
   archiveUiE2eScene,
   cancelUiE2eRun,
   createUiE2eBundle,
@@ -279,6 +280,7 @@ describe('WP7 ui e2e API helpers', () => {
     await submitUiE2eBundleReview('bundle-1', { note: 'ready' });
     await approveUiE2eBundle('bundle-1', { note: 'approved' });
     await rejectUiE2eBundle('bundle-1', { note: 'needs fix' });
+    await archiveUiE2eBundle('bundle-1');
     await exportUiE2eBundle('bundle-1');
     await fetchUiE2eRuns({ projectId: 'project-alpha', status: 'BLOCKED', keyword: 'rk-1' });
     await fetchUiE2eRun('run-1');
@@ -338,10 +340,13 @@ describe('WP7 ui e2e API helpers', () => {
       method: 'POST',
       body: JSON.stringify({ note: 'needs fix' })
     });
-    expect(requestJsonMock).toHaveBeenNthCalledWith(13, '/api/v1/ui-e2e/bundles/bundle-1/export');
-    expect(requestJsonMock).toHaveBeenNthCalledWith(14, '/api/v1/ui-e2e/runs?projectId=project-alpha&status=BLOCKED&keyword=rk-1');
-    expect(requestJsonMock).toHaveBeenNthCalledWith(15, '/api/v1/ui-e2e/runs/run-1');
-    expect(requestJsonMock).toHaveBeenNthCalledWith(16, '/api/v1/ui-e2e/runs', {
+    expect(requestJsonMock).toHaveBeenNthCalledWith(13, '/api/v1/ui-e2e/bundles/bundle-1/archive', {
+      method: 'POST'
+    });
+    expect(requestJsonMock).toHaveBeenNthCalledWith(14, '/api/v1/ui-e2e/bundles/bundle-1/export');
+    expect(requestJsonMock).toHaveBeenNthCalledWith(15, '/api/v1/ui-e2e/runs?projectId=project-alpha&status=BLOCKED&keyword=rk-1');
+    expect(requestJsonMock).toHaveBeenNthCalledWith(16, '/api/v1/ui-e2e/runs/run-1');
+    expect(requestJsonMock).toHaveBeenNthCalledWith(17, '/api/v1/ui-e2e/runs', {
       method: 'POST',
       body: JSON.stringify({
         projectId: 'project-alpha',
@@ -351,13 +356,13 @@ describe('WP7 ui e2e API helpers', () => {
         accountLeaseRef: 'lease-1'
       })
     });
-    expect(requestJsonMock).toHaveBeenNthCalledWith(17, '/api/v1/ui-e2e/runs/run-1/cancel', {
+    expect(requestJsonMock).toHaveBeenNthCalledWith(18, '/api/v1/ui-e2e/runs/run-1/cancel', {
       method: 'POST',
       body: JSON.stringify({ reason: 'cancel' })
     });
-    expect(requestJsonMock).toHaveBeenNthCalledWith(18, '/api/v1/ui-e2e/runs/run-1/export');
-    expect(requestJsonMock).toHaveBeenNthCalledWith(19, '/api/v1/ui-e2e/flaky-marks?projectId=project-alpha&status=CONFIRMED_FLAKY&keyword=locator');
-    expect(requestJsonMock).toHaveBeenNthCalledWith(20, '/api/v1/ui-e2e/flaky-marks', {
+    expect(requestJsonMock).toHaveBeenNthCalledWith(19, '/api/v1/ui-e2e/runs/run-1/export');
+    expect(requestJsonMock).toHaveBeenNthCalledWith(20, '/api/v1/ui-e2e/flaky-marks?projectId=project-alpha&status=CONFIRMED_FLAKY&keyword=locator');
+    expect(requestJsonMock).toHaveBeenNthCalledWith(21, '/api/v1/ui-e2e/flaky-marks', {
       method: 'POST',
       body: JSON.stringify({
         projectId: 'project-alpha',

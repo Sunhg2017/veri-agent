@@ -203,6 +203,46 @@ public class UiE2eBundleService {
         return response;
     }
 
+    /**
+     * Archives a bundle through a dedicated transition so closed summaries stop participating in new run requests.
+     */
+    @Transactional(noRollbackFor = BusinessException.class)
+    public UiE2eBundleDetailResponse archiveBundle(UUID id) {
+        assertEnabled();
+        UiE2eBundle bundle = requireBundle(id);
+        if ("ARCHIVED".equals(bundle.status())) {
+            return detail(bundle, requireScene(bundle.sceneId()));
+        }
+        Instant now = Instant.now();
+        String actor = actorResolver.currentActor();
+        UiE2eBundle archived = new UiE2eBundle(
+                bundle.id(),
+                bundle.sceneId(),
+                bundle.projectId(),
+                "ARCHIVED",
+                bundle.bundleDigest(),
+                bundle.specSummaryJson(),
+                bundle.fixtureSummaryJson(),
+                bundle.staticCheckSummaryJson(),
+                bundle.submittedBy(),
+                bundle.approvedBy(),
+                bundle.submittedAt(),
+                bundle.approvedAt(),
+                bundle.rejectedAt(),
+                bundle.createdBy(),
+                actor,
+                now,
+                bundle.createdAt(),
+                now
+        );
+        repository.updateBundle(archived);
+        auditBundle(archived, "SUCCEEDED", "ARCHIVED", Map.of(
+                "previousStatus", bundle.status(),
+                "reviewCount", repository.bundleReviews(bundle.id()).size()
+        ));
+        return detail(archived, requireScene(archived.sceneId()));
+    }
+
     @Transactional(noRollbackFor = BusinessException.class)
     public UiE2eBundleDetailResponse submitReview(UUID id, ReviewUiE2eBundleCommand command) {
         assertEnabled();
@@ -367,6 +407,7 @@ public class UiE2eBundleService {
                                 || (SUBMITTABLE_STATUSES.contains(bundle.status())
                                 && UiE2eBundleFactory.STATIC_CHECK_PASSED.equals(staticCheckStatus(bundle))),
                         "approvable", "REVIEWING".equals(bundle.status()),
+                        "archivable", !"ARCHIVED".equals(bundle.status()),
                         "rejectedReviewRequiresNote", true,
                         "aggregateOnly", true,
                         "rawScriptStored", false,
@@ -521,6 +562,7 @@ public class UiE2eBundleService {
                 switch (action) {
                     case "GENERATED" -> "ui_e2e.bundle.created";
                     case "EXPORTED" -> "ui_e2e.bundle.exported";
+                    case "ARCHIVED" -> "ui_e2e.bundle.archived";
                     default -> "ui_e2e.bundle.reviewed";
                 },
                 "UI_E2E_BUNDLE",
