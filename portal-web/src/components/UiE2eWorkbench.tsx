@@ -53,6 +53,8 @@ import {
   buildUiE2eRunDiagnosis,
   buildUiE2eRunListSummary,
   buildUiE2eRunQueueOverview,
+  buildUiE2eSceneListSummary,
+  buildUiE2eSceneQueueOverview,
   buildUiE2eWorkbenchOverview,
   buildUiE2eFlakyPayload,
   buildUiE2eRunPayload,
@@ -63,6 +65,7 @@ import {
   extractUiE2eArtifactCaptureBlockedReason,
   filterUiE2eBundlesByFocusMode,
   filterUiE2eRunsByFocusMode,
+  filterUiE2eScenesByFocusMode,
   initialUiE2eFlakyDraft,
   initialUiE2eRunDraft,
   initialUiE2eSceneDraft,
@@ -70,6 +73,7 @@ import {
   isUiE2eRunActiveStatus,
   labelUiE2eBundleFocusMode,
   labelUiE2eRunFocusMode,
+  labelUiE2eSceneFocusMode,
   prettyJson,
   sceneDraftFromDetail,
   type UiE2eBundleFocusMode,
@@ -77,6 +81,7 @@ import {
   type UiE2eRunFocusMode,
   type UiE2eRunDraft,
   type UiE2eSceneDraft,
+  type UiE2eSceneFocusMode,
   type UiE2eSceneStepDraft
 } from '../uiE2eWorkbenchState';
 
@@ -113,6 +118,7 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
   const [bundleFilters, setBundleFilters] = useState<SimpleFilters>(initialFilters);
   const [runFilters, setRunFilters] = useState<SimpleFilters>(initialFilters);
   const [flakyFilters, setFlakyFilters] = useState<SimpleFilters>(initialFilters);
+  const [sceneFocusMode, setSceneFocusMode] = useState<UiE2eSceneFocusMode>('all');
   const [bundleFocusMode, setBundleFocusMode] = useState<UiE2eBundleFocusMode>('all');
   const [runFocusMode, setRunFocusMode] = useState<UiE2eRunFocusMode>('all');
 
@@ -148,6 +154,8 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
     () => buildUiE2eWorkbenchOverview(health, scenes, bundles, runs, flakyMarks),
     [health, scenes, bundles, runs, flakyMarks]
   );
+  const sceneQueueOverview = useMemo(() => buildUiE2eSceneQueueOverview(scenes), [scenes]);
+  const visibleScenes = useMemo(() => filterUiE2eScenesByFocusMode(scenes, sceneFocusMode), [scenes, sceneFocusMode]);
   const bundleQueueOverview = useMemo(() => buildUiE2eBundleQueueOverview(bundles), [bundles]);
   const visibleBundles = useMemo(() => filterUiE2eBundlesByFocusMode(bundles, bundleFocusMode), [bundles, bundleFocusMode]);
   const runQueueOverview = useMemo(() => buildUiE2eRunQueueOverview(runs), [runs]);
@@ -260,6 +268,19 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
   useEffect(() => {
     void refreshSceneDetail(selectedSceneId);
   }, [refreshSceneDetail, selectedSceneId]);
+
+  useEffect(() => {
+    if (visibleScenes.some((scene) => scene.id === selectedSceneId)) {
+      return;
+    }
+    if (!visibleScenes.length) {
+      setSelectedSceneId('');
+      setSceneDetail(null);
+      return;
+    }
+    setSelectedSceneId(visibleScenes[0].id);
+    applySceneDefaults(visibleScenes[0]);
+  }, [selectedSceneId, visibleScenes]);
 
   useEffect(() => {
     void refreshBundleDetail(selectedBundleId);
@@ -573,6 +594,31 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
                 </button>
               </div>
             </form>
+            <div className="report-actions-row compact">
+              <button
+                className={`btn ${sceneFocusMode === 'all' ? 'btn-primary' : 'btn-secondary'} btn-sm`}
+                type="button"
+                onClick={() => setSceneFocusMode('all')}
+              >
+                全部 {scenes.length}
+              </button>
+              {sceneQueueOverview.focusOptions.map((option) => (
+                <button
+                  className={`btn ${sceneFocusMode === option.mode ? 'btn-primary' : 'btn-secondary'} btn-sm`}
+                  key={option.mode}
+                  type="button"
+                  onClick={() => setSceneFocusMode(option.mode)}
+                  title={option.desc}
+                >
+                  {option.label} {option.count}
+                </button>
+              ))}
+            </div>
+            {sceneFocusMode !== 'all' && (
+              <div className="notice info">
+                当前聚焦 {labelUiE2eSceneFocusMode(sceneFocusMode)}，共 {visibleScenes.length} 条；详情区会跟随当前可见列表自动保持选中项。
+              </div>
+            )}
             <form className="ui-e2e-form" onSubmit={onSubmitScene}>
               <div className="form-grid">
                 <Field label="projectId">
@@ -674,10 +720,12 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
               <StateLine state={sceneActionState} />
             </form>
             <ListPanel
-              items={scenes}
+              items={visibleScenes}
               selectedId={selectedSceneId}
               emptyTitle="暂无场景"
-              emptyDesc="创建第一条 UI 场景后，可继续生成脚本包并触发运行。"
+              emptyDesc={sceneFocusMode === 'all'
+                ? '创建第一条 UI 场景后，可继续生成脚本包并触发运行。'
+                : `当前筛选条件下没有 ${labelUiE2eSceneFocusMode(sceneFocusMode)}。`}
               onSelect={(scene) => {
                 setSelectedSceneId(scene.id);
                 applySceneDefaults(scene);
@@ -690,14 +738,21 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
                   }));
                 }
               }}
-              renderItem={(scene) => (
-                <>
-                  <span className={`badge badge-${statusTone(scene.status)}`}>{scene.status}</span>
-                  <strong>{scene.code}</strong>
-                  <span>{scene.name} · {scene.riskLevel} · {scene.stepCount} steps</span>
-                  <small>{scene.updatedAt ? formatDateTime(scene.updatedAt) : scene.id}</small>
-                </>
-              )}
+              renderItem={(scene) => {
+                const summary = buildUiE2eSceneListSummary(scene);
+                return (
+                  <>
+                    <span className={`badge badge-${statusTone(scene.status)}`}>{scene.status}</span>
+                    <strong>{scene.code}</strong>
+                    <span>{summary.headline}</span>
+                    <small>{summary.detail}</small>
+                    <small>
+                      {summary.signals.length ? `${summary.signals.join(' · ')} · ` : ''}
+                      {scene.updatedAt ? formatDateTime(scene.updatedAt) : scene.id}
+                    </small>
+                  </>
+                );
+              }}
             />
           </Panel>
 

@@ -77,6 +77,26 @@ export type UiE2eWorkbenchOverview = {
   notices: UiE2eWorkbenchNotice[];
 };
 
+export type UiE2eSceneFocusMode = 'all' | 'approved' | 'reviewing' | 'draft' | 'highRisk' | 'disabled';
+
+export type UiE2eSceneFocusOption = {
+  mode: Exclude<UiE2eSceneFocusMode, 'all'>;
+  label: string;
+  desc: string;
+  count: number;
+  tone: UiE2eWorkbenchTone;
+};
+
+export type UiE2eSceneQueueOverview = {
+  focusOptions: UiE2eSceneFocusOption[];
+};
+
+export type UiE2eSceneListSummary = {
+  headline: string;
+  detail: string;
+  signals: string[];
+};
+
 export type UiE2eBundleFocusMode = 'all' | 'reviewing' | 'submittable' | 'approved' | 'staticFailed' | 'rejected';
 
 export type UiE2eBundleFocusOption = {
@@ -243,6 +263,132 @@ export function buildUiE2eWorkbenchOverview(
     allowlistLabel,
     allowlistTone,
     notices
+  };
+}
+
+export function buildUiE2eSceneQueueOverview(scenes: UiE2eSceneSummary[]): UiE2eSceneQueueOverview {
+  return {
+    focusOptions: [
+      {
+        mode: 'approved',
+        label: '已批准',
+        desc: '聚焦 APPROVED，优先定位可继续生成 bundle 的场景。',
+        count: filterUiE2eScenesByFocusMode(scenes, 'approved').length,
+        tone: 'success'
+      },
+      {
+        mode: 'reviewing',
+        label: '待评审',
+        desc: '聚焦 REVIEWING，优先确认是否已达到通过条件。',
+        count: filterUiE2eScenesByFocusMode(scenes, 'reviewing').length,
+        tone: 'info'
+      },
+      {
+        mode: 'draft',
+        label: '草稿',
+        desc: '聚焦 DRAFT，优先补全步骤模板、定位和断言摘要。',
+        count: filterUiE2eScenesByFocusMode(scenes, 'draft').length,
+        tone: 'warning'
+      },
+      {
+        mode: 'highRisk',
+        label: '高风险',
+        desc: '聚焦 HIGH/CRITICAL，优先复核关键路径覆盖和审批状态。',
+        count: filterUiE2eScenesByFocusMode(scenes, 'highRisk').length,
+        tone: 'danger'
+      },
+      {
+        mode: 'disabled',
+        label: '已停用',
+        desc: '聚焦 DISABLED，确认是否需要恢复或保持退出运行链路。',
+        count: filterUiE2eScenesByFocusMode(scenes, 'disabled').length,
+        tone: 'warning'
+      }
+    ]
+  };
+}
+
+export function filterUiE2eScenesByFocusMode(scenes: UiE2eSceneSummary[], mode: UiE2eSceneFocusMode) {
+  switch (mode) {
+    case 'approved':
+      return scenes.filter((scene) => scene.status === 'APPROVED');
+    case 'reviewing':
+      return scenes.filter((scene) => scene.status === 'REVIEWING');
+    case 'draft':
+      return scenes.filter((scene) => scene.status === 'DRAFT');
+    case 'highRisk':
+      return scenes.filter((scene) => scene.riskLevel === 'HIGH' || scene.riskLevel === 'CRITICAL');
+    case 'disabled':
+      return scenes.filter((scene) => scene.status === 'DISABLED');
+    case 'all':
+    default:
+      return scenes;
+  }
+}
+
+export function labelUiE2eSceneFocusMode(mode: UiE2eSceneFocusMode) {
+  switch (mode) {
+    case 'approved':
+      return '已批准';
+    case 'reviewing':
+      return '待评审';
+    case 'draft':
+      return '草稿';
+    case 'highRisk':
+      return '高风险';
+    case 'disabled':
+      return '已停用';
+    case 'all':
+    default:
+      return '全部场景';
+  }
+}
+
+export function buildUiE2eSceneListSummary(scene: UiE2eSceneSummary): UiE2eSceneListSummary {
+  const signals: string[] = [
+    `risk=${scene.riskLevel}`,
+    `steps=${scene.stepCount}`
+  ];
+  if (scene.environmentId) {
+    pushUnique(signals, `env=${scene.environmentId}`);
+  }
+  if (scene.tags.length) {
+    pushUnique(signals, `tags=${scene.tags.length}`);
+  }
+  const sourceType = extractUiE2eSceneSourceType(scene.sourceSummary);
+  if (sourceType) {
+    pushUnique(signals, `source=${sourceType}`);
+  }
+
+  let detail: string;
+  if (scene.status === 'APPROVED') {
+    detail = '场景已批准，可继续生成 bundle 或串联运行链路。';
+  } else if (scene.status === 'REVIEWING') {
+    detail = '场景已进入评审，建议先核对步骤模板、来源摘要和风险等级。';
+  } else if (scene.status === 'DRAFT') {
+    detail = '场景仍在草稿态，可继续补全步骤模板、定位策略和断言摘要。';
+  } else if (scene.status === 'DISABLED') {
+    detail = '场景已停用，恢复前不会进入 bundle/运行链路。';
+  } else if (scene.status === 'ARCHIVED') {
+    detail = '场景已归档，不再参与新的 bundle 生成。';
+  } else {
+    detail = '场景摘要已生成，可继续查看步骤模板和来源摘要。';
+  }
+
+  return {
+    headline: scene.status === 'APPROVED'
+      ? '可生成 bundle'
+      : scene.status === 'REVIEWING'
+        ? '待场景评审'
+        : scene.status === 'DRAFT'
+          ? '草稿待补全'
+          : scene.status === 'DISABLED'
+            ? '已停用'
+            : scene.status === 'ARCHIVED'
+              ? '已归档'
+              : `risk=${scene.riskLevel}`,
+    detail,
+    signals
   };
 }
 
@@ -1076,4 +1222,9 @@ function compactUiE2eFailureCode(failureCode?: string) {
     return undefined;
   }
   return failureCode.startsWith('UI_E2E_') ? failureCode.slice('UI_E2E_'.length) : failureCode;
+}
+
+function extractUiE2eSceneSourceType(sourceSummary: Record<string, unknown>) {
+  const value = sourceSummary.sourceType;
+  return typeof value === 'string' && value.trim() ? value.trim() : undefined;
 }

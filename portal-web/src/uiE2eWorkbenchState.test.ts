@@ -6,6 +6,8 @@ import {
   buildUiE2eRunDiagnosis,
   buildUiE2eRunListSummary,
   buildUiE2eRunQueueOverview,
+  buildUiE2eSceneListSummary,
+  buildUiE2eSceneQueueOverview,
   buildUiE2eWorkbenchOverview,
   buildUiE2eFlakyPayload,
   buildUiE2eRunPayload,
@@ -16,10 +18,12 @@ import {
   extractUiE2eArtifactCaptureBlockedReason,
   filterUiE2eBundlesByFocusMode,
   filterUiE2eRunsByFocusMode,
+  filterUiE2eScenesByFocusMode,
   initialUiE2eSceneDraft,
   isUiE2eRunActiveStatus,
   labelUiE2eBundleFocusMode,
   labelUiE2eRunFocusMode,
+  labelUiE2eSceneFocusMode,
   prettyJson,
   sceneDraftFromDetail,
   splitTags
@@ -422,6 +426,107 @@ describe('ui e2e workbench state helpers', () => {
     expect(extractUiE2eArtifactCaptureBlockedReason({ captureBlockedReason: 'runnerDisabled' })).toBe('runnerDisabled');
     expect(explainUiE2eArtifactCaptureBlockedReason('runnerDisabled')).toContain('runner 默认关闭');
     expect(explainUiE2eArtifactCaptureBlockedReason(undefined)).toContain('artifact capture 被阻断');
+  });
+
+  it('builds scene queue focus counts and filters scenes by focus mode', () => {
+    const scenes = [
+      {
+        id: 'scene-1',
+        projectId: 'project-alpha',
+        code: 'portal-login',
+        name: 'Portal login',
+        status: 'APPROVED',
+        riskLevel: 'HIGH',
+        tags: ['smoke'],
+        sourceSummary: { sourceType: 'WP3' },
+        stepCount: 3,
+        environmentId: 'staging'
+      },
+      {
+        id: 'scene-2',
+        projectId: 'project-alpha',
+        code: 'portal-search',
+        name: 'Portal search',
+        status: 'REVIEWING',
+        riskLevel: 'MEDIUM',
+        tags: [],
+        sourceSummary: {},
+        stepCount: 2
+      },
+      {
+        id: 'scene-3',
+        projectId: 'project-alpha',
+        code: 'portal-order',
+        name: 'Portal order',
+        status: 'DRAFT',
+        riskLevel: 'CRITICAL',
+        tags: ['critical', 'core'],
+        sourceSummary: { sourceType: 'WP5' },
+        stepCount: 5
+      },
+      {
+        id: 'scene-4',
+        projectId: 'project-alpha',
+        code: 'portal-legacy',
+        name: 'Portal legacy',
+        status: 'DISABLED',
+        riskLevel: 'LOW',
+        tags: [],
+        sourceSummary: {},
+        stepCount: 1
+      }
+    ];
+
+    const overview = buildUiE2eSceneQueueOverview(scenes);
+    expect(overview.focusOptions).toEqual(expect.arrayContaining([
+      expect.objectContaining({ mode: 'approved', count: 1, tone: 'success' }),
+      expect.objectContaining({ mode: 'reviewing', count: 1, tone: 'info' }),
+      expect.objectContaining({ mode: 'draft', count: 1, tone: 'warning' }),
+      expect.objectContaining({ mode: 'highRisk', count: 2, tone: 'danger' }),
+      expect.objectContaining({ mode: 'disabled', count: 1, tone: 'warning' })
+    ]));
+
+    expect(filterUiE2eScenesByFocusMode(scenes, 'approved').map((scene) => scene.id)).toEqual(['scene-1']);
+    expect(filterUiE2eScenesByFocusMode(scenes, 'reviewing').map((scene) => scene.id)).toEqual(['scene-2']);
+    expect(filterUiE2eScenesByFocusMode(scenes, 'draft').map((scene) => scene.id)).toEqual(['scene-3']);
+    expect(filterUiE2eScenesByFocusMode(scenes, 'highRisk').map((scene) => scene.id)).toEqual(['scene-1', 'scene-3']);
+    expect(filterUiE2eScenesByFocusMode(scenes, 'disabled').map((scene) => scene.id)).toEqual(['scene-4']);
+    expect(labelUiE2eSceneFocusMode('approved')).toBe('已批准');
+  });
+
+  it('builds a concise scene list summary for approved and draft scenes', () => {
+    expect(buildUiE2eSceneListSummary({
+      id: 'scene-1',
+      projectId: 'project-alpha',
+      code: 'portal-login',
+      name: 'Portal login',
+      status: 'APPROVED',
+      riskLevel: 'HIGH',
+      tags: ['smoke'],
+      sourceSummary: { sourceType: 'WP3' },
+      stepCount: 3,
+      environmentId: 'staging'
+    })).toMatchObject({
+      headline: '可生成 bundle',
+      signals: ['risk=HIGH', 'steps=3', 'env=staging', 'tags=1', 'source=WP3'],
+      detail: '场景已批准，可继续生成 bundle 或串联运行链路。'
+    });
+
+    expect(buildUiE2eSceneListSummary({
+      id: 'scene-2',
+      projectId: 'project-alpha',
+      code: 'portal-order',
+      name: 'Portal order',
+      status: 'DRAFT',
+      riskLevel: 'CRITICAL',
+      tags: ['critical', 'core'],
+      sourceSummary: { sourceType: 'WP5' },
+      stepCount: 5
+    })).toMatchObject({
+      headline: '草稿待补全',
+      signals: ['risk=CRITICAL', 'steps=5', 'tags=2', 'source=WP5'],
+      detail: '场景仍在草稿态，可继续补全步骤模板、定位策略和断言摘要。'
+    });
   });
 
   it('builds bundle queue focus counts and filters bundles by focus mode', () => {
