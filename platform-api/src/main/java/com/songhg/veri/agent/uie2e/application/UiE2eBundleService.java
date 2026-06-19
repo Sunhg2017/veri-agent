@@ -13,6 +13,9 @@ import com.songhg.veri.agent.uie2e.application.port.UiE2eRepository;
 import com.songhg.veri.agent.uie2e.application.query.UiE2eBundlePageRequest;
 import com.songhg.veri.agent.uie2e.application.query.UiE2eBundleQuery;
 import com.songhg.veri.agent.uie2e.application.view.UiE2eBundleDetailResponse;
+import com.songhg.veri.agent.uie2e.application.view.UiE2eBundleExportBundleResponse;
+import com.songhg.veri.agent.uie2e.application.view.UiE2eBundleExportResponse;
+import com.songhg.veri.agent.uie2e.application.view.UiE2eBundleExportReviewSummaryResponse;
 import com.songhg.veri.agent.uie2e.application.view.UiE2eBundleReviewResponse;
 import com.songhg.veri.agent.uie2e.application.view.UiE2eBundleSummaryResponse;
 import com.songhg.veri.agent.uie2e.config.UiE2eProperties;
@@ -169,6 +172,35 @@ public class UiE2eBundleService {
         assertEnabled();
         UiE2eBundle bundle = requireBundle(id);
         return detail(bundle, requireScene(bundle.sceneId()));
+    }
+
+    /**
+     * Exports one aggregate-only bundle snapshot for audit handoff without expanding the review free-text surface.
+     */
+    @Transactional(noRollbackFor = BusinessException.class)
+    public UiE2eBundleExportResponse exportBundle(UUID id) {
+        assertEnabled();
+        if (!properties.exportEnabled()) {
+            throw new BusinessException(ErrorCode.INVALID_STATE, "UI_E2E_EXPORT_DISABLED");
+        }
+        UiE2eBundle bundle = requireBundle(id);
+        UiE2eScene scene = requireScene(bundle.sceneId());
+        List<UiE2eBundleReview> reviews = repository.bundleReviews(bundle.id());
+        UiE2eBundleExportResponse response = new UiE2eBundleExportResponse(
+                "wp7-bundle-export-v1",
+                Instant.now(),
+                exportBundleSnapshot(bundle, scene),
+                exportReviewSummary(reviews),
+                exportRedactionPolicy()
+        );
+        auditBundle(bundle, "SUCCEEDED", "EXPORTED", Map.of(
+                "schemaVersion", response.schemaVersion(),
+                "reviewCount", response.reviewSummary().reviewCount(),
+                "reviewCommentExported", false,
+                "reviewerIdentityExported", false,
+                "rawScriptExported", false
+        ));
+        return response;
     }
 
     @Transactional(noRollbackFor = BusinessException.class)
@@ -366,6 +398,69 @@ public class UiE2eBundleService {
         );
     }
 
+    private UiE2eBundleExportBundleResponse exportBundleSnapshot(UiE2eBundle bundle, UiE2eScene scene) {
+        return new UiE2eBundleExportBundleResponse(
+                bundle.id(),
+                bundle.projectId(),
+                bundle.sceneId(),
+                scene.code(),
+                scene.name(),
+                scene.status(),
+                scene.applicationId(),
+                scene.environmentId(),
+                scene.riskLevel(),
+                readStringList(scene.tagsJson()),
+                bundle.status(),
+                bundle.bundleDigest(),
+                staticCheckStatus(bundle),
+                readMap(bundle.specSummaryJson()),
+                readMap(bundle.fixtureSummaryJson()),
+                readMap(bundle.staticCheckSummaryJson()),
+                Map.of(
+                        "aggregateOnly", true,
+                        "rawScriptStored", false,
+                        "reviewCommentExported", false,
+                        "reviewerIdentityExported", false,
+                        "reviewCountExported", true,
+                        "sceneExecutable", "APPROVED".equals(scene.status())
+                ),
+                bundle.submittedAt(),
+                bundle.approvedAt(),
+                bundle.rejectedAt(),
+                bundle.archivedAt(),
+                bundle.createdAt(),
+                bundle.updatedAt()
+        );
+    }
+
+    private UiE2eBundleExportReviewSummaryResponse exportReviewSummary(List<UiE2eBundleReview> reviews) {
+        List<UiE2eBundleReview> safeReviews = reviews == null ? List.of() : reviews;
+        UiE2eBundleReview latest = safeReviews.isEmpty() ? null : safeReviews.get(0);
+        return new UiE2eBundleExportReviewSummaryResponse(
+                safeReviews.size(),
+                (int) safeReviews.stream().filter(review -> StringUtils.hasText(review.reviewComment())).count(),
+                safeReviews.stream().map(UiE2eBundleReview::reviewStatus).distinct().toList(),
+                latest == null
+                        ? Map.of()
+                        : Map.of(
+                                "reviewStatus", latest.reviewStatus(),
+                                "reviewedAt", latest.reviewedAt(),
+                                "commentPresent", StringUtils.hasText(latest.reviewComment())
+                        )
+        );
+    }
+
+    private Map<String, Object> exportRedactionPolicy() {
+        return Map.of(
+                "aggregateOnly", true,
+                "rawScriptExported", false,
+                "reviewCommentExported", false,
+                "reviewerIdentityExported", false,
+                "secretPlaintextExported", false,
+                "cookiePlaintextExported", false
+        );
+    }
+
     private UiE2eBundleReview review(
             UiE2eBundle bundle,
             String status,
@@ -423,7 +518,11 @@ public class UiE2eBundleService {
         payload.put("status", bundle.status());
         payload.put("staticCheckStatus", staticCheckStatus(bundle));
         contextClient.writeAuditEvent(
-                "GENERATED".equals(action) ? "ui_e2e.bundle.created" : "ui_e2e.bundle.reviewed",
+                switch (action) {
+                    case "GENERATED" -> "ui_e2e.bundle.created";
+                    case "EXPORTED" -> "ui_e2e.bundle.exported";
+                    default -> "ui_e2e.bundle.reviewed";
+                },
                 "UI_E2E_BUNDLE",
                 bundle.id().toString(),
                 bundle.projectId(),

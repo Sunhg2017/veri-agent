@@ -17,10 +17,13 @@ import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.startsWith;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -60,6 +63,7 @@ class UiE2eBundleControllerTest {
     void createsListsAndReviewsBundle() throws Exception {
         String ownerToken = userAccessToken(List.of("ProjectOwner@PROJECT:project-alpha"));
         String reviewerToken = userAccessToken(List.of("Tester@PROJECT:project-alpha"));
+        String auditorToken = userAccessToken(List.of("Auditor@PROJECT:project-alpha"));
         UUID sceneId = createScene(ownerToken);
 
         MvcResult created = mockMvc.perform(post("/api/v1/ui-e2e/bundles")
@@ -117,6 +121,23 @@ class UiE2eBundleControllerTest {
                 .andExpect(jsonPath("$.data.status").value("APPROVED"))
                 .andExpect(jsonPath("$.data.approvedBy").exists())
                 .andExpect(jsonPath("$.data.reviews[0].reviewStatus").value("APPROVED"));
+
+        mockMvc.perform(get("/api/v1/ui-e2e/bundles/{id}/export", bundleId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + reviewerToken))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("FORBIDDEN"));
+
+        mockMvc.perform(get("/api/v1/ui-e2e/bundles/{id}/export", bundleId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + auditorToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.schemaVersion").value("wp7-bundle-export-v1"))
+                .andExpect(jsonPath("$.data.bundle.id").value(bundleId.toString()))
+                .andExpect(jsonPath("$.data.reviewSummary.reviewCount").value(2))
+                .andExpect(jsonPath("$.data.reviewSummary.latestReview.reviewStatus").value("APPROVED"))
+                .andExpect(jsonPath("$.data.reviewSummary.latestReview.commentPresent").value(true))
+                .andExpect(jsonPath("$.data.redactionPolicy.aggregateOnly").value(true))
+                .andExpect(jsonPath("$.data.redactionPolicy.reviewCommentExported").value(false))
+                .andExpect(content().string(not(containsString("\"reviewComment\":\"approved\""))));
     }
 
     @Test

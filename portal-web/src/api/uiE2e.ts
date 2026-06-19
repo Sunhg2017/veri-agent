@@ -97,6 +97,47 @@ export interface UiE2eBundleDetail extends UiE2eBundleSummary {
   reviews: UiE2eBundleReview[];
 }
 
+export interface UiE2eBundleExportBundle {
+  id: string;
+  projectId: string;
+  sceneId: string;
+  sceneCode?: string;
+  sceneName?: string;
+  sceneStatus?: string;
+  applicationId?: string;
+  environmentId?: string;
+  riskLevel?: string;
+  tags: string[];
+  status: string;
+  bundleDigest?: string;
+  staticCheckStatus?: string;
+  specSummary: Record<string, unknown>;
+  fixtureSummary: Record<string, unknown>;
+  staticCheckSummary: Record<string, unknown>;
+  policy: Record<string, unknown>;
+  submittedAt?: string;
+  approvedAt?: string;
+  rejectedAt?: string;
+  archivedAt?: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface UiE2eBundleExportReviewSummary {
+  reviewCount: number;
+  noteCount: number;
+  reviewStatuses: string[];
+  latestReview: Record<string, unknown>;
+}
+
+export interface UiE2eBundleExport {
+  schemaVersion: string;
+  exportedAt?: string;
+  bundle: UiE2eBundleExportBundle;
+  reviewSummary: UiE2eBundleExportReviewSummary;
+  redactionPolicy: Record<string, unknown>;
+}
+
 export interface UiE2eRunSummary {
   id: string;
   projectId: string;
@@ -369,6 +410,11 @@ export async function rejectUiE2eBundle(id: string, payload: ReviewUiE2eBundlePa
   return { ...response, data: normalizeUiE2eBundleDetail(response.data) };
 }
 
+export async function exportUiE2eBundle(id: string): Promise<ApiResponse<UiE2eBundleExport>> {
+  const response = await requestJson<unknown>(`${UI_E2E_BASE}/bundles/${encodeURIComponent(id)}/export`);
+  return { ...response, data: normalizeUiE2eBundleExport(response.data) };
+}
+
 export async function fetchUiE2eRuns(filters: UiE2eRunFilters = {}): Promise<ApiResponse<UiE2eList<UiE2eRunSummary>>> {
   const response = await requestJson<unknown>(`${UI_E2E_BASE}/runs${queryString(filters)}`);
   return { ...response, data: normalizeUiE2eList(response.data, normalizeUiE2eRunSummary) };
@@ -528,6 +574,56 @@ export function normalizeUiE2eBundleReview(input: unknown): UiE2eBundleReview {
     reviewedAt: optionalString(read(value, 'reviewedAt', 'reviewed_at')),
     createdAt: optionalString(read(value, 'createdAt', 'created_at')),
     updatedAt: optionalString(read(value, 'updatedAt', 'updated_at'))
+  };
+}
+
+export function normalizeUiE2eBundleExport(input: unknown): UiE2eBundleExport {
+  const value = objectValue(input);
+  return {
+    schemaVersion: stringValue(read(value, 'schemaVersion', 'schema_version')),
+    exportedAt: optionalString(read(value, 'exportedAt', 'exported_at')),
+    bundle: normalizeUiE2eBundleExportBundle(read(value, 'bundle')),
+    reviewSummary: normalizeUiE2eBundleExportReviewSummary(read(value, 'reviewSummary', 'review_summary')),
+    redactionPolicy: objectValue(read(value, 'redactionPolicy', 'redaction_policy'))
+  };
+}
+
+export function normalizeUiE2eBundleExportBundle(input: unknown): UiE2eBundleExportBundle {
+  const value = objectValue(input);
+  return {
+    id: stringValue(read(value, 'id')),
+    projectId: stringValue(read(value, 'projectId', 'project_id')),
+    sceneId: stringValue(read(value, 'sceneId', 'scene_id')),
+    sceneCode: optionalString(read(value, 'sceneCode', 'scene_code')),
+    sceneName: optionalString(read(value, 'sceneName', 'scene_name')),
+    sceneStatus: optionalString(read(value, 'sceneStatus', 'scene_status')),
+    applicationId: optionalString(read(value, 'applicationId', 'application_id')),
+    environmentId: optionalString(read(value, 'environmentId', 'environment_id')),
+    riskLevel: optionalString(read(value, 'riskLevel', 'risk_level')),
+    tags: stringArray(read(value, 'tags')),
+    status: stringValue(read(value, 'status'), 'DRAFT'),
+    bundleDigest: optionalString(read(value, 'bundleDigest', 'bundle_digest')),
+    staticCheckStatus: optionalString(read(value, 'staticCheckStatus', 'static_check_status')),
+    specSummary: objectValue(read(value, 'specSummary', 'spec_summary')),
+    fixtureSummary: objectValue(read(value, 'fixtureSummary', 'fixture_summary')),
+    staticCheckSummary: objectValue(read(value, 'staticCheckSummary', 'static_check_summary')),
+    policy: objectValue(read(value, 'policy')),
+    submittedAt: optionalString(read(value, 'submittedAt', 'submitted_at')),
+    approvedAt: optionalString(read(value, 'approvedAt', 'approved_at')),
+    rejectedAt: optionalString(read(value, 'rejectedAt', 'rejected_at')),
+    archivedAt: optionalString(read(value, 'archivedAt', 'archived_at')),
+    createdAt: optionalString(read(value, 'createdAt', 'created_at')),
+    updatedAt: optionalString(read(value, 'updatedAt', 'updated_at'))
+  };
+}
+
+export function normalizeUiE2eBundleExportReviewSummary(input: unknown): UiE2eBundleExportReviewSummary {
+  const value = objectValue(input);
+  return {
+    reviewCount: numberValue(read(value, 'reviewCount', 'review_count'), 0),
+    noteCount: numberValue(read(value, 'noteCount', 'note_count'), 0),
+    reviewStatuses: stringArray(read(value, 'reviewStatuses', 'review_statuses')),
+    latestReview: objectValue(read(value, 'latestReview', 'latest_review'))
   };
 }
 

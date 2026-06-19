@@ -9,6 +9,7 @@ import com.songhg.veri.agent.uie2e.application.command.CreateUiE2eBundleCommand;
 import com.songhg.veri.agent.uie2e.application.command.ReviewUiE2eBundleCommand;
 import com.songhg.veri.agent.uie2e.application.query.UiE2eBundlePageRequest;
 import com.songhg.veri.agent.uie2e.application.view.UiE2eBundleDetailResponse;
+import com.songhg.veri.agent.uie2e.application.view.UiE2eBundleExportResponse;
 import com.songhg.veri.agent.uie2e.application.view.UiE2eBundleSummaryResponse;
 import jakarta.validation.Valid;
 import java.util.UUID;
@@ -49,6 +50,12 @@ public class UiE2eBundleController {
     @RequirePermission(value = PermissionCodes.UI_E2E_READ, scope = UiE2ePermissionScopes.BUNDLE)
     public UiE2eBundleDetailResponse bundle(@PathVariable UUID id) {
         return service.bundle(id);
+    }
+
+    @GetMapping("/{id}/export")
+    @RequirePermission(value = PermissionCodes.UI_E2E_EXPORT, scope = UiE2ePermissionScopes.BUNDLE)
+    public UiE2eBundleExportResponse exportBundle(@PathVariable UUID id) {
+        return service.exportBundle(id);
     }
 
     @PostMapping("/{id}/submit-review")

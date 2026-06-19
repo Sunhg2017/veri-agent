@@ -5,6 +5,7 @@ import com.songhg.veri.agent.common.error.ErrorCode;
 import com.songhg.veri.agent.uie2e.application.command.CreateUiE2eBundleCommand;
 import com.songhg.veri.agent.uie2e.application.command.CreateUiE2eSceneCommand;
 import com.songhg.veri.agent.uie2e.application.command.ReviewUiE2eBundleCommand;
+import com.songhg.veri.agent.uie2e.application.view.UiE2eBundleExportResponse;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -121,6 +122,52 @@ class UiE2eBundleServiceTest {
         assertThatThrownBy(() -> service.reject(generated.id(), new ReviewUiE2eBundleCommand(" ")))
                 .isInstanceOfSatisfying(BusinessException.class, exception ->
                         assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.VALIDATION_ERROR));
+    }
+
+    @Test
+    void exportsAggregateOnlyBundleSummaryWithoutReviewerFreeText() {
+        UiE2eSceneServiceTest.Fixture fixture = UiE2eSceneServiceTest.fixture(true);
+        UiE2eBundleService service = service(fixture);
+
+        var scene = fixture.service().createScene(new CreateUiE2eSceneCommand(
+                "project-alpha",
+                "app-alpha",
+                "env-staging",
+                "portal-admin-export",
+                "后台管理员导出摘要",
+                "APPROVED",
+                "HIGH",
+                List.of("export", "smoke"),
+                Map.of(),
+                List.of(UiE2eSceneServiceTest.step("LOGIN"))
+        ));
+
+        var generated = service.createOrRefreshBundle(new CreateUiE2eBundleCommand(scene.id()));
+        service.submitReview(generated.id(), new ReviewUiE2eBundleCommand("ready cookie=secret-value"));
+        service.approve(generated.id(), new ReviewUiE2eBundleCommand("approved by lead"));
+
+        UiE2eBundleExportResponse exported = service.exportBundle(generated.id());
+
+        assertThat(exported.schemaVersion()).isEqualTo("wp7-bundle-export-v1");
+        assertThat(exported.bundle().id()).isEqualTo(generated.id());
+        assertThat(exported.bundle().policy())
+                .containsEntry("aggregateOnly", true)
+                .containsEntry("reviewCommentExported", false)
+                .containsEntry("reviewerIdentityExported", false);
+        assertThat(exported.reviewSummary().reviewCount()).isEqualTo(2);
+        assertThat(exported.reviewSummary().noteCount()).isEqualTo(2);
+        assertThat(exported.reviewSummary().reviewStatuses()).containsExactly("APPROVED", "SUBMITTED");
+        assertThat(exported.reviewSummary().latestReview())
+                .containsEntry("reviewStatus", "APPROVED")
+                .containsEntry("commentPresent", true);
+        assertThat(exported.redactionPolicy())
+                .containsEntry("aggregateOnly", true)
+                .containsEntry("reviewCommentExported", false)
+                .containsEntry("secretPlaintextExported", false);
+        assertThat(exported.toString())
+                .doesNotContain("approved by lead")
+                .doesNotContain("ready cookie=secret-value")
+                .doesNotContain("cookie=");
     }
 
     private UiE2eBundleService service(UiE2eSceneServiceTest.Fixture fixture) {

@@ -7,6 +7,7 @@ import {
   createUiE2eBundle,
   createUiE2eRun,
   createUiE2eScene,
+  exportUiE2eBundle,
   exportUiE2eRun,
   fetchUiE2eBundle,
   fetchUiE2eBundles,
@@ -17,6 +18,7 @@ import {
   fetchUiE2eScene,
   fetchUiE2eScenes,
   normalizeUiE2eBundleDetail,
+  normalizeUiE2eBundleExport,
   normalizeUiE2eBundleSummary,
   normalizeUiE2eFlakyMark,
   normalizeUiE2eHealth,
@@ -139,6 +141,35 @@ describe('WP7 ui e2e API helpers', () => {
       reviews: [{ reviewStatus: 'APPROVED', reviewComment: 'ready' }]
     });
 
+    expect(normalizeUiE2eBundleExport({
+      schema_version: 'wp7-bundle-export-v1',
+      exported_at: '2026-06-20T01:00:00Z',
+      bundle: {
+        id: 'bundle-1',
+        project_id: 'project-alpha',
+        scene_id: 'scene-1',
+        status: 'APPROVED',
+        tags: ['smoke'],
+        spec_summary: { aggregateOnly: true },
+        fixture_summary: { credentialMode: 'LEASE_INJECTION_ONLY' },
+        static_check_summary: { status: 'PASSED' },
+        policy: { reviewCommentExported: false }
+      },
+      review_summary: {
+        review_count: '2',
+        note_count: '1',
+        review_statuses: ['APPROVED', 'SUBMITTED'],
+        latest_review: { reviewStatus: 'APPROVED', commentPresent: true }
+      },
+      redaction_policy: { aggregateOnly: true, reviewCommentExported: false }
+    })).toMatchObject({
+      schemaVersion: 'wp7-bundle-export-v1',
+      exportedAt: '2026-06-20T01:00:00Z',
+      bundle: { specSummary: { aggregateOnly: true } },
+      reviewSummary: { reviewCount: 2, noteCount: 1, reviewStatuses: ['APPROVED', 'SUBMITTED'] },
+      redactionPolicy: { reviewCommentExported: false }
+    });
+
     expect(normalizeUiE2eRunDetail({
       id: 'run-1',
       project_id: 'project-alpha',
@@ -248,6 +279,7 @@ describe('WP7 ui e2e API helpers', () => {
     await submitUiE2eBundleReview('bundle-1', { note: 'ready' });
     await approveUiE2eBundle('bundle-1', { note: 'approved' });
     await rejectUiE2eBundle('bundle-1', { note: 'needs fix' });
+    await exportUiE2eBundle('bundle-1');
     await fetchUiE2eRuns({ projectId: 'project-alpha', status: 'BLOCKED', keyword: 'rk-1' });
     await fetchUiE2eRun('run-1');
     await createUiE2eRun({
@@ -306,9 +338,10 @@ describe('WP7 ui e2e API helpers', () => {
       method: 'POST',
       body: JSON.stringify({ note: 'needs fix' })
     });
-    expect(requestJsonMock).toHaveBeenNthCalledWith(13, '/api/v1/ui-e2e/runs?projectId=project-alpha&status=BLOCKED&keyword=rk-1');
-    expect(requestJsonMock).toHaveBeenNthCalledWith(14, '/api/v1/ui-e2e/runs/run-1');
-    expect(requestJsonMock).toHaveBeenNthCalledWith(15, '/api/v1/ui-e2e/runs', {
+    expect(requestJsonMock).toHaveBeenNthCalledWith(13, '/api/v1/ui-e2e/bundles/bundle-1/export');
+    expect(requestJsonMock).toHaveBeenNthCalledWith(14, '/api/v1/ui-e2e/runs?projectId=project-alpha&status=BLOCKED&keyword=rk-1');
+    expect(requestJsonMock).toHaveBeenNthCalledWith(15, '/api/v1/ui-e2e/runs/run-1');
+    expect(requestJsonMock).toHaveBeenNthCalledWith(16, '/api/v1/ui-e2e/runs', {
       method: 'POST',
       body: JSON.stringify({
         projectId: 'project-alpha',
@@ -318,13 +351,13 @@ describe('WP7 ui e2e API helpers', () => {
         accountLeaseRef: 'lease-1'
       })
     });
-    expect(requestJsonMock).toHaveBeenNthCalledWith(16, '/api/v1/ui-e2e/runs/run-1/cancel', {
+    expect(requestJsonMock).toHaveBeenNthCalledWith(17, '/api/v1/ui-e2e/runs/run-1/cancel', {
       method: 'POST',
       body: JSON.stringify({ reason: 'cancel' })
     });
-    expect(requestJsonMock).toHaveBeenNthCalledWith(17, '/api/v1/ui-e2e/runs/run-1/export');
-    expect(requestJsonMock).toHaveBeenNthCalledWith(18, '/api/v1/ui-e2e/flaky-marks?projectId=project-alpha&status=CONFIRMED_FLAKY&keyword=locator');
-    expect(requestJsonMock).toHaveBeenNthCalledWith(19, '/api/v1/ui-e2e/flaky-marks', {
+    expect(requestJsonMock).toHaveBeenNthCalledWith(18, '/api/v1/ui-e2e/runs/run-1/export');
+    expect(requestJsonMock).toHaveBeenNthCalledWith(19, '/api/v1/ui-e2e/flaky-marks?projectId=project-alpha&status=CONFIRMED_FLAKY&keyword=locator');
+    expect(requestJsonMock).toHaveBeenNthCalledWith(20, '/api/v1/ui-e2e/flaky-marks', {
       method: 'POST',
       body: JSON.stringify({
         projectId: 'project-alpha',

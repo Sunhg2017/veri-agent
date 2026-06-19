@@ -20,6 +20,7 @@ import {
   createUiE2eBundle,
   createUiE2eRun,
   createUiE2eScene,
+  exportUiE2eBundle,
   exportUiE2eRun,
   fetchUiE2eBundle,
   fetchUiE2eBundles,
@@ -35,6 +36,7 @@ import {
   upsertUiE2eFlakyMark,
   type UiE2eArtifactManifest,
   type UiE2eBundleDetail,
+  type UiE2eBundleExport,
   type UiE2eBundleSummary,
   type UiE2eFlakyMark,
   type UiE2eHealth,
@@ -138,6 +140,7 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
 
   const [sceneDetail, setSceneDetail] = useState<UiE2eSceneDetail | null>(null);
   const [bundleDetail, setBundleDetail] = useState<UiE2eBundleDetail | null>(null);
+  const [bundleExport, setBundleExport] = useState<UiE2eBundleExport | null>(null);
   const [runDetail, setRunDetail] = useState<UiE2eRunDetail | null>(null);
   const [runExport, setRunExport] = useState<UiE2eRunExport | null>(null);
 
@@ -208,6 +211,7 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
       setFlakyMarks([]);
       setSceneDetail(null);
       setBundleDetail(null);
+      setBundleExport(null);
       setRunDetail(null);
       setRunExport(null);
       setSelectedSceneId('');
@@ -257,11 +261,13 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
   const refreshBundleDetail = useCallback(async (bundleId: string) => {
     if (!bundleId || !canRead) {
       setBundleDetail(null);
+      setBundleExport(null);
       return;
     }
     try {
       const result = await fetchUiE2eBundle(bundleId);
       setBundleDetail(result.data);
+      setBundleExport(null);
     } catch (error: unknown) {
       setBundleActionState({ loading: false, error: error instanceof Error ? error.message : '加载脚本包详情失败' });
     }
@@ -331,6 +337,7 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
     if (!visibleBundles.length) {
       setSelectedBundleId('');
       setBundleDetail(null);
+      setBundleExport(null);
       return;
     }
     setSelectedBundleId(visibleBundles[0].id);
@@ -466,6 +473,7 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
     try {
       const result = await createUiE2eBundle({ sceneId });
       setBundleDetail(result.data);
+      setBundleExport(null);
       setSelectedBundleId(result.data.id);
       setBundles((current) => [summaryFromBundleDetail(result.data), ...current.filter((bundle) => bundle.id !== result.data.id)]);
       applyBundleDefaults(result.data);
@@ -485,6 +493,7 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
           ? await approveUiE2eBundle(bundleDetail.id, { note: reviewNote })
           : await rejectUiE2eBundle(bundleDetail.id, { note: reviewNote });
       setBundleDetail(response.data);
+      setBundleExport(null);
       setBundles((current) => current.map((bundle) => bundle.id === response.data.id ? summaryFromBundleDetail(response.data) : bundle));
       if (action !== 'reject') {
         applyBundleDefaults(response.data);
@@ -497,6 +506,18 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
       });
     } catch (error: unknown) {
       setBundleActionState({ loading: false, error: error instanceof Error ? error.message : '更新脚本包评审失败' });
+    }
+  }
+
+  async function onExportBundle() {
+    if (!bundleDetail || !canExport) return;
+    setBundleActionState({ loading: true });
+    try {
+      const result = await exportUiE2eBundle(bundleDetail.id);
+      setBundleExport(result.data);
+      setBundleActionState({ loading: false, success: '脚本包脱敏摘要已导出', traceId: result.trace_id });
+    } catch (error: unknown) {
+      setBundleActionState({ loading: false, error: error instanceof Error ? error.message : '导出脚本包摘要失败' });
     }
   }
 
@@ -849,6 +870,9 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
                 <button className="btn btn-secondary" type="button" onClick={() => void onReviewBundle('reject')} disabled={!canReview || bundleActionState.loading || bundleDetail?.status !== 'REVIEWING'}>
                   <AlertTriangle size={16} />驳回
                 </button>
+                <button className="btn btn-secondary" type="button" onClick={() => void onExportBundle()} disabled={!canExport || bundleActionState.loading || !bundleDetail}>
+                  <Download size={16} />导出摘要
+                </button>
               </div>
               <StateLine state={bundleActionState} />
             </form>
@@ -1176,7 +1200,7 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
 
         <section className="ui-e2e-detail-column">
           <SceneDetailPanel detail={sceneDetail} state={sceneActionState} />
-          <BundleDetailPanel detail={bundleDetail} state={bundleActionState} />
+          <BundleDetailPanel detail={bundleDetail} exported={bundleExport} state={bundleActionState} />
           <RunDetailPanel
             detail={runDetail}
             exported={runExport}
@@ -1353,7 +1377,7 @@ function SceneDetailPanel(props: { detail: UiE2eSceneDetail | null; state: WorkS
   );
 }
 
-function BundleDetailPanel(props: { detail: UiE2eBundleDetail | null; state: WorkState }) {
+function BundleDetailPanel(props: { detail: UiE2eBundleDetail | null; exported: UiE2eBundleExport | null; state: WorkState }) {
   if (!props.detail) {
     return <EmptyPanel title="脚本包详情" desc="选择 bundle 后查看静态校验、评审流和运行前状态。" />;
   }
@@ -1391,6 +1415,24 @@ function BundleDetailPanel(props: { detail: UiE2eBundleDetail | null; state: Wor
         </div>
       ) : (
         <div className="notice info">暂无评审记录。</div>
+      )}
+      {props.exported ? (
+        <div className="report-card-list">
+          <div className="report-mini-card">
+            <div className="report-card-heading">
+              <strong>导出摘要</strong>
+              <span className="badge badge-neutral">{props.exported.schemaVersion}</span>
+            </div>
+            <div className="report-section-grid">
+              <InfoBlock title="exportedAt" value={props.exported.exportedAt ? formatDateTime(props.exported.exportedAt) : '-'} />
+              <InfoBlock title="reviewSummary" value={formatRecord(props.exported.reviewSummary)} />
+              <InfoBlock title="redactionPolicy" value={formatRecord(props.exported.redactionPolicy)} />
+              <InfoBlock title="exportPolicy" value={formatRecord(props.exported.bundle.policy)} />
+            </div>
+          </div>
+        </div>
+      ) : (
+        <div className="notice info">可导出 aggregate-only 脚本包摘要，不包含评审备注原文、审阅人身份或任何原始脚本内容。</div>
       )}
       <StateLine state={props.state} />
     </Panel>
