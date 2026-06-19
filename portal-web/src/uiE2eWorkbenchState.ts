@@ -125,6 +125,20 @@ export type UiE2eRunQueueOverview = {
   focusOptions: UiE2eRunFocusOption[];
 };
 
+export type UiE2eFlakyFocusMode = 'all' | 'candidates' | 'confirmed' | 'waived' | 'runLinked' | 'sceneOnly';
+
+export type UiE2eFlakyFocusOption = {
+  mode: Exclude<UiE2eFlakyFocusMode, 'all'>;
+  label: string;
+  desc: string;
+  count: number;
+  tone: UiE2eWorkbenchTone;
+};
+
+export type UiE2eFlakyQueueOverview = {
+  focusOptions: UiE2eFlakyFocusOption[];
+};
+
 export type UiE2eRunDiagnosis = {
   tone: UiE2eWorkbenchNoticeTone;
   label: string;
@@ -143,6 +157,12 @@ export type UiE2eBundleListSummary = {
 };
 
 export type UiE2eRunListSummary = {
+  headline: string;
+  detail: string;
+  signals: string[];
+};
+
+export type UiE2eFlakyListSummary = {
   headline: string;
   detail: string;
   signals: string[];
@@ -768,6 +788,137 @@ export function buildUiE2eRunDiagnosis(detail: UiE2eRunDetail): UiE2eRunDiagnosi
   };
 }
 
+export function buildUiE2eFlakyQueueOverview(flakyMarks: UiE2eFlakyMark[]): UiE2eFlakyQueueOverview {
+  return {
+    focusOptions: [
+      {
+        mode: 'candidates',
+        label: '待确认',
+        desc: '聚焦 FLAKY_CANDIDATE，优先复核是否需要升级为确认抖动。',
+        count: filterUiE2eFlakyMarksByFocusMode(flakyMarks, 'candidates').length,
+        tone: 'info'
+      },
+      {
+        mode: 'confirmed',
+        label: '已确认',
+        desc: '聚焦 CONFIRMED_FLAKY，方便沉淀治理池和回归观察名单。',
+        count: filterUiE2eFlakyMarksByFocusMode(flakyMarks, 'confirmed').length,
+        tone: 'warning'
+      },
+      {
+        mode: 'waived',
+        label: '已豁免',
+        desc: '聚焦 WAIVED，快速回看豁免原因与审计信息。',
+        count: filterUiE2eFlakyMarksByFocusMode(flakyMarks, 'waived').length,
+        tone: 'info'
+      },
+      {
+        mode: 'runLinked',
+        label: '关联运行',
+        desc: '聚焦带 runId 的标记，优先结合具体运行结果做定位。',
+        count: filterUiE2eFlakyMarksByFocusMode(flakyMarks, 'runLinked').length,
+        tone: 'info'
+      },
+      {
+        mode: 'sceneOnly',
+        label: '仅场景',
+        desc: '聚焦未绑定 runId 的场景级标记，方便做长期治理跟踪。',
+        count: filterUiE2eFlakyMarksByFocusMode(flakyMarks, 'sceneOnly').length,
+        tone: 'warning'
+      }
+    ]
+  };
+}
+
+export function filterUiE2eFlakyMarksByFocusMode(flakyMarks: UiE2eFlakyMark[], mode: UiE2eFlakyFocusMode) {
+  switch (mode) {
+    case 'candidates':
+      return flakyMarks.filter((mark) => mark.status === 'FLAKY_CANDIDATE');
+    case 'confirmed':
+      return flakyMarks.filter((mark) => mark.status === 'CONFIRMED_FLAKY');
+    case 'waived':
+      return flakyMarks.filter((mark) => mark.status === 'WAIVED');
+    case 'runLinked':
+      return flakyMarks.filter((mark) => Boolean(mark.runId));
+    case 'sceneOnly':
+      return flakyMarks.filter((mark) => Boolean(mark.sceneId) && !mark.runId);
+    case 'all':
+    default:
+      return flakyMarks;
+  }
+}
+
+export function labelUiE2eFlakyFocusMode(mode: UiE2eFlakyFocusMode) {
+  switch (mode) {
+    case 'candidates':
+      return '待确认';
+    case 'confirmed':
+      return '已确认';
+    case 'waived':
+      return '已豁免';
+    case 'runLinked':
+      return '关联运行';
+    case 'sceneOnly':
+      return '仅场景';
+    case 'all':
+    default:
+      return '全部 Flaky';
+  }
+}
+
+export function buildUiE2eFlakyListSummary(mark: UiE2eFlakyMark): UiE2eFlakyListSummary {
+  const signals: string[] = [];
+  if (mark.reasonCode) {
+    pushUnique(signals, `reason=${mark.reasonCode}`);
+  }
+  if (mark.runStatus) {
+    pushUnique(signals, `run=${mark.runStatus}`);
+  }
+  if (mark.runId) {
+    pushUnique(signals, 'scope=run');
+  } else if (mark.sceneId) {
+    pushUnique(signals, 'scope=scene');
+  }
+  const actor = mark.updatedBy || mark.createdBy;
+  if (actor) {
+    pushUnique(signals, `by=${actor}`);
+  }
+
+  let detail = compactUiE2eText(mark.reasonSummary);
+  if (!detail) {
+    if (mark.status === 'CONFIRMED_FLAKY') {
+      detail = '该标记已进入治理池，可结合失败分类和运行证据持续跟踪。';
+    } else if (mark.status === 'FLAKY_CANDIDATE') {
+      detail = '该记录仍是候选抖动，建议先复核失败分类与运行摘要。';
+    } else if (mark.status === 'WAIVED') {
+      detail = '该记录已豁免，保留原因用于审计和后续复盘。';
+    } else if (mark.status === 'NONE') {
+      detail = '当前记录已回落为 NONE，可继续观察后续运行是否再次波动。';
+    } else {
+      detail = 'Flaky 标记已生成，可继续查看关联运行和原因摘要。';
+    }
+  }
+
+  let headline: string;
+  if (mark.status === 'CONFIRMED_FLAKY') {
+    headline = '已确认抖动';
+  } else if (mark.status === 'FLAKY_CANDIDATE') {
+    headline = '待人工确认';
+  } else if (mark.status === 'WAIVED') {
+    headline = '已豁免';
+  } else if (mark.status === 'NONE') {
+    headline = '已回落为 NONE';
+  } else {
+    headline = mark.status;
+  }
+
+  return {
+    headline,
+    detail,
+    signals
+  };
+}
+
 export function explainUiE2eFailureBucket(bucket?: string) {
   switch ((bucket || '').trim().toUpperCase()) {
     case 'LOCATOR':
@@ -1222,6 +1373,17 @@ function compactUiE2eFailureCode(failureCode?: string) {
     return undefined;
   }
   return failureCode.startsWith('UI_E2E_') ? failureCode.slice('UI_E2E_'.length) : failureCode;
+}
+
+function compactUiE2eText(value?: string, max = 72) {
+  if (!value) {
+    return undefined;
+  }
+  const compact = value.trim().replace(/\s+/g, ' ');
+  if (!compact) {
+    return undefined;
+  }
+  return compact.length > max ? `${compact.slice(0, max - 3)}...` : compact;
 }
 
 function extractUiE2eSceneSourceType(sourceSummary: Record<string, unknown>) {

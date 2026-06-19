@@ -3,6 +3,8 @@ import {
   blankUiE2eSceneDraft,
   buildUiE2eBundleListSummary,
   buildUiE2eBundleQueueOverview,
+  buildUiE2eFlakyListSummary,
+  buildUiE2eFlakyQueueOverview,
   buildUiE2eRunDiagnosis,
   buildUiE2eRunListSummary,
   buildUiE2eRunQueueOverview,
@@ -17,11 +19,13 @@ import {
   explainUiE2eFailureBucket,
   extractUiE2eArtifactCaptureBlockedReason,
   filterUiE2eBundlesByFocusMode,
+  filterUiE2eFlakyMarksByFocusMode,
   filterUiE2eRunsByFocusMode,
   filterUiE2eScenesByFocusMode,
   initialUiE2eSceneDraft,
   isUiE2eRunActiveStatus,
   labelUiE2eBundleFocusMode,
+  labelUiE2eFlakyFocusMode,
   labelUiE2eRunFocusMode,
   labelUiE2eSceneFocusMode,
   prettyJson,
@@ -707,6 +711,91 @@ describe('ui e2e workbench state helpers', () => {
       headline: 'runner=MANAGED',
       signals: ['flaky=CONFIRMED_FLAKY', 'auto-refresh'],
       detail: '运行进行中，详情面板会自动刷新最新快照。'
+    });
+  });
+
+  it('builds flaky queue focus counts and filters flaky marks by focus mode', () => {
+    const flakyMarks = [
+      {
+        id: 'flaky-1',
+        projectId: 'project-alpha',
+        sceneId: 'scene-1',
+        sceneCode: 'portal-login',
+        runId: 'run-1',
+        runStatus: 'FAILED',
+        status: 'FLAKY_CANDIDATE',
+        reasonCode: 'locator-drift',
+        reasonSummary: '登录页偶发定位漂移'
+      },
+      {
+        id: 'flaky-2',
+        projectId: 'project-alpha',
+        sceneId: 'scene-2',
+        sceneCode: 'portal-search',
+        runId: 'run-2',
+        runStatus: 'SUCCEEDED',
+        status: 'CONFIRMED_FLAKY',
+        reasonCode: 'env-jitter',
+        reasonSummary: '环境偶发抖动'
+      },
+      {
+        id: 'flaky-3',
+        projectId: 'project-alpha',
+        sceneId: 'scene-3',
+        sceneCode: 'portal-order',
+        status: 'WAIVED',
+        reasonCode: 'legacy-known-issue',
+        reasonSummary: '历史问题暂不阻断'
+      }
+    ];
+
+    const overview = buildUiE2eFlakyQueueOverview(flakyMarks);
+    expect(overview.focusOptions).toEqual(expect.arrayContaining([
+      expect.objectContaining({ mode: 'candidates', count: 1, tone: 'info' }),
+      expect.objectContaining({ mode: 'confirmed', count: 1, tone: 'warning' }),
+      expect.objectContaining({ mode: 'waived', count: 1, tone: 'info' }),
+      expect.objectContaining({ mode: 'runLinked', count: 2, tone: 'info' }),
+      expect.objectContaining({ mode: 'sceneOnly', count: 1, tone: 'warning' })
+    ]));
+
+    expect(filterUiE2eFlakyMarksByFocusMode(flakyMarks, 'candidates').map((item) => item.id)).toEqual(['flaky-1']);
+    expect(filterUiE2eFlakyMarksByFocusMode(flakyMarks, 'confirmed').map((item) => item.id)).toEqual(['flaky-2']);
+    expect(filterUiE2eFlakyMarksByFocusMode(flakyMarks, 'waived').map((item) => item.id)).toEqual(['flaky-3']);
+    expect(filterUiE2eFlakyMarksByFocusMode(flakyMarks, 'runLinked').map((item) => item.id)).toEqual(['flaky-1', 'flaky-2']);
+    expect(filterUiE2eFlakyMarksByFocusMode(flakyMarks, 'sceneOnly').map((item) => item.id)).toEqual(['flaky-3']);
+    expect(labelUiE2eFlakyFocusMode('confirmed')).toBe('已确认');
+  });
+
+  it('builds a concise flaky list summary for candidate and waived marks', () => {
+    expect(buildUiE2eFlakyListSummary({
+      id: 'flaky-1',
+      projectId: 'project-alpha',
+      sceneId: 'scene-1',
+      sceneCode: 'portal-login',
+      runId: 'run-1',
+      runStatus: 'FAILED',
+      status: 'FLAKY_CANDIDATE',
+      reasonCode: 'locator-drift',
+      reasonSummary: '登录页偶发定位漂移，需要继续观察',
+      updatedBy: 'qa-owner'
+    })).toMatchObject({
+      headline: '待人工确认',
+      signals: ['reason=locator-drift', 'run=FAILED', 'scope=run', 'by=qa-owner']
+    });
+
+    expect(buildUiE2eFlakyListSummary({
+      id: 'flaky-2',
+      projectId: 'project-alpha',
+      sceneId: 'scene-2',
+      sceneCode: 'portal-search',
+      status: 'WAIVED',
+      reasonCode: 'legacy-known-issue',
+      reasonSummary: '',
+      createdBy: 'pm-owner'
+    })).toMatchObject({
+      headline: '已豁免',
+      detail: '该记录已豁免，保留原因用于审计和后续复盘。',
+      signals: ['reason=legacy-known-issue', 'scope=scene', 'by=pm-owner']
     });
   });
 

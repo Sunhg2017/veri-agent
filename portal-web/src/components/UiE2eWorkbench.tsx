@@ -50,6 +50,8 @@ import {
   blankUiE2eSceneDraft,
   buildUiE2eBundleListSummary,
   buildUiE2eBundleQueueOverview,
+  buildUiE2eFlakyListSummary,
+  buildUiE2eFlakyQueueOverview,
   buildUiE2eRunDiagnosis,
   buildUiE2eRunListSummary,
   buildUiE2eRunQueueOverview,
@@ -64,6 +66,7 @@ import {
   explainUiE2eFailureBucket,
   extractUiE2eArtifactCaptureBlockedReason,
   filterUiE2eBundlesByFocusMode,
+  filterUiE2eFlakyMarksByFocusMode,
   filterUiE2eRunsByFocusMode,
   filterUiE2eScenesByFocusMode,
   initialUiE2eFlakyDraft,
@@ -72,12 +75,14 @@ import {
   initialUiE2eSceneStepDraft,
   isUiE2eRunActiveStatus,
   labelUiE2eBundleFocusMode,
+  labelUiE2eFlakyFocusMode,
   labelUiE2eRunFocusMode,
   labelUiE2eSceneFocusMode,
   prettyJson,
   sceneDraftFromDetail,
   type UiE2eBundleFocusMode,
   type UiE2eFlakyDraft,
+  type UiE2eFlakyFocusMode,
   type UiE2eRunFocusMode,
   type UiE2eRunDraft,
   type UiE2eSceneDraft,
@@ -121,6 +126,7 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
   const [sceneFocusMode, setSceneFocusMode] = useState<UiE2eSceneFocusMode>('all');
   const [bundleFocusMode, setBundleFocusMode] = useState<UiE2eBundleFocusMode>('all');
   const [runFocusMode, setRunFocusMode] = useState<UiE2eRunFocusMode>('all');
+  const [flakyFocusMode, setFlakyFocusMode] = useState<UiE2eFlakyFocusMode>('all');
 
   const [selectedSceneId, setSelectedSceneId] = useState('');
   const [selectedBundleId, setSelectedBundleId] = useState('');
@@ -160,6 +166,11 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
   const visibleBundles = useMemo(() => filterUiE2eBundlesByFocusMode(bundles, bundleFocusMode), [bundles, bundleFocusMode]);
   const runQueueOverview = useMemo(() => buildUiE2eRunQueueOverview(runs), [runs]);
   const visibleRuns = useMemo(() => filterUiE2eRunsByFocusMode(runs, runFocusMode), [runs, runFocusMode]);
+  const flakyQueueOverview = useMemo(() => buildUiE2eFlakyQueueOverview(flakyMarks), [flakyMarks]);
+  const visibleFlakyMarks = useMemo(
+    () => filterUiE2eFlakyMarksByFocusMode(flakyMarks, flakyFocusMode),
+    [flakyFocusMode, flakyMarks]
+  );
 
   const refreshWorkbench = useCallback(async () => {
     if (!props.signedIn || !canRead) {
@@ -326,6 +337,18 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
     }, 3000);
     return () => window.clearTimeout(timer);
   }, [refreshActiveRunSnapshot, runDetail?.status, selectedRunId]);
+
+  useEffect(() => {
+    if (visibleFlakyMarks.some((item) => item.id === selectedFlakyId)) {
+      return;
+    }
+    if (!visibleFlakyMarks.length) {
+      setSelectedFlakyId('');
+      return;
+    }
+    setSelectedFlakyId(visibleFlakyMarks[0].id);
+    applyFlakyDefaults(visibleFlakyMarks[0]);
+  }, [selectedFlakyId, visibleFlakyMarks]);
 
   if (!props.signedIn) {
     return <div className="notice warning">请先登录后查看 UI E2E 工作台。</div>;
@@ -1035,31 +1058,57 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
                 </button>
               </div>
             </form>
+            <div className="report-actions-row compact">
+              <button
+                className={`btn ${flakyFocusMode === 'all' ? 'btn-primary' : 'btn-secondary'} btn-sm`}
+                type="button"
+                onClick={() => setFlakyFocusMode('all')}
+              >
+                全部 {flakyMarks.length}
+              </button>
+              {flakyQueueOverview.focusOptions.map((option) => (
+                <button
+                  className={`btn ${flakyFocusMode === option.mode ? 'btn-primary' : 'btn-secondary'} btn-sm`}
+                  key={option.mode}
+                  type="button"
+                  onClick={() => setFlakyFocusMode(option.mode)}
+                  title={option.desc}
+                >
+                  {option.label} {option.count}
+                </button>
+              ))}
+            </div>
+            {flakyFocusMode !== 'all' && (
+              <div className="notice info">
+                当前聚焦 {labelUiE2eFlakyFocusMode(flakyFocusMode)}，共 {visibleFlakyMarks.length} 条；详情区会跟随当前可见列表自动保持选中项。
+              </div>
+            )}
             <ListPanel
-              items={flakyMarks}
+              items={visibleFlakyMarks}
               selectedId={selectedFlakyId}
               emptyTitle="暂无 Flaky 标记"
-              emptyDesc="可按运行或场景标记失败抖动，便于 WP10 消费聚合状态。"
+              emptyDesc={flakyFocusMode === 'all'
+                ? '可按运行或场景标记失败抖动，便于 WP10 消费聚合状态。'
+                : `当前筛选条件下没有 ${labelUiE2eFlakyFocusMode(flakyFocusMode)}。`}
               onSelect={(item) => {
                 setSelectedFlakyId(item.id);
-                setFlakyDraft((current) => ({
-                  ...current,
-                  projectId: item.projectId,
-                  sceneId: item.sceneId || '',
-                  runId: item.runId || '',
-                  status: item.status,
-                  reasonCode: item.reasonCode || '',
-                  reasonSummary: item.reasonSummary || ''
-                }));
+                applyFlakyDefaults(item);
               }}
-              renderItem={(item) => (
-                <>
-                  <span className={`badge badge-${statusTone(item.status)}`}>{item.status}</span>
-                  <strong>{item.sceneCode || shortId(item.sceneId)}</strong>
-                  <span>{item.reasonCode || '-'} · run={item.runStatus || '-'}</span>
-                  <small>{item.updatedAt ? formatDateTime(item.updatedAt) : item.id}</small>
-                </>
-              )}
+              renderItem={(item) => {
+                const summary = buildUiE2eFlakyListSummary(item);
+                return (
+                  <>
+                    <span className={`badge badge-${statusTone(item.status)}`}>{item.status}</span>
+                    <strong>{item.sceneCode || shortId(item.sceneId || item.runId)}</strong>
+                    <span>{summary.headline}</span>
+                    <small>{summary.detail}</small>
+                    <small>
+                      {summary.signals.length ? `${summary.signals.join(' · ')} · ` : ''}
+                      {item.updatedAt ? formatDateTime(item.updatedAt) : item.id}
+                    </small>
+                  </>
+                );
+              }}
             />
           </Panel>
         </section>
@@ -1150,6 +1199,18 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
       projectId: run.projectId,
       sceneId: run.sceneId,
       bundleId: run.bundleId
+    }));
+  }
+
+  function applyFlakyDefaults(item: Pick<UiE2eFlakyMark, 'projectId' | 'sceneId' | 'runId' | 'status' | 'reasonCode' | 'reasonSummary'>) {
+    setFlakyDraft((current) => ({
+      ...current,
+      projectId: item.projectId,
+      sceneId: item.sceneId || '',
+      runId: item.runId || '',
+      status: item.status,
+      reasonCode: item.reasonCode || '',
+      reasonSummary: item.reasonSummary || ''
     }));
   }
 
