@@ -64,6 +64,7 @@ import {
   buildUiE2eRunAuditTimeline,
   buildUiE2eRunQueueOverview,
   buildUiE2eSceneListSummary,
+  buildUiE2eSceneActivitySummary,
   buildUiE2eSceneQueueOverview,
   buildUiE2eWorkbenchOverview,
   buildUiE2eFlakyPayload,
@@ -197,6 +198,10 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
   const selectedBundleSummary = useMemo(
     () => bundles.find((bundle) => bundle.id === runDraft.bundleId) ?? null,
     [bundles, runDraft.bundleId]
+  );
+  const selectedSceneActivity = useMemo(
+    () => sceneDetail ? buildUiE2eSceneActivitySummary(sceneDetail.id, bundles, runs) : null,
+    [bundles, runs, sceneDetail]
   );
   const runCreationReadiness = useMemo(
     () => buildUiE2eRunCreationReadiness({
@@ -1283,7 +1288,7 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
         </section>
 
         <section className="ui-e2e-detail-column">
-          <SceneDetailPanel detail={sceneDetail} state={sceneActionState} />
+          <SceneDetailPanel detail={sceneDetail} activity={selectedSceneActivity} state={sceneActionState} />
           <BundleDetailPanel detail={bundleDetail} exported={bundleExport} state={bundleActionState} />
           <RunDetailPanel
             detail={runDetail}
@@ -1414,10 +1419,16 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
   }
 }
 
-function SceneDetailPanel(props: { detail: UiE2eSceneDetail | null; state: WorkState }) {
+function SceneDetailPanel(props: {
+  detail: UiE2eSceneDetail | null;
+  activity: ReturnType<typeof buildUiE2eSceneActivitySummary> | null;
+  state: WorkState;
+}) {
   if (!props.detail) {
     return <EmptyPanel title="场景详情" desc="选择场景后查看步骤模板、策略和来源摘要。" />;
   }
+  const latestBundleSummary = props.activity?.latestBundle ? buildUiE2eBundleListSummary(props.activity.latestBundle) : null;
+  const latestRunSummary = props.activity?.latestRun ? buildUiE2eRunListSummary(props.activity.latestRun) : null;
   return (
     <Panel title="场景详情" desc={`${props.detail.projectId} · ${props.detail.code}`}>
       <div className="report-detail-header">
@@ -1435,6 +1446,44 @@ function SceneDetailPanel(props: { detail: UiE2eSceneDetail | null; state: WorkS
         <InfoBlock title="policy" value={formatRecord(props.detail.policy)} />
         <InfoBlock title="sourceSummary" value={formatRecord(props.detail.sourceSummary)} />
         <InfoBlock title="updatedAt" value={props.detail.updatedAt ? formatDateTime(props.detail.updatedAt) : '-'} />
+      </div>
+      <div className="report-card-list">
+        <div className="report-mini-card report-mini-card-muted">
+          <div className="report-card-heading">
+            <strong>最近 Bundle</strong>
+            <span className="badge badge-neutral">{props.activity?.bundleCount ?? 0}</span>
+          </div>
+          {props.activity?.latestBundle && latestBundleSummary ? (
+            <>
+              <span>{props.activity.latestBundle.sceneCode || shortId(props.activity.latestBundle.id)} · {latestBundleSummary.headline}</span>
+              <small>{latestBundleSummary.detail}</small>
+              <small>
+                {latestBundleSummary.signals.length ? `${latestBundleSummary.signals.join(' · ')} · ` : ''}
+                {props.activity.latestBundle.updatedAt ? formatDateTime(props.activity.latestBundle.updatedAt) : props.activity.latestBundle.id}
+              </small>
+            </>
+          ) : (
+            <span>当前场景还没有关联的脚本包摘要。</span>
+          )}
+        </div>
+        <div className="report-mini-card report-mini-card-muted">
+          <div className="report-card-heading">
+            <strong>最近 Run</strong>
+            <span className="badge badge-neutral">{props.activity?.runCount ?? 0}</span>
+          </div>
+          {props.activity?.latestRun && latestRunSummary ? (
+            <>
+              <span>{props.activity.latestRun.sceneCode || shortId(props.activity.latestRun.id)} · {latestRunSummary.headline}</span>
+              <small>{latestRunSummary.detail}</small>
+              <small>
+                {latestRunSummary.signals.length ? `${latestRunSummary.signals.join(' · ')} · ` : ''}
+                {props.activity.latestRun.createdAt ? formatDateTime(props.activity.latestRun.createdAt) : props.activity.latestRun.id}
+              </small>
+            </>
+          ) : (
+            <span>当前场景还没有关联的运行摘要。</span>
+          )}
+        </div>
       </div>
       {props.detail.steps.length ? (
         <div className="ui-e2e-card-list">

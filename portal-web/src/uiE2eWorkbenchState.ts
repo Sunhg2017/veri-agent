@@ -98,6 +98,13 @@ export type UiE2eSceneListSummary = {
   signals: string[];
 };
 
+export type UiE2eSceneActivitySummary = {
+  bundleCount: number;
+  runCount: number;
+  latestBundle?: UiE2eBundleSummary;
+  latestRun?: UiE2eRunSummary;
+};
+
 export type UiE2eBundleFocusMode = 'all' | 'reviewing' | 'submittable' | 'approved' | 'staticFailed' | 'rejected';
 
 export type UiE2eBundleFocusOption = {
@@ -449,6 +456,28 @@ export function buildUiE2eSceneListSummary(scene: UiE2eSceneSummary): UiE2eScene
               : `risk=${scene.riskLevel}`,
     detail,
     signals
+  };
+}
+
+export function buildUiE2eSceneActivitySummary(
+  sceneId: string,
+  bundles: UiE2eBundleSummary[],
+  runs: UiE2eRunSummary[]
+): UiE2eSceneActivitySummary {
+  const relatedBundles = bundles.filter((bundle) => bundle.sceneId === sceneId);
+  const relatedRuns = runs.filter((run) => run.sceneId === sceneId);
+
+  return {
+    bundleCount: relatedBundles.length,
+    runCount: relatedRuns.length,
+    latestBundle: latestUiE2eEntity(
+      relatedBundles,
+      (bundle) => firstUiE2eTimestamp(bundle.updatedAt, bundle.approvedAt, bundle.rejectedAt, bundle.submittedAt, bundle.createdAt)
+    ),
+    latestRun: latestUiE2eEntity(
+      relatedRuns,
+      (run) => firstUiE2eTimestamp(run.finishedAt, run.updatedAt, run.startedAt, run.createdAt)
+    )
   };
 }
 
@@ -1857,6 +1886,18 @@ function uiE2eAuditEventTime(value?: string) {
   }
   const parsed = Date.parse(value);
   return Number.isFinite(parsed) ? parsed : undefined;
+}
+
+function latestUiE2eEntity<T>(items: T[], timestampSelector: (item: T) => string | undefined) {
+  return [...items].sort((left, right) => {
+    const leftTime = uiE2eAuditEventTime(timestampSelector(left)) ?? 0;
+    const rightTime = uiE2eAuditEventTime(timestampSelector(right)) ?? 0;
+    return rightTime - leftTime;
+  })[0];
+}
+
+function firstUiE2eTimestamp(...values: Array<string | undefined>) {
+  return values.find((value) => Boolean(value));
 }
 
 function numberRecord(value: unknown) {

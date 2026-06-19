@@ -12,6 +12,7 @@ import {
   buildUiE2eRunAuditTimeline,
   buildUiE2eRunListSummary,
   buildUiE2eRunQueueOverview,
+  buildUiE2eSceneActivitySummary,
   buildUiE2eSceneListSummary,
   buildUiE2eSceneQueueOverview,
   buildUiE2eWorkbenchOverview,
@@ -887,6 +888,96 @@ describe('ui e2e workbench state helpers', () => {
       headline: '草稿待补全',
       signals: ['risk=CRITICAL', 'steps=5', 'tags=2', 'source=WP5'],
       detail: '场景仍在草稿态，可继续补全步骤模板、定位策略和断言摘要。'
+    });
+  });
+
+  it('builds scene activity summary from related bundles and runs', () => {
+    const summary = buildUiE2eSceneActivitySummary(
+      'scene-1',
+      [
+        {
+          id: 'bundle-1',
+          projectId: 'project-alpha',
+          sceneId: 'scene-1',
+          sceneCode: 'portal-login',
+          status: 'REVIEWING',
+          bundleDigest: 'digest-1',
+          staticCheckStatus: 'PASSED',
+          staticCheckSummary: {},
+          updatedAt: '2026-06-19T01:00:00Z'
+        },
+        {
+          id: 'bundle-2',
+          projectId: 'project-alpha',
+          sceneId: 'scene-1',
+          sceneCode: 'portal-login',
+          status: 'APPROVED',
+          bundleDigest: 'digest-2',
+          staticCheckStatus: 'PASSED',
+          staticCheckSummary: {},
+          approvedAt: '2026-06-19T02:00:00Z'
+        },
+        {
+          id: 'bundle-3',
+          projectId: 'project-alpha',
+          sceneId: 'scene-2',
+          sceneCode: 'portal-search',
+          status: 'APPROVED',
+          bundleDigest: 'digest-3',
+          staticCheckStatus: 'PASSED',
+          staticCheckSummary: {},
+          approvedAt: '2026-06-19T03:00:00Z'
+        }
+      ],
+      [
+        {
+          id: 'run-1',
+          projectId: 'project-alpha',
+          sceneId: 'scene-1',
+          sceneCode: 'portal-login',
+          bundleId: 'bundle-1',
+          status: 'FAILED',
+          runnerMode: 'MANAGED',
+          failureCode: 'UI_E2E_BASE_URL_NOT_ALLOWED',
+          accountSummary: {},
+          finishedAt: '2026-06-19T04:00:00Z'
+        },
+        {
+          id: 'run-2',
+          projectId: 'project-alpha',
+          sceneId: 'scene-1',
+          sceneCode: 'portal-login',
+          bundleId: 'bundle-2',
+          status: 'RUNNING',
+          runnerMode: 'MANAGED',
+          accountSummary: {},
+          startedAt: '2026-06-19T05:00:00Z'
+        },
+        {
+          id: 'run-3',
+          projectId: 'project-alpha',
+          sceneId: 'scene-2',
+          sceneCode: 'portal-search',
+          bundleId: 'bundle-3',
+          status: 'SUCCEEDED',
+          runnerMode: 'MANAGED',
+          accountSummary: {},
+          finishedAt: '2026-06-19T06:00:00Z'
+        }
+      ]
+    );
+
+    expect(summary).toMatchObject({
+      bundleCount: 2,
+      runCount: 2,
+      latestBundle: expect.objectContaining({
+        id: 'bundle-2',
+        status: 'APPROVED'
+      }),
+      latestRun: expect.objectContaining({
+        id: 'run-2',
+        status: 'RUNNING'
+      })
     });
   });
 
