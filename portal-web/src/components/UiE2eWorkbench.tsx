@@ -48,11 +48,15 @@ import {
 import { canUseButton, hasPermission } from '../permissions';
 import {
   blankUiE2eSceneDraft,
+  buildUiE2eRunDiagnosis,
   buildUiE2eWorkbenchOverview,
   buildUiE2eFlakyPayload,
   buildUiE2eRunPayload,
   buildUiE2eScenePayload,
   buildUiE2eSceneUpdatePayload,
+  explainUiE2eArtifactCaptureBlockedReason,
+  explainUiE2eFailureBucket,
+  extractUiE2eArtifactCaptureBlockedReason,
   initialUiE2eFlakyDraft,
   initialUiE2eRunDraft,
   initialUiE2eSceneDraft,
@@ -1103,6 +1107,7 @@ function RunDetailPanel(props: { detail: UiE2eRunDetail | null; exported: UiE2eR
     return <EmptyPanel title="运行详情" desc="选择 run 后查看步骤结果、失败分类、artifact manifest 和导出摘要。" />;
   }
   const executionSummary = props.detail.executionSummary;
+  const diagnosis = buildUiE2eRunDiagnosis(props.detail);
   return (
     <Panel title="运行详情" desc={`${props.detail.projectId} · ${props.detail.sceneCode || props.detail.sceneId}`}>
       <div className="report-detail-header">
@@ -1121,11 +1126,27 @@ function RunDetailPanel(props: { detail: UiE2eRunDetail | null; exported: UiE2eR
         <InfoBlock title="accountSummary" value={formatRecord(props.detail.accountSummary)} />
         <InfoBlock title="executionSummary" value={formatRecord(executionSummary)} />
       </div>
-      {isUiE2eRunActiveStatus(props.detail.status) && (
-        <div className="notice info">当前运行仍在进行中，工作台会自动刷新运行详情和列表状态。</div>
-      )}
-      {props.detail.failureCode === 'UI_E2E_RUNNER_DISABLED' && (
-        <div className="notice warning">当前环境 runner 默认关闭，运行被控制面安全地标记为 BLOCKED，用于验证审批、租借和导出链路。</div>
+      <div className={`notice ${diagnosis.tone}`}>
+        <strong>诊断 · {diagnosis.label}</strong>
+        <span>{diagnosis.summary}</span>
+        {diagnosis.primaryFailureBucket ? <span>主要失败桶：{diagnosis.primaryFailureBucket}</span> : null}
+        {diagnosis.blockedArtifactCount > 0 ? <span>受阻 artifact：{diagnosis.blockedArtifactCount}</span> : null}
+        {!diagnosis.rawArtifactDownloadReady && props.detail.artifacts.length ? <span>artifact 当前仅提供 manifest 摘要，不提供原始下载。</span> : null}
+      </div>
+      {diagnosis.signals.length ? (
+        <div className="report-policy-list">
+          <div className="report-policy-title">诊断信号</div>
+          {diagnosis.signals.map((item) => <span key={item}>{item}</span>)}
+        </div>
+      ) : null}
+      {diagnosis.nextActions.length ? (
+        <div className="report-policy-list">
+          <div className="report-policy-title">建议动作</div>
+          {diagnosis.nextActions.map((item) => <span key={item}>{item}</span>)}
+        </div>
+      ) : null}
+      {props.detail.failureCode === 'UI_E2E_EXPORT_DISABLED' && (
+        <div className="notice warning">当前环境禁用了 run export；仍可在工作台内继续查看聚合详情与 traceId。</div>
       )}
       <StepResultsList steps={props.detail.stepResults} />
       <ArtifactList artifacts={props.detail.artifacts} />
@@ -1195,6 +1216,7 @@ function StepResultsList(props: { steps: UiE2eRunStepResult[] }) {
             <InfoBlock title="summary" value={formatRecord(step.summary)} />
             <InfoBlock title="sceneStepId" value={step.sceneStepId || '-'} />
           </div>
+          {step.failureBucket ? <small>{explainUiE2eFailureBucket(step.failureBucket)}</small> : null}
         </div>
       ))}
     </div>
@@ -1219,6 +1241,9 @@ function ArtifactList(props: { artifacts: UiE2eArtifactManifest[] }) {
             <InfoBlock title="sizeBytes" value={String(artifact.sizeBytes)} />
             <InfoBlock title="redactionFlags" value={formatRecord(artifact.redactionFlags)} />
           </div>
+          {artifact.captureStatus === 'BLOCKED' ? (
+            <small>{explainUiE2eArtifactCaptureBlockedReason(extractUiE2eArtifactCaptureBlockedReason(artifact.redactionFlags))}</small>
+          ) : null}
         </div>
       ))}
     </div>

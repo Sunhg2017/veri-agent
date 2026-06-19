@@ -1,11 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import {
   blankUiE2eSceneDraft,
+  buildUiE2eRunDiagnosis,
   buildUiE2eWorkbenchOverview,
   buildUiE2eFlakyPayload,
   buildUiE2eRunPayload,
   buildUiE2eScenePayload,
   buildUiE2eSceneUpdatePayload,
+  explainUiE2eArtifactCaptureBlockedReason,
+  explainUiE2eFailureBucket,
+  extractUiE2eArtifactCaptureBlockedReason,
   initialUiE2eSceneDraft,
   isUiE2eRunActiveStatus,
   prettyJson,
@@ -296,6 +300,120 @@ describe('ui e2e workbench state helpers', () => {
       '最近列表中有 1 条 BLOCKED 运行，通常需要复核 runner、租借或审批状态。',
       '当前共有 1 条 CONFIRMED_FLAKY 标记，可作为后续诊断和治理输入。'
     ]));
+  });
+
+  it('builds run diagnosis for runner-disabled blocked runs', () => {
+    const diagnosis = buildUiE2eRunDiagnosis({
+      id: 'run-1',
+      projectId: 'project-alpha',
+      sceneId: 'scene-1',
+      bundleId: 'bundle-1',
+      status: 'BLOCKED',
+      runnerMode: 'DISABLED',
+      failureCode: 'UI_E2E_RUNNER_DISABLED',
+      accountSummary: { accountLeaseRef: 'lease-1' },
+      executionSummary: {
+        aggregateOnly: true,
+        rawArtifactDownloadReady: false,
+        runnerDefaultDisabled: true,
+        stepResultCount: 0
+      },
+      stepResults: [],
+      artifacts: [],
+      idempotentReplay: false
+    });
+
+    expect(diagnosis).toMatchObject({
+      tone: 'warning',
+      label: 'RUNNER_DISABLED',
+      blockedArtifactCount: 0,
+      rawArtifactDownloadReady: false
+    });
+    expect(diagnosis.summary).toContain('runner 默认关闭');
+    expect(diagnosis.signals).toEqual(expect.arrayContaining([
+      'failureCode=UI_E2E_RUNNER_DISABLED',
+      'aggregateOnly=true，当前详情不包含 secretRef 明文与原始 artifact 正文',
+      'stepResultCount=0，阻断发生在实际步骤执行之前'
+    ]));
+    expect(diagnosis.nextActions).toEqual(expect.arrayContaining([
+      '如需真实浏览器执行，请先切换到 runner 已启用的环境或打开对应开关。',
+      '继续核对审批、租借和 aggregate-only 导出链路是否按预期工作。'
+    ]));
+  });
+
+  it('builds run diagnosis for flaky failed runs with blocked artifacts', () => {
+    const diagnosis = buildUiE2eRunDiagnosis({
+      id: 'run-2',
+      projectId: 'project-alpha',
+      sceneId: 'scene-1',
+      bundleId: 'bundle-1',
+      status: 'FAILED',
+      runnerMode: 'MANAGED',
+      accountSummary: {},
+      flakyStatus: 'CONFIRMED_FLAKY',
+      executionSummary: {
+        aggregateOnly: true,
+        rawArtifactDownloadReady: false,
+        stepResultCount: 2,
+        failureBucketCounts: {
+          ASSERTION: 1,
+          LOCATOR: 1
+        }
+      },
+      stepResults: [
+        {
+          id: 'step-1',
+          stepOrder: 1,
+          status: 'FAILED',
+          durationMs: 1200,
+          failureBucket: 'ASSERTION',
+          errorCode: 'ASSERTION_MISMATCH',
+          summary: { expected: 'dashboard visible' }
+        }
+      ],
+      artifacts: [
+        {
+          id: 'artifact-1',
+          artifactType: 'SCREENSHOT',
+          captureStatus: 'BLOCKED',
+          sizeBytes: 0,
+          redactionFlags: { captureBlockedReason: 'artifactRefIncomplete' }
+        }
+      ],
+      flakyMark: {
+        id: 'flaky-1',
+        projectId: 'project-alpha',
+        status: 'CONFIRMED_FLAKY'
+      },
+      idempotentReplay: false
+    });
+
+    expect(diagnosis).toMatchObject({
+      tone: 'warning',
+      label: 'CONFIRMED_FLAKY',
+      primaryFailureBucket: 'ASSERTION x1',
+      blockedArtifactCount: 1,
+      rawArtifactDownloadReady: false
+    });
+    expect(diagnosis.signals).toEqual(expect.arrayContaining([
+      'failureBucketCounts=ASSERTION x1, LOCATOR x1',
+      'artifactCaptureBlocked=1 (artifactRefIncomplete)',
+      'flakyStatus=CONFIRMED_FLAKY',
+      'rawArtifactDownloadReady=false，artifact 仅提供 manifest 摘要'
+    ]));
+    expect(diagnosis.nextActions).toEqual(expect.arrayContaining([
+      '对照步骤 summary 与断言预期，判断是产品变更还是用例漂移。',
+      '核对 scene/bundle 中 locator 策略是否与当前页面结构一致。',
+      '检查 runner 回传的 artifact storageRef 与 digest 是否完整。',
+      '当前运行已标记为 CONFIRMED_FLAKY，可优先按不稳定场景治理而不是直接回归 blocker。'
+    ]));
+  });
+
+  it('explains failure buckets and artifact block reasons', () => {
+    expect(explainUiE2eFailureBucket('LOCATOR')).toContain('定位器');
+    expect(extractUiE2eArtifactCaptureBlockedReason({ captureBlockedReason: 'runnerDisabled' })).toBe('runnerDisabled');
+    expect(explainUiE2eArtifactCaptureBlockedReason('runnerDisabled')).toContain('runner 默认关闭');
+    expect(explainUiE2eArtifactCaptureBlockedReason(undefined)).toContain('artifact capture 被阻断');
   });
 
   it('hydrates and resets scene drafts predictably', () => {
