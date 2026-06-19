@@ -1,9 +1,6 @@
 package com.songhg.veri.agent.uie2e.infrastructure;
 
 import com.songhg.veri.agent.uie2e.application.port.UiE2eRunnerPort;
-import org.springframework.stereotype.Component;
-
-@Component
 public class DisabledUiE2eRunnerAdapter implements UiE2eRunnerPort {
 
     @Override

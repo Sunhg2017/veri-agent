@@ -25,7 +25,6 @@ import com.songhg.veri.agent.uie2e.application.command.CreateUiE2eBundleCommand;
 import com.songhg.veri.agent.uie2e.application.command.CreateUiE2eRunCommand;
 import com.songhg.veri.agent.uie2e.application.command.CreateUiE2eSceneCommand;
 import com.songhg.veri.agent.uie2e.application.command.ReviewUiE2eBundleCommand;
-import com.songhg.veri.agent.uie2e.application.port.UiE2eRunnerPort;
 import com.songhg.veri.agent.uie2e.application.query.UiE2eRunPageRequest;
 import com.songhg.veri.agent.uie2e.application.view.UiE2eRunDetailResponse;
 import com.songhg.veri.agent.uie2e.application.view.UiE2eRunExportResponse;
@@ -148,7 +147,11 @@ class UiE2eRunServiceTest {
 
     @Test
     void cancelsRunningRunAndListsStoredRuns() {
-        Fixture fixture = fixture(true, List.of("https://portal.example.test"));
+        Fixture fixture = fixture(
+                true,
+                List.of("https://portal.example.test"),
+                new RunningRunnerStub()
+        );
         SeededRunRefs refs = seedApprovedSceneAndBundle(fixture);
         UUID leaseRef = acquireLease(fixture);
 
@@ -198,7 +201,11 @@ class UiE2eRunServiceTest {
 
     @Test
     void exposesFlakyFallbackInRunSummaryAndDetail() {
-        Fixture fixture = fixture(true, List.of("https://portal.example.test"));
+        Fixture fixture = fixture(
+                true,
+                List.of("https://portal.example.test"),
+                new RunningRunnerStub()
+        );
         SeededRunRefs refs = seedApprovedSceneAndBundle(fixture);
         UUID leaseRef = acquireLease(fixture);
         UiE2eRunDetailResponse created = fixture.service().createRun(new CreateUiE2eRunCommand(
@@ -291,9 +298,61 @@ class UiE2eRunServiceTest {
         assertThat(health.policy()).containsEntry("artifactManifestReady", true);
         assertThat(health.policy()).containsEntry("flakyMarkReady", true);
         assertThat(health.policy()).containsEntry("runnerDefaultDisabled", true);
+        assertThat(health.policy()).containsEntry("managedPreviewRunnerReady", false);
+    }
+
+    @Test
+    void createsBlockedPreviewRunWhenRunnerIsEnabledButCredentialInjectionIsPending() {
+        Fixture fixture = fixture(true, List.of("https://portal.example.test"));
+        SeededRunRefs refs = seedApprovedSceneAndBundle(fixture);
+        UUID leaseRef = acquireLease(fixture);
+
+        UiE2eRunDetailResponse created = fixture.service().createRun(new CreateUiE2eRunCommand(
+                PROJECT_ID,
+                refs.sceneId(),
+                refs.bundleId(),
+                ENVIRONMENT_KEY,
+                "env:" + ENVIRONMENT_KEY,
+                leaseRef,
+                "run-request-preview-001",
+                "preview"
+        ));
+
+        assertThat(created.status()).isEqualTo("BLOCKED");
+        assertThat(created.runnerMode()).isEqualTo("MANAGED");
+        assertThat(created.failureCode()).isEqualTo("EXECUTION_RUNNER_NOT_READY");
+        assertThat(created.finishedAt()).isNotNull();
+        assertThat(created.stepResults()).isNotEmpty();
+        assertThat(created.artifacts()).isNotEmpty();
+        assertThat(created.executionSummary()).containsEntry("runnerDefaultDisabled", false);
+        assertThat(created.executionSummary()).containsEntry("stepResultCount", created.stepResults().size());
+        assertThat(created.executionSummary()).containsEntry("artifactManifestCount", created.artifacts().size());
+        assertThat(((Map<?, ?>) created.executionSummary().get("stepStatusCounts")).get("BLOCKED")).isEqualTo(created.stepResults().size());
+        assertThat(created.stepResults()).allSatisfy(step -> {
+            assertThat(step.status()).isEqualTo("BLOCKED");
+            assertThat(step.errorCode()).isEqualTo("EXECUTION_RUNNER_NOT_READY");
+            assertThat(step.summary()).containsEntry("previewOnly", true);
+        });
+        assertThat(created.artifacts()).anySatisfy(artifact -> {
+            assertThat(artifact.artifactType()).isEqualTo("LOG");
+            assertThat(artifact.captureStatus()).isEqualTo("CAPTURED");
+            assertThat(artifact.redactionFlags()).containsEntry("previewOnly", true);
+        });
+        assertThat(created.artifacts()).anySatisfy(artifact -> {
+            assertThat(artifact.artifactType()).isEqualTo("SCREENSHOT");
+            assertThat(artifact.captureStatus()).isEqualTo("BLOCKED");
+        });
     }
 
     private Fixture fixture(boolean managedRunner, List<String> allowlistBaseUrls) {
+        return fixture(managedRunner, allowlistBaseUrls, null);
+    }
+
+    private Fixture fixture(
+            boolean managedRunner,
+            List<String> allowlistBaseUrls,
+            com.songhg.veri.agent.uie2e.application.port.UiE2eRunnerPort runnerPortOverride
+    ) {
         InMemoryUiE2eRepository repository = new InMemoryUiE2eRepository();
         UiE2ePlatformContextClient contextClient = mock(UiE2ePlatformContextClient.class);
         when(contextClient.projectContext(PROJECT_ID)).thenReturn(platformContext(PROJECT_ID));
@@ -349,7 +408,11 @@ class UiE2eRunServiceTest {
                         actorResolver,
                         contextClient,
                         properties,
-                        managedRunner ? new ManagedRunnerStub() : new com.songhg.veri.agent.uie2e.infrastructure.DisabledUiE2eRunnerAdapter(),
+                        runnerPortOverride != null
+                                ? runnerPortOverride
+                                : managedRunner
+                                ? new com.songhg.veri.agent.uie2e.infrastructure.ManagedPreviewUiE2eRunnerAdapter(repository, properties)
+                                : new com.songhg.veri.agent.uie2e.infrastructure.DisabledUiE2eRunnerAdapter(),
                         new UiE2eRunEnvironmentResolver(managementStore),
                         testDataFixture.referenceService(),
                         objectMapper
@@ -536,7 +599,7 @@ class UiE2eRunServiceTest {
     ) {
     }
 
-    private static final class ManagedRunnerStub implements UiE2eRunnerPort {
+    private static final class RunningRunnerStub implements com.songhg.veri.agent.uie2e.application.port.UiE2eRunnerPort {
 
         @Override
         public RunnerValidation validate(RunnerValidationRequest request) {
