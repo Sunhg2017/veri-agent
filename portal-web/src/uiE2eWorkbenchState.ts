@@ -1,6 +1,7 @@
 import type {
   CreateUiE2eRunPayload,
   CreateUiE2eScenePayload,
+  UiE2eArtifactManifest,
   UiE2eBundleSummary,
   UiE2eFlakyMark,
   UiE2eHealth,
@@ -183,6 +184,15 @@ export type UiE2eRunFlakyGuidance = {
   label: string;
   summary: string;
   presets: UiE2eRunFlakyPreset[];
+};
+
+export type UiE2eRunAuditTimelineItem = {
+  id: string;
+  kindLabel: 'RUN' | 'STEP' | 'ARTIFACT' | 'FLAKY';
+  title: string;
+  detail: string;
+  occurredAt?: string;
+  tone: UiE2eWorkbenchTone;
 };
 
 export type UiE2eFlakyListSummary = {
@@ -1054,6 +1064,96 @@ export function buildUiE2eRunFlakyGuidance(detail: UiE2eRunDetail): UiE2eRunFlak
   };
 }
 
+export function buildUiE2eRunAuditTimeline(detail: UiE2eRunDetail): UiE2eRunAuditTimelineItem[] {
+  const events: Array<UiE2eRunAuditTimelineItem & { sortOrder: number }> = [];
+
+  pushUiE2eRunAuditTimelineEvent(events, {
+    id: `${detail.id}:created`,
+    kindLabel: 'RUN',
+    title: '运行创建',
+    detail: detail.requestKey
+      ? `控制面已接收 requestKey=${detail.requestKey} 的运行请求。`
+      : '控制面已接收运行请求并开始写入聚合摘要。',
+    occurredAt: detail.createdAt,
+    tone: 'info',
+    sortOrder: 10
+  });
+
+  if (detail.idempotentReplay) {
+    pushUiE2eRunAuditTimelineEvent(events, {
+      id: `${detail.id}:replay`,
+      kindLabel: 'RUN',
+      title: '幂等回放',
+      detail: '当前请求命中已有运行摘要，本次未重复创建新的外部执行。',
+      occurredAt: undefined,
+      tone: 'info',
+      sortOrder: 450
+    });
+  }
+
+  if (detail.startedAt) {
+    pushUiE2eRunAuditTimelineEvent(events, {
+      id: `${detail.id}:started`,
+      kindLabel: 'RUN',
+      title: '执行开始',
+      detail: `runner=${detail.runnerMode}，运行已进入 ${detail.status} 链路。`,
+      occurredAt: detail.startedAt,
+      tone: isUiE2eRunActiveStatus(detail.status) ? 'info' : 'success',
+      sortOrder: 30
+    });
+  }
+
+  detail.stepResults.forEach((step, index) => {
+    pushUiE2eRunAuditTimelineEvent(events, {
+      id: `${detail.id}:step:${step.id || index}`,
+      kindLabel: 'STEP',
+      title: `步骤 ${step.stepOrder} · ${step.status}`,
+      detail: buildUiE2eRunStepAuditDetail(step),
+      occurredAt: step.updatedAt || step.createdAt,
+      tone: uiE2eToneFromStatus(step.status),
+      sortOrder: 100 + index
+    });
+  });
+
+  detail.artifacts.forEach((artifact, index) => {
+    pushUiE2eRunAuditTimelineEvent(events, {
+      id: `${detail.id}:artifact:${artifact.id || index}`,
+      kindLabel: 'ARTIFACT',
+      title: `Artifact · ${artifact.artifactType} · ${artifact.captureStatus}`,
+      detail: buildUiE2eArtifactAuditDetail(artifact),
+      occurredAt: artifact.updatedAt || artifact.createdAt,
+      tone: artifact.captureStatus === 'BLOCKED' ? 'warning' : uiE2eToneFromStatus(artifact.captureStatus),
+      sortOrder: 200 + index
+    });
+  });
+
+  if (detail.flakyMark) {
+    pushUiE2eRunAuditTimelineEvent(events, {
+      id: `${detail.id}:flaky:${detail.flakyMark.id}`,
+      kindLabel: 'FLAKY',
+      title: `Flaky 标记 · ${detail.flakyMark.status}`,
+      detail: buildUiE2eFlakyAuditDetail(detail.flakyMark),
+      occurredAt: detail.flakyMark.updatedAt || detail.flakyMark.createdAt,
+      tone: detail.flakyMark.status === 'CONFIRMED_FLAKY' ? 'warning' : uiE2eToneFromStatus(detail.flakyMark.status),
+      sortOrder: 300
+    });
+  }
+
+  if (!isUiE2eRunActiveStatus(detail.status)) {
+    pushUiE2eRunAuditTimelineEvent(events, {
+      id: `${detail.id}:finished`,
+      kindLabel: 'RUN',
+      title: `运行终态 · ${detail.status}`,
+      detail: buildUiE2eRunTerminalAuditDetail(detail),
+      occurredAt: detail.finishedAt || detail.updatedAt,
+      tone: uiE2eToneFromStatus(detail.status),
+      sortOrder: 400
+    });
+  }
+
+  return events.sort(compareUiE2eRunAuditTimelineEventOrder).map(({ sortOrder: _sortOrder, ...item }) => item);
+}
+
 export function buildUiE2eFlakyQueueOverview(flakyMarks: UiE2eFlakyMark[]): UiE2eFlakyQueueOverview {
   return {
     focusOptions: [
@@ -1665,6 +1765,100 @@ function runFlakyReasonLead(detail: UiE2eRunDetail, failureBucket?: string) {
   return `运行当前状态为 ${detail.status}，建议结合 traceId 和步骤摘要继续观察。`;
 }
 
+function buildUiE2eRunStepAuditDetail(step: UiE2eRunStepResult) {
+  const parts: string[] = [];
+  if (step.failureBucket) {
+    parts.push(`failureBucket=${step.failureBucket}`);
+  }
+  if (step.errorCode) {
+    parts.push(`errorCode=${step.errorCode}`);
+  }
+  if (step.durationMs > 0) {
+    parts.push(`duration=${step.durationMs}ms`);
+  }
+  return parts.length ? parts.join(' · ') : '步骤结果已回写到控制面摘要。';
+}
+
+function buildUiE2eArtifactAuditDetail(artifact: UiE2eArtifactManifest) {
+  if (artifact.captureStatus === 'BLOCKED') {
+    return explainUiE2eArtifactCaptureBlockedReason(
+      extractUiE2eArtifactCaptureBlockedReason(artifact.redactionFlags)
+    );
+  }
+  const parts: string[] = [];
+  if (artifact.artifactDigest) {
+    parts.push(`digest=${artifact.artifactDigest}`);
+  }
+  if (artifact.storageRef) {
+    parts.push('storageRef=ready');
+  }
+  if (artifact.sizeBytes > 0) {
+    parts.push(`size=${artifact.sizeBytes}B`);
+  }
+  return parts.length ? parts.join(' · ') : 'artifact manifest 已记录，可继续查看脱敏摘要。';
+}
+
+function buildUiE2eFlakyAuditDetail(mark: UiE2eFlakyMark) {
+  const parts: string[] = [];
+  if (mark.reasonCode) {
+    parts.push(`reason=${mark.reasonCode}`);
+  }
+  const summary = compactUiE2eText(mark.reasonSummary, 96);
+  if (summary) {
+    parts.push(summary);
+  }
+  return parts.length ? parts.join(' · ') : 'Flaky 标记已写入治理记录。';
+}
+
+function buildUiE2eRunTerminalAuditDetail(detail: UiE2eRunDetail) {
+  const parts: string[] = [];
+  if (detail.failureCode) {
+    parts.push(`failure=${compactUiE2eFailureCode(detail.failureCode)}`);
+  }
+  const failureSummary = compactUiE2eText(detail.failureSummary, 96);
+  if (failureSummary) {
+    parts.push(failureSummary);
+  }
+  if (detail.traceId) {
+    parts.push(`traceId=${detail.traceId}`);
+  }
+  return parts.length ? parts.join(' · ') : '运行已进入终态，聚合摘要已稳定。';
+}
+
+function pushUiE2eRunAuditTimelineEvent(
+  events: Array<UiE2eRunAuditTimelineItem & { sortOrder: number }>,
+  event: UiE2eRunAuditTimelineItem & { sortOrder: number }
+) {
+  events.push(event);
+}
+
+function compareUiE2eRunAuditTimelineEventOrder(
+  left: UiE2eRunAuditTimelineItem & { sortOrder: number },
+  right: UiE2eRunAuditTimelineItem & { sortOrder: number }
+) {
+  const leftTime = uiE2eAuditEventTime(left.occurredAt);
+  const rightTime = uiE2eAuditEventTime(right.occurredAt);
+
+  if (leftTime != null && rightTime != null && leftTime !== rightTime) {
+    return leftTime - rightTime;
+  }
+  if (leftTime != null && rightTime == null) {
+    return -1;
+  }
+  if (leftTime == null && rightTime != null) {
+    return 1;
+  }
+  return left.sortOrder - right.sortOrder;
+}
+
+function uiE2eAuditEventTime(value?: string) {
+  if (!value) {
+    return undefined;
+  }
+  const parsed = Date.parse(value);
+  return Number.isFinite(parsed) ? parsed : undefined;
+}
+
 function numberRecord(value: unknown) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) {
     return {} as Record<string, number>;
@@ -1756,6 +1950,25 @@ function compactUiE2eText(value?: string, max = 72) {
     return undefined;
   }
   return compact.length > max ? `${compact.slice(0, max - 3)}...` : compact;
+}
+
+function uiE2eToneFromStatus(status?: string): UiE2eWorkbenchTone {
+  if (!status) {
+    return 'info';
+  }
+  if (['APPROVED', 'SUCCEEDED', 'CAPTURED', 'READY', 'CONFIRMED_FLAKY'].includes(status)) {
+    return 'success';
+  }
+  if (['DRAFT', 'REVIEWING', 'QUEUED', 'RUNNING', 'PENDING', 'FLAKY_CANDIDATE'].includes(status)) {
+    return 'info';
+  }
+  if (['FAILED', 'BLOCKED', 'REJECTED', 'CANCELED', 'TIMEOUT'].includes(status)) {
+    return 'danger';
+  }
+  if (['ARCHIVED', 'NONE', 'WAIVED', 'SKIPPED', 'DISABLED'].includes(status)) {
+    return 'info';
+  }
+  return 'warning';
 }
 
 function extractUiE2eSceneSourceType(sourceSummary: Record<string, unknown>) {

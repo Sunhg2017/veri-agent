@@ -61,6 +61,7 @@ import {
   buildUiE2eRunCreationReadiness,
   buildUiE2eRunDiagnosis,
   buildUiE2eRunListSummary,
+  buildUiE2eRunAuditTimeline,
   buildUiE2eRunQueueOverview,
   buildUiE2eSceneListSummary,
   buildUiE2eSceneQueueOverview,
@@ -1536,6 +1537,7 @@ function RunDetailPanel(props: {
   const executionSummary = props.detail.executionSummary;
   const diagnosis = buildUiE2eRunDiagnosis(props.detail);
   const flakyGuidance = buildUiE2eRunFlakyGuidance(props.detail);
+  const auditTimeline = buildUiE2eRunAuditTimeline(props.detail);
   return (
     <Panel title="运行详情" desc={`${props.detail.projectId} · ${props.detail.sceneCode || props.detail.sceneId}`}>
       <div className="report-detail-header">
@@ -1573,6 +1575,7 @@ function RunDetailPanel(props: {
           {diagnosis.nextActions.map((item) => <span key={item}>{item}</span>)}
         </div>
       ) : null}
+      <RunAuditTimeline timeline={auditTimeline} />
       <div className={`notice ${flakyGuidance.tone}`}>
         <strong>Flaky 治理 · {flakyGuidance.label}</strong>
         <span>{flakyGuidance.summary}</span>
@@ -1623,6 +1626,33 @@ function RunDetailPanel(props: {
       )}
       {props.state.error || props.state.success || props.state.traceId || props.state.loading ? <StateLine state={props.state} /> : null}
     </Panel>
+  );
+}
+
+function RunAuditTimeline(props: {
+  timeline: Array<{
+    id: string;
+    kindLabel: string;
+    title: string;
+    detail: string;
+    occurredAt?: string;
+    tone: 'success' | 'info' | 'warning' | 'danger';
+  }>;
+}) {
+  if (!props.timeline.length) {
+    return <div className="notice info">当前运行还没有可聚合的审计时间线摘要。</div>;
+  }
+  return (
+    <div className="ui-e2e-run-audit-timeline">
+      <div className="report-policy-title">运行审计时间线</div>
+      {props.timeline.map((item) => (
+        <div className={`ui-e2e-run-audit-event tone-${item.tone}`} key={item.id}>
+          <strong>{item.title}</strong>
+          <span>{item.detail}</span>
+          <em>{item.kindLabel}{item.occurredAt ? ` · ${formatDateTime(item.occurredAt)}` : ''}</em>
+        </div>
+      ))}
+    </div>
   );
 }
 

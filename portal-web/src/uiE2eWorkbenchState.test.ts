@@ -9,6 +9,7 @@ import {
   buildUiE2eRunCreationReadiness,
   buildUiE2eRunDiagnosis,
   buildUiE2eRunFlakyGuidance,
+  buildUiE2eRunAuditTimeline,
   buildUiE2eRunListSummary,
   buildUiE2eRunQueueOverview,
   buildUiE2eSceneListSummary,
@@ -671,6 +672,114 @@ describe('ui e2e workbench state helpers', () => {
       label: '当前运行稳定',
       presets: []
     });
+  });
+
+  it('builds a run audit timeline from existing run detail snapshots', () => {
+    const timeline = buildUiE2eRunAuditTimeline({
+      id: 'run-1',
+      projectId: 'project-alpha',
+      sceneId: 'scene-1',
+      sceneCode: 'portal-login',
+      bundleId: 'bundle-1',
+      status: 'FAILED',
+      runnerMode: 'MANAGED',
+      requestKey: 'wp7.run-1',
+      failureCode: 'UI_E2E_BASE_URL_NOT_ALLOWED',
+      failureSummary: 'baseUrl host blocked by allowlist',
+      traceId: 'trc-run-1',
+      accountSummary: {},
+      executionSummary: {},
+      stepResults: [
+        {
+          id: 'step-1',
+          stepOrder: 1,
+          status: 'SUCCEEDED',
+          durationMs: 800,
+          summary: {},
+          createdAt: '2026-06-19T01:00:02Z',
+          updatedAt: '2026-06-19T01:00:03Z'
+        },
+        {
+          id: 'step-2',
+          stepOrder: 2,
+          status: 'FAILED',
+          durationMs: 1600,
+          failureBucket: 'ASSERTION',
+          errorCode: 'ASSERTION_MISMATCH',
+          summary: {},
+          createdAt: '2026-06-19T01:00:04Z',
+          updatedAt: '2026-06-19T01:00:05Z'
+        }
+      ],
+      artifacts: [
+        {
+          id: 'artifact-1',
+          artifactType: 'SCREENSHOT',
+          captureStatus: 'BLOCKED',
+          sizeBytes: 0,
+          redactionFlags: { captureBlockedReason: 'artifactRefIncomplete' },
+          createdAt: '2026-06-19T01:00:06Z',
+          updatedAt: '2026-06-19T01:00:06Z'
+        }
+      ],
+      flakyMark: {
+        id: 'flaky-1',
+        projectId: 'project-alpha',
+        runId: 'run-1',
+        linkedRunCount: 1,
+        status: 'FLAKY_CANDIDATE',
+        reasonCode: 'assertion-variance',
+        reasonSummary: '断言偶发波动，继续观察',
+        createdAt: '2026-06-19T01:00:07Z',
+        updatedAt: '2026-06-19T01:00:08Z'
+      },
+      idempotentReplay: true,
+      createdAt: '2026-06-19T01:00:00Z',
+      startedAt: '2026-06-19T01:00:01Z',
+      finishedAt: '2026-06-19T01:00:09Z',
+      updatedAt: '2026-06-19T01:00:09Z'
+    });
+
+    expect(timeline.map((item) => item.title)).toEqual([
+      '运行创建',
+      '执行开始',
+      '步骤 1 · SUCCEEDED',
+      '步骤 2 · FAILED',
+      'Artifact · SCREENSHOT · BLOCKED',
+      'Flaky 标记 · FLAKY_CANDIDATE',
+      '运行终态 · FAILED',
+      '幂等回放'
+    ]);
+    expect(timeline).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        kindLabel: 'RUN',
+        title: '运行创建',
+        detail: '控制面已接收 requestKey=wp7.run-1 的运行请求。'
+      }),
+      expect.objectContaining({
+        kindLabel: 'STEP',
+        title: '步骤 2 · FAILED',
+        detail: 'failureBucket=ASSERTION · errorCode=ASSERTION_MISMATCH · duration=1600ms',
+        tone: 'danger'
+      }),
+      expect.objectContaining({
+        kindLabel: 'ARTIFACT',
+        title: 'Artifact · SCREENSHOT · BLOCKED',
+        detail: expect.stringContaining('storageRef 或 digest 缺失'),
+        tone: 'warning'
+      }),
+      expect.objectContaining({
+        kindLabel: 'FLAKY',
+        title: 'Flaky 标记 · FLAKY_CANDIDATE',
+        detail: expect.stringContaining('reason=assertion-variance')
+      }),
+      expect.objectContaining({
+        kindLabel: 'RUN',
+        title: '运行终态 · FAILED',
+        detail: expect.stringContaining('traceId=trc-run-1'),
+        tone: 'danger'
+      })
+    ]));
   });
 
   it('explains failure buckets and artifact block reasons', () => {

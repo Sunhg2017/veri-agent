@@ -4105,6 +4105,46 @@ tbody tr:hover td {
   gap: var(--space-sm);
 }
 
+.ui-e2e-run-audit-timeline {
+  display: grid;
+  gap: var(--space-sm);
+  margin-top: var(--space-md);
+}
+
+.ui-e2e-run-audit-event {
+  display: grid;
+  gap: 4px;
+  padding: 10px 12px;
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  overflow-wrap: anywhere;
+}
+
+.ui-e2e-run-audit-event strong {
+  color: var(--text-primary);
+  font-size: var(--font-size-sm);
+}
+
+.ui-e2e-run-audit-event span,
+.ui-e2e-run-audit-event em {
+  color: var(--text-secondary);
+  font-size: var(--font-size-xs);
+  font-style: normal;
+}
+
+.ui-e2e-run-audit-event.tone-success {
+  border-color: rgba(22, 163, 74, 0.32);
+}
+
+.ui-e2e-run-audit-event.tone-warning {
+  border-color: rgba(217, 119, 6, 0.35);
+}
+
+.ui-e2e-run-audit-event.tone-danger {
+  border-color: rgba(220, 38, 38, 0.28);
+}
+
 /* ============================================================
    WP10 报告诊断
    ============================================================ */
