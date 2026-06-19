@@ -137,8 +137,18 @@ public class JdbcTestDataRepository implements TestDataRepository {
     }
 
     @Override
+    public void updatePooledAccountSecretRefCipher(UUID accountId, String secretRefCipher, String updatedBy) {
+        mapper.updatePooledAccountSecretRefCipher(accountId, secretRefCipher, updatedBy);
+    }
+
+    @Override
     public Optional<TestPooledAccount> pooledAccount(UUID id) {
         return Optional.ofNullable(mapper.pooledAccount(id));
+    }
+
+    @Override
+    public Optional<String> pooledAccountSecretRefCipher(UUID accountId) {
+        return Optional.ofNullable(mapper.pooledAccountSecretRefCipher(accountId));
     }
 
     @Override

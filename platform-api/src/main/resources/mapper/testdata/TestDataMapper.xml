@@ -345,6 +345,14 @@
         where id = #{id}
     </update>
 
+    <update id="updatePooledAccountSecretRefCipher">
+        update test_pooled_account set
+            secret_ref_cipher = #{secretRefCipher},
+            updated_by = #{updatedBy},
+            updated_at = now()
+        where id = #{accountId}
+    </update>
+
     <update id="markAccountLeased">
         update test_pooled_account set
             status = 'LEASED',
@@ -583,6 +591,12 @@
 
     <select id="pooledAccount" resultMap="pooledAccountMap">
         select <include refid="pooledAccountColumns"/>
+        from test_pooled_account
+        where id = #{id}
+    </select>
+
+    <select id="pooledAccountSecretRefCipher" resultType="string">
+        select secret_ref_cipher
         from test_pooled_account
         where id = #{id}
     </select>

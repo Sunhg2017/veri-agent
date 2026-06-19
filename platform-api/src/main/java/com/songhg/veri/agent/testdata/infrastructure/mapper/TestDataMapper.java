@@ -61,7 +61,15 @@ public interface TestDataMapper {
 
     void updatePooledAccount(TestPooledAccount account);
 
+    int updatePooledAccountSecretRefCipher(
+            @Param("accountId") UUID accountId,
+            @Param("secretRefCipher") String secretRefCipher,
+            @Param("updatedBy") String updatedBy
+    );
+
     TestPooledAccount pooledAccount(@Param("id") UUID id);
+
+    String pooledAccountSecretRefCipher(@Param("id") UUID id);
 
     TestPooledAccount pooledAccountByPoolAndKey(@Param("poolId") UUID poolId, @Param("accountKey") String accountKey);
 

@@ -29,6 +29,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -44,7 +45,25 @@ public class TestDataCrossWpReferenceService {
     private final TestDataRepository repository;
     private final TestDataPlatformContextClient contextClient;
     private final TestDataProperties properties;
+    private final TestDataRunnerCredentialResolver runnerCredentialResolver;
     private final ObjectMapper objectMapper;
+
+    @Autowired
+    public TestDataCrossWpReferenceService(
+            TestAccountLeaseService leaseService,
+            TestDataRepository repository,
+            TestDataPlatformContextClient contextClient,
+            TestDataProperties properties,
+            TestDataRunnerCredentialResolver runnerCredentialResolver,
+            ObjectMapper objectMapper
+    ) {
+        this.leaseService = leaseService;
+        this.repository = repository;
+        this.contextClient = contextClient;
+        this.properties = properties;
+        this.runnerCredentialResolver = runnerCredentialResolver;
+        this.objectMapper = objectMapper;
+    }
 
     public TestDataCrossWpReferenceService(
             TestAccountLeaseService leaseService,
@@ -53,11 +72,7 @@ public class TestDataCrossWpReferenceService {
             TestDataProperties properties,
             ObjectMapper objectMapper
     ) {
-        this.leaseService = leaseService;
-        this.repository = repository;
-        this.contextClient = contextClient;
-        this.properties = properties;
-        this.objectMapper = objectMapper;
+        this(leaseService, repository, contextClient, properties, null, objectMapper);
     }
 
     /**
@@ -115,6 +130,26 @@ public class TestDataCrossWpReferenceService {
                 accountSummary(requiredAccount(lease)),
                 runnerCredentialPolicy()
         );
+    }
+
+    /**
+     * Exposes a runner-only resolution path keyed by lease. The control-plane contract remains digest-only; plaintext
+     * is resolved solely for a trusted runner adapter and never returned to ordinary callers.
+     */
+    @Transactional(readOnly = true)
+    public TestDataRunnerCredentialResolver.RunnerCredentialResolution resolveRunnerCredential(
+            UUID accountLeaseRef,
+            String projectId
+    ) {
+        if (runnerCredentialResolver == null) {
+            throw new BusinessException(ErrorCode.SECRET_PROVIDER_ERROR, "runner secretRef 未解析: adapter-unavailable");
+        }
+        return runnerCredentialResolver.resolveForUiE2e(accountLeaseRef, projectId);
+    }
+
+    @Transactional(readOnly = true)
+    public boolean runnerCredentialInjectionReady() {
+        return runnerCredentialResolver != null && runnerCredentialResolver.credentialInjectionReady();
     }
 
     /**

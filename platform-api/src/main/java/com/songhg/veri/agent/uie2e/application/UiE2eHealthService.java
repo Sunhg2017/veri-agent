@@ -2,17 +2,29 @@ package com.songhg.veri.agent.uie2e.application;
 
 import com.songhg.veri.agent.uie2e.application.view.UiE2eHealthResponse;
 import com.songhg.veri.agent.uie2e.config.UiE2eProperties;
+import com.songhg.veri.agent.testdata.application.TestDataCrossWpReferenceService;
 import java.util.List;
 import java.util.Map;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 @Service
 public class UiE2eHealthService {
 
     private final UiE2eProperties properties;
+    private final TestDataCrossWpReferenceService testDataCrossWpReferenceService;
 
-    public UiE2eHealthService(UiE2eProperties properties) {
+    @Autowired
+    public UiE2eHealthService(
+            UiE2eProperties properties,
+            TestDataCrossWpReferenceService testDataCrossWpReferenceService
+    ) {
         this.properties = properties;
+        this.testDataCrossWpReferenceService = testDataCrossWpReferenceService;
+    }
+
+    UiE2eHealthService(UiE2eProperties properties) {
+        this(properties, null);
     }
 
     /**
@@ -21,6 +33,8 @@ public class UiE2eHealthService {
      */
     public UiE2eHealthResponse health() {
         int allowlistHostCount = properties.effectiveAllowlistHostCount();
+        boolean credentialInjectionReady = testDataCrossWpReferenceService != null
+                && testDataCrossWpReferenceService.runnerCredentialInjectionReady();
         return new UiE2eHealthResponse(
                 "ui-e2e",
                 "UP",
@@ -39,8 +53,8 @@ public class UiE2eHealthService {
                         Map.entry("accountLeaseRefRequired", true),
                         Map.entry("runnerAccountContractReady", true),
                         Map.entry("secretRefDigestReturned", true),
-                        Map.entry("credentialInjectionAdapterReady", false),
-                        Map.entry("credentialInjectionPreviewOnly", properties.runnerEnabled()),
+                        Map.entry("credentialInjectionAdapterReady", credentialInjectionReady),
+                        Map.entry("credentialInjectionPreviewOnly", properties.runnerEnabled() && !credentialInjectionReady),
                         Map.entry("plaintextCredentialStored", false),
                         Map.entry("plaintextCredentialExported", false),
                         Map.entry("cookiePlaintextStored", false),

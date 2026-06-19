@@ -40,6 +40,7 @@ public class InMemoryTestDataRepository implements TestDataRepository {
     private final ConcurrentHashMap<String, TestDataRecord> records = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<UUID, TestAccountPool> accountPools = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<UUID, TestPooledAccount> pooledAccounts = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<UUID, String> pooledAccountSecretRefCiphers = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<UUID, TestAccountLease> accountLeases = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<UUID, TestDataTask> dataTasks = new ConcurrentHashMap<>();
 
@@ -205,8 +206,24 @@ public class InMemoryTestDataRepository implements TestDataRepository {
     }
 
     @Override
+    public void updatePooledAccountSecretRefCipher(UUID accountId, String secretRefCipher, String updatedBy) {
+        if (pooledAccounts.containsKey(accountId)) {
+            if (StringUtils.hasText(secretRefCipher)) {
+                pooledAccountSecretRefCiphers.put(accountId, secretRefCipher);
+            } else {
+                pooledAccountSecretRefCiphers.remove(accountId);
+            }
+        }
+    }
+
+    @Override
     public Optional<TestPooledAccount> pooledAccount(UUID id) {
         return Optional.ofNullable(pooledAccounts.get(id));
+    }
+
+    @Override
+    public Optional<String> pooledAccountSecretRefCipher(UUID accountId) {
+        return Optional.ofNullable(pooledAccountSecretRefCiphers.get(accountId));
     }
 
     @Override

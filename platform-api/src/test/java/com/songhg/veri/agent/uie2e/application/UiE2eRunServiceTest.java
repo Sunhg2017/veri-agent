@@ -4,6 +4,10 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.songhg.veri.agent.common.api.PageResponse;
 import com.songhg.veri.agent.common.error.BusinessException;
 import com.songhg.veri.agent.common.error.ErrorCode;
+import com.songhg.veri.agent.common.secret.ResolvedSecret;
+import com.songhg.veri.agent.common.secret.SecretProvider;
+import com.songhg.veri.agent.common.secret.SecretProviderProperties;
+import com.songhg.veri.agent.common.secret.SecretResolveContext;
 import com.songhg.veri.agent.integration.application.view.PlatformContext;
 import com.songhg.veri.agent.management.application.port.ManagementStore;
 import com.songhg.veri.agent.management.application.port.ManagementStoreParams;
@@ -15,6 +19,7 @@ import com.songhg.veri.agent.testdata.application.TestAccountPoolService;
 import com.songhg.veri.agent.testdata.application.TestDataActorResolver;
 import com.songhg.veri.agent.testdata.application.TestDataCrossWpReferenceService;
 import com.songhg.veri.agent.testdata.application.TestDataPlatformContextClient;
+import com.songhg.veri.agent.testdata.application.TestDataRunnerCredentialResolver;
 import com.songhg.veri.agent.testdata.application.command.AcquireExecutionAccountLeaseCommand;
 import com.songhg.veri.agent.testdata.application.command.CreateTestAccountPoolCommand;
 import com.songhg.veri.agent.testdata.application.command.UpsertTestPooledAccountCommand;
@@ -35,6 +40,7 @@ import com.songhg.veri.agent.uie2e.infrastructure.InMemoryUiE2eRepository;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 
@@ -302,8 +308,34 @@ class UiE2eRunServiceTest {
     }
 
     @Test
+    void healthShowsCredentialInjectionAdapterReadyWhenResolverIsAvailable() {
+        TestDataCrossWpReferenceService referenceService = mock(TestDataCrossWpReferenceService.class);
+        when(referenceService.runnerCredentialInjectionReady()).thenReturn(true);
+        UiE2eHealthService service = new UiE2eHealthService(new UiE2eProperties(
+                true,
+                true,
+                "managed",
+                120,
+                600,
+                1,
+                4096,
+                3,
+                4,
+                List.of("https://portal.example.test"),
+                true,
+                false,
+                true,
+                true
+        ), referenceService);
+
+        var health = service.health();
+        assertThat(health.credentialPolicy()).containsEntry("credentialInjectionAdapterReady", true);
+        assertThat(health.credentialPolicy()).containsEntry("credentialInjectionPreviewOnly", false);
+    }
+
+    @Test
     void createsBlockedPreviewRunWhenRunnerIsEnabledButCredentialInjectionIsPending() {
-        Fixture fixture = fixture(true, List.of("https://portal.example.test"));
+        Fixture fixture = fixture(true, List.of("https://portal.example.test"), List.of(), null);
         SeededRunRefs refs = seedApprovedSceneAndBundle(fixture);
         UUID leaseRef = acquireLease(fixture);
 
@@ -332,6 +364,7 @@ class UiE2eRunServiceTest {
             assertThat(step.status()).isEqualTo("BLOCKED");
             assertThat(step.errorCode()).isEqualTo("EXECUTION_RUNNER_NOT_READY");
             assertThat(step.summary()).containsEntry("previewOnly", true);
+            assertThat(step.summary()).containsEntry("credentialInjectionReady", false);
         });
         assertThat(created.artifacts()).anySatisfy(artifact -> {
             assertThat(artifact.artifactType()).isEqualTo("LOG");
@@ -344,13 +377,53 @@ class UiE2eRunServiceTest {
         });
     }
 
+    @Test
+    void createsBlockedPreviewRunAfterCredentialResolutionSucceeds() {
+        Fixture fixture = fixture(
+                true,
+                List.of("https://portal.example.test"),
+                List.of(new AcceptingUiE2eSecretProvider()),
+                null
+        );
+        SeededRunRefs refs = seedApprovedSceneAndBundle(fixture);
+        UUID leaseRef = acquireLease(fixture);
+
+        UiE2eRunDetailResponse created = fixture.service().createRun(new CreateUiE2eRunCommand(
+                PROJECT_ID,
+                refs.sceneId(),
+                refs.bundleId(),
+                ENVIRONMENT_KEY,
+                "env:" + ENVIRONMENT_KEY,
+                leaseRef,
+                "run-request-preview-002",
+                "preview after credential resolve"
+        ));
+
+        assertThat(created.status()).isEqualTo("BLOCKED");
+        assertThat(created.failureCode()).isEqualTo("EXECUTION_RUNNER_NOT_READY");
+        assertThat(created.stepResults()).allSatisfy(step -> {
+            assertThat(step.summary()).containsEntry("credentialInjectionReady", true);
+            assertThat(step.summary()).containsEntry("secretProviderResolved", true);
+            assertThat(step.summary()).containsEntry("secretProviderCode", "unit-test-provider");
+        });
+    }
+
     private Fixture fixture(boolean managedRunner, List<String> allowlistBaseUrls) {
-        return fixture(managedRunner, allowlistBaseUrls, null);
+        return fixture(managedRunner, allowlistBaseUrls, List.of(new AcceptingUiE2eSecretProvider()), null);
     }
 
     private Fixture fixture(
             boolean managedRunner,
             List<String> allowlistBaseUrls,
+            com.songhg.veri.agent.uie2e.application.port.UiE2eRunnerPort runnerPortOverride
+    ) {
+        return fixture(managedRunner, allowlistBaseUrls, List.of(new AcceptingUiE2eSecretProvider()), runnerPortOverride);
+    }
+
+    private Fixture fixture(
+            boolean managedRunner,
+            List<String> allowlistBaseUrls,
+            List<SecretProvider> secretProviders,
             com.songhg.veri.agent.uie2e.application.port.UiE2eRunnerPort runnerPortOverride
     ) {
         InMemoryUiE2eRepository repository = new InMemoryUiE2eRepository();
@@ -395,7 +468,7 @@ class UiE2eRunServiceTest {
                 objectMapper
         );
         ManagementStore managementStore = managementStore("https://portal.example.test");
-        TestDataFixture testDataFixture = testDataFixture();
+        TestDataFixture testDataFixture = testDataFixture(secretProviders);
         return new Fixture(
                 repository,
                 sceneService,
@@ -411,7 +484,11 @@ class UiE2eRunServiceTest {
                         runnerPortOverride != null
                                 ? runnerPortOverride
                                 : managedRunner
-                                ? new com.songhg.veri.agent.uie2e.infrastructure.ManagedPreviewUiE2eRunnerAdapter(repository, properties)
+                                ? new com.songhg.veri.agent.uie2e.infrastructure.ManagedPreviewUiE2eRunnerAdapter(
+                                        repository,
+                                        properties,
+                                        testDataFixture.referenceService()
+                                )
                                 : new com.songhg.veri.agent.uie2e.infrastructure.DisabledUiE2eRunnerAdapter(),
                         new UiE2eRunEnvironmentResolver(managementStore),
                         testDataFixture.referenceService(),
@@ -420,18 +497,30 @@ class UiE2eRunServiceTest {
         );
     }
 
-    private TestDataFixture testDataFixture() {
+    private TestDataFixture testDataFixture(List<SecretProvider> secretProviders) {
         InMemoryTestDataRepository repository = new InMemoryTestDataRepository();
         TestDataPlatformContextClient contextClient = testDataContextClient();
         TestDataActorResolver actorResolver = mock(TestDataActorResolver.class);
         when(actorResolver.currentActor()).thenReturn("wp8-runner-tester");
         TestDataProperties properties = new TestDataProperties(true, 10, 512, 60, 120, false, true);
         ObjectMapper objectMapper = new ObjectMapper();
+        SecretProviderProperties secretProperties = new SecretProviderProperties(
+                "0123456789abcdef0123456789abcdef",
+                "v1",
+                "",
+                "",
+                3,
+                1,
+                "",
+                "",
+                ""
+        );
         TestAccountPoolService poolService = new TestAccountPoolService(
                 repository,
                 contextClient,
                 actorResolver,
                 properties,
+                secretProperties,
                 objectMapper
         );
         TestAccountLeaseService leaseService = new TestAccountLeaseService(
@@ -439,6 +528,12 @@ class UiE2eRunServiceTest {
                 contextClient,
                 actorResolver,
                 properties,
+                objectMapper
+        );
+        TestDataRunnerCredentialResolver runnerCredentialResolver = new TestDataRunnerCredentialResolver(
+                repository,
+                secretProviders,
+                secretProperties,
                 objectMapper
         );
         var alphaPool = poolService.createAccountPool(new CreateTestAccountPoolCommand(
@@ -482,7 +577,14 @@ class UiE2eRunServiceTest {
                 null
         ));
         return new TestDataFixture(
-                new TestDataCrossWpReferenceService(leaseService, repository, contextClient, properties, objectMapper),
+                new TestDataCrossWpReferenceService(
+                        leaseService,
+                        repository,
+                        contextClient,
+                        properties,
+                        runnerCredentialResolver,
+                        objectMapper
+                ),
                 alphaPool.id(),
                 betaPool.id()
         );
@@ -641,6 +743,17 @@ class UiE2eRunServiceTest {
         @Override
         public RunnerCancelResult cancel(UUID runId) {
             return new RunnerCancelResult(true, null, null);
+        }
+    }
+
+    private static final class AcceptingUiE2eSecretProvider implements SecretProvider {
+
+        @Override
+        public Optional<ResolvedSecret> resolve(String secretRef, SecretResolveContext context) {
+            if (!SECRET_REF.equals(secretRef)) {
+                return Optional.empty();
+            }
+            return Optional.of(new ResolvedSecret(secretRef, "Resolved-Runner-Password-001", "unit-test-provider", "v1"));
         }
     }
 }

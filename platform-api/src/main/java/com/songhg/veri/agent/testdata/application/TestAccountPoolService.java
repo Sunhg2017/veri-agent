@@ -6,6 +6,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.songhg.veri.agent.common.api.PageResponse;
 import com.songhg.veri.agent.common.error.BusinessException;
 import com.songhg.veri.agent.common.error.ErrorCode;
+import com.songhg.veri.agent.common.secret.LocalSecretCipher;
+import com.songhg.veri.agent.common.secret.SecretProviderProperties;
 import com.songhg.veri.agent.integration.application.view.PlatformContext;
 import com.songhg.veri.agent.testdata.application.command.CreateTestAccountPoolCommand;
 import com.songhg.veri.agent.testdata.application.command.UpdateTestAccountPoolCommand;
@@ -32,6 +34,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.regex.Pattern;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -72,7 +75,25 @@ public class TestAccountPoolService {
     private final TestDataPlatformContextClient contextClient;
     private final TestDataActorResolver actorResolver;
     private final TestDataProperties properties;
+    private final SecretProviderProperties secretProviderProperties;
     private final ObjectMapper objectMapper;
+
+    @Autowired
+    public TestAccountPoolService(
+            TestDataRepository repository,
+            TestDataPlatformContextClient contextClient,
+            TestDataActorResolver actorResolver,
+            TestDataProperties properties,
+            SecretProviderProperties secretProviderProperties,
+            ObjectMapper objectMapper
+    ) {
+        this.repository = repository;
+        this.contextClient = contextClient;
+        this.actorResolver = actorResolver;
+        this.properties = properties;
+        this.secretProviderProperties = secretProviderProperties;
+        this.objectMapper = objectMapper;
+    }
 
     public TestAccountPoolService(
             TestDataRepository repository,
@@ -81,11 +102,24 @@ public class TestAccountPoolService {
             TestDataProperties properties,
             ObjectMapper objectMapper
     ) {
-        this.repository = repository;
-        this.contextClient = contextClient;
-        this.actorResolver = actorResolver;
-        this.properties = properties;
-        this.objectMapper = objectMapper;
+        this(
+                repository,
+                contextClient,
+                actorResolver,
+                properties,
+                new SecretProviderProperties(
+                        "0123456789abcdef0123456789abcdef",
+                        "v1",
+                        "",
+                        "",
+                        3,
+                        1,
+                        "",
+                        "",
+                        ""
+                ),
+                objectMapper
+        );
     }
 
     @Transactional(noRollbackFor = BusinessException.class)
@@ -267,6 +301,7 @@ public class TestAccountPoolService {
         } catch (DuplicateKeyException exception) {
             throw new BusinessException(ErrorCode.CONFLICT, "账号 key 已存在");
         }
+        persistSecretRefCipher(account.id(), command.secretRef(), actor);
         auditAccount(account, "created");
         return accountResponse(account);
     }
@@ -309,6 +344,9 @@ public class TestAccountPoolService {
                 now
         );
         repository.updatePooledAccount(updated);
+        if (command.secretRef() != null) {
+            persistSecretRefCipher(updated.id(), command.secretRef(), updated.updatedBy());
+        }
         auditAccount(updated, "updated");
         return accountResponse(updated);
     }
@@ -409,6 +447,31 @@ public class TestAccountPoolService {
                 account.createdAt(),
                 account.updatedAt()
         );
+    }
+
+    /**
+     * Stores the runner-only secretRef pointer as encrypted material so control-plane projections can stay digest-only
+     * while the future runner adapter resolves the pointer inside a trusted runtime path.
+     */
+    private void persistSecretRefCipher(UUID accountId, String secretRef, String actor) {
+        if (!StringUtils.hasText(secretProviderProperties.localMasterKey())) {
+            // Credential injection is an opt-in runtime capability. When the local master key is absent, control-plane
+            // CRUD should stay digest-only and any previously stored pointer material must be cleared to avoid staleness.
+            repository.updatePooledAccountSecretRefCipher(accountId, null, actor);
+            return;
+        }
+        String normalizedSecretRef = boundedText(secretRef, 256);
+        LocalSecretCipher.EncryptedMaterial material = LocalSecretCipher.encrypt(
+                normalizedSecretRef,
+                secretProviderProperties
+        );
+        repository.updatePooledAccountSecretRefCipher(accountId, json(Map.of(
+                "cipherText", material.cipherText(),
+                "iv", material.iv(),
+                "authTag", material.authTag(),
+                "algorithm", material.algorithm(),
+                "masterKeyVersion", material.masterKeyVersion()
+        )), actor);
     }
 
     private Map<String, Object> policy() {

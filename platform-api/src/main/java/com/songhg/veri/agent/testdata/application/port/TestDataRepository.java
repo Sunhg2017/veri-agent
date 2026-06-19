@@ -59,7 +59,11 @@ public interface TestDataRepository {
 
     void updatePooledAccount(TestPooledAccount account);
 
+    void updatePooledAccountSecretRefCipher(UUID accountId, String secretRefCipher, String updatedBy);
+
     Optional<TestPooledAccount> pooledAccount(UUID id);
+
+    Optional<String> pooledAccountSecretRefCipher(UUID accountId);
 
     Optional<TestPooledAccount> pooledAccountByPoolAndKey(UUID poolId, String accountKey);
 

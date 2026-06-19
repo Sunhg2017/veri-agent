@@ -1,6 +1,10 @@
 package com.songhg.veri.agent.testdata.application;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.songhg.veri.agent.common.secret.ResolvedSecret;
+import com.songhg.veri.agent.common.secret.SecretProvider;
+import com.songhg.veri.agent.common.secret.SecretProviderProperties;
+import com.songhg.veri.agent.common.secret.SecretResolveContext;
 import com.songhg.veri.agent.notification.application.AsyncTaskNotificationService;
 import com.songhg.veri.agent.common.error.BusinessException;
 import com.songhg.veri.agent.common.error.ErrorCode;
@@ -22,6 +26,7 @@ import java.time.Instant;
 import java.util.HexFormat;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 
@@ -121,6 +126,56 @@ class TestDataCrossWpReferenceServiceTest {
         assertThatThrownBy(() -> fixture.crossWpService().runnerAccountContract(lease.accountLeaseRef()))
                 .isInstanceOfSatisfying(BusinessException.class, exception ->
                         assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.INVALID_STATE));
+    }
+
+    @Test
+    void resolvesRunnerCredentialInsideTrustedAdapterOnly() {
+        Fixture fixture = fixture(true);
+        var pool = fixture.poolService().createAccountPool(poolCommand());
+        fixture.poolService().addAccount(pool.id(), accountCommand());
+        var lease = fixture.crossWpService().acquireExecutionRunLease(new AcquireExecutionAccountLeaseCommand(
+                "project-alpha",
+                "app-alpha",
+                "env-staging",
+                pool.id(),
+                List.of("ADMIN"),
+                "run-cred-001",
+                60,
+                "wp7-runner-cred-001"
+        ));
+
+        var resolution = fixture.crossWpService().resolveRunnerCredential(lease.accountLeaseRef(), "project-alpha");
+
+        assertThat(resolution.accountLeaseRef()).isEqualTo(lease.accountLeaseRef());
+        assertThat(resolution.secretRefDigest()).matches("[0-9a-f]{64}");
+        assertThat(resolution.provider()).isEqualTo("unit-test-provider");
+        assertThat(resolution.version()).isEqualTo("v1");
+        assertThat(resolution.secretValue()).isEqualTo("Resolved-Runner-Password-001");
+        assertThat(resolution.toString()).doesNotContain(SECRET_REF, "secret://", "Resolved-Runner-Password-001");
+    }
+
+    @Test
+    void runnerCredentialResolveFailureReturnsProviderErrorWithoutSecretRefLeak() {
+        Fixture fixture = fixture(true, List.of(new RejectingSecretProvider()));
+        var pool = fixture.poolService().createAccountPool(poolCommand());
+        fixture.poolService().addAccount(pool.id(), accountCommand());
+        var lease = fixture.crossWpService().acquireExecutionRunLease(new AcquireExecutionAccountLeaseCommand(
+                "project-alpha",
+                "app-alpha",
+                "env-staging",
+                pool.id(),
+                List.of("ADMIN"),
+                "run-cred-002",
+                60,
+                "wp7-runner-cred-002"
+        ));
+
+        assertThatThrownBy(() -> fixture.crossWpService().resolveRunnerCredential(lease.accountLeaseRef(), "project-alpha"))
+                .isInstanceOfSatisfying(BusinessException.class, exception -> {
+                    assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.SECRET_PROVIDER_ERROR);
+                    assertThat(exception.getMessage()).contains("runner secretRef 未解析: sha256:");
+                    assertThat(exception.getMessage()).doesNotContain(SECRET_REF, "secret://");
+                });
     }
 
     @Test
@@ -225,17 +280,33 @@ class TestDataCrossWpReferenceServiceTest {
     }
 
     private Fixture fixture(boolean enabled) {
+        return fixture(enabled, List.of(new AcceptingSecretProvider()));
+    }
+
+    private Fixture fixture(boolean enabled, List<SecretProvider> secretProviders) {
         InMemoryTestDataRepository repository = new InMemoryTestDataRepository();
         TestDataPlatformContextClient contextClient = contextClient();
         TestDataActorResolver actorResolver = mock(TestDataActorResolver.class);
         when(actorResolver.currentActor()).thenReturn("wp8-cross-wp-tester");
         TestDataProperties properties = new TestDataProperties(enabled, 10, 512, 60, 120, false, true);
         ObjectMapper objectMapper = new ObjectMapper();
+        SecretProviderProperties secretProperties = new SecretProviderProperties(
+                "0123456789abcdef0123456789abcdef",
+                "v1",
+                "",
+                "",
+                3,
+                1,
+                "",
+                "",
+                ""
+        );
         TestAccountPoolService poolService = new TestAccountPoolService(
                 repository,
                 contextClient,
                 actorResolver,
                 properties,
+                secretProperties,
                 objectMapper
         );
         TestAccountLeaseService leaseService = new TestAccountLeaseService(
@@ -243,6 +314,12 @@ class TestDataCrossWpReferenceServiceTest {
                 contextClient,
                 actorResolver,
                 properties,
+                objectMapper
+        );
+        TestDataRunnerCredentialResolver runnerCredentialResolver = new TestDataRunnerCredentialResolver(
+                repository,
+                secretProviders,
+                secretProperties,
                 objectMapper
         );
         TestDataSetService dataSetService = new TestDataSetService(
@@ -269,6 +346,7 @@ class TestDataCrossWpReferenceServiceTest {
                         repository,
                         contextClient,
                         properties,
+                        runnerCredentialResolver,
                         objectMapper
                 )
         );
@@ -351,5 +429,30 @@ class TestDataCrossWpReferenceServiceTest {
             TestDataTaskService taskService,
             TestDataCrossWpReferenceService crossWpService
     ) {
+    }
+
+    private static final class AcceptingSecretProvider implements SecretProvider {
+
+        @Override
+        public Optional<ResolvedSecret> resolve(String secretRef, SecretResolveContext context) {
+            if (!SECRET_REF.equals(secretRef)) {
+                return Optional.empty();
+            }
+            assertThat(context).isEqualTo(new SecretResolveContext(
+                    "UI_E2E_RUNNER",
+                    "wp7-ui-e2e-runner",
+                    "PROJECT",
+                    "project-alpha"
+            ));
+            return Optional.of(new ResolvedSecret(secretRef, "Resolved-Runner-Password-001", "unit-test-provider", "v1"));
+        }
+    }
+
+    private static final class RejectingSecretProvider implements SecretProvider {
+
+        @Override
+        public Optional<ResolvedSecret> resolve(String secretRef, SecretResolveContext context) {
+            return Optional.empty();
+        }
     }
 }

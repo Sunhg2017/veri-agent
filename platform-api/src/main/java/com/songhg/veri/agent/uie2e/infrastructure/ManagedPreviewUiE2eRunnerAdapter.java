@@ -1,6 +1,8 @@
 package com.songhg.veri.agent.uie2e.infrastructure;
 
 import com.songhg.veri.agent.common.util.SensitiveTextSanitizer;
+import com.songhg.veri.agent.testdata.application.TestDataCrossWpReferenceService;
+import com.songhg.veri.agent.testdata.application.TestDataRunnerCredentialResolver;
 import com.songhg.veri.agent.uie2e.application.port.UiE2eRepository;
 import com.songhg.veri.agent.uie2e.application.port.UiE2eRunnerPort;
 import com.songhg.veri.agent.uie2e.config.UiE2eProperties;
@@ -26,10 +28,16 @@ public class ManagedPreviewUiE2eRunnerAdapter implements UiE2eRunnerPort {
 
     private final UiE2eRepository repository;
     private final UiE2eProperties properties;
+    private final TestDataCrossWpReferenceService testDataCrossWpReferenceService;
 
-    public ManagedPreviewUiE2eRunnerAdapter(UiE2eRepository repository, UiE2eProperties properties) {
+    public ManagedPreviewUiE2eRunnerAdapter(
+            UiE2eRepository repository,
+            UiE2eProperties properties,
+            TestDataCrossWpReferenceService testDataCrossWpReferenceService
+    ) {
         this.repository = repository;
         this.properties = properties;
+        this.testDataCrossWpReferenceService = testDataCrossWpReferenceService;
     }
 
     /**
@@ -69,17 +77,38 @@ public class ManagedPreviewUiE2eRunnerAdapter implements UiE2eRunnerPort {
     @Override
     public RunnerRunResult run(RunnerRunRequest request) {
         if (request == null || request.sceneId() == null || request.bundleId() == null) {
-            return blockedResult("runner preview request is incomplete", List.of(), List.of());
+            return blockedResult("EXECUTION_RUNNER_NOT_READY", "runner preview request is incomplete", List.of(), List.of());
         }
         UiE2eScene scene = repository.scene(request.sceneId()).orElse(null);
         UiE2eBundle bundle = repository.bundle(request.bundleId()).orElse(null);
         if (scene == null || bundle == null) {
-            return blockedResult("runner preview dependencies are missing", List.of(), previewArtifacts(request));
+            return blockedResult(
+                    "EXECUTION_RUNNER_NOT_READY",
+                    "runner preview dependencies are missing",
+                    List.of(),
+                    previewArtifacts(request)
+            );
+        }
+        CredentialPreviewState credentialState = resolveCredentialState(request);
+        if (!credentialState.ready()) {
+            return blockedResult(
+                    credentialState.failureCode(),
+                    credentialState.failureSummary(),
+                    previewStepResults(repository.sceneSteps(scene.id()), request, false, null, credentialState.failureCode()),
+                    previewArtifacts(request)
+            );
         }
         List<UiE2eSceneStep> sceneSteps = repository.sceneSteps(scene.id());
-        List<RunnerStepResult> stepResults = previewStepResults(sceneSteps, request);
+        List<RunnerStepResult> stepResults = previewStepResults(
+                sceneSteps,
+                request,
+                true,
+                credentialState.resolution(),
+                EXECUTION_NOT_READY
+        );
         return blockedResult(
-                "managed preview is enabled, but credential injection and browser execution are not ready yet",
+                EXECUTION_NOT_READY,
+                "managed preview resolved runner credentials, but browser execution is not ready yet",
                 stepResults,
                 previewArtifacts(request)
         );
@@ -91,6 +120,7 @@ public class ManagedPreviewUiE2eRunnerAdapter implements UiE2eRunnerPort {
     }
 
     private RunnerRunResult blockedResult(
+            String failureCode,
             String failureSummary,
             List<RunnerStepResult> stepResults,
             List<RunnerArtifactManifest> artifacts
@@ -98,7 +128,7 @@ public class ManagedPreviewUiE2eRunnerAdapter implements UiE2eRunnerPort {
         return new RunnerRunResult(
                 "BLOCKED",
                 runnerMode(),
-                EXECUTION_NOT_READY,
+                failureCode,
                 SensitiveTextSanitizer.sanitizedEvidenceText(failureSummary, 256),
                 stepResults,
                 artifacts
@@ -107,7 +137,10 @@ public class ManagedPreviewUiE2eRunnerAdapter implements UiE2eRunnerPort {
 
     private List<RunnerStepResult> previewStepResults(
             List<UiE2eSceneStep> sceneSteps,
-            RunnerRunRequest request
+            RunnerRunRequest request,
+            boolean credentialReady,
+            TestDataRunnerCredentialResolver.RunnerCredentialResolution credentialResolution,
+            String blockerErrorCode
     ) {
         if (sceneSteps == null || sceneSteps.isEmpty()) {
             return List.of();
@@ -120,16 +153,24 @@ public class ManagedPreviewUiE2eRunnerAdapter implements UiE2eRunnerPort {
             Map<String, Object> summary = new LinkedHashMap<>();
             summary.put("stepType", normalizedType);
             summary.put("previewOnly", true);
-            summary.put("credentialInjectionReady", false);
+            summary.put("credentialInjectionReady", credentialReady);
             summary.put("rawDomStored", false);
             summary.put("rawRunnerOutputStored", false);
             summary.put("secretPlaintextStored", false);
             summary.put("baseUrlDigest", SensitiveTextSanitizer.sha256Hex(request.baseUrl()));
             summary.put("accountLeaseRefPresent", StringUtils.hasText(request.accountLeaseRef()));
             summary.put("secretRefDigestPresent", credentialDigestPresent(request.accountSummary()));
+            summary.put("secretProviderResolved", credentialResolution != null);
+            if (credentialResolution != null) {
+                summary.put("secretProviderCode", credentialResolution.provider());
+                summary.put("secretVersion", credentialResolution.version());
+            }
             if (primaryBlocker) {
-                summary.put("blockedReason", "credentialInjectionPending");
-                summary.put("nextAction", "enable runner credential adapter before browser login");
+                summary.put("blockedReason", credentialReady ? "browserExecutionPending" : "credentialInjectionPending");
+                summary.put(
+                        "nextAction",
+                        credentialReady ? "provision real browser runner before login" : "enable runner credential adapter before browser login"
+                );
             } else {
                 summary.put("blockedReason", "upstreamStepBlocked");
                 summary.put("blockedByStepOrder", blockerOrder);
@@ -140,7 +181,7 @@ public class ManagedPreviewUiE2eRunnerAdapter implements UiE2eRunnerPort {
                     "BLOCKED",
                     0,
                     primaryBlocker && "LOGIN".equals(normalizedType) ? "ACCOUNT" : "RUNNER",
-                    EXECUTION_NOT_READY,
+                    blockerErrorCode,
                     Map.copyOf(summary)
             ));
         }
@@ -188,6 +229,62 @@ public class ManagedPreviewUiE2eRunnerAdapter implements UiE2eRunnerPort {
             artifacts.add(blockedArtifact("VIDEO"));
         }
         return List.copyOf(artifacts);
+    }
+
+    private boolean credentialInjectionReady() {
+        return testDataCrossWpReferenceService != null && testDataCrossWpReferenceService.runnerCredentialInjectionReady();
+    }
+
+    private CredentialPreviewState resolveCredentialState(RunnerRunRequest request) {
+        if (testDataCrossWpReferenceService == null || !credentialInjectionReady()) {
+            return new CredentialPreviewState(
+                    false,
+                    null,
+                    EXECUTION_NOT_READY,
+                    "managed preview is enabled, but credential injection adapter is not ready yet"
+            );
+        }
+        if (request == null || !StringUtils.hasText(request.accountLeaseRef()) || !StringUtils.hasText(request.projectId())) {
+            return new CredentialPreviewState(
+                    false,
+                    null,
+                    "UI_E2E_ACCOUNT_LEASE_INVALID",
+                    "runner preview account lease is incomplete"
+            );
+        }
+        try {
+            return new CredentialPreviewState(
+                    true,
+                    testDataCrossWpReferenceService.resolveRunnerCredential(
+                    UUID.fromString(request.accountLeaseRef()),
+                    request.projectId()
+                    ),
+                    null,
+                    null
+            );
+        } catch (IllegalArgumentException exception) {
+            return new CredentialPreviewState(
+                    false,
+                    null,
+                    "UI_E2E_ACCOUNT_LEASE_INVALID",
+                    "runner preview account lease is invalid"
+            );
+        } catch (RuntimeException exception) {
+            return new CredentialPreviewState(
+                    false,
+                    null,
+                    "SECRET_PROVIDER_ERROR",
+                    "runner credential resolution failed"
+            );
+        }
+    }
+
+    private record CredentialPreviewState(
+            boolean ready,
+            TestDataRunnerCredentialResolver.RunnerCredentialResolution resolution,
+            String failureCode,
+            String failureSummary
+    ) {
     }
 
     private RunnerArtifactManifest blockedArtifact(String artifactType) {

@@ -3,6 +3,7 @@ package com.songhg.veri.agent.testdata.application;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.songhg.veri.agent.common.error.BusinessException;
 import com.songhg.veri.agent.common.error.ErrorCode;
+import com.songhg.veri.agent.common.secret.SecretProviderProperties;
 import com.songhg.veri.agent.integration.application.view.PlatformContext;
 import com.songhg.veri.agent.testdata.application.command.CreateTestAccountPoolCommand;
 import com.songhg.veri.agent.testdata.application.command.UpdateTestPooledAccountCommand;
@@ -70,6 +71,10 @@ class TestAccountPoolServiceTest {
         assertThat(service.accountPool(pool.id()).accounts()).singleElement()
                 .extracting(item -> item.secretRefDigest())
                 .isEqualTo(sha256(SECRET_REF));
+        String cipherPayload = ((InMemoryTestDataRepository) repository(service)).pooledAccountSecretRefCipher(account.id())
+                .orElseThrow();
+        assertThat(cipherPayload).doesNotContain(SECRET_REF, "secret://");
+        assertThat(cipherPayload).contains("cipherText", "authTag", "masterKeyVersion");
         verify(contextClient).writeAuditEvent(
                 eq("test_data.account.updated"),
                 eq("TEST_POOLED_ACCOUNT"),
@@ -195,6 +200,82 @@ class TestAccountPoolServiceTest {
                 assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.VALIDATION_ERROR));
     }
 
+    @Test
+    void clearsSecretRefCipherWhenMasterKeyIsUnavailable() throws Exception {
+        InMemoryTestDataRepository repository = new InMemoryTestDataRepository();
+        TestDataPlatformContextClient contextClient = contextClient();
+        TestAccountPoolService serviceWithMasterKey = service(
+                true,
+                60,
+                120,
+                contextClient,
+                repository,
+                new SecretProviderProperties(
+                        "0123456789abcdef0123456789abcdef",
+                        "v1",
+                        "",
+                        "",
+                        3,
+                        1,
+                        "",
+                        "",
+                        ""
+                )
+        );
+        var pool = serviceWithMasterKey.createAccountPool(new CreateTestAccountPoolCommand(
+                "project-alpha",
+                null,
+                null,
+                "pool-alpha",
+                "Pool alpha",
+                "READY",
+                Map.of(),
+                null
+        ));
+        var account = serviceWithMasterKey.addAccount(pool.id(), new UpsertTestPooledAccountCommand(
+                "admin-01",
+                "Admin 01",
+                "AVAILABLE",
+                List.of("ADMIN"),
+                Map.of(),
+                SECRET_REF,
+                null,
+                null
+        ));
+        assertThat(repository.pooledAccountSecretRefCipher(account.id())).isPresent();
+
+        TestAccountPoolService serviceWithoutMasterKey = service(
+                true,
+                60,
+                120,
+                contextClient,
+                repository,
+                new SecretProviderProperties(
+                        "",
+                        "v1",
+                        "",
+                        "",
+                        3,
+                        1,
+                        "",
+                        "",
+                        ""
+                )
+        );
+        var updated = serviceWithoutMasterKey.updateAccount(account.id(), new UpdateTestPooledAccountCommand(
+                null,
+                null,
+                null,
+                null,
+                "secret://wp8/accounts/admin-01-v2",
+                null,
+                null
+        ));
+
+        assertThat(updated.secretRefDigest()).isEqualTo(sha256("secret://wp8/accounts/admin-01-v2"));
+        assertThat(repository.pooledAccountSecretRefCipher(account.id())).isEmpty();
+    }
+
     private TestAccountPoolService service(boolean enabled, int defaultTtlSeconds, int maxTtlSeconds) {
         return service(enabled, defaultTtlSeconds, maxTtlSeconds, contextClient());
     }
@@ -205,15 +286,54 @@ class TestAccountPoolServiceTest {
             int maxTtlSeconds,
             TestDataPlatformContextClient contextClient
     ) {
+        return service(
+                enabled,
+                defaultTtlSeconds,
+                maxTtlSeconds,
+                contextClient,
+                new InMemoryTestDataRepository(),
+                new SecretProviderProperties(
+                        "0123456789abcdef0123456789abcdef",
+                        "v1",
+                        "",
+                        "",
+                        3,
+                        1,
+                        "",
+                        "",
+                        ""
+                )
+        );
+    }
+
+    private TestAccountPoolService service(
+            boolean enabled,
+            int defaultTtlSeconds,
+            int maxTtlSeconds,
+            TestDataPlatformContextClient contextClient,
+            InMemoryTestDataRepository repository,
+            SecretProviderProperties secretProviderProperties
+    ) {
         TestDataActorResolver actorResolver = mock(TestDataActorResolver.class);
         when(actorResolver.currentActor()).thenReturn("wp8-tester");
         return new TestAccountPoolService(
-                new InMemoryTestDataRepository(),
+                repository,
                 contextClient,
                 actorResolver,
                 new TestDataProperties(enabled, 10, 512, defaultTtlSeconds, maxTtlSeconds, false, true),
+                secretProviderProperties,
                 new ObjectMapper()
         );
+    }
+
+    private Object repository(TestAccountPoolService service) {
+        try {
+            var field = TestAccountPoolService.class.getDeclaredField("repository");
+            field.setAccessible(true);
+            return field.get(service);
+        } catch (ReflectiveOperationException exception) {
+            throw new IllegalStateException(exception);
+        }
     }
 
     private TestDataPlatformContextClient contextClient() {

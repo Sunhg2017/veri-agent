@@ -4,6 +4,7 @@ import com.songhg.veri.agent.uie2e.application.port.UiE2eRepository;
 import com.songhg.veri.agent.uie2e.application.port.UiE2eRunnerPort;
 import com.songhg.veri.agent.uie2e.infrastructure.DisabledUiE2eRunnerAdapter;
 import com.songhg.veri.agent.uie2e.infrastructure.ManagedPreviewUiE2eRunnerAdapter;
+import com.songhg.veri.agent.testdata.application.TestDataCrossWpReferenceService;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
@@ -23,9 +24,10 @@ public class UiE2eRunnerConfiguration {
     )
     public UiE2eRunnerPort enabledUiE2eRunnerPort(
             UiE2eRepository repository,
-            UiE2eProperties properties
+            UiE2eProperties properties,
+            TestDataCrossWpReferenceService testDataCrossWpReferenceService
     ) {
-        return new ManagedPreviewUiE2eRunnerAdapter(repository, properties);
+        return new ManagedPreviewUiE2eRunnerAdapter(repository, properties, testDataCrossWpReferenceService);
     }
 
     @Bean
