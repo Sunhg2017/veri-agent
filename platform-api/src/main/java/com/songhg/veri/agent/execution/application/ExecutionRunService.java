@@ -29,6 +29,7 @@ import com.songhg.veri.agent.execution.domain.ExecutionRun;
 import com.songhg.veri.agent.management.application.port.ManagementStore;
 import com.songhg.veri.agent.notification.application.AsyncTaskNotificationService;
 import com.songhg.veri.agent.testdata.application.TestDataCrossWpReferenceService;
+import com.songhg.veri.agent.uie2e.application.UiE2eRunService;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -66,6 +67,7 @@ public class ExecutionRunService {
     private final ExecutionPlatformContextClient contextClient;
     private final ExecutionActorResolver actorResolver;
     private final ApiAutomationService apiAutomationService;
+    private final UiE2eRunService uiE2eRunService;
     private final ManagementStore managementStore;
     private final ExecutionRunJsonSupport jsonSupport;
     private final ExecutionRunResponseMapper responseMapper;
@@ -84,6 +86,7 @@ public class ExecutionRunService {
             ApiAutomationService apiAutomationService,
             ObjectProvider<ManagementStore> managementStores,
             ObjectProvider<TestDataCrossWpReferenceService> testDataServices,
+            ObjectProvider<UiE2eRunService> uiE2eRunServices,
             ObjectMapper objectMapper,
             ExecutionProperties properties,
             AsyncTaskNotificationService notificationService,
@@ -94,6 +97,7 @@ public class ExecutionRunService {
         this.contextClient = contextClient;
         this.actorResolver = actorResolver;
         this.apiAutomationService = apiAutomationService;
+        this.uiE2eRunService = uiE2eRunServices.getIfAvailable();
         this.managementStore = managementStores.getIfAvailable();
         this.jsonSupport = new ExecutionRunJsonSupport(objectMapper);
         this.responseMapper = new ExecutionRunResponseMapper(objectMapper);
@@ -118,6 +122,7 @@ public class ExecutionRunService {
         this.dispatchSupport = new ExecutionRunDispatchSupport(
                 repository,
                 apiAutomationService,
+                uiE2eRunService,
                 managementStore,
                 properties,
                 jsonSupport,
@@ -411,6 +416,10 @@ public class ExecutionRunService {
      */
     public ExecutionRunDetailResponse dispatchClaimedApiTestNodeRun(DispatchExecutionNodeRunCommand command) {
         return dispatchSupport.dispatchClaimedApiTestNodeRun(command);
+    }
+
+    public ExecutionRunDetailResponse dispatchClaimedUiTestNodeRun(DispatchExecutionNodeRunCommand command) {
+        return dispatchSupport.dispatchClaimedUiTestNodeRun(command);
     }
 
     /**

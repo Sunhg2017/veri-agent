@@ -49,6 +49,8 @@ class ExecutionHealthControllerTest {
                 .andExpect(jsonPath("$.data.policy.stateAggregationReady").value(true))
                 .andExpect(jsonPath("$.data.policy.wp6DispatchReady").value(true))
                 .andExpect(jsonPath("$.data.policy.wp6DispatchViaApplicationService").value(true))
+                .andExpect(jsonPath("$.data.policy.wp7DispatchReady").value(true))
+                .andExpect(jsonPath("$.data.policy.wp7DispatchViaApplicationService").value(true))
                 .andExpect(jsonPath("$.data.policy.schedulerLoopReady").value(true))
                 .andExpect(jsonPath("$.data.policy.schedulerUsesQueueClaim").value(true))
                 .andExpect(jsonPath("$.data.policy.triggerControlPlaneReady").value(true))
@@ -59,6 +61,7 @@ class ExecutionHealthControllerTest {
                 .andExpect(jsonPath("$.data.policy.webhookDefaultDisabled").value(true))
                 .andExpect(jsonPath("$.data.policy.secretPlaintextStored").value(false))
                 .andExpect(jsonPath("$.data.policy.directRunnerAdapterCallAllowed").value(false))
-                .andExpect(jsonPath("$.data.policy.supportedNodeTypes[0]").value("API_TEST"));
+                .andExpect(jsonPath("$.data.policy.supportedNodeTypes[0]").value("API_TEST"))
+                .andExpect(jsonPath("$.data.policy.p0ExecutableNodeTypes[1]").value("UI_TEST"));
     }
 }

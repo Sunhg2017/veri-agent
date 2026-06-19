@@ -45,6 +45,8 @@ public class ExecutionHealthService {
                         Map.entry("stateAggregationReady", true),
                         Map.entry("wp6DispatchReady", true),
                         Map.entry("wp6DispatchViaApplicationService", true),
+                        Map.entry("wp7DispatchReady", true),
+                        Map.entry("wp7DispatchViaApplicationService", true),
                         Map.entry("wp8AccountLeaseAdapterReady", true),
                         Map.entry("accountLeaseAutoAcquireReleaseReady", true),
                         Map.entry("accountLeaseStoredFields",
@@ -70,7 +72,7 @@ public class ExecutionHealthService {
                                 "CLEANUP",
                                 "REPORT_HANDOFF"
                         )),
-                        Map.entry("p0ExecutableNodeTypes", List.of("API_TEST", "REPORT_HANDOFF"))
+                        Map.entry("p0ExecutableNodeTypes", List.of("API_TEST", "UI_TEST", "REPORT_HANDOFF"))
                 )
         );
     }

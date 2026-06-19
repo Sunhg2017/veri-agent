@@ -40,7 +40,7 @@ public class ExecutionDagValidator {
     private static final Set<String> NODE_TYPES = Set.of(
             "API_TEST", "UI_TEST", "SETUP", "VERIFY", "CLEANUP", "REPORT_HANDOFF"
     );
-    private static final Set<String> P0_READY_NODE_TYPES = Set.of("API_TEST", "REPORT_HANDOFF");
+    private static final Set<String> P0_READY_NODE_TYPES = Set.of("API_TEST", "UI_TEST", "REPORT_HANDOFF");
     private static final Set<String> FAILURE_POLICIES = Set.of("FAIL_FAST", "CONTINUE", "BLOCK_DOWNSTREAM");
     private static final Set<String> SENSITIVE_INPUT_KEYS = Set.of(
             "secret", "secrets", "secretref", "secretrefs", "token", "password", "authorization", "cookie", "apikey",
@@ -259,8 +259,47 @@ public class ExecutionDagValidator {
         if ("API_TEST".equals(type)) {
             validateRuntimeSecretRefs(key, inputSummary.get("runtimeSecretRefs"), issues);
             validateAccountLease(key, inputSummary.get("accountLease"), issues);
+        } else if ("UI_TEST".equals(type)) {
+            validateUiTestInput(key, inputSummary, issues);
+            validateAccountLeaseRequired(key, inputSummary.get("accountLease"), issues);
+            validateAccountLease(key, inputSummary.get("accountLease"), issues);
         } else if (inputSummary.containsKey("accountLease")) {
-            issues.add(issue("EXECUTION_ACCOUNT_LEASE_UNSUPPORTED", key, "accountLease 仅允许配置在 API_TEST 节点"));
+            issues.add(issue("EXECUTION_ACCOUNT_LEASE_UNSUPPORTED", key, "accountLease 仅允许配置在 API_TEST/UI_TEST 节点"));
+        }
+    }
+
+    /**
+     * WP9 currently dispatches UI_TEST by creating one WP7 aggregate run, so scene/bundle/baseUrlRef/accountLease
+     * must all be resolvable before the node can be treated as P0 executable.
+     */
+    private void validateUiTestInput(
+            String key,
+            Map<String, Object> inputSummary,
+            List<ExecutionValidationIssueResponse> issues
+    ) {
+        if (uuid(inputSummary.get("sceneId")).isEmpty()) {
+            issues.add(issue("EXECUTION_UI_TEST_SCENE_REQUIRED", key, "UI_TEST 节点必须提供 sceneId"));
+        }
+        if (uuid(inputSummary.get("bundleId")).isEmpty()) {
+            issues.add(issue("EXECUTION_UI_TEST_BUNDLE_REQUIRED", key, "UI_TEST 节点必须提供 bundleId"));
+        }
+        String baseUrlRef = bounded(inputSummary.get("baseUrlRef"), 128).orElse(null);
+        if (!StringUtils.hasText(baseUrlRef)) {
+            issues.add(issue("EXECUTION_UI_TEST_BASE_URL_REF_REQUIRED", key, "UI_TEST 节点必须提供 baseUrlRef"));
+            return;
+        }
+        if (!baseUrlRef.startsWith("env:") || !StringUtils.hasText(baseUrlRef.substring("env:".length()).trim())) {
+            issues.add(issue("EXECUTION_UI_TEST_BASE_URL_REF_INVALID", key, "UI_TEST 节点仅支持 env:<environmentKey> baseUrlRef"));
+        }
+    }
+
+    private void validateAccountLeaseRequired(
+            String key,
+            Object accountLease,
+            List<ExecutionValidationIssueResponse> issues
+    ) {
+        if (accountLease == null) {
+            issues.add(issue("EXECUTION_ACCOUNT_LEASE_REQUIRED", key, "UI_TEST 节点必须提供 accountLease"));
         }
     }
 

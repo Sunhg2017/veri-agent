@@ -15,6 +15,7 @@ import com.songhg.veri.agent.execution.domain.ExecutionRun;
 import com.songhg.veri.agent.management.application.port.ManagementStore;
 import com.songhg.veri.agent.notification.application.AsyncTaskNotificationService;
 import com.songhg.veri.agent.testdata.application.TestDataCrossWpReferenceService;
+import com.songhg.veri.agent.uie2e.application.UiE2eRunService;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
@@ -41,6 +42,7 @@ class ExecutionRunServiceTest {
     private final ExecutionPlatformContextClient contextClient = mock(ExecutionPlatformContextClient.class);
     private final ExecutionActorResolver actorResolver = mock(ExecutionActorResolver.class);
     private final ApiAutomationService apiAutomationService = mock(ApiAutomationService.class);
+    private final UiE2eRunService uiE2eRunService = mock(UiE2eRunService.class);
     private final AsyncTaskNotificationService notificationService = mock(AsyncTaskNotificationService.class);
     private final ExecutionRunService service = new ExecutionRunService(
             repository,
@@ -50,6 +52,7 @@ class ExecutionRunServiceTest {
             apiAutomationService,
             EmptyObjectProvider.of(),
             EmptyObjectProvider.of(),
+            SingleObjectProvider.of(uiE2eRunService),
             new ObjectMapper(),
             new ExecutionProperties(
                     false,
@@ -351,6 +354,33 @@ class ExecutionRunServiceTest {
         @Override
         public T getObject() {
             throw new IllegalStateException("No object available");
+        }
+    }
+
+    private record SingleObjectProvider<T>(T value) implements ObjectProvider<T> {
+
+        private static <T> SingleObjectProvider<T> of(T value) {
+            return new SingleObjectProvider<>(value);
+        }
+
+        @Override
+        public T getObject(Object... args) {
+            return value;
+        }
+
+        @Override
+        public T getIfAvailable() {
+            return value;
+        }
+
+        @Override
+        public T getIfUnique() {
+            return value;
+        }
+
+        @Override
+        public T getObject() {
+            return value;
         }
     }
 }

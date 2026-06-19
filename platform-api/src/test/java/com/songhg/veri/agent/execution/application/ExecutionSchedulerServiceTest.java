@@ -16,6 +16,7 @@ import com.songhg.veri.agent.execution.application.command.CompleteExecutionNode
 import com.songhg.veri.agent.execution.application.port.ExecutionRepository;
 import com.songhg.veri.agent.execution.application.view.ExecutionQueueClaimResponse;
 import com.songhg.veri.agent.execution.application.view.ExecutionQueueRecoveryResponse;
+import com.songhg.veri.agent.execution.application.view.ExecutionRunDetailResponse;
 import com.songhg.veri.agent.execution.application.view.ExecutionSchedulerTickResponse;
 import com.songhg.veri.agent.execution.config.ExecutionProperties;
 import com.songhg.veri.agent.execution.domain.ExecutionTrigger;
@@ -482,6 +483,64 @@ class ExecutionSchedulerServiceTest {
                 .doesNotContain("secret://wp6/runtime-token")
                 .doesNotContain("must-not-store");
         assertThat(command.resultSummary()).containsEntry("schedulerFailure", true);
+    }
+
+    @Test
+    void runOnceDispatchesWp7UiClaimThroughUiTestPath() {
+        ExecutionRunService runService = mock(ExecutionRunService.class);
+        ExecutionTriggerService triggerService = mock(ExecutionTriggerService.class);
+        ExecutionSchedulerService scheduler = new ExecutionSchedulerService(
+                runService,
+                triggerService,
+                new ExecutionProperties(
+                        true,
+                        false,
+                        false,
+                        300,
+                        60,
+                        5_000,
+                        30_000,
+                        "wp7-worker",
+                        1,
+                        2,
+                        4,
+                        180,
+                        1_800,
+                        50
+                )
+        );
+        ExecutionQueueClaimResponse claim = new ExecutionQueueClaimResponse(
+                UUID.randomUUID(),
+                UUID.randomUUID(),
+                UUID.randomUUID(),
+                UUID.randomUUID(),
+                "ui-smoke",
+                "WP7_UI",
+                "wp9_claim_ui",
+                "wp7-worker",
+                Instant.now(),
+                Instant.now(),
+                Instant.now().plusSeconds(180)
+        );
+        when(runService.recoverExpiredQueueClaims()).thenReturn(new ExecutionQueueRecoveryResponse(
+                0,
+                0,
+                0,
+                0,
+                Instant.now()
+        ));
+        when(runService.claimNextQueuedNode("wp7-worker"))
+                .thenReturn(Optional.of(claim))
+                .thenReturn(Optional.empty());
+        when(runService.dispatchClaimedUiTestNodeRun(any())).thenReturn(mock(ExecutionRunDetailResponse.class));
+
+        ExecutionSchedulerTickResponse tick = scheduler.runOnce();
+
+        assertThat(tick.claimedNodeCount()).isEqualTo(1);
+        assertThat(tick.dispatchedNodeCount()).isEqualTo(1);
+        assertThat(tick.completedNodeCount()).isZero();
+        assertThat(tick.failedNodeCount()).isZero();
+        verify(runService).dispatchClaimedUiTestNodeRun(any());
     }
 
     private UUID createApiAndReportPlan(String projectId, SeededBundle bundle, String token) throws Exception {

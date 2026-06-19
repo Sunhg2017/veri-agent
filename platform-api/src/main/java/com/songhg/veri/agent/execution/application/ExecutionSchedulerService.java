@@ -131,6 +131,18 @@ public class ExecutionSchedulerService {
                 ));
                 return new ClaimOutcome(1, 0, 0);
             }
+            if ("WP7_UI".equals(claim.runnerType())) {
+                executionRunService.dispatchClaimedUiTestNodeRun(new DispatchExecutionNodeRunCommand(
+                        claim.nodeRunId(),
+                        claim.claimToken(),
+                        null,
+                        null,
+                        null,
+                        null,
+                        null
+                ));
+                return new ClaimOutcome(1, 0, 0);
+            }
             if ("REPORT".equals(claim.runnerType())) {
                 completeReportHandoff(claim);
                 return new ClaimOutcome(0, 1, 0);

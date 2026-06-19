@@ -159,6 +159,79 @@ class ExecutionDagValidatorTest {
     }
 
     @Test
+    void acceptsUiTestNodeWithAccountLeaseAndRequiredRefs() {
+        UUID poolId = UUID.randomUUID();
+        ExecutionDagValidator validator = new ExecutionDagValidator(mock(ApiAutomationBundleScopeService.class), new ObjectMapper());
+
+        ExecutionDagValidationResult result = validator.validate(
+                UUID.randomUUID(),
+                "project-alpha",
+                new ExecutionDagCommand(List.of(new ExecutionDagNodeCommand(
+                        "ui-smoke",
+                        "UI_TEST",
+                        List.of(),
+                        Map.of(
+                                "sceneId", UUID.randomUUID().toString(),
+                                "bundleId", UUID.randomUUID().toString(),
+                                "baseUrlRef", "env:portal-staging",
+                                "environmentId", "portal-staging",
+                                "accountLease", Map.of(
+                                        "accountPoolRef", poolId.toString(),
+                                        "applicationId", "portal",
+                                        "environmentId", "staging",
+                                        "roleTags", List.of("ADMIN"),
+                                        "ttlSeconds", 120,
+                                        "requestKey", "wp7-lease"
+                                )
+                        ),
+                        180,
+                        "FAIL_FAST",
+                        Map.of()
+                ))),
+                Instant.EPOCH
+        );
+
+        assertThat(result.valid()).isTrue();
+        assertThat(result.issues()).isEmpty();
+        assertThat(result.nodePolicies()).singleElement().satisfies(policy -> {
+            assertThat(policy.runnerType()).isEqualTo("WP7_UI");
+            assertThat(policy.inputSummary()).containsEntry("baseUrlRef", "env:portal-staging");
+        });
+    }
+
+    @Test
+    void rejectsUiTestNodeMissingRequiredRefs() {
+        ExecutionDagValidator validator = new ExecutionDagValidator(mock(ApiAutomationBundleScopeService.class), new ObjectMapper());
+
+        ExecutionDagValidationResult result = validator.validate(
+                UUID.randomUUID(),
+                "project-alpha",
+                new ExecutionDagCommand(List.of(new ExecutionDagNodeCommand(
+                        "ui-smoke",
+                        "UI_TEST",
+                        List.of(),
+                        Map.of(
+                                "baseUrlRef", "portal-staging",
+                                "accountLease", Map.of()
+                        ),
+                        180,
+                        "FAIL_FAST",
+                        Map.of()
+                ))),
+                Instant.EPOCH
+        );
+
+        assertThat(result.valid()).isFalse();
+        assertThat(result.issues()).extracting("code")
+                .contains(
+                        "EXECUTION_UI_TEST_SCENE_REQUIRED",
+                        "EXECUTION_UI_TEST_BUNDLE_REQUIRED",
+                        "EXECUTION_UI_TEST_BASE_URL_REF_INVALID",
+                        "EXECUTION_ACCOUNT_LEASE_INVALID"
+                );
+    }
+
+    @Test
     void rejectsInvalidAccountLeaseShape() {
         UUID bundleId = UUID.randomUUID();
         ApiAutomationBundleScopeService bundleScopeService = mock(ApiAutomationBundleScopeService.class);

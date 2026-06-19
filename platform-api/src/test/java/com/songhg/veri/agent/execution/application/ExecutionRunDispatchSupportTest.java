@@ -30,6 +30,9 @@ import com.songhg.veri.agent.testdata.application.command.CreateTestAccountPoolC
 import com.songhg.veri.agent.testdata.application.command.UpsertTestPooledAccountCommand;
 import com.songhg.veri.agent.testdata.config.TestDataProperties;
 import com.songhg.veri.agent.testdata.infrastructure.InMemoryTestDataRepository;
+import com.songhg.veri.agent.uie2e.application.UiE2eRunService;
+import com.songhg.veri.agent.uie2e.application.command.CreateUiE2eRunCommand;
+import com.songhg.veri.agent.uie2e.application.view.UiE2eRunDetailResponse;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
@@ -56,6 +59,7 @@ class ExecutionRunDispatchSupportTest {
 
     private final InMemoryExecutionRepository repository = new InMemoryExecutionRepository();
     private final ApiAutomationService apiAutomationService = mock(ApiAutomationService.class);
+    private final UiE2eRunService uiE2eRunService = mock(UiE2eRunService.class);
     private final ManagementStore managementStore = mock(ManagementStore.class);
     private final ExecutionPlatformContextClient contextClient = mock(ExecutionPlatformContextClient.class);
     private final ObjectMapper objectMapper = new ObjectMapper();
@@ -81,6 +85,7 @@ class ExecutionRunDispatchSupportTest {
     private final ExecutionRunDispatchSupport support = new ExecutionRunDispatchSupport(
             repository,
             apiAutomationService,
+            uiE2eRunService,
             managementStore,
             properties(),
             jsonSupport,
@@ -324,6 +329,69 @@ class ExecutionRunDispatchSupportTest {
                 assertThat(claim.status()).isEqualTo("CLAIMED"));
     }
 
+    @Test
+    void dispatchClaimedUiTestNodeCreatesWp7RunAndPersistsAggregateSummary() throws Exception {
+        UUID projectId = UUID.randomUUID();
+        UUID sceneId = UUID.randomUUID();
+        UUID bundleId = UUID.randomUUID();
+        UUID accountPoolId = seedUiAccountPool(projectId);
+        SeededDispatchNode seed = seedClaimedUiNode(projectId, sceneId, bundleId, accountPoolId);
+        UUID wp7RunId = UUID.randomUUID();
+        when(uiE2eRunService.createRun(any())).thenAnswer(invocation -> {
+            CreateUiE2eRunCommand command = invocation.getArgument(0);
+            return wp7Run(
+                    wp7RunId,
+                    projectId.toString(),
+                    sceneId,
+                    bundleId,
+                    command.accountLeaseRef(),
+                    "BLOCKED",
+                    "MANAGED"
+            );
+        });
+
+        ExecutionRunDetailResponse response = support.dispatchClaimedUiTestNodeRun(new DispatchExecutionNodeRunCommand(
+                seed.nodeRun().id(),
+                CLAIM_TOKEN,
+                null,
+                null,
+                null,
+                null,
+                null
+        ));
+
+        ArgumentCaptor<CreateUiE2eRunCommand> commandCaptor = ArgumentCaptor.forClass(CreateUiE2eRunCommand.class);
+        verify(uiE2eRunService).createRun(commandCaptor.capture());
+        CreateUiE2eRunCommand command = commandCaptor.getValue();
+        assertThat(command.projectId()).isEqualTo(projectId.toString());
+        assertThat(command.sceneId()).isEqualTo(sceneId);
+        assertThat(command.bundleId()).isEqualTo(bundleId);
+        assertThat(command.baseUrlRef()).isEqualTo("env:portal-staging");
+        assertThat(command.accountLeaseRef()).isNotNull();
+        assertThat(command.requestKey()).startsWith("wp9-ui:");
+
+        assertThat(response.status()).isEqualTo("FAILED");
+        assertThat(response.nodes()).singleElement().satisfies(node -> {
+            assertThat(node.status()).isEqualTo("BLOCKED");
+            assertThat(node.externalRunId()).isEqualTo(wp7RunId.toString());
+            assertThat(node.resultSummary())
+                    .containsEntry("runnerDispatched", true)
+                    .containsEntry("wp7DispatchReady", true)
+                    .containsEntry("wp7RunId", wp7RunId.toString())
+                    .containsEntry("wp7RunnerMode", "MANAGED")
+                    .containsEntry("wp7TerminalSnapshot", true)
+                    .containsEntry("wp7AsyncFollowUpRequired", false)
+                    .containsEntry("rawBaseUrlStored", false)
+                    .containsEntry("secretRefPlaintextStored", false);
+            assertThat(String.valueOf(node.resultSummary().get("baseUrlRefDigest"))).startsWith("sha256:");
+            assertThat(String.valueOf(node.resultSummary()))
+                    .doesNotContain("env:portal-staging")
+                    .doesNotContain("secret://");
+        });
+        assertThat(repository.queueClaimByToken(CLAIM_TOKEN)).hasValueSatisfying(claim ->
+                assertThat(claim.status()).isEqualTo("COMPLETED"));
+    }
+
     private SeededDispatchNode seedClaimedApiNode(UUID projectId, UUID bundleId, UUID caseId)
             throws JsonProcessingException {
         return seedClaimedApiNode(projectId, bundleId, caseId, null);
@@ -430,6 +498,110 @@ class ExecutionRunDispatchSupportTest {
         return new SeededDispatchNode(runId, nodeRun);
     }
 
+    private SeededDispatchNode seedClaimedUiNode(
+            UUID projectId,
+            UUID sceneId,
+            UUID bundleId,
+            UUID accountPoolId
+    ) throws JsonProcessingException {
+        UUID planId = UUID.randomUUID();
+        UUID runId = UUID.randomUUID();
+        UUID planNodeId = UUID.randomUUID();
+        Instant now = Instant.now();
+        repository.insertPlan(new ExecutionPlan(
+                planId,
+                projectId.toString(),
+                "Release UI smoke",
+                "READY",
+                "qa",
+                "{}",
+                "dag-digest-ui",
+                null,
+                "tester",
+                "tester",
+                null,
+                now.minusSeconds(120),
+                now.minusSeconds(120)
+        ));
+        repository.replacePlanNodes(planId, List.of(new ExecutionPlanNode(
+                planNodeId,
+                planId,
+                "ui-smoke",
+                "UI_TEST",
+                "",
+                objectMapper.writeValueAsString(Map.of(
+                        "sceneId", sceneId.toString(),
+                        "bundleId", bundleId.toString(),
+                        "environmentId", "portal-staging",
+                        "baseUrlRef", "env:portal-staging",
+                        "accountLease", Map.of(
+                                "accountPoolRef", accountPoolId.toString(),
+                                "applicationId", "portal",
+                                "environmentId", "staging",
+                                "roleTags", List.of("ADMIN"),
+                                "ttlSeconds", 180
+                        )
+                )),
+                "FAIL_FAST",
+                180,
+                "{}",
+                now.minusSeconds(120),
+                now.minusSeconds(120)
+        )));
+        ExecutionRun run = new ExecutionRun(
+                runId,
+                planId,
+                projectId.toString(),
+                "RUNNING",
+                "MANUAL",
+                "request-key-ui",
+                null,
+                1,
+                "trc_run_ui",
+                "{\"nodeCount\":1,\"runnerDispatched\":false}",
+                null,
+                null,
+                "tester",
+                now.minusSeconds(60),
+                null,
+                now.minusSeconds(90),
+                now.minusSeconds(20)
+        );
+        ExecutionNodeRun nodeRun = new ExecutionNodeRun(
+                UUID.randomUUID(),
+                runId,
+                planNodeId,
+                "RUNNING",
+                1,
+                "WP7_UI",
+                null,
+                null,
+                null,
+                "{\"runnerDispatched\":false}",
+                now.minusSeconds(5),
+                now.minusSeconds(60),
+                now.minusSeconds(30),
+                null,
+                now.minusSeconds(90),
+                now.minusSeconds(5)
+        );
+        repository.insertRun(run);
+        repository.insertNodeRuns(List.of(nodeRun));
+        repository.tryInsertQueueClaim(new ExecutionQueueClaim(
+                UUID.randomUUID(),
+                nodeRun.id(),
+                CLAIM_TOKEN,
+                "worker-a",
+                now.minusSeconds(20),
+                now.minusSeconds(10),
+                now.plusSeconds(60),
+                "CLAIMED",
+                now.minusSeconds(20),
+                now.minusSeconds(10)
+        ));
+        return new SeededDispatchNode(runId, nodeRun);
+    }
+
     private UUID seedAccountPool(UUID projectId) {
         var pool = testDataFixture.poolService().createAccountPool(new CreateTestAccountPoolCommand(
                 projectId.toString(),
@@ -448,6 +620,30 @@ class ExecutionRunDispatchSupportTest {
                 List.of("ADMIN"),
                 Map.of("applicationId", "app-alpha"),
                 "secret://wp8/accounts/admin-01",
+                "HEALTHY",
+                null
+        ));
+        return pool.id();
+    }
+
+    private UUID seedUiAccountPool(UUID projectId) {
+        var pool = testDataFixture.poolService().createAccountPool(new CreateTestAccountPoolCommand(
+                projectId.toString(),
+                "portal",
+                "staging",
+                "portal-pool-" + UUID.randomUUID(),
+                "Portal Pool",
+                "READY",
+                Map.of("sharing", "EXCLUSIVE"),
+                180
+        ));
+        testDataFixture.poolService().addAccount(pool.id(), new UpsertTestPooledAccountCommand(
+                "portal-admin-01",
+                "Portal Admin 01",
+                "AVAILABLE",
+                List.of("ADMIN"),
+                Map.of("applicationId", "portal"),
+                "secret://wp8/accounts/portal-admin-01",
                 "HEALTHY",
                 null
         ));
@@ -527,6 +723,53 @@ class ExecutionRunDispatchSupportTest {
                         now
                 ),
                 List.of()
+        );
+    }
+
+    private UiE2eRunDetailResponse wp7Run(
+            UUID runId,
+            String projectId,
+            UUID sceneId,
+            UUID bundleId,
+            UUID accountLeaseRef,
+            String status,
+            String runnerMode
+    ) {
+        Instant now = Instant.now();
+        return new UiE2eRunDetailResponse(
+                runId,
+                projectId,
+                sceneId,
+                "portal-login",
+                "Portal Login",
+                "APPROVED",
+                bundleId,
+                "APPROVED",
+                status,
+                "wp9-ui-request",
+                runnerMode,
+                "EXECUTION_RUNNER_NOT_READY",
+                "managed preview resolved runner credentials, but browser execution is not ready yet",
+                "trc_wp7",
+                Map.of(
+                        "accountLeaseRef", accountLeaseRef.toString(),
+                        "secretRefDigest", "sha256:lease-secret",
+                        "secretPlaintextReturned", false
+                ),
+                Map.of(
+                        "baseUrlDigest", "sha256:portal-host",
+                        "stepStatusCounts", Map.of("BLOCKED", 2),
+                        "failureBucketCounts", Map.of("RUNNER", 1, "ACCOUNT", 1),
+                        "artifactTypes", List.of("LOG", "TRACE")
+                ),
+                List.of(),
+                List.of(),
+                null,
+                now.minusSeconds(5),
+                now,
+                now.minusSeconds(10),
+                now,
+                false
         );
     }
 
