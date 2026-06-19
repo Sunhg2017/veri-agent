@@ -19,7 +19,8 @@ public final class SensitiveTextSanitizer {
 
     private static final List<Pattern> SENSITIVE_TEXT_PATTERNS = List.of(
             Pattern.compile("(?i)\\bbearer\\s+[a-z0-9._\\-]{8,}"),
-            Pattern.compile("(?i)\\b(api[_-]?key|secret|token|password|passwd|authorization)\\s*[:=]\\s*[^\\s,;，；]+"),
+            Pattern.compile("(?i)\\b(api[_-]?key|secret|token|password|passwd|authorization|cookie)\\s*[:=]\\s*[^\\s,;，；]+"),
+            Pattern.compile("(?i)\\blease\\s+token(?:\\s*[:=]\\s*[^\\s,;，；]+)?"),
             Pattern.compile("(?i)\\b(sk|pk|rk)_[a-z0-9_-]{8,}\\b")
     );
     private static final Pattern URL_PATTERN = Pattern.compile("https?://[^\\s,;，；]+", Pattern.CASE_INSENSITIVE);

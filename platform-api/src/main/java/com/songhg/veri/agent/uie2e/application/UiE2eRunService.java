@@ -41,6 +41,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 import java.util.function.Function;
+import java.util.regex.Pattern;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -83,6 +84,10 @@ public class UiE2eRunService {
     );
     private static final Set<String> ARTIFACT_TYPES = Set.of("SCREENSHOT", "VIDEO", "TRACE", "LOG", "HAR", "JUNIT_XML");
     private static final Set<String> ARTIFACT_CAPTURE_STATUSES = Set.of("PENDING", "CAPTURED", "REDACTED", "BLOCKED", "FAILED", "SKIPPED");
+    private static final Pattern UNSAFE_RUNNER_SUMMARY_KEY_PATTERN = Pattern.compile(
+            "(?i).*(authorization|cookie|password|passwd|secretref|secreturi|secretvalue|secretplaintext|token|payload|stdout|stderr"
+                    + "|request|response|body|dom|html|sourceCode|sourceUrl|webhook).*"
+    );
 
     private final UiE2eRepository repository;
     private final UiE2eActorResolver actorResolver;
@@ -537,17 +542,13 @@ public class UiE2eRunService {
         int stepOrder = Math.max(step.stepOrder(), 1);
         UiE2eSceneStep sceneStep = sceneStepsByOrder.get(stepOrder);
         UUID sceneStepId = sceneStep == null ? step.sceneStepId() : sceneStep.id();
-        Map<String, Object> safeSummary = new LinkedHashMap<>();
-        if (step.summary() != null) {
-            step.summary().forEach((key, value) -> safeSummary.put(
-                    SensitiveTextSanitizer.boundedText(String.valueOf(key), 64),
-                    safeManifestValue(value)
-            ));
-        }
+        SanitizedMap safeRunnerSummary = safeRunnerSummary(step.summary());
+        Map<String, Object> safeSummary = new LinkedHashMap<>(safeRunnerSummary.value());
         safeSummary.put("aggregateOnly", true);
         safeSummary.put("rawDomStored", false);
         safeSummary.put("rawRunnerOutputStored", false);
         safeSummary.put("secretPlaintextStored", false);
+        safeSummary.put("unsafeSummaryKeysFiltered", safeRunnerSummary.filteredUnsafeKeys());
         return new UiE2eRunStepResult(
                 UUID.randomUUID(),
                 run.id(),
@@ -603,18 +604,14 @@ public class UiE2eRunService {
         String storageRef = boundedStorageRef(artifact.storageRef());
         String digest = boundedDigest(artifact.artifactDigest());
         long sizeBytes = Math.max(0L, Math.min(artifact.sizeBytes(), properties.effectiveMaxArtifactSizeBytes()));
-        Map<String, Object> flags = new LinkedHashMap<>();
-        if (artifact.redactionFlags() != null) {
-            artifact.redactionFlags().forEach((key, value) -> flags.put(
-                    SensitiveTextSanitizer.boundedText(String.valueOf(key), 64),
-                    safeManifestValue(value)
-            ));
-        }
+        SanitizedMap safeArtifactFlags = safeRunnerSummary(artifact.redactionFlags());
+        Map<String, Object> flags = new LinkedHashMap<>(safeArtifactFlags.value());
         flags.put("aggregateOnly", true);
         flags.put("rawArtifactStored", false);
         flags.put("rawArtifactDownloadReady", false);
         flags.put("secretPlaintextStored", false);
         flags.put("storageCredentialStored", false);
+        flags.put("unsafeRedactionFlagKeysFiltered", safeArtifactFlags.filteredUnsafeKeys());
         if ("CAPTURED".equals(captureStatus) && (!StringUtils.hasText(storageRef) || !StringUtils.hasText(digest))) {
             captureStatus = "BLOCKED";
             flags.put("captureBlockedReason", "artifactRefIncomplete");
@@ -637,12 +634,7 @@ public class UiE2eRunService {
 
     private Object safeManifestValue(Object value) {
         if (value instanceof Map<?, ?> map) {
-            Map<String, Object> safe = new LinkedHashMap<>();
-            map.forEach((key, nestedValue) -> safe.put(
-                    SensitiveTextSanitizer.boundedText(String.valueOf(key), 64),
-                    safeManifestValue(nestedValue)
-            ));
-            return safe;
+            return safeRunnerSummary(map).value();
         }
         if (value instanceof List<?> list) {
             return list.stream().map(this::safeManifestValue).toList();
@@ -651,6 +643,28 @@ public class UiE2eRunService {
             return SensitiveTextSanitizer.sanitizedEvidenceText(text, 256);
         }
         return value;
+    }
+
+    private SanitizedMap safeRunnerSummary(Map<?, ?> summary) {
+        if (summary == null || summary.isEmpty()) {
+            return new SanitizedMap(Map.of(), false);
+        }
+        Map<String, Object> safe = new LinkedHashMap<>();
+        boolean filteredUnsafeKeys = false;
+        for (Map.Entry<?, ?> entry : summary.entrySet()) {
+            String normalizedKey = SensitiveTextSanitizer.boundedText(String.valueOf(entry.getKey()), 64);
+            if (!safeRunnerSummaryKey(normalizedKey)) {
+                filteredUnsafeKeys = true;
+                continue;
+            }
+            Object safeValue = safeManifestValue(entry.getValue());
+            safe.put(normalizedKey, safeValue);
+        }
+        return new SanitizedMap(Map.copyOf(safe), filteredUnsafeKeys);
+    }
+
+    private boolean safeRunnerSummaryKey(String key) {
+        return StringUtils.hasText(key) && !UNSAFE_RUNNER_SUMMARY_KEY_PATTERN.matcher(key).matches();
     }
 
     private UiE2eArtifactManifestResponse artifactResponse(UiE2eArtifactManifest manifest) {
@@ -870,5 +884,11 @@ public class UiE2eRunService {
         if (!properties.enabled()) {
             throw new BusinessException(ErrorCode.INVALID_STATE, "WP7 UI/E2E 控制面已关闭");
         }
+    }
+
+    private record SanitizedMap(
+            Map<String, Object> value,
+            boolean filteredUnsafeKeys
+    ) {
     }
 }

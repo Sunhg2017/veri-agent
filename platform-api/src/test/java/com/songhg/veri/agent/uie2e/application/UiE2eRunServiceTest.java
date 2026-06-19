@@ -59,6 +59,17 @@ class UiE2eRunServiceTest {
     private static final UUID ENVIRONMENT_UUID = UUID.fromString("2d5eb6af-0fda-4ec2-bc7f-c30f69c307e4");
     private static final String ENVIRONMENT_KEY = "staging";
     private static final String SECRET_REF = "secret://wp8/accounts/admin-01";
+    private static final List<String> FORBIDDEN_SAMPLES = List.of(
+            SECRET_REF,
+            "secret://",
+            "Authorization: Bearer ui-secret-token-123456",
+            "cookie=ui-session-secret",
+            "cookie: ui-session-secret",
+            "lease token",
+            "password=RunnerSecret-001",
+            "token=ui-secret-token-123456",
+            "https://portal.example.test/private"
+    );
 
     @Test
     void createsBlockedRunAndReplaysByRequestKeyWhenRunnerDisabled() {
@@ -277,6 +288,74 @@ class UiE2eRunServiceTest {
                 .containsEntry("aggregateOnly", true)
                 .containsEntry("artifactDownloadReady", false)
                 .containsEntry("runnerOutputExported", false);
+    }
+
+    @Test
+    void redactsSensitiveSamplesFromManagedRunDetailAndExport() {
+        Fixture fixture = fixture(
+                true,
+                List.of("https://portal.example.test"),
+                new SensitiveRunnerStub()
+        );
+        SeededRunRefs refs = seedApprovedSceneAndBundle(fixture);
+        UUID leaseRef = acquireLease(fixture);
+
+        UiE2eRunDetailResponse created = fixture.service().createRun(new CreateUiE2eRunCommand(
+                PROJECT_ID,
+                refs.sceneId(),
+                refs.bundleId(),
+                ENVIRONMENT_KEY,
+                "env:" + ENVIRONMENT_KEY,
+                leaseRef,
+                "run-request-redaction-001",
+                "redaction regression"
+        ));
+
+        assertThat(created.status()).isEqualTo("FAILED");
+        assertThat(created.runnerMode()).isEqualTo("MANAGED");
+        assertThat(created.failureCode()).isEqualTo("UI_E2E_RUNNER_FAILED");
+        assertRedactedText(created.failureSummary());
+
+        assertThat(created.stepResults()).singleElement().satisfies(step -> {
+            assertThat(step.status()).isEqualTo("FAILED");
+            assertThat(step.summary()).containsEntry("aggregateOnly", true);
+            assertThat(step.summary()).containsEntry("rawDomStored", false);
+            assertThat(step.summary()).containsEntry("rawRunnerOutputStored", false);
+            assertThat(step.summary()).containsEntry("secretPlaintextStored", false);
+            assertThat(step.summary()).containsEntry("unsafeSummaryKeysFiltered", true);
+            assertThat(step.summary()).doesNotContainKeys("runnerStdout", "password");
+            assertRedactedObject(step.summary());
+        });
+
+        assertThat(created.artifacts()).singleElement().satisfies(artifact -> {
+            assertThat(artifact.artifactType()).isEqualTo("LOG");
+            assertThat(artifact.captureStatus()).isEqualTo("CAPTURED");
+            assertThat(artifact.redactionFlags()).containsEntry("aggregateOnly", true);
+            assertThat(artifact.redactionFlags()).containsEntry("rawArtifactStored", false);
+            assertThat(artifact.redactionFlags()).containsEntry("rawArtifactDownloadReady", false);
+            assertThat(artifact.redactionFlags()).containsEntry("secretPlaintextStored", false);
+            assertThat(artifact.redactionFlags()).containsEntry("storageCredentialStored", false);
+            assertThat(artifact.redactionFlags()).containsEntry("unsafeRedactionFlagKeysFiltered", true);
+            assertThat(artifact.redactionFlags()).doesNotContainKeys("stdoutExcerpt", "cookieHeader");
+            assertThat(artifact.storageRef()).contains("[REDACTED_URL]");
+            assertThat(artifact.storageRef()).doesNotContain("portal.example.test/private");
+            assertRedactedObject(artifact.redactionFlags());
+        });
+
+        assertRedactedObject(created.accountSummary());
+        assertRedactedObject(created.executionSummary());
+
+        UiE2eRunExportResponse exported = fixture.service().exportRun(created.id());
+        assertThat(exported.schemaVersion()).isEqualTo("wp7-run-export-v1");
+        assertThat(exported.redactionPolicy())
+                .containsEntry("aggregateOnly", true)
+                .containsEntry("artifactDownloadReady", false)
+                .containsEntry("runnerOutputExported", false);
+        assertRedactedObject(exported.run().accountSummary());
+        assertRedactedText(exported.run().failureSummary());
+        assertRedactedObject(exported.run().stepResults().getFirst().summary());
+        assertRedactedObject(exported.run().artifacts().getFirst().redactionFlags());
+        assertThat(exported.run().artifacts().getFirst().storageRef()).contains("[REDACTED_URL]");
     }
 
     @Test
@@ -701,6 +780,17 @@ class UiE2eRunServiceTest {
     ) {
     }
 
+    private void assertRedactedText(String value) {
+        assertThat(value).isNotBlank();
+        assertThat(value).containsAnyOf("[REDACTED]", "[REDACTED_SECRET_REF]", "[REDACTED_URL]");
+        assertThat(value).doesNotContain(FORBIDDEN_SAMPLES.toArray(String[]::new));
+    }
+
+    private void assertRedactedObject(Object value) {
+        String rendered = String.valueOf(value);
+        assertThat(rendered).doesNotContain(FORBIDDEN_SAMPLES.toArray(String[]::new));
+    }
+
     private static final class RunningRunnerStub implements com.songhg.veri.agent.uie2e.application.port.UiE2eRunnerPort {
 
         @Override
@@ -737,6 +827,68 @@ class UiE2eRunServiceTest {
                                     "FAILED"
                             )
                     )
+            );
+        }
+
+        @Override
+        public RunnerCancelResult cancel(UUID runId) {
+            return new RunnerCancelResult(true, null, null);
+        }
+    }
+
+    private static final class SensitiveRunnerStub implements com.songhg.veri.agent.uie2e.application.port.UiE2eRunnerPort {
+
+        @Override
+        public RunnerValidation validate(RunnerValidationRequest request) {
+            return new RunnerValidation(true, null, null);
+        }
+
+        @Override
+        public RunnerRunResult run(RunnerRunRequest request) {
+            return new RunnerRunResult(
+                    "FAILED",
+                    "MANAGED",
+                    "UI_E2E_RUNNER_FAILED",
+                    "Authorization: Bearer ui-secret-token-123456 secret://wp8/accounts/admin-01 lease token "
+                            + "cookie=ui-session-secret password=RunnerSecret-001 https://portal.example.test/private",
+                    List.of(new RunnerStepResult(
+                            null,
+                            1,
+                            "FAILED",
+                            321,
+                            "ACCOUNT",
+                            "UI_E2E_STEP_FAILED",
+                            Map.of(
+                                    "note", "cookie=ui-session-secret secret://wp8/accounts/admin-01",
+                                    "runnerStdout", "Authorization: Bearer ui-secret-token-123456",
+                                    "blockedReason", "lease token rotation pending",
+                                    "nested", Map.of(
+                                            "password", "password=RunnerSecret-001",
+                                            "jumpUrl", "https://portal.example.test/private"
+                                    ),
+                                    "samples", List.of(
+                                            "token=ui-secret-token-123456",
+                                            "cookie: ui-session-secret"
+                                    )
+                            )
+                    )),
+                    List.of(new RunnerArtifactManifest(
+                            "LOG",
+                            "https://portal.example.test/private/logs/run-001",
+                            "a".repeat(64),
+                            1024,
+                            Map.of(
+                                    "scanResult", "secret://wp8/accounts/admin-01",
+                                    "stdoutExcerpt", "Authorization: Bearer ui-secret-token-123456",
+                                    "cookieHeader", "cookie=ui-session-secret",
+                                    "blockedReason", "lease token redaction required",
+                                    "nested", Map.of(
+                                            "passwordHint", "password=RunnerSecret-001",
+                                            "sourceUrl", "https://portal.example.test/private"
+                                    )
+                            ),
+                            "CAPTURED"
+                    ))
             );
         }
 
