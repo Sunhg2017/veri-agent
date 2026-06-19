@@ -645,6 +645,10 @@ public class UiE2eRunService {
         return value;
     }
 
+    /**
+     * Drops runner-provided dangerous summary keys so aggregate-only responses never echo stdout/stderr, payload-like
+     * fields or credential-bearing key names even when the values themselves have already been text-redacted.
+     */
     private SanitizedMap safeRunnerSummary(Map<?, ?> summary) {
         if (summary == null || summary.isEmpty()) {
             return new SanitizedMap(Map.of(), false);
