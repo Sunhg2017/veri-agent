@@ -279,6 +279,11 @@ public class InMemoryUiE2eRepository implements UiE2eRepository {
     }
 
     @Override
+    public Optional<UiE2eFlakyMark> flakyMark(UUID id) {
+        return Optional.ofNullable(flakyMarks.get(id));
+    }
+
+    @Override
     public Optional<UiE2eFlakyMark> flakyMarkByScene(UUID sceneId) {
         return flakyMarks.values().stream()
                 .filter(mark -> sceneId.equals(mark.sceneId()))

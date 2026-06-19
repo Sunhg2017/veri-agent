@@ -98,6 +98,8 @@ public interface UiE2eMapper {
 
     void updateFlakyMarkByRun(UiE2eFlakyMark flakyMark);
 
+    UiE2eFlakyMark flakyMark(@Param("id") UUID id);
+
     UiE2eFlakyMark flakyMarkByScene(@Param("sceneId") UUID sceneId);
 
     UiE2eFlakyMark flakyMarkByRun(@Param("runId") UUID runId);

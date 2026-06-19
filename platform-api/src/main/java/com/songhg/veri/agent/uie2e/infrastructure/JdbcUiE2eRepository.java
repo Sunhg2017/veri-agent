@@ -215,6 +215,11 @@ public class JdbcUiE2eRepository implements UiE2eRepository {
     }
 
     @Override
+    public Optional<UiE2eFlakyMark> flakyMark(UUID id) {
+        return Optional.ofNullable(mapper.flakyMark(id));
+    }
+
+    @Override
     public Optional<UiE2eFlakyMark> flakyMarkByScene(UUID sceneId) {
         return Optional.ofNullable(mapper.flakyMarkByScene(sceneId));
     }

@@ -12,6 +12,7 @@ import {
   exportUiE2eRun,
   fetchUiE2eBundle,
   fetchUiE2eBundles,
+  fetchUiE2eFlakyMark,
   fetchUiE2eFlakyMarks,
   fetchUiE2eHealth,
   fetchUiE2eRun,
@@ -294,6 +295,7 @@ describe('WP7 ui e2e API helpers', () => {
     await cancelUiE2eRun('run-1', { reason: 'cancel' });
     await exportUiE2eRun('run-1');
     await fetchUiE2eFlakyMarks({ projectId: 'project-alpha', status: 'CONFIRMED_FLAKY', keyword: 'locator' });
+    await fetchUiE2eFlakyMark('flaky-1');
     await upsertUiE2eFlakyMark({
       projectId: 'project-alpha',
       runId: 'run-1',
@@ -362,7 +364,8 @@ describe('WP7 ui e2e API helpers', () => {
     });
     expect(requestJsonMock).toHaveBeenNthCalledWith(19, '/api/v1/ui-e2e/runs/run-1/export');
     expect(requestJsonMock).toHaveBeenNthCalledWith(20, '/api/v1/ui-e2e/flaky-marks?projectId=project-alpha&status=CONFIRMED_FLAKY&keyword=locator');
-    expect(requestJsonMock).toHaveBeenNthCalledWith(21, '/api/v1/ui-e2e/flaky-marks', {
+    expect(requestJsonMock).toHaveBeenNthCalledWith(21, '/api/v1/ui-e2e/flaky-marks/flaky-1');
+    expect(requestJsonMock).toHaveBeenNthCalledWith(22, '/api/v1/ui-e2e/flaky-marks', {
       method: 'POST',
       body: JSON.stringify({
         projectId: 'project-alpha',

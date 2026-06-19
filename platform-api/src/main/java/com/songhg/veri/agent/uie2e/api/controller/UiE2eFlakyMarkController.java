@@ -9,7 +9,9 @@ import com.songhg.veri.agent.uie2e.application.command.UpsertUiE2eFlakyMarkComma
 import com.songhg.veri.agent.uie2e.application.query.UiE2eFlakyMarkPageRequest;
 import com.songhg.veri.agent.uie2e.application.view.UiE2eFlakyMarkResponse;
 import jakarta.validation.Valid;
+import java.util.UUID;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -30,6 +32,12 @@ public class UiE2eFlakyMarkController {
     @RequirePermission(value = PermissionCodes.UI_E2E_FLAKY, scope = UiE2ePermissionScopes.FLAKY_REQUEST)
     public UiE2eFlakyMarkResponse upsert(@Valid @RequestBody UpsertUiE2eFlakyMarkCommand command) {
         return service.upsert(command);
+    }
+
+    @GetMapping("/{id}")
+    @RequirePermission(value = PermissionCodes.UI_E2E_READ, scope = UiE2ePermissionScopes.FLAKY)
+    public UiE2eFlakyMarkResponse flakyMark(@PathVariable UUID id) {
+        return service.flakyMark(id);
     }
 
     @GetMapping

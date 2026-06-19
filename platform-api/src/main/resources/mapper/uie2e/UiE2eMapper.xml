@@ -626,6 +626,12 @@
         limit 1
     </select>
 
+    <select id="flakyMark" resultMap="flakyMarkMap">
+        select <include refid="flakyMarkColumns"/>
+        from ui_e2e_flaky_mark f
+        where f.id = #{id}
+    </select>
+
     <select id="flakyMarkByRun" resultMap="flakyMarkMap">
         select <include refid="flakyMarkColumns"/>
         from ui_e2e_flaky_mark f

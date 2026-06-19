@@ -25,6 +25,7 @@ import {
   exportUiE2eRun,
   fetchUiE2eBundle,
   fetchUiE2eBundles,
+  fetchUiE2eFlakyMark,
   fetchUiE2eFlakyMarks,
   fetchUiE2eHealth,
   fetchUiE2eRun,
@@ -144,6 +145,7 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
   const [bundleExport, setBundleExport] = useState<UiE2eBundleExport | null>(null);
   const [runDetail, setRunDetail] = useState<UiE2eRunDetail | null>(null);
   const [runExport, setRunExport] = useState<UiE2eRunExport | null>(null);
+  const [flakyDetail, setFlakyDetail] = useState<UiE2eFlakyMark | null>(null);
 
   const [sceneDraft, setSceneDraft] = useState<UiE2eSceneDraft>(initialUiE2eSceneDraft);
   const [bundleSceneId, setBundleSceneId] = useState('');
@@ -156,11 +158,6 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
   const [bundleActionState, setBundleActionState] = useState<WorkState>({ loading: false });
   const [runActionState, setRunActionState] = useState<WorkState>({ loading: false });
   const [flakyActionState, setFlakyActionState] = useState<WorkState>({ loading: false });
-
-  const selectedFlaky = useMemo(
-    () => flakyMarks.find((item) => item.id === selectedFlakyId) ?? null,
-    [flakyMarks, selectedFlakyId]
-  );
 
   const overview = useMemo(
     () => buildUiE2eWorkbenchOverview(health, scenes, bundles, runs, flakyMarks),
@@ -215,6 +212,7 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
       setBundleExport(null);
       setRunDetail(null);
       setRunExport(null);
+      setFlakyDetail(null);
       setSelectedSceneId('');
       setSelectedBundleId('');
       setSelectedRunId('');
@@ -306,6 +304,19 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
     }
   }, [canRead, props.signedIn, runFilters]);
 
+  const refreshFlakyDetail = useCallback(async (flakyId: string) => {
+    if (!flakyId || !canRead) {
+      setFlakyDetail(null);
+      return;
+    }
+    try {
+      const result = await fetchUiE2eFlakyMark(flakyId);
+      setFlakyDetail(result.data);
+    } catch (error: unknown) {
+      setFlakyActionState({ loading: false, error: error instanceof Error ? error.message : '加载 Flaky 详情失败' });
+    }
+  }, [canRead]);
+
   useEffect(() => {
     void refreshWorkbench();
   }, [refreshWorkbench]);
@@ -384,6 +395,10 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
     setSelectedFlakyId(visibleFlakyMarks[0].id);
     applyFlakyDefaults(visibleFlakyMarks[0]);
   }, [selectedFlakyId, visibleFlakyMarks]);
+
+  useEffect(() => {
+    void refreshFlakyDetail(selectedFlakyId);
+  }, [refreshFlakyDetail, selectedFlakyId]);
 
   if (!props.signedIn) {
     return <div className="notice warning">请先登录后查看 UI E2E 工作台。</div>;
@@ -603,6 +618,7 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
       const result = await upsertUiE2eFlakyMark(payload);
       setSelectedFlakyId(result.data.id);
       setFlakyMarks((current) => [result.data, ...current.filter((item) => item.id !== result.data.id)]);
+      setFlakyDetail(result.data);
       setRuns((current) => current.map((run) => run.id === result.data.runId ? { ...run, flakyStatus: result.data.status } : run));
       setRunDetail((current) => current && current.id === result.data.runId ? { ...current, flakyMark: result.data } : current);
       setFlakyActionState({ loading: false, success: 'Flaky 标记已更新', traceId: result.trace_id });
@@ -1227,7 +1243,7 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
             flakyState={flakyActionState}
             onApplyFlakyPreset={(status, reasonCode, reasonSummary) => void onApplyRunFlakyPreset(status, reasonCode, reasonSummary)}
           />
-          <FlakyDetailPanel item={selectedFlaky} state={flakyActionState} />
+          <FlakyDetailPanel item={flakyDetail} state={flakyActionState} />
         </section>
       </div>
     </div>
@@ -1580,8 +1596,14 @@ function FlakyDetailPanel(props: { item: UiE2eFlakyMark | null; state: WorkState
       <div className="report-section-grid">
         <InfoBlock title="reasonSummary" value={props.item.reasonSummary || '-'} />
         <InfoBlock title="runId" value={props.item.runId || '-'} />
+        <InfoBlock title="sceneName" value={props.item.sceneName || '-'} />
+        <InfoBlock title="createdBy" value={props.item.createdBy || '-'} />
         <InfoBlock title="createdAt" value={props.item.createdAt ? formatDateTime(props.item.createdAt) : '-'} />
         <InfoBlock title="updatedAt" value={props.item.updatedAt ? formatDateTime(props.item.updatedAt) : '-'} />
+      </div>
+      <div className="notice info">
+        <strong>审计可见性</strong>
+        <span>该视图展示创建人与更新人、时间戳、关联场景/运行和原因摘要，便于后续治理复盘。</span>
       </div>
       <StateLine state={props.state} />
     </Panel>

@@ -126,6 +126,14 @@ class UiE2eFlakyMarkControllerTest {
                 .andExpect(jsonPath("$.data.items[0].runId").value(runId.toString()))
                 .andExpect(jsonPath("$.data.items[0].sceneCode").isString())
                 .andExpect(jsonPath("$.data.items[0].status").value("CONFIRMED_FLAKY"));
+
+        mockMvc.perform(get("/api/v1/ui-e2e/flaky-marks/{id}", sceneLevelId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + readOnlyToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.id").value(sceneLevelId))
+                .andExpect(jsonPath("$.data.runId").value(runId.toString()))
+                .andExpect(jsonPath("$.data.updatedBy").isString())
+                .andExpect(jsonPath("$.data.reasonSummary").value("locator changes after deploy"));
     }
 
     private UUID createApprovedScene(String token) throws Exception {

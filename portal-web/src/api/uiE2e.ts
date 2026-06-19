@@ -458,6 +458,11 @@ export async function fetchUiE2eFlakyMarks(filters: UiE2eFlakyFilters = {}): Pro
   return { ...response, data: normalizeUiE2eList(response.data, normalizeUiE2eFlakyMark) };
 }
 
+export async function fetchUiE2eFlakyMark(id: string): Promise<ApiResponse<UiE2eFlakyMark>> {
+  const response = await requestJson<unknown>(`${UI_E2E_BASE}/flaky-marks/${encodeURIComponent(id)}`);
+  return { ...response, data: normalizeUiE2eFlakyMark(response.data) };
+}
+
 export async function upsertUiE2eFlakyMark(payload: UpsertUiE2eFlakyMarkPayload): Promise<ApiResponse<UiE2eFlakyMark>> {
   const response = await requestJson<unknown>(`${UI_E2E_BASE}/flaky-marks`, {
     method: 'POST',

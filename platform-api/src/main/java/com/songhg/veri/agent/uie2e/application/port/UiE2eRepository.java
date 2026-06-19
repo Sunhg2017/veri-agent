@@ -82,6 +82,8 @@ public interface UiE2eRepository {
 
     void upsertFlakyMark(UiE2eFlakyMark flakyMark);
 
+    Optional<UiE2eFlakyMark> flakyMark(UUID id);
+
     Optional<UiE2eFlakyMark> flakyMarkByScene(UUID sceneId);
 
     Optional<UiE2eFlakyMark> flakyMarkByRun(UUID runId);

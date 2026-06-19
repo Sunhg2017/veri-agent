@@ -107,6 +107,10 @@ public class UiE2ePermissionScopeResolver {
         return ResourceScope.platform();
     }
 
+    public ResourceScope flaky(UUID id) {
+        return ResourceScope.project(flakyMarkService.flakyMarkProjectScopeId(id));
+    }
+
     private ResourceScope project(String projectId) {
         return ResourceScope.project(contextClient.projectContext(projectId).resourceId());
     }

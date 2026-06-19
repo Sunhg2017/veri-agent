@@ -110,6 +110,16 @@ public class UiE2eFlakyMarkService {
     }
 
     @Transactional(readOnly = true)
+    public UiE2eFlakyMarkResponse flakyMark(UUID id) {
+        assertEnabled();
+        UiE2eFlakyMark flakyMark = repository.flakyMark(id)
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "UI/E2E flaky mark 不存在"));
+        UiE2eScene scene = flakyMark.sceneId() == null ? null : requireScene(flakyMark.sceneId());
+        UiE2eRun run = flakyMark.runId() == null ? null : requireRun(flakyMark.runId());
+        return response(flakyMark, scene, run);
+    }
+
+    @Transactional(readOnly = true)
     public String flakyProjectScopeId(UUID sceneId, UUID runId) {
         if (runId != null) {
             return requireRun(runId).projectId();
@@ -118,6 +128,13 @@ public class UiE2eFlakyMarkService {
             return requireScene(sceneId).projectId();
         }
         throw new BusinessException(ErrorCode.NOT_FOUND, "UI/E2E flaky mark 作用域不存在");
+    }
+
+    @Transactional(readOnly = true)
+    public String flakyMarkProjectScopeId(UUID id) {
+        UiE2eFlakyMark flakyMark = repository.flakyMark(id)
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "UI/E2E flaky mark 不存在"));
+        return flakyMark.projectId();
     }
 
     private UiE2eFlakyMark existingMark(UiE2eScene scene, UiE2eRun run) {
