@@ -267,7 +267,16 @@ describe('WP7 ui e2e API helpers', () => {
     requestJsonMock.mockResolvedValue({ code: 'OK', message: 'OK', trace_id: 'trc', data: { items: [] } });
 
     await fetchUiE2eHealth();
-    await fetchUiE2eScenes({ projectId: 'project-alpha', status: 'APPROVED', keyword: 'login', size: 10 });
+    await fetchUiE2eScenes({
+      projectId: 'project-alpha',
+      applicationId: 'app-alpha',
+      environmentId: 'staging',
+      status: 'APPROVED',
+      riskLevel: 'HIGH',
+      tag: 'smoke',
+      keyword: 'login',
+      size: 10
+    });
     await fetchUiE2eScene('scene-1');
     await createUiE2eScene({
       projectId: 'project-alpha',
@@ -310,7 +319,10 @@ describe('WP7 ui e2e API helpers', () => {
     });
 
     expect(requestJsonMock).toHaveBeenNthCalledWith(1, '/api/v1/ui-e2e/health');
-    expect(requestJsonMock).toHaveBeenNthCalledWith(2, '/api/v1/ui-e2e/scenes?projectId=project-alpha&status=APPROVED&keyword=login&size=10');
+    expect(requestJsonMock).toHaveBeenNthCalledWith(
+      2,
+      '/api/v1/ui-e2e/scenes?projectId=project-alpha&applicationId=app-alpha&environmentId=staging&status=APPROVED&riskLevel=HIGH&tag=smoke&keyword=login&size=10'
+    );
     expect(requestJsonMock).toHaveBeenNthCalledWith(3, '/api/v1/ui-e2e/scenes/scene-1');
     expect(requestJsonMock).toHaveBeenNthCalledWith(4, '/api/v1/ui-e2e/scenes', {
       method: 'POST',

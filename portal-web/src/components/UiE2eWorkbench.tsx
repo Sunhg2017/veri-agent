@@ -110,7 +110,21 @@ type SimpleFilters = {
   keyword: string;
 };
 
+type SceneFilters = SimpleFilters & {
+  applicationId: string;
+  environmentId: string;
+  riskLevel: string;
+  tag: string;
+};
+
 const initialFilters: SimpleFilters = { projectId: '', status: '', keyword: '' };
+const initialSceneFilters: SceneFilters = {
+  ...initialFilters,
+  applicationId: '',
+  environmentId: '',
+  riskLevel: '',
+  tag: ''
+};
 
 export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentUser | null }) {
   const canRead = hasPermission(props.currentUser, 'uiE2e:read');
@@ -126,7 +140,7 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
   const [runs, setRuns] = useState<UiE2eRunSummary[]>([]);
   const [flakyMarks, setFlakyMarks] = useState<UiE2eFlakyMark[]>([]);
 
-  const [sceneFilters, setSceneFilters] = useState<SimpleFilters>(initialFilters);
+  const [sceneFilters, setSceneFilters] = useState<SceneFilters>(initialSceneFilters);
   const [bundleFilters, setBundleFilters] = useState<SimpleFilters>(initialFilters);
   const [runFilters, setRunFilters] = useState<SimpleFilters>(initialFilters);
   const [flakyFilters, setFlakyFilters] = useState<SimpleFilters>(initialFilters);
@@ -225,7 +239,7 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
     try {
       const [healthResult, sceneResult, bundleResult, runResult, flakyResult] = await Promise.all([
         fetchUiE2eHealth(),
-        fetchUiE2eScenes({ ...compactFilters(sceneFilters), size: 20 }),
+        fetchUiE2eScenes({ ...compactSceneFilters(sceneFilters), size: 20 }),
         fetchUiE2eBundles({ ...compactFilters(bundleFilters), size: 20 }),
         fetchUiE2eRuns({ ...compactFilters(runFilters), size: 20 }),
         fetchUiE2eFlakyMarks({ ...compactFilters(flakyFilters), size: 20 })
@@ -708,12 +722,46 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
                   <option value="ARCHIVED">ARCHIVED</option>
                 </select>
               </Field>
+              <Field label="applicationId">
+                <input
+                  value={sceneFilters.applicationId}
+                  onChange={(event) => setSceneFilters((current) => ({ ...current, applicationId: event.target.value }))}
+                  placeholder="app-alpha"
+                />
+              </Field>
+              <Field label="environmentId">
+                <input
+                  value={sceneFilters.environmentId}
+                  onChange={(event) => setSceneFilters((current) => ({ ...current, environmentId: event.target.value }))}
+                  placeholder="staging"
+                />
+              </Field>
+              <Field label="riskLevel">
+                <select value={sceneFilters.riskLevel} onChange={(event) => setSceneFilters((current) => ({ ...current, riskLevel: event.target.value }))}>
+                  <option value="">全部</option>
+                  <option value="LOW">LOW</option>
+                  <option value="MEDIUM">MEDIUM</option>
+                  <option value="HIGH">HIGH</option>
+                  <option value="CRITICAL">CRITICAL</option>
+                </select>
+              </Field>
+              <Field label="tag">
+                <input value={sceneFilters.tag} onChange={(event) => setSceneFilters((current) => ({ ...current, tag: event.target.value }))} placeholder="smoke" />
+              </Field>
               <Field label="keyword">
                 <input value={sceneFilters.keyword} onChange={(event) => setSceneFilters((current) => ({ ...current, keyword: event.target.value }))} placeholder="code / name / tag" />
               </Field>
               <div className="report-filter-actions">
                 <button className="btn btn-secondary" type="submit" disabled={loadState.loading}>
                   <Search size={16} />筛选
+                </button>
+                <button
+                  className="btn btn-secondary"
+                  type="button"
+                  disabled={loadState.loading}
+                  onClick={() => setSceneFilters(initialSceneFilters)}
+                >
+                  重置
                 </button>
               </div>
             </form>
@@ -1810,6 +1858,18 @@ function compactFilters(filters: SimpleFilters) {
   return {
     projectId: optionalText(filters.projectId),
     status: optionalText(filters.status),
+    keyword: optionalText(filters.keyword)
+  };
+}
+
+function compactSceneFilters(filters: SceneFilters) {
+  return {
+    projectId: optionalText(filters.projectId),
+    applicationId: optionalText(filters.applicationId),
+    environmentId: optionalText(filters.environmentId),
+    status: optionalText(filters.status),
+    riskLevel: optionalText(filters.riskLevel),
+    tag: optionalText(filters.tag),
     keyword: optionalText(filters.keyword)
   };
 }
