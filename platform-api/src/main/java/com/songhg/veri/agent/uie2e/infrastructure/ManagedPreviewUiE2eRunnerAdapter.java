@@ -30,9 +30,6 @@ import org.springframework.util.StringUtils;
 public class ManagedPreviewUiE2eRunnerAdapter implements UiE2eRunnerPort {
 
     private static final String EXECUTION_NOT_READY = "EXECUTION_RUNNER_NOT_READY";
-    private static final String UNSUPPORTED_CREDENTIAL_FORMAT = "UI_E2E_CREDENTIAL_FORMAT_UNSUPPORTED";
-    private static final String ACCOUNT_PASSWORD_SCHEMA = "wp7-account-password-v1";
-    private static final String LOGIN_FORM_SCHEMA = "wp7-login-form-v1";
     private static final TypeReference<Map<String, Object>> MAP_TYPE = new TypeReference<>() {
     };
 
@@ -40,6 +37,7 @@ public class ManagedPreviewUiE2eRunnerAdapter implements UiE2eRunnerPort {
     private final UiE2eProperties properties;
     private final TestDataCrossWpReferenceService testDataCrossWpReferenceService;
     private final ObjectMapper objectMapper = new ObjectMapper();
+    private final UiE2eRunnerCredentialPlanSupport credentialPlanSupport = new UiE2eRunnerCredentialPlanSupport(objectMapper);
 
     public ManagedPreviewUiE2eRunnerAdapter(
             UiE2eRepository repository,
@@ -159,7 +157,7 @@ public class ManagedPreviewUiE2eRunnerAdapter implements UiE2eRunnerPort {
             RunnerRunRequest request,
             boolean credentialReady,
             TestDataRunnerCredentialResolver.RunnerCredentialResolution credentialResolution,
-            RunnerCredentialInjectionPlan credentialPlan,
+            UiE2eRunnerCredentialPlanSupport.RunnerCredentialInjectionPlan credentialPlan,
             String blockerErrorCode
     ) {
         if (sceneSteps == null || sceneSteps.isEmpty()) {
@@ -326,17 +324,17 @@ public class ManagedPreviewUiE2eRunnerAdapter implements UiE2eRunnerPort {
             return new CredentialPreviewState(
                     true,
                     resolution,
-                    buildCredentialPlan(request, resolution),
+                    credentialPlanSupport.buildCredentialPlan(request, resolution),
                     null,
                     null
             );
         } catch (BusinessException exception) {
-            if (UNSUPPORTED_CREDENTIAL_FORMAT.equals(exception.getMessage())) {
+            if (UiE2eRunnerCredentialPlanSupport.UNSUPPORTED_CREDENTIAL_FORMAT.equals(exception.getMessage())) {
                 return new CredentialPreviewState(
                         false,
                         resolution,
                         null,
-                        UNSUPPORTED_CREDENTIAL_FORMAT,
+                        UiE2eRunnerCredentialPlanSupport.UNSUPPORTED_CREDENTIAL_FORMAT,
                         "runner credential payload is not supported by managed preview"
                 );
             }
@@ -350,94 +348,9 @@ public class ManagedPreviewUiE2eRunnerAdapter implements UiE2eRunnerPort {
         }
     }
 
-    private RunnerCredentialInjectionPlan buildCredentialPlan(
-            RunnerRunRequest request,
-            TestDataRunnerCredentialResolver.RunnerCredentialResolution resolution
-    ) {
-        // The managed preview accepts either a plain password paired with the leased accountKey or a small structured
-        // login-form payload. Both stay process-local and are summarized only through non-sensitive readiness fields.
-        String secretValue = resolution == null ? null : resolution.secretValue();
-        if (!StringUtils.hasText(secretValue)) {
-            throw new BusinessException(ErrorCode.INVALID_STATE, UNSUPPORTED_CREDENTIAL_FORMAT);
-        }
-        String trimmedSecret = secretValue.trim();
-        if (trimmedSecret.startsWith("{")) {
-            return structuredCredentialPlan(trimmedSecret);
-        }
-        String accountKey = safeText(request == null || request.accountSummary() == null
-                ? null
-                : request.accountSummary().get("accountKey"));
-        if (!StringUtils.hasText(accountKey)) {
-            throw new BusinessException(ErrorCode.INVALID_STATE, UNSUPPORTED_CREDENTIAL_FORMAT);
-        }
-        return new RunnerCredentialInjectionPlan(
-                "FORM_LOGIN",
-                "ACCOUNT_PASSWORD",
-                ACCOUNT_PASSWORD_SCHEMA,
-                "ACCOUNT_SUMMARY",
-                true,
-                2,
-                accountKey,
-                trimmedSecret
-        );
-    }
-
-    private RunnerCredentialInjectionPlan structuredCredentialPlan(String secretValue) {
-        Map<String, Object> payload;
-        try {
-            payload = objectMapper.readValue(secretValue, MAP_TYPE);
-        } catch (JsonProcessingException exception) {
-            throw new BusinessException(ErrorCode.INVALID_STATE, UNSUPPORTED_CREDENTIAL_FORMAT);
-        }
-        String schemaId = safeText(payload.get("schema"));
-        String normalizedSchema = StringUtils.hasText(schemaId) ? schemaId.trim() : LOGIN_FORM_SCHEMA;
-        if (!LOGIN_FORM_SCHEMA.equalsIgnoreCase(normalizedSchema)) {
-            throw new BusinessException(ErrorCode.INVALID_STATE, UNSUPPORTED_CREDENTIAL_FORMAT);
-        }
-        String principal = firstPresent(payload, "username", "principal", "accountKey");
-        String credential = firstPresent(payload, "password", "credential", "value");
-        if (!StringUtils.hasText(principal) || !StringUtils.hasText(credential)) {
-            throw new BusinessException(ErrorCode.INVALID_STATE, UNSUPPORTED_CREDENTIAL_FORMAT);
-        }
-        return new RunnerCredentialInjectionPlan(
-                "FORM_LOGIN",
-                "STRUCTURED_LOGIN_FORM",
-                LOGIN_FORM_SCHEMA,
-                "SECRET_PAYLOAD",
-                true,
-                2,
-                principal,
-                credential
-        );
-    }
-
-    private String firstPresent(Map<String, Object> payload, String... keys) {
-        if (payload == null || keys == null) {
-            return null;
-        }
-        for (String key : keys) {
-            String text = safeText(payload.get(key));
-            if (StringUtils.hasText(text)) {
-                return text;
-            }
-        }
-        return null;
-    }
-
-    private String safeText(Object value) {
-        if (value == null) {
-            return null;
-        }
-        String text = String.valueOf(value).trim();
-        if (!StringUtils.hasText(text) || text.contains("\r") || text.contains("\n")) {
-            return null;
-        }
-        return SensitiveTextSanitizer.boundedText(text, 512);
-    }
-
     private String primaryBlockedReason(
             TestDataRunnerCredentialResolver.RunnerCredentialResolution credentialResolution,
-            RunnerCredentialInjectionPlan credentialPlan
+            UiE2eRunnerCredentialPlanSupport.RunnerCredentialInjectionPlan credentialPlan
     ) {
         if (credentialPlan != null) {
             return "browserExecutionPending";
@@ -450,7 +363,7 @@ public class ManagedPreviewUiE2eRunnerAdapter implements UiE2eRunnerPort {
 
     private String nextAction(
             TestDataRunnerCredentialResolver.RunnerCredentialResolution credentialResolution,
-            RunnerCredentialInjectionPlan credentialPlan
+            UiE2eRunnerCredentialPlanSupport.RunnerCredentialInjectionPlan credentialPlan
     ) {
         if (credentialPlan != null) {
             return "provision real browser runner before login";
@@ -464,27 +377,10 @@ public class ManagedPreviewUiE2eRunnerAdapter implements UiE2eRunnerPort {
     private record CredentialPreviewState(
             boolean ready,
             TestDataRunnerCredentialResolver.RunnerCredentialResolution resolution,
-            RunnerCredentialInjectionPlan plan,
+            UiE2eRunnerCredentialPlanSupport.RunnerCredentialInjectionPlan plan,
             String failureCode,
             String failureSummary
     ) {
-    }
-
-    private record RunnerCredentialInjectionPlan(
-            String planType,
-            String format,
-            String schemaId,
-            String principalSource,
-            boolean principalIdentifierPresent,
-            int componentCount,
-            String principalIdentifier,
-            String credentialValue
-    ) {
-        @Override
-        public String toString() {
-            return "RunnerCredentialInjectionPlan[planType=%s, format=%s, schemaId=%s, principalSource=%s, componentCount=%s, principalIdentifier=****, credentialValue=****]"
-                    .formatted(planType, format, schemaId, principalSource, componentCount);
-        }
     }
 
     private RunnerArtifactManifest blockedArtifact(String artifactType) {

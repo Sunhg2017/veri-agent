@@ -5,6 +5,7 @@ import com.songhg.veri.agent.uie2e.application.port.UiE2eRepository;
 import com.songhg.veri.agent.uie2e.application.port.UiE2eRunnerPort;
 import com.songhg.veri.agent.uie2e.infrastructure.DisabledUiE2eRunnerAdapter;
 import com.songhg.veri.agent.uie2e.infrastructure.ManagedPreviewUiE2eRunnerAdapter;
+import com.songhg.veri.agent.uie2e.infrastructure.PlaywrightSubprocessUiE2eRunnerAdapter;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 
@@ -35,6 +36,20 @@ class UiE2eRunnerConfigurationTest {
                     assertThat(context).hasSingleBean(UiE2eRunnerPort.class);
                     assertThat(context.getBean(UiE2eRunnerPort.class))
                             .isInstanceOf(ManagedPreviewUiE2eRunnerAdapter.class);
+                });
+    }
+
+    @Test
+    void createsPlaywrightSubprocessRunnerWhenRealBrowserModeIsEnabled() {
+        contextRunner
+                .withPropertyValues(
+                        "veri-agent.ui-e2e.runner-enabled=true",
+                        "veri-agent.ui-e2e.runner-mode=playwright-subprocess"
+                )
+                .run(context -> {
+                    assertThat(context).hasSingleBean(UiE2eRunnerPort.class);
+                    assertThat(context.getBean(UiE2eRunnerPort.class))
+                            .isInstanceOf(PlaywrightSubprocessUiE2eRunnerAdapter.class);
                 });
     }
 }

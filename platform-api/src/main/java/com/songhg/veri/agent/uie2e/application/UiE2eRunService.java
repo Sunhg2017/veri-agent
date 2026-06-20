@@ -795,7 +795,9 @@ public class UiE2eRunService {
 
     private String normalizeRunnerMode(String runnerMode) {
         String normalized = StringUtils.hasText(runnerMode) ? runnerMode.trim().toUpperCase(Locale.ROOT) : "DISABLED";
-        return Set.of("DISABLED", "MANAGED", "HTTP_ADAPTER").contains(normalized) ? normalized : "DISABLED";
+        return Set.of("DISABLED", "MANAGED", "HTTP_ADAPTER", "PLAYWRIGHT_SUBPROCESS").contains(normalized)
+                ? normalized
+                : "DISABLED";
     }
 
     private String normalizeArtifactType(String artifactType) {

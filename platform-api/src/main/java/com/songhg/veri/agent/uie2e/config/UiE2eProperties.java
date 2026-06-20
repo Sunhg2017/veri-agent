@@ -4,6 +4,7 @@ import java.util.List;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.boot.context.properties.bind.ConstructorBinding;
 import org.springframework.boot.context.properties.bind.DefaultValue;
+import org.springframework.util.StringUtils;
 
 /**
  * WP7 UI/E2E control-plane switches and bounded safety limits.
@@ -37,7 +38,11 @@ public record UiE2eProperties(
         /** Whether trace capture is enabled. */
         @DefaultValue("true") boolean captureTraceEnabled,
         /** Whether run summary export is enabled. */
-        @DefaultValue("true") boolean exportEnabled
+        @DefaultValue("true") boolean exportEnabled,
+        /** Node executable used by the local real-browser runner. */
+        @DefaultValue("node") String runnerNodeCommand,
+        /** Node modules directory that provides the Playwright runtime. */
+        @DefaultValue("../portal-web/node_modules") String runnerNodeModulesDir
 ) {
     private static final int DEFAULT_TIMEOUT_SECONDS = 300;
     private static final int MAX_TIMEOUT_SECONDS = 86_400;
@@ -61,9 +66,17 @@ public record UiE2eProperties(
         }
         String normalized = runnerMode.trim().toLowerCase();
         return switch (normalized) {
-            case "managed", "http-adapter" -> normalized;
+            case "managed", "http-adapter", "playwright-subprocess", "real-browser" -> normalized;
             default -> "disabled";
         };
+    }
+
+    public String effectiveRunnerNodeCommand() {
+        return StringUtils.hasText(runnerNodeCommand) ? runnerNodeCommand.trim() : "node";
+    }
+
+    public String effectiveRunnerNodeModulesDir() {
+        return StringUtils.hasText(runnerNodeModulesDir) ? runnerNodeModulesDir.trim() : "../portal-web/node_modules";
     }
 
     public int effectiveDefaultTimeoutSeconds() {

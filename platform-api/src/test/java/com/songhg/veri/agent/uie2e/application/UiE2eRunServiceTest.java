@@ -41,6 +41,7 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 
@@ -374,7 +375,9 @@ class UiE2eRunServiceTest {
                 true,
                 false,
                 true,
-                true
+                true,
+                "node",
+                "../portal-web/node_modules"
         ));
 
         var health = service.health();
@@ -384,6 +387,7 @@ class UiE2eRunServiceTest {
         assertThat(health.policy()).containsEntry("flakyMarkReady", true);
         assertThat(health.policy()).containsEntry("runnerDefaultDisabled", true);
         assertThat(health.policy()).containsEntry("managedPreviewRunnerReady", false);
+        assertThat(health.policy()).containsEntry("realBrowserRunnerReady", false);
     }
 
     @Test
@@ -404,7 +408,9 @@ class UiE2eRunServiceTest {
                 true,
                 false,
                 true,
-                true
+                true,
+                "node",
+                "../portal-web/node_modules"
         ), referenceService);
 
         var health = service.health();
@@ -490,6 +496,107 @@ class UiE2eRunServiceTest {
         });
     }
 
+    @Test
+    void createsSucceededRunWhenRealBrowserRunnerModeIsEnabled() {
+        LocalPortalFixture portalFixture = LocalPortalFixture.start();
+        try {
+            Fixture fixture = fixtureWithRunnerMode(
+                    true,
+                    "playwright-subprocess",
+                    List.of("https://127.0.0.1"),
+                    List.of(new AcceptingUiE2eSecretProvider()),
+                    null,
+                    portalFixture.baseUrlRef()
+            );
+            SeededRunRefs refs = seedApprovedSceneAndBundle(fixture, List.of(
+                    new CreateUiE2eSceneCommand.SceneStepPayload(
+                            "LOGIN",
+                            Map.of(
+                                    "principalField", "data-testid=username",
+                                    "credentialField", "data-testid=password",
+                                    "submitAction", "click"
+                            ),
+                            Map.of(
+                                    "preferred", "testId",
+                                    "target", "login-form"
+                            ),
+                            Map.of("successSignal", "url contains /dashboard"),
+                            Map.of("timeoutSeconds", 5)
+                    ),
+                    new CreateUiE2eSceneCommand.SceneStepPayload(
+                            "ASSERT",
+                            Map.of(),
+                            Map.of("preferred", "text", "target", "dashboard-title"),
+                            Map.of("expectedText", "Dashboard"),
+                            Map.of("timeoutSeconds", 5)
+                    )
+            ));
+            UUID leaseRef = acquireLease(fixture);
+
+            UiE2eRunDetailResponse created = fixture.service().createRun(new CreateUiE2eRunCommand(
+                    PROJECT_ID,
+                    refs.sceneId(),
+                    refs.bundleId(),
+                    ENVIRONMENT_KEY,
+                    "env:" + ENVIRONMENT_KEY,
+                    leaseRef,
+                    "run-request-real-browser-001",
+                    "real browser smoke"
+            ));
+
+            assertThat(created.status()).isEqualTo("SUCCEEDED");
+            assertThat(created.runnerMode()).isEqualTo("PLAYWRIGHT_SUBPROCESS");
+            assertThat(created.failureCode()).isNull();
+            assertThat(created.stepResults()).hasSize(2);
+            assertThat(created.stepResults()).allSatisfy(step -> {
+                assertThat(step.status()).isEqualTo("SUCCEEDED");
+                assertThat(step.summary()).containsEntry("aggregateOnly", true);
+            });
+            assertThat(created.artifacts()).anySatisfy(artifact -> {
+                assertThat(artifact.artifactType()).isEqualTo("SCREENSHOT");
+                assertThat(artifact.captureStatus()).isEqualTo("CAPTURED");
+            });
+        } finally {
+            portalFixture.close();
+        }
+    }
+
+    @Test
+    void blocksRealBrowserRunnerWhenSceneUsesUnsupportedStepType() {
+        Fixture fixture = fixtureWithRunnerMode(
+                true,
+                "playwright-subprocess",
+                List.of("https://portal.example.test"),
+                List.of(new AcceptingUiE2eSecretProvider()),
+                null,
+                "https://portal.example.test"
+        );
+        SeededRunRefs refs = seedApprovedSceneAndBundle(fixture, List.of(
+                new CreateUiE2eSceneCommand.SceneStepPayload(
+                        "CLICK",
+                        Map.of("target", "save"),
+                        Map.of("preferred", "testId"),
+                        Map.of("expectedText", "saved"),
+                        Map.of("timeoutSeconds", 5)
+                )
+        ));
+        UUID leaseRef = acquireLease(fixture);
+
+        assertThatThrownBy(() -> fixture.service().createRun(new CreateUiE2eRunCommand(
+                PROJECT_ID,
+                refs.sceneId(),
+                refs.bundleId(),
+                ENVIRONMENT_KEY,
+                "env:" + ENVIRONMENT_KEY,
+                leaseRef,
+                "run-request-real-browser-unsupported-001",
+                "unsupported step"
+        ))).isInstanceOfSatisfying(BusinessException.class, exception -> {
+            assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.INVALID_STATE);
+            assertThat(exception.getMessage()).isEqualTo("UI_E2E_STEP_UNSUPPORTED");
+        });
+    }
+
     private Fixture fixture(boolean managedRunner, List<String> allowlistBaseUrls) {
         return fixture(managedRunner, allowlistBaseUrls, List.of(new AcceptingUiE2eSecretProvider()), null);
     }
@@ -508,6 +615,24 @@ class UiE2eRunServiceTest {
             List<SecretProvider> secretProviders,
             com.songhg.veri.agent.uie2e.application.port.UiE2eRunnerPort runnerPortOverride
     ) {
+        return fixtureWithRunnerMode(
+                managedRunner,
+                managedRunner ? "managed" : "disabled",
+                allowlistBaseUrls,
+                secretProviders,
+                runnerPortOverride,
+                "https://portal.example.test"
+        );
+    }
+
+    private Fixture fixtureWithRunnerMode(
+            boolean managedRunner,
+            String runnerMode,
+            List<String> allowlistBaseUrls,
+            List<SecretProvider> secretProviders,
+            com.songhg.veri.agent.uie2e.application.port.UiE2eRunnerPort runnerPortOverride,
+            String managementWebUrl
+    ) {
         InMemoryUiE2eRepository repository = new InMemoryUiE2eRepository();
         UiE2ePlatformContextClient contextClient = mock(UiE2ePlatformContextClient.class);
         when(contextClient.projectContext(PROJECT_ID)).thenReturn(platformContext(PROJECT_ID));
@@ -520,7 +645,7 @@ class UiE2eRunServiceTest {
         UiE2eProperties properties = new UiE2eProperties(
                 true,
                 managedRunner,
-                managedRunner ? "managed" : "disabled",
+                runnerMode,
                 300,
                 1800,
                 1,
@@ -531,7 +656,9 @@ class UiE2eRunServiceTest {
                 true,
                 false,
                 true,
-                true
+                true,
+                "node",
+                "../portal-web/node_modules"
         );
         UiE2eSceneService sceneService = new UiE2eSceneService(
                 repository,
@@ -549,7 +676,7 @@ class UiE2eRunServiceTest {
                 new UiE2eBundleFactory(objectMapper),
                 objectMapper
         );
-        ManagementStore managementStore = managementStore("https://portal.example.test");
+        ManagementStore managementStore = managementStore(managementWebUrl);
         TestDataFixture testDataFixture = testDataFixture(secretProviders);
         return new Fixture(
                 repository,
@@ -566,7 +693,13 @@ class UiE2eRunServiceTest {
                         runnerPortOverride != null
                                 ? runnerPortOverride
                                 : managedRunner
-                                ? new com.songhg.veri.agent.uie2e.infrastructure.ManagedPreviewUiE2eRunnerAdapter(
+                                ? Set.of("playwright-subprocess", "real-browser").contains(properties.effectiveRunnerMode())
+                                ? new com.songhg.veri.agent.uie2e.infrastructure.PlaywrightSubprocessUiE2eRunnerAdapter(
+                                        repository,
+                                        properties,
+                                        testDataFixture.referenceService()
+                                )
+                                : new com.songhg.veri.agent.uie2e.infrastructure.ManagedPreviewUiE2eRunnerAdapter(
                                         repository,
                                         properties,
                                         testDataFixture.referenceService()
@@ -691,6 +824,13 @@ class UiE2eRunServiceTest {
     }
 
     private SeededRunRefs seedApprovedSceneAndBundle(Fixture fixture) {
+        return seedApprovedSceneAndBundle(fixture, List.of(UiE2eSceneServiceTest.step("LOGIN")));
+    }
+
+    private SeededRunRefs seedApprovedSceneAndBundle(
+            Fixture fixture,
+            List<CreateUiE2eSceneCommand.SceneStepPayload> steps
+    ) {
         UiE2eSceneService sceneService = fixture.sceneService();
         UiE2eBundleService bundleService = fixture.bundleService();
         var scene = sceneService.createScene(new CreateUiE2eSceneCommand(
@@ -703,7 +843,7 @@ class UiE2eRunServiceTest {
                 "HIGH",
                 List.of("smoke"),
                 Map.of(),
-                List.of(UiE2eSceneServiceTest.step("LOGIN"))
+                steps
         ));
         var bundle = bundleService.createOrRefreshBundle(new CreateUiE2eBundleCommand(scene.id()));
         bundleService.submitReview(bundle.id(), new ReviewUiE2eBundleCommand("ready"));
@@ -781,6 +921,59 @@ class UiE2eRunServiceTest {
             UUID alphaPoolId,
             UUID betaPoolId
     ) {
+    }
+
+    private record LocalPortalFixture(String baseUrlRef, com.sun.net.httpserver.HttpServer server) implements AutoCloseable {
+
+        static LocalPortalFixture start() {
+            try {
+                com.sun.net.httpserver.HttpServer server =
+                        com.sun.net.httpserver.HttpServer.create(new java.net.InetSocketAddress("127.0.0.1", 0), 0);
+                server.createContext("/", exchange -> {
+                    String path = exchange.getRequestURI().getPath();
+                    String body;
+                    if ("/".equals(path)) {
+                        body = """
+                                <html><body>
+                                <form>
+                                  <input data-testid="username" />
+                                  <input data-testid="password" type="password" />
+                                  <button type="submit">Login</button>
+                                </form>
+                                <script>
+                                  document.querySelector('form').addEventListener('submit', function(event) {
+                                    event.preventDefault();
+                                    window.location.href = '/dashboard';
+                                  });
+                                </script>
+                                </body></html>
+                                """;
+                    } else if ("/dashboard".equals(path)) {
+                        body = "<html><body><h1>Dashboard</h1></body></html>";
+                    } else {
+                        body = "<html><body>Not Found</body></html>";
+                    }
+                    byte[] bytes = body.getBytes(java.nio.charset.StandardCharsets.UTF_8);
+                    exchange.getResponseHeaders().add("Content-Type", "text/html; charset=utf-8");
+                    exchange.sendResponseHeaders(200, bytes.length);
+                    try (var output = exchange.getResponseBody()) {
+                        output.write(bytes);
+                    }
+                });
+                server.start();
+                return new LocalPortalFixture(
+                        "http://127.0.0.1:" + server.getAddress().getPort(),
+                        server
+                );
+            } catch (java.io.IOException exception) {
+                throw new IllegalStateException("failed to start local portal fixture", exception);
+            }
+        }
+
+        @Override
+        public void close() {
+            server.stop(0);
+        }
     }
 
     private void assertRedactedText(String value) {

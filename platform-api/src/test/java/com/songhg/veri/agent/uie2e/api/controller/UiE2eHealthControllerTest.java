@@ -77,6 +77,7 @@ class UiE2eHealthControllerTest {
                 .andExpect(jsonPath("$.data.policy.flakyMarkReady").value(true))
                 .andExpect(jsonPath("$.data.policy.wp8RunnerAccountContractReady").value(true))
                 .andExpect(jsonPath("$.data.policy.managedPreviewRunnerReady").value(false))
+                .andExpect(jsonPath("$.data.policy.realBrowserRunnerReady").value(false))
                 .andExpect(jsonPath("$.data.policy.runnerDefaultDisabled").value(true))
                 .andExpect(jsonPath("$.data.policy.videoCaptureDefaultDisabled").value(false))
                 .andExpect(jsonPath("$.data.policy.allowlistHostValuesExposed").value(false))

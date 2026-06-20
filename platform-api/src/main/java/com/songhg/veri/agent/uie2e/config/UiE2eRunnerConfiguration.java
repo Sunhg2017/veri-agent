@@ -4,7 +4,9 @@ import com.songhg.veri.agent.uie2e.application.port.UiE2eRepository;
 import com.songhg.veri.agent.uie2e.application.port.UiE2eRunnerPort;
 import com.songhg.veri.agent.uie2e.infrastructure.DisabledUiE2eRunnerAdapter;
 import com.songhg.veri.agent.uie2e.infrastructure.ManagedPreviewUiE2eRunnerAdapter;
+import com.songhg.veri.agent.uie2e.infrastructure.PlaywrightSubprocessUiE2eRunnerAdapter;
 import com.songhg.veri.agent.testdata.application.TestDataCrossWpReferenceService;
+import java.util.Set;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
@@ -27,6 +29,9 @@ public class UiE2eRunnerConfiguration {
             UiE2eProperties properties,
             TestDataCrossWpReferenceService testDataCrossWpReferenceService
     ) {
+        if (Set.of("playwright-subprocess", "real-browser").contains(properties.effectiveRunnerMode())) {
+            return new PlaywrightSubprocessUiE2eRunnerAdapter(repository, properties, testDataCrossWpReferenceService);
+        }
         return new ManagedPreviewUiE2eRunnerAdapter(repository, properties, testDataCrossWpReferenceService);
     }
 

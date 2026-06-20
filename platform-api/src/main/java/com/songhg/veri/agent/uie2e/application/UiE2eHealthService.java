@@ -5,6 +5,7 @@ import com.songhg.veri.agent.uie2e.config.UiE2eProperties;
 import com.songhg.veri.agent.testdata.application.TestDataCrossWpReferenceService;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -35,6 +36,9 @@ public class UiE2eHealthService {
         int allowlistHostCount = properties.effectiveAllowlistHostCount();
         boolean credentialInjectionReady = testDataCrossWpReferenceService != null
                 && testDataCrossWpReferenceService.runnerCredentialInjectionReady();
+        boolean previewRunner = properties.runnerEnabled() && "managed".equals(properties.effectiveRunnerMode());
+        boolean realBrowserRunner = properties.runnerEnabled()
+                && Set.of("playwright-subprocess", "real-browser").contains(properties.effectiveRunnerMode());
         return new UiE2eHealthResponse(
                 "ui-e2e",
                 "UP",
@@ -54,7 +58,7 @@ public class UiE2eHealthService {
                         Map.entry("runnerAccountContractReady", true),
                         Map.entry("secretRefDigestReturned", true),
                         Map.entry("credentialInjectionAdapterReady", credentialInjectionReady),
-                        Map.entry("credentialInjectionPreviewOnly", properties.runnerEnabled() && !credentialInjectionReady),
+                        Map.entry("credentialInjectionPreviewOnly", previewRunner && !credentialInjectionReady),
                         Map.entry("plaintextCredentialStored", false),
                         Map.entry("plaintextCredentialExported", false),
                         Map.entry("cookiePlaintextStored", false),
@@ -88,7 +92,8 @@ public class UiE2eHealthService {
                         Map.entry("wp8RunnerAccountContractReady", true),
                         Map.entry("wp9UiTestContractPlanned", true),
                         Map.entry("wp10EvidenceContractPlanned", true),
-                        Map.entry("managedPreviewRunnerReady", properties.runnerEnabled()),
+                        Map.entry("managedPreviewRunnerReady", previewRunner),
+                        Map.entry("realBrowserRunnerReady", realBrowserRunner),
                         Map.entry("runnerDefaultDisabled", !properties.runnerEnabled()),
                         Map.entry("videoCaptureDefaultDisabled", !properties.captureVideoEnabled()),
                         Map.entry("allowlistHostValuesExposed", false),
