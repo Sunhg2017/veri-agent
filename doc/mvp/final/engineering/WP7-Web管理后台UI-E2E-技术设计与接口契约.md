@@ -236,6 +236,7 @@ WP7 只消费 WP8 允许的 runner contract 字段白名单：
 2. 注入行为发生在 runner 执行进程或受控 adapter 内部。
 3. 控制面 API、审计、日志和前端 DOM 均不得返回明文凭据。
 4. 任何 SecretProvider 失败只返回错误码和 digest，不返回底层 provider 原文报错。
+5. 当前 `ManagedPreviewUiE2eRunnerAdapter` 已在 runner 内部把 WP8 解析结果收敛成受控注入计划，支持 `accountKey + password` 和 `wp7-login-form-v1` 结构化 payload 两类格式；对控制面仅返回 `credentialPlanReady/type/format/schema/principalSource/componentCount` 等脱敏摘要。
 
 ## 11. WP9 集成契约
 

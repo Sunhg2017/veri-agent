@@ -121,10 +121,78 @@ class ManagedPreviewUiE2eRunnerAdapterTest {
         assertThat(result.stepResults().get(0).stepOrder()).isEqualTo(2);
         assertThat(result.stepResults().get(0).summary())
                 .containsEntry("credentialInjectionReady", true)
+                .containsEntry("credentialPlanReady", true)
                 .containsEntry("secretProviderResolved", true)
+                .containsEntry("credentialPlanType", "FORM_LOGIN")
+                .containsEntry("credentialFormat", "ACCOUNT_PASSWORD")
+                .containsEntry("credentialSchemaId", "wp7-account-password-v1")
+                .containsEntry("principalSource", "ACCOUNT_SUMMARY")
+                .containsEntry("principalIdentifierPresent", true)
+                .containsEntry("credentialComponentCount", 2)
                 .containsEntry("blockedReason", "browserExecutionPending");
         assertThat(result.stepResults().get(1).stepOrder()).isEqualTo(5);
         assertThat(result.stepResults().get(1).summary()).containsEntry("blockedByStepOrder", 2);
+    }
+
+    @Test
+    void buildsStructuredCredentialPlanWithoutLeakingPlaintext() {
+        Fixture fixture = fixture(List.of(new StructuredUiE2eSecretProvider()), true);
+        ManagedPreviewUiE2eRunnerAdapter adapter = fixture.adapter();
+        UUID leaseRef = fixture.leaseRef();
+        Map<String, Object> accountSummary = fixture.accountSummary(leaseRef);
+
+        UiE2eRunnerPort.RunnerRunResult result = adapter.run(new UiE2eRunnerPort.RunnerRunRequest(
+                RUN_ID,
+                SCENE_ID,
+                BUNDLE_ID,
+                PROJECT_ID,
+                "https://portal.example.test",
+                leaseRef.toString(),
+                accountSummary
+        ));
+
+        assertThat(result.status()).isEqualTo("BLOCKED");
+        assertThat(result.failureCode()).isEqualTo("EXECUTION_RUNNER_NOT_READY");
+        assertThat(result.failureSummary()).doesNotContain("runner-admin", "Structured-Password-002", "secret://");
+        assertThat(result.stepResults()).first().satisfies(step -> {
+            assertThat(step.summary())
+                    .containsEntry("credentialInjectionReady", true)
+                    .containsEntry("credentialPlanReady", true)
+                    .containsEntry("credentialFormat", "STRUCTURED_LOGIN_FORM")
+                    .containsEntry("credentialSchemaId", "wp7-login-form-v1")
+                    .containsEntry("principalSource", "SECRET_PAYLOAD");
+            assertThat(String.valueOf(step.summary())).doesNotContain("runner-admin", "Structured-Password-002", "secret://");
+        });
+    }
+
+    @Test
+    void blocksWithStableCodeWhenCredentialFormatIsUnsupported() {
+        Fixture fixture = fixture(List.of(new UnsupportedUiE2eSecretProvider()), true);
+        ManagedPreviewUiE2eRunnerAdapter adapter = fixture.adapter();
+        UUID leaseRef = fixture.leaseRef();
+        Map<String, Object> accountSummary = fixture.accountSummary(leaseRef);
+
+        UiE2eRunnerPort.RunnerRunResult result = adapter.run(new UiE2eRunnerPort.RunnerRunRequest(
+                RUN_ID,
+                SCENE_ID,
+                BUNDLE_ID,
+                PROJECT_ID,
+                "https://portal.example.test",
+                leaseRef.toString(),
+                accountSummary
+        ));
+
+        assertThat(result.status()).isEqualTo("BLOCKED");
+        assertThat(result.failureCode()).isEqualTo("UI_E2E_CREDENTIAL_FORMAT_UNSUPPORTED");
+        assertThat(result.failureSummary()).doesNotContain("line-1", "line-2", "secret://");
+        assertThat(result.stepResults()).first().satisfies(step -> {
+            assertThat(step.failureBucket()).isEqualTo("ACCOUNT");
+            assertThat(step.summary())
+                    .containsEntry("credentialInjectionReady", false)
+                    .containsEntry("secretProviderResolved", true)
+                    .containsEntry("credentialPlanReady", false)
+                    .containsEntry("blockedReason", "credentialPlanUnsupported");
+        });
     }
 
     @Test
@@ -391,6 +459,38 @@ class ManagedPreviewUiE2eRunnerAdapterTest {
                 return Optional.empty();
             }
             return Optional.of(new ResolvedSecret(secretRef, "Resolved-Runner-Password-001", "unit-test-provider", "v1"));
+        }
+    }
+
+    private static final class StructuredUiE2eSecretProvider implements SecretProvider {
+
+        @Override
+        public Optional<ResolvedSecret> resolve(String secretRef, SecretResolveContext context) {
+            if (!SECRET_REF.equals(secretRef)) {
+                return Optional.empty();
+            }
+            return Optional.of(new ResolvedSecret(
+                    secretRef,
+                    "{\"schema\":\"wp7-login-form-v1\",\"username\":\"runner-admin\",\"password\":\"Structured-Password-002\"}",
+                    "unit-test-provider",
+                    "v2"
+            ));
+        }
+    }
+
+    private static final class UnsupportedUiE2eSecretProvider implements SecretProvider {
+
+        @Override
+        public Optional<ResolvedSecret> resolve(String secretRef, SecretResolveContext context) {
+            if (!SECRET_REF.equals(secretRef)) {
+                return Optional.empty();
+            }
+            return Optional.of(new ResolvedSecret(
+                    secretRef,
+                    "{\"schema\":\"wp7-unsupported-v1\",\"username\":\"runner-admin\",\"password\":\"Unsupported-Password-003\"}",
+                    "unit-test-provider",
+                    "v3"
+            ));
         }
     }
 }

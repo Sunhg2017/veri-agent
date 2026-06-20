@@ -483,6 +483,9 @@ class UiE2eRunServiceTest {
         assertThat(created.stepResults()).allSatisfy(step -> {
             assertThat(step.summary()).containsEntry("credentialInjectionReady", true);
             assertThat(step.summary()).containsEntry("secretProviderResolved", true);
+            assertThat(step.summary()).containsEntry("credentialPlanReady", true);
+            assertThat(step.summary()).containsEntry("credentialPlanType", "FORM_LOGIN");
+            assertThat(step.summary()).containsEntry("credentialFormat", "ACCOUNT_PASSWORD");
             assertThat(step.summary()).containsEntry("secretProviderCode", "unit-test-provider");
         });
     }

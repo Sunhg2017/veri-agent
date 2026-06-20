@@ -1,5 +1,10 @@
 package com.songhg.veri.agent.uie2e.infrastructure;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.songhg.veri.agent.common.error.BusinessException;
+import com.songhg.veri.agent.common.error.ErrorCode;
 import com.songhg.veri.agent.common.util.SensitiveTextSanitizer;
 import com.songhg.veri.agent.testdata.application.TestDataCrossWpReferenceService;
 import com.songhg.veri.agent.testdata.application.TestDataRunnerCredentialResolver;
@@ -25,10 +30,16 @@ import org.springframework.util.StringUtils;
 public class ManagedPreviewUiE2eRunnerAdapter implements UiE2eRunnerPort {
 
     private static final String EXECUTION_NOT_READY = "EXECUTION_RUNNER_NOT_READY";
+    private static final String UNSUPPORTED_CREDENTIAL_FORMAT = "UI_E2E_CREDENTIAL_FORMAT_UNSUPPORTED";
+    private static final String ACCOUNT_PASSWORD_SCHEMA = "wp7-account-password-v1";
+    private static final String LOGIN_FORM_SCHEMA = "wp7-login-form-v1";
+    private static final TypeReference<Map<String, Object>> MAP_TYPE = new TypeReference<>() {
+    };
 
     private final UiE2eRepository repository;
     private final UiE2eProperties properties;
     private final TestDataCrossWpReferenceService testDataCrossWpReferenceService;
+    private final ObjectMapper objectMapper = new ObjectMapper();
 
     public ManagedPreviewUiE2eRunnerAdapter(
             UiE2eRepository repository,
@@ -94,7 +105,14 @@ public class ManagedPreviewUiE2eRunnerAdapter implements UiE2eRunnerPort {
             return blockedResult(
                     credentialState.failureCode(),
                     credentialState.failureSummary(),
-                    previewStepResults(repository.sceneSteps(scene.id()), request, false, null, credentialState.failureCode()),
+                    previewStepResults(
+                            repository.sceneSteps(scene.id()),
+                            request,
+                            credentialState.ready(),
+                            credentialState.resolution(),
+                            credentialState.plan(),
+                            credentialState.failureCode()
+                    ),
                     previewArtifacts(request)
             );
         }
@@ -102,13 +120,14 @@ public class ManagedPreviewUiE2eRunnerAdapter implements UiE2eRunnerPort {
         List<RunnerStepResult> stepResults = previewStepResults(
                 sceneSteps,
                 request,
-                true,
+                credentialState.ready(),
                 credentialState.resolution(),
+                credentialState.plan(),
                 EXECUTION_NOT_READY
         );
         return blockedResult(
                 EXECUTION_NOT_READY,
-                "managed preview resolved runner credentials, but browser execution is not ready yet",
+                "managed preview built a redacted credential injection plan, but browser execution is not ready yet",
                 stepResults,
                 previewArtifacts(request)
         );
@@ -140,6 +159,7 @@ public class ManagedPreviewUiE2eRunnerAdapter implements UiE2eRunnerPort {
             RunnerRunRequest request,
             boolean credentialReady,
             TestDataRunnerCredentialResolver.RunnerCredentialResolution credentialResolution,
+            RunnerCredentialInjectionPlan credentialPlan,
             String blockerErrorCode
     ) {
         if (sceneSteps == null || sceneSteps.isEmpty()) {
@@ -161,16 +181,22 @@ public class ManagedPreviewUiE2eRunnerAdapter implements UiE2eRunnerPort {
             summary.put("accountLeaseRefPresent", StringUtils.hasText(request.accountLeaseRef()));
             summary.put("secretRefDigestPresent", credentialDigestPresent(request.accountSummary()));
             summary.put("secretProviderResolved", credentialResolution != null);
+            summary.put("credentialPlanReady", credentialPlan != null);
             if (credentialResolution != null) {
                 summary.put("secretProviderCode", credentialResolution.provider());
                 summary.put("secretVersion", credentialResolution.version());
             }
+            if (credentialPlan != null) {
+                summary.put("credentialPlanType", credentialPlan.planType());
+                summary.put("credentialFormat", credentialPlan.format());
+                summary.put("credentialSchemaId", credentialPlan.schemaId());
+                summary.put("principalSource", credentialPlan.principalSource());
+                summary.put("principalIdentifierPresent", credentialPlan.principalIdentifierPresent());
+                summary.put("credentialComponentCount", credentialPlan.componentCount());
+            }
             if (primaryBlocker) {
-                summary.put("blockedReason", credentialReady ? "browserExecutionPending" : "credentialInjectionPending");
-                summary.put(
-                        "nextAction",
-                        credentialReady ? "provision real browser runner before login" : "enable runner credential adapter before browser login"
-                );
+                summary.put("blockedReason", primaryBlockedReason(credentialResolution, credentialPlan));
+                summary.put("nextAction", nextAction(credentialResolution, credentialPlan));
             } else {
                 summary.put("blockedReason", "upstreamStepBlocked");
                 summary.put("blockedByStepOrder", blockerOrder);
@@ -240,6 +266,7 @@ public class ManagedPreviewUiE2eRunnerAdapter implements UiE2eRunnerPort {
             return new CredentialPreviewState(
                     false,
                     null,
+                    null,
                     EXECUTION_NOT_READY,
                     "managed preview is enabled, but credential injection adapter is not ready yet"
             );
@@ -248,30 +275,38 @@ public class ManagedPreviewUiE2eRunnerAdapter implements UiE2eRunnerPort {
             return new CredentialPreviewState(
                     false,
                     null,
+                    null,
                     "UI_E2E_ACCOUNT_LEASE_INVALID",
                     "runner preview account lease is incomplete"
             );
         }
         try {
-            return new CredentialPreviewState(
-                    true,
+            TestDataRunnerCredentialResolver.RunnerCredentialResolution resolution =
                     testDataCrossWpReferenceService.resolveRunnerCredential(
-                    UUID.fromString(request.accountLeaseRef()),
-                    request.projectId()
-                    ),
-                    null,
-                    null
-            );
+                            UUID.fromString(request.accountLeaseRef()),
+                            request.projectId()
+                    );
+            return resolvedCredentialState(request, resolution);
         } catch (IllegalArgumentException exception) {
             return new CredentialPreviewState(
                     false,
                     null,
+                    null,
                     "UI_E2E_ACCOUNT_LEASE_INVALID",
                     "runner preview account lease is invalid"
+            );
+        } catch (BusinessException exception) {
+            return new CredentialPreviewState(
+                    false,
+                    null,
+                    null,
+                    "SECRET_PROVIDER_ERROR",
+                    "runner credential resolution failed"
             );
         } catch (RuntimeException exception) {
             return new CredentialPreviewState(
                     false,
+                    null,
                     null,
                     "SECRET_PROVIDER_ERROR",
                     "runner credential resolution failed"
@@ -279,12 +314,177 @@ public class ManagedPreviewUiE2eRunnerAdapter implements UiE2eRunnerPort {
         }
     }
 
+    /**
+     * The preview runner now exercises the same runner-only credential planning boundary the future browser executor
+     * will consume. Plaintext still stays inside the adapter and is reduced to aggregate-only readiness metadata.
+     */
+    private CredentialPreviewState resolvedCredentialState(
+            RunnerRunRequest request,
+            TestDataRunnerCredentialResolver.RunnerCredentialResolution resolution
+    ) {
+        try {
+            return new CredentialPreviewState(
+                    true,
+                    resolution,
+                    buildCredentialPlan(request, resolution),
+                    null,
+                    null
+            );
+        } catch (BusinessException exception) {
+            if (UNSUPPORTED_CREDENTIAL_FORMAT.equals(exception.getMessage())) {
+                return new CredentialPreviewState(
+                        false,
+                        resolution,
+                        null,
+                        UNSUPPORTED_CREDENTIAL_FORMAT,
+                        "runner credential payload is not supported by managed preview"
+                );
+            }
+            return new CredentialPreviewState(
+                    false,
+                    resolution,
+                    null,
+                    "SECRET_PROVIDER_ERROR",
+                    "runner credential resolution failed"
+            );
+        }
+    }
+
+    private RunnerCredentialInjectionPlan buildCredentialPlan(
+            RunnerRunRequest request,
+            TestDataRunnerCredentialResolver.RunnerCredentialResolution resolution
+    ) {
+        // The managed preview accepts either a plain password paired with the leased accountKey or a small structured
+        // login-form payload. Both stay process-local and are summarized only through non-sensitive readiness fields.
+        String secretValue = resolution == null ? null : resolution.secretValue();
+        if (!StringUtils.hasText(secretValue)) {
+            throw new BusinessException(ErrorCode.INVALID_STATE, UNSUPPORTED_CREDENTIAL_FORMAT);
+        }
+        String trimmedSecret = secretValue.trim();
+        if (trimmedSecret.startsWith("{")) {
+            return structuredCredentialPlan(trimmedSecret);
+        }
+        String accountKey = safeText(request == null || request.accountSummary() == null
+                ? null
+                : request.accountSummary().get("accountKey"));
+        if (!StringUtils.hasText(accountKey)) {
+            throw new BusinessException(ErrorCode.INVALID_STATE, UNSUPPORTED_CREDENTIAL_FORMAT);
+        }
+        return new RunnerCredentialInjectionPlan(
+                "FORM_LOGIN",
+                "ACCOUNT_PASSWORD",
+                ACCOUNT_PASSWORD_SCHEMA,
+                "ACCOUNT_SUMMARY",
+                true,
+                2,
+                accountKey,
+                trimmedSecret
+        );
+    }
+
+    private RunnerCredentialInjectionPlan structuredCredentialPlan(String secretValue) {
+        Map<String, Object> payload;
+        try {
+            payload = objectMapper.readValue(secretValue, MAP_TYPE);
+        } catch (JsonProcessingException exception) {
+            throw new BusinessException(ErrorCode.INVALID_STATE, UNSUPPORTED_CREDENTIAL_FORMAT);
+        }
+        String schemaId = safeText(payload.get("schema"));
+        String normalizedSchema = StringUtils.hasText(schemaId) ? schemaId.trim() : LOGIN_FORM_SCHEMA;
+        if (!LOGIN_FORM_SCHEMA.equalsIgnoreCase(normalizedSchema)) {
+            throw new BusinessException(ErrorCode.INVALID_STATE, UNSUPPORTED_CREDENTIAL_FORMAT);
+        }
+        String principal = firstPresent(payload, "username", "principal", "accountKey");
+        String credential = firstPresent(payload, "password", "credential", "value");
+        if (!StringUtils.hasText(principal) || !StringUtils.hasText(credential)) {
+            throw new BusinessException(ErrorCode.INVALID_STATE, UNSUPPORTED_CREDENTIAL_FORMAT);
+        }
+        return new RunnerCredentialInjectionPlan(
+                "FORM_LOGIN",
+                "STRUCTURED_LOGIN_FORM",
+                LOGIN_FORM_SCHEMA,
+                "SECRET_PAYLOAD",
+                true,
+                2,
+                principal,
+                credential
+        );
+    }
+
+    private String firstPresent(Map<String, Object> payload, String... keys) {
+        if (payload == null || keys == null) {
+            return null;
+        }
+        for (String key : keys) {
+            String text = safeText(payload.get(key));
+            if (StringUtils.hasText(text)) {
+                return text;
+            }
+        }
+        return null;
+    }
+
+    private String safeText(Object value) {
+        if (value == null) {
+            return null;
+        }
+        String text = String.valueOf(value).trim();
+        if (!StringUtils.hasText(text) || text.contains("\r") || text.contains("\n")) {
+            return null;
+        }
+        return SensitiveTextSanitizer.boundedText(text, 512);
+    }
+
+    private String primaryBlockedReason(
+            TestDataRunnerCredentialResolver.RunnerCredentialResolution credentialResolution,
+            RunnerCredentialInjectionPlan credentialPlan
+    ) {
+        if (credentialPlan != null) {
+            return "browserExecutionPending";
+        }
+        if (credentialResolution != null) {
+            return "credentialPlanUnsupported";
+        }
+        return "credentialInjectionPending";
+    }
+
+    private String nextAction(
+            TestDataRunnerCredentialResolver.RunnerCredentialResolution credentialResolution,
+            RunnerCredentialInjectionPlan credentialPlan
+    ) {
+        if (credentialPlan != null) {
+            return "provision real browser runner before login";
+        }
+        if (credentialResolution != null) {
+            return "align runner credential payload with the supported preview contract";
+        }
+        return "enable runner credential adapter before browser login";
+    }
+
     private record CredentialPreviewState(
             boolean ready,
             TestDataRunnerCredentialResolver.RunnerCredentialResolution resolution,
+            RunnerCredentialInjectionPlan plan,
             String failureCode,
             String failureSummary
     ) {
+    }
+
+    private record RunnerCredentialInjectionPlan(
+            String planType,
+            String format,
+            String schemaId,
+            String principalSource,
+            boolean principalIdentifierPresent,
+            int componentCount,
+            String principalIdentifier,
+            String credentialValue
+    ) {
+        @Override
+        public String toString() {
+            return "RunnerCredentialInjectionPlan[planType=%s, format=%s, schemaId=%s, principalSource=%s, componentCount=%s, principalIdentifier=****, credentialValue=****]"
+                    .formatted(planType, format, schemaId, principalSource, componentCount);
+        }
     }
 
     private RunnerArtifactManifest blockedArtifact(String artifactType) {
