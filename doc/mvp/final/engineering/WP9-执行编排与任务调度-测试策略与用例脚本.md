@@ -127,7 +127,7 @@ bash scripts/wp9_worker_hosting_readiness.sh
 
 `wp9_marketplace_package_smoke.sh` 不访问外网，不调用真实 webhook；它验证 `integrations/wp9-webhook-marketplace/manifest.json` schema、模板必需 Header、CI secret 变量、`--data-binary` raw body、payload JSON、README 安装锚点，并复用 `wp9_webhook_sign.sh` 验证确定性签名输出和 secret 不出现在 curl 样例中。
 
-`wp9_worker_hosting_readiness.sh` 不连接平台服务；它读取当前 shell 或 `WP9_WORKER_HOSTING_ENV_FILE`，验证 `WP9_WORKER_HOSTING_ROLE`、scheduler/webhook/cron 开关、workerId、interval、initialDelay、tick batch、heartbeat timeout、recovery batch 和 release smoke 证据，避免 web 实例误启 scheduler 或 standby worker 抢占队列。
+`wp9_worker_hosting_readiness.sh` 不连接平台服务；它读取当前 shell 或 `WP9_WORKER_HOSTING_ENV_FILE`，验证 `WP9_WORKER_HOSTING_ROLE`、`PLATFORM_XXL_JOB_ENABLED`、scheduler/webhook/cron 开关、workerId、interval、initialDelay、tick batch、heartbeat timeout、recovery batch 和 release smoke 证据，避免 web 实例误启 scheduler、worker 未接上 XXL-JOB 调度载体，或 standby worker 抢占队列。
 
 `wp9_cron_capacity_smoke.sh` 复用后端定向测试，不启动生产服务；它验证长时间积压的 due `nextFireAt` 在一次 tick 中只会 materialize 一次，`nextFireAt` 会推进到当前 tick 之后，且下一次立即 tick 不会回补历史窗口。
 

@@ -19,7 +19,7 @@ M8D 目标是把 WP9 scheduler 的托管方式从“知道有开关”推进到�
 
 1. 新增 `integrations/wp9-worker-hosting/README.md`，说明 web、scheduler-active、scheduler-standby 的开关策略、切换和回滚。
 2. 新增 `web.env.example`、`scheduler-active.env.example`、`scheduler-standby.env.example` 三个 env 示例。
-3. 新增 `scripts/wp9_worker_hosting_readiness.sh`，离线校验角色、scheduler/webhook/cron 开关、workerId、interval、initialDelay、batch、heartbeat timeout、recovery batch 和 release smoke 证据。
+3. 新增 `scripts/wp9_worker_hosting_readiness.sh`，离线校验角色、`PLATFORM_XXL_JOB_ENABLED`、scheduler/webhook/cron 开关、workerId、interval、initialDelay、batch、heartbeat timeout、recovery batch 和 release smoke 证据。
 4. `scripts/wp9_quality_gate.sh` 增加 worker hosting readiness，默认校验三类 env 示例。
 5. 更新 Scheduler/Trigger Runbook、技术设计、测试策略和研发拆解，记录 M8D 已覆盖托管策略，真实独立 worker 进程和分布式锁仍是后续生产增强。
 

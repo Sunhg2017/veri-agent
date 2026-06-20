@@ -89,7 +89,7 @@ M8B 增加 Scheduler 与 Trigger Runbook，不改变运行时契约。`WP9-Sched
 
 M8C 增加供应商 marketplace 接入包，不改变服务端接口契约。`integrations/wp9-webhook-marketplace/manifest.json` 声明 signed webhook 安装变量、签名算法、Header、幂等策略、模板和 payload 示例；GitHub/GitLab/Jenkins 模板均使用 `timestamp.eventId.rawBody` HMAC-SHA256 小写 hex，并通过 `--data-binary` 发送 raw body；`scripts/wp9_marketplace_package_smoke.sh` 离线校验 manifest、模板、payload、secretRef 不外泄和确定性签名。
 
-M8D 增加 worker 托管 readiness，不改变 scheduler Java 契约。`integrations/wp9-worker-hosting/` 定义 `web`、`scheduler-active`、`scheduler-standby` 三类 env 示例；`scripts/wp9_worker_hosting_readiness.sh` 离线校验 role、scheduler/webhook/cron 开关、workerId、interval、initialDelay、batch、heartbeat timeout、recovery batch 和 release smoke 证据。生产仍使用 `platform-api` 内置 scheduler loop，专用 worker 通过环境变量禁用 webhook ingress 并启用 scheduler。
+M8D 增加 worker 托管 readiness，不改变 scheduler Java 契约。`integrations/wp9-worker-hosting/` 定义 `web`、`scheduler-active`、`scheduler-standby` 三类 env 示例；`scripts/wp9_worker_hosting_readiness.sh` 离线校验 role、`PLATFORM_XXL_JOB_ENABLED`、scheduler/webhook/cron 开关、workerId、interval、initialDelay、batch、heartbeat timeout、recovery batch 和 release smoke 证据。生产仍使用 `platform-api` 内置 scheduler loop，专用 worker 通过环境变量禁用 webhook ingress 并启用 scheduler。health policy 额外区分 `schedulerManagedByXxlJob`、`schedulerRuntimeReady` 和 `cronRuntimeReady`，避免把业务开关误判为真实调度接入。
 
 M8E 增加 WP10 report handoff 准出 smoke，不改变服务端接口契约。`scripts/wp9_report_handoff_smoke.sh` 定向验证 scheduler tick 可完成 `REPORT_HANDOFF` 节点并输出 `reportHandoffReady=true`、`rawReportStored=false` 摘要，同时验证 run export 只返回脱敏 run detail、节点状态计数和 redaction policy。该 smoke 不启动 WP10 服务、不生成报告正文，也不读取 runner 原始产物。
 

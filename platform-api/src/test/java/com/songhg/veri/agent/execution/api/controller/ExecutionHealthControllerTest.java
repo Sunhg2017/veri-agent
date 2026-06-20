@@ -14,7 +14,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @SpringBootTest(properties = {
         "veri-agent.auth.token-secret=test-auth-secret-32-byte-minimum!",
         "veri-agent.execution.max-concurrent-runs-per-project=3",
-        "veri-agent.execution.max-concurrent-nodes-per-run=5"
+        "veri-agent.execution.max-concurrent-nodes-per-run=5",
+        "veri-agent.xxl-job.enabled=false"
 })
 @AutoConfigureMockMvc
 class ExecutionHealthControllerTest {
@@ -53,12 +54,15 @@ class ExecutionHealthControllerTest {
                 .andExpect(jsonPath("$.data.policy.wp7DispatchViaApplicationService").value(true))
                 .andExpect(jsonPath("$.data.policy.wp7AsyncFollowUpReady").value(true))
                 .andExpect(jsonPath("$.data.policy.schedulerLoopReady").value(true))
+                .andExpect(jsonPath("$.data.policy.schedulerManagedByXxlJob").value(false))
+                .andExpect(jsonPath("$.data.policy.schedulerRuntimeReady").value(false))
                 .andExpect(jsonPath("$.data.policy.schedulerUsesQueueClaim").value(true))
                 .andExpect(jsonPath("$.data.policy.triggerControlPlaneReady").value(true))
                 .andExpect(jsonPath("$.data.policy.webhookSignatureReady").value(true))
                 .andExpect(jsonPath("$.data.policy.triggerEventIdempotencyReady").value(true))
                 .andExpect(jsonPath("$.data.policy.cronMetadataReady").value(true))
                 .andExpect(jsonPath("$.data.policy.cronScannerReady").value(true))
+                .andExpect(jsonPath("$.data.policy.cronRuntimeReady").value(false))
                 .andExpect(jsonPath("$.data.policy.webhookDefaultDisabled").value(true))
                 .andExpect(jsonPath("$.data.policy.secretPlaintextStored").value(false))
                 .andExpect(jsonPath("$.data.policy.directRunnerAdapterCallAllowed").value(false))

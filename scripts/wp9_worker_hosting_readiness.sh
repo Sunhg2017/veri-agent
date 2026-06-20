@@ -116,6 +116,9 @@ validate_release_evidence() {
 validate_role_switches() {
   case "$ROLE" in
     web)
+      if ! is_truthy "$XXL_JOB_ENABLED"; then
+        fail "web role must set PLATFORM_XXL_JOB_ENABLED=true so shared scheduled handlers stay registered"
+      fi
       if is_truthy "$SCHEDULER_ENABLED"; then
         fail "web role must keep WP9_SCHEDULER_ENABLED=false"
       fi
@@ -124,6 +127,9 @@ validate_role_switches() {
       fi
       ;;
     scheduler-active)
+      if ! is_truthy "$XXL_JOB_ENABLED"; then
+        fail "scheduler-active role requires PLATFORM_XXL_JOB_ENABLED=true"
+      fi
       if ! is_truthy "$SCHEDULER_ENABLED"; then
         fail "scheduler-active role requires WP9_SCHEDULER_ENABLED=true"
       fi
@@ -132,6 +138,9 @@ validate_role_switches() {
       fi
       ;;
     scheduler-standby)
+      if ! is_truthy "$XXL_JOB_ENABLED"; then
+        fail "scheduler-standby role must keep PLATFORM_XXL_JOB_ENABLED=true so failover only flips WP9 role switches"
+      fi
       if ! is_falsey "$SCHEDULER_ENABLED"; then
         fail "scheduler-standby role must keep WP9_SCHEDULER_ENABLED=false until failover"
       fi
@@ -168,6 +177,7 @@ print_summary() {
   cat <<EOF
 WP9 worker hosting readiness passed.
 role=$ROLE
+xxlJobEnabled=$XXL_JOB_ENABLED
 schedulerEnabled=$SCHEDULER_ENABLED
 cronEnabled=$CRON_ENABLED
 webhookEnabled=$WEBHOOK_ENABLED
@@ -182,6 +192,7 @@ EOF
 main() {
   load_env_file
   ROLE="${WP9_WORKER_HOSTING_ROLE:-web}"
+  XXL_JOB_ENABLED="${PLATFORM_XXL_JOB_ENABLED:-false}"
   SCHEDULER_ENABLED="${WP9_SCHEDULER_ENABLED:-false}"
   CRON_ENABLED="${WP9_CRON_ENABLED:-false}"
   WEBHOOK_ENABLED="${WP9_WEBHOOK_ENABLED:-false}"
