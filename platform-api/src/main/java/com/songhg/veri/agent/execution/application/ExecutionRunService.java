@@ -420,6 +420,20 @@ public class ExecutionRunService {
         return dispatchSupport.dispatchClaimedApiTestNodeRun(command);
     }
 
+    /**
+     * Routes internal claimed-node dispatch by runner type so the controller can stay thin while WP9 keeps a single
+     * dispatch entrypoint for scheduler and manual admin flows.
+     */
+    public ExecutionRunDetailResponse dispatchClaimedNodeRun(DispatchExecutionNodeRunCommand command) {
+        if (command != null && command.nodeRunId() != null) {
+            Optional<ExecutionNodeRun> nodeRun = repository.nodeRun(command.nodeRunId());
+            if (nodeRun.isPresent() && "WP7_UI".equals(nodeRun.get().runnerType())) {
+                return dispatchClaimedUiTestNodeRun(command);
+            }
+        }
+        return dispatchClaimedApiTestNodeRun(command);
+    }
+
     public ExecutionRunDetailResponse dispatchClaimedUiTestNodeRun(DispatchExecutionNodeRunCommand command) {
         if (command != null && command.nodeRunId() != null) {
             Optional<ExecutionNodeRun> nodeRun = repository.nodeRun(command.nodeRunId());

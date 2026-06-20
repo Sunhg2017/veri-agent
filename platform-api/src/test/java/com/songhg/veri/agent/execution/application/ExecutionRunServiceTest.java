@@ -6,6 +6,7 @@ import com.songhg.veri.agent.apiautomation.application.view.ApiAutomationRunDeta
 import com.songhg.veri.agent.apiautomation.application.view.ApiAutomationRunResponse;
 import com.songhg.veri.agent.common.error.BusinessException;
 import com.songhg.veri.agent.common.error.ErrorCode;
+import com.songhg.veri.agent.execution.application.command.DispatchExecutionNodeRunCommand;
 import com.songhg.veri.agent.execution.application.port.ExecutionRepository;
 import com.songhg.veri.agent.execution.application.view.ExecutionRunDetailResponse;
 import com.songhg.veri.agent.execution.config.ExecutionProperties;
@@ -32,8 +33,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -133,6 +136,108 @@ class ExecutionRunServiceTest {
                 eq("SUCCESS"),
                 any()
         );
+    }
+
+    @Test
+    void dispatchClaimedNodeRunRoutesWp7RunnerTypesToUiDispatch() {
+        UUID nodeRunId = UUID.randomUUID();
+        DispatchExecutionNodeRunCommand command = new DispatchExecutionNodeRunCommand(
+                nodeRunId,
+                "claim-token",
+                null,
+                null,
+                null,
+                null,
+                null
+        );
+        when(repository.nodeRun(nodeRunId)).thenReturn(Optional.of(nodeRun(UUID.randomUUID(), UUID.randomUUID(), "RUNNING", "WP7_UI", null)));
+        ExecutionRunService routingService = spy(new ExecutionRunService(
+                repository,
+                dagValidator,
+                contextClient,
+                actorResolver,
+                apiAutomationService,
+                EmptyObjectProvider.of(),
+                EmptyObjectProvider.of(),
+                SingleObjectProvider.of(uiE2eRunService),
+                new ObjectMapper(),
+                new ExecutionProperties(
+                        false,
+                        false,
+                        false,
+                        300,
+                        60,
+                        5000,
+                        30000,
+                        "wp9-test-worker",
+                        4,
+                        2,
+                        4,
+                        180,
+                        1800,
+                        50
+                ),
+                notificationService,
+                EmptyObjectProvider.of()
+        ));
+        ExecutionRunDetailResponse expected = mock(ExecutionRunDetailResponse.class);
+        doReturn(expected).when(routingService).dispatchClaimedUiTestNodeRun(command);
+
+        assertThat(routingService.dispatchClaimedNodeRun(command)).isSameAs(expected);
+
+        verify(routingService).dispatchClaimedUiTestNodeRun(command);
+        verify(routingService, never()).dispatchClaimedApiTestNodeRun(command);
+    }
+
+    @Test
+    void dispatchClaimedNodeRunFallsBackToApiDispatchForNonWp7Nodes() {
+        UUID nodeRunId = UUID.randomUUID();
+        DispatchExecutionNodeRunCommand command = new DispatchExecutionNodeRunCommand(
+                nodeRunId,
+                "claim-token",
+                null,
+                null,
+                null,
+                null,
+                null
+        );
+        when(repository.nodeRun(nodeRunId)).thenReturn(Optional.of(nodeRun(UUID.randomUUID(), UUID.randomUUID(), "RUNNING", "WP6_API", null)));
+        ExecutionRunService routingService = spy(new ExecutionRunService(
+                repository,
+                dagValidator,
+                contextClient,
+                actorResolver,
+                apiAutomationService,
+                EmptyObjectProvider.of(),
+                EmptyObjectProvider.of(),
+                SingleObjectProvider.of(uiE2eRunService),
+                new ObjectMapper(),
+                new ExecutionProperties(
+                        false,
+                        false,
+                        false,
+                        300,
+                        60,
+                        5000,
+                        30000,
+                        "wp9-test-worker",
+                        4,
+                        2,
+                        4,
+                        180,
+                        1800,
+                        50
+                ),
+                notificationService,
+                EmptyObjectProvider.of()
+        ));
+        ExecutionRunDetailResponse expected = mock(ExecutionRunDetailResponse.class);
+        doReturn(expected).when(routingService).dispatchClaimedApiTestNodeRun(command);
+
+        assertThat(routingService.dispatchClaimedNodeRun(command)).isSameAs(expected);
+
+        verify(routingService).dispatchClaimedApiTestNodeRun(command);
+        verify(routingService, never()).dispatchClaimedUiTestNodeRun(command);
     }
 
     @Test

@@ -114,7 +114,7 @@ public class ExecutionRunController {
         DispatchExecutionNodeRunCommand effectiveCommand = command == null
                 ? new DispatchExecutionNodeRunCommand(id, null, null, null, null, null, null)
                 : command.withNodeRunId(id);
-        return service.dispatchClaimedApiTestNodeRun(effectiveCommand);
+        return service.dispatchClaimedNodeRun(effectiveCommand);
     }
 
     @PostMapping("/internal/queue/claims/heartbeat")
