@@ -15,8 +15,9 @@
 2. 验证场景、bundle、运行和 Flaky 的状态机、权限、项目 scope、审计和 traceId 稳定。
 3. 验证 WP8 `accountLeaseRef` / `secretRefDigest` 契约不被突破，凭据注入只发生在受控 runner 内部。
 4. 验证运行失败分类、artifact manifest、导出和前端 DOM 都通过脱敏边界。
-5. 验证前端工作台在桌面与 390px 视口的主链路可用。
-6. 验证 WP9/WP10 仅能拿到脱敏执行摘要，不读取原始产物或源码正文。
+5. 验证受控 artifact 下载只暴露 opaque ref、受权文件名和内容类型，不暴露宿主机路径。
+6. 验证前端工作台在桌面与 390px 视口的主链路可用。
+7. 验证 WP9/WP10 仅能拿到脱敏执行摘要，不读取原始产物或源码正文。
 
 ## 2. 测试范围
 
@@ -26,7 +27,7 @@
 | Scene | create/list/detail/update/archive、项目 scope、状态保护、来源摘要绑定。 |
 | Bundle | create/detail/list、静态校验、submit-review/approve/reject、危险 import/硬编码凭据阻断。 |
 | Run | create/detail/list/cancel/export、requestKey 幂等、runner disabled、lease invalid、allowlist、timeout。 |
-| Artifact | screenshot/video/trace/log manifest、digest、storageRef、size、redaction flags。 |
+| Artifact | screenshot/video/trace/log manifest、digest、storageRef、size、redaction flags，以及受控下载端点。 |
 | Flaky | 标记、更新、查询、审计和状态流。 |
 | WP8 adapter | `runnerAccountContract` 摘要字段白名单和项目越权拦截。 |
 | WP9 contract | `UI_TEST` 节点摘要输出、错误码和未就绪语义。 |
@@ -55,6 +56,8 @@
 | WP7-RUN-007 | P0 | 运行取消 | `RUNNING -> CANCELED`，runner 接到取消信号或返回稳定 cancel not supported 语义。 |
 | WP7-ART-001 | P0 | 采集 screenshot/trace 摘要 | 返回 digest、size、storageRef、redaction flags。 |
 | WP7-ART-002 | P0 | artifact 摘要命中敏感字段 | 返回 `UI_E2E_ARTIFACT_POLICY_BLOCKED`，导出阻断。 |
+| WP7-ART-003 | P0 | 下载已落入受控存储的 artifact | 返回 200、正确 content type 和 attachment 文件名，不暴露真实路径。 |
+| WP7-ART-004 | P0 | 下载不存在或未就绪 artifact | 返回 `UI_E2E_ARTIFACT_DOWNLOAD_NOT_READY` 或 404，不暴露文件系统错误。 |
 | WP7-CLASSIFY-001 | P0 | locator 失效 | failure bucket 输出 locator/selector 类。 |
 | WP7-CLASSIFY-002 | P0 | 权限拒绝页面 | failure bucket 输出 permission 类。 |
 | WP7-CLASSIFY-003 | P0 | 账号租借异常 | failure bucket 输出 account/data 类，不泄露 token。 |
@@ -68,7 +71,7 @@
 
 ## 4. 安全测试
 
-1. API 响应、日志、审计、导出和前端 DOM 不包含密码、token、cookie、Authorization、`secret://` 原文、租借 token 明文。
+1. API 响应、日志、审计、导出、artifact 下载响应头和前端 DOM 不包含密码、token、cookie、Authorization、`secret://` 原文、租借 token 明文或宿主机路径。
 2. screenshot/video/trace/log manifest 摘要命中禁止字段时必须阻断，而不是回显敏感命中值。
 3. `scopeSummary`、`sourceSummary`、`failureSummary` 和 `resultSummary` 只允许白名单 key。
 4. baseUrl allowlist 必须阻断未批准域名或环境。
@@ -133,9 +136,9 @@ WP7 涉及数据库、权限、审计、账号摘要契约和前端体验，必�
 
 ## 9. 当前质量结论
 
-当前阶段 WP7 仍处于文档准备阶段，尚未进入运行时代码实现，因此当前已执行的验证仅应包含文档一致性、索引同步和 diff 检查。进入代码阶段后，必须补齐：
+截至 2026-06-20，WP7 已进入运行时代码实现和质量门禁阶段。本轮最小必要验证包括：
 
-1. 后端单测和契约测试。
+1. 后端单测和 OpenAPI 契约测试。
 2. 前端 Vitest。
 3. Playwright 浏览器 smoke。
 4. 受控 runner smoke。

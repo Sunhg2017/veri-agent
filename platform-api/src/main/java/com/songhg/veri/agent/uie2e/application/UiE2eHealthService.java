@@ -1,6 +1,7 @@
 package com.songhg.veri.agent.uie2e.application;
 
 import com.songhg.veri.agent.uie2e.application.view.UiE2eHealthResponse;
+import com.songhg.veri.agent.uie2e.application.port.UiE2eArtifactStorage;
 import com.songhg.veri.agent.uie2e.config.UiE2eProperties;
 import com.songhg.veri.agent.testdata.application.TestDataCrossWpReferenceService;
 import java.util.List;
@@ -14,18 +15,25 @@ public class UiE2eHealthService {
 
     private final UiE2eProperties properties;
     private final TestDataCrossWpReferenceService testDataCrossWpReferenceService;
+    private final UiE2eArtifactStorage artifactStorage;
 
     @Autowired
     public UiE2eHealthService(
             UiE2eProperties properties,
-            TestDataCrossWpReferenceService testDataCrossWpReferenceService
+            TestDataCrossWpReferenceService testDataCrossWpReferenceService,
+            UiE2eArtifactStorage artifactStorage
     ) {
         this.properties = properties;
         this.testDataCrossWpReferenceService = testDataCrossWpReferenceService;
+        this.artifactStorage = artifactStorage;
     }
 
     UiE2eHealthService(UiE2eProperties properties) {
-        this(properties, null);
+        this(properties, null, null);
+    }
+
+    UiE2eHealthService(UiE2eProperties properties, TestDataCrossWpReferenceService testDataCrossWpReferenceService) {
+        this(properties, testDataCrossWpReferenceService, null);
     }
 
     /**
@@ -71,7 +79,7 @@ public class UiE2eHealthService {
                         Map.entry("maxArtifactCount", properties.effectiveMaxArtifactCount()),
                         Map.entry("maxArtifactSizeBytes", properties.effectiveMaxArtifactSizeBytes()),
                         Map.entry("redactionScanRequired", true),
-                        Map.entry("rawArtifactDownloadReady", false),
+                        Map.entry("rawArtifactDownloadReady", artifactStorage != null),
                         Map.entry("rawDomSnapshotStored", false)
                 ),
                 Map.ofEntries(

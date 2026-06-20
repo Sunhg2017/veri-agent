@@ -1,9 +1,11 @@
 package com.songhg.veri.agent.uie2e.config;
 
 import com.songhg.veri.agent.testdata.application.TestDataCrossWpReferenceService;
+import com.songhg.veri.agent.uie2e.application.port.UiE2eArtifactStorage;
 import com.songhg.veri.agent.uie2e.application.port.UiE2eRepository;
 import com.songhg.veri.agent.uie2e.application.port.UiE2eRunnerPort;
 import com.songhg.veri.agent.uie2e.infrastructure.DisabledUiE2eRunnerAdapter;
+import com.songhg.veri.agent.uie2e.infrastructure.LocalUiE2eArtifactStorage;
 import com.songhg.veri.agent.uie2e.infrastructure.ManagedPreviewUiE2eRunnerAdapter;
 import com.songhg.veri.agent.uie2e.infrastructure.PlaywrightSubprocessUiE2eRunnerAdapter;
 import org.junit.jupiter.api.Test;
@@ -22,6 +24,9 @@ class UiE2eRunnerConfigurationTest {
     @Test
     void createsDisabledRunnerByDefault() {
         contextRunner.run(context -> {
+            assertThat(context).hasSingleBean(UiE2eArtifactStorage.class);
+            assertThat(context.getBean(UiE2eArtifactStorage.class))
+                    .isInstanceOf(LocalUiE2eArtifactStorage.class);
             assertThat(context).hasSingleBean(UiE2eRunnerPort.class);
             assertThat(context.getBean(UiE2eRunnerPort.class))
                     .isInstanceOf(DisabledUiE2eRunnerAdapter.class);

@@ -220,7 +220,8 @@ class UiE2eSceneServiceTest {
                 true,
                 true,
                 "node",
-                "../portal-web/node_modules"
+                "../portal-web/node_modules",
+                ""
         );
         ObjectMapper objectMapper = new ObjectMapper();
         return new Fixture(new UiE2eSceneService(

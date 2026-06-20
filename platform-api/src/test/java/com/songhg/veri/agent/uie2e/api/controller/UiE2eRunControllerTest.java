@@ -9,6 +9,13 @@ import com.songhg.veri.agent.management.application.port.ManagementStoreParams;
 import com.songhg.veri.agent.management.application.port.ManagementStoreRows.EnvironmentConnectivityTargetRow;
 import com.songhg.veri.agent.management.application.port.ManagementStoreRows.EnvironmentRef;
 import com.songhg.veri.agent.management.application.port.ManagementStoreRows.EnvironmentRuntimeRef;
+import com.songhg.veri.agent.uie2e.application.port.UiE2eArtifactStorage;
+import com.songhg.veri.agent.uie2e.application.port.UiE2eRepository;
+import com.songhg.veri.agent.uie2e.domain.UiE2eArtifactManifest;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -33,6 +40,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -60,6 +68,12 @@ class UiE2eRunControllerTest {
 
     @Autowired
     private ObjectMapper objectMapper;
+
+    @Autowired
+    private UiE2eRepository uiE2eRepository;
+
+    @Autowired
+    private UiE2eArtifactStorage artifactStorage;
 
     @MockitoBean
     private ManagementStore managementStore;
@@ -208,6 +222,61 @@ class UiE2eRunControllerTest {
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.code").value("INVALID_STATE"))
                 .andExpect(jsonPath("$.message").value("UI_E2E_BASE_URL_NOT_ALLOWED"));
+    }
+
+    @Test
+    void downloadsStoredArtifactForAuthorizedUser() throws Exception {
+        stubManagementStore("https://portal.example.test");
+        String ownerToken = userAccessToken(List.of("ProjectOwner@PROJECT:" + PROJECT_ID));
+        String auditorToken = userAccessToken(List.of("Auditor@PROJECT:" + PROJECT_ID));
+        UUID sceneId = createApprovedScene(ownerToken);
+        UUID bundleId = createApprovedBundle(ownerToken, sceneId);
+        UUID leaseRef = createLease(ownerToken);
+
+        MvcResult created = mockMvc.perform(post("/api/v1/ui-e2e/runs")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + ownerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "projectId", PROJECT_ID,
+                                "sceneId", sceneId.toString(),
+                                "bundleId", bundleId.toString(),
+                                "environmentId", ENVIRONMENT_KEY,
+                                "baseUrlRef", "env:" + ENVIRONMENT_KEY,
+                                "accountLeaseRef", leaseRef.toString(),
+                                "requestKey", "run-request-ctrl-download-001"
+                        ))))
+                .andExpect(status().isCreated())
+                .andReturn();
+        UUID runId = UUID.fromString(JsonPath.read(created.getResponse().getContentAsString(), "$.data.id"));
+        UUID artifactId = UUID.randomUUID();
+        Path tempFile = Files.createTempFile("wp7-artifact-", ".log");
+        try {
+            Files.writeString(tempFile, "wp7 artifact body", StandardCharsets.UTF_8);
+            UiE2eArtifactStorage.StoredArtifact stored = artifactStorage.store(runId, artifactId, "LOG", tempFile);
+            uiE2eRepository.replaceArtifacts(runId, List.of(new UiE2eArtifactManifest(
+                    artifactId,
+                    runId,
+                    "LOG",
+                    stored.storageRef(),
+                    "4f0df0d66f54d6e52d4f3a9e4d4b3a3d0f0a7c6a5d4e3f2c1b0a998877665544",
+                    stored.sizeBytes(),
+                    "{\"aggregateOnly\":true,\"rawArtifactStored\":true,\"rawArtifactDownloadReady\":true}",
+                    "CAPTURED",
+                    "tester",
+                    "tester",
+                    Instant.now(),
+                    Instant.now()
+            )));
+        } finally {
+            Files.deleteIfExists(tempFile);
+        }
+
+        mockMvc.perform(get("/api/v1/ui-e2e/runs/{id}/artifacts/{artifactId}/download", runId, artifactId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + auditorToken))
+                .andExpect(status().isOk())
+                .andExpect(content().contentType(MediaType.APPLICATION_OCTET_STREAM))
+                .andExpect(header().string(HttpHeaders.CONTENT_DISPOSITION, containsString(artifactId.toString())))
+                .andExpect(content().string("wp7 artifact body"));
     }
 
     private UUID createApprovedScene(String token) throws Exception {

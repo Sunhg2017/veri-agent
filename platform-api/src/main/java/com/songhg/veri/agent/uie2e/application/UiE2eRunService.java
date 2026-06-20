@@ -11,6 +11,7 @@ import com.songhg.veri.agent.common.util.SensitiveTextSanitizer;
 import com.songhg.veri.agent.testdata.application.TestDataCrossWpReferenceService;
 import com.songhg.veri.agent.testdata.application.view.TestDataCrossWpAccountSummary;
 import com.songhg.veri.agent.testdata.application.view.TestDataRunnerAccountContractResponse;
+import com.songhg.veri.agent.uie2e.application.port.UiE2eArtifactStorage;
 import com.songhg.veri.agent.uie2e.application.command.CancelUiE2eRunCommand;
 import com.songhg.veri.agent.uie2e.application.command.CreateUiE2eRunCommand;
 import com.songhg.veri.agent.uie2e.application.port.UiE2eRepository;
@@ -31,6 +32,7 @@ import com.songhg.veri.agent.uie2e.domain.UiE2eRun;
 import com.songhg.veri.agent.uie2e.domain.UiE2eRunStepResult;
 import com.songhg.veri.agent.uie2e.domain.UiE2eScene;
 import com.songhg.veri.agent.uie2e.domain.UiE2eSceneStep;
+import java.io.IOException;
 import java.time.Instant;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
@@ -43,6 +45,7 @@ import java.util.UUID;
 import java.util.function.Function;
 import java.util.regex.Pattern;
 import org.springframework.dao.DuplicateKeyException;
+import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -96,6 +99,7 @@ public class UiE2eRunService {
     private final UiE2eRunnerPort runnerPort;
     private final UiE2eRunEnvironmentResolver environmentResolver;
     private final TestDataCrossWpReferenceService testDataCrossWpReferenceService;
+    private final UiE2eArtifactStorage artifactStorage;
     private final ObjectMapper objectMapper;
 
     public UiE2eRunService(
@@ -106,6 +110,7 @@ public class UiE2eRunService {
             UiE2eRunnerPort runnerPort,
             UiE2eRunEnvironmentResolver environmentResolver,
             TestDataCrossWpReferenceService testDataCrossWpReferenceService,
+            UiE2eArtifactStorage artifactStorage,
             ObjectMapper objectMapper
     ) {
         this.repository = repository;
@@ -115,6 +120,7 @@ public class UiE2eRunService {
         this.runnerPort = runnerPort;
         this.environmentResolver = environmentResolver;
         this.testDataCrossWpReferenceService = testDataCrossWpReferenceService;
+        this.artifactStorage = artifactStorage;
         this.objectMapper = objectMapper;
     }
 
@@ -234,6 +240,32 @@ public class UiE2eRunService {
     public String runProjectScopeId(UUID id) {
         return repository.runProjectScopeId(id)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "UI/E2E run 不存在"));
+    }
+
+    /**
+     * Reads one raw artifact from the controlled storage root when the run, manifest and download policy all allow it.
+     */
+    @Transactional(readOnly = true)
+    public DownloadableArtifact downloadArtifact(UUID runId, UUID artifactId) {
+        assertEnabled();
+        UiE2eRun run = requireRun(runId);
+        UiE2eArtifactManifest manifest = repository.artifacts(run.id()).stream()
+                .filter(item -> artifactId.equals(item.id()))
+                .findFirst()
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "UI/E2E artifact 不存在"));
+        if (artifactStorage == null || !artifactStorage.isDownloadReady(manifest.storageRef())) {
+            throw new BusinessException(ErrorCode.NOT_FOUND, "UI_E2E_ARTIFACT_DOWNLOAD_NOT_READY");
+        }
+        try {
+            UiE2eArtifactStorage.StoredArtifactContent content = artifactStorage.read(manifest.storageRef());
+            return new DownloadableArtifact(
+                    content.fileName(),
+                    normalizeContentType(content.contentType()),
+                    content.content()
+            );
+        } catch (IOException exception) {
+            throw new BusinessException(ErrorCode.NOT_FOUND, "UI_E2E_ARTIFACT_DOWNLOAD_NOT_READY");
+        }
     }
 
     private UiE2eRunDetailResponse createRun(
@@ -466,7 +498,7 @@ public class UiE2eRunService {
         executionSummary.put("runnerReady", true);
         executionSummary.put("stepResultCount", stepResults.size());
         executionSummary.put("artifactManifestCount", artifacts.size());
-        executionSummary.put("rawArtifactDownloadReady", false);
+        executionSummary.put("rawArtifactDownloadReady", artifacts.stream().anyMatch(this::downloadReadyResponse));
         executionSummary.put("secretRefPlaintextReturned", false);
         executionSummary.put("baseUrlDigest", run.baseUrlDigest());
         executionSummary.put("accountScopeSummaryKeys", accountSummary.getOrDefault("scopeSummaryKeys", List.of()));
@@ -607,8 +639,9 @@ public class UiE2eRunService {
         SanitizedMap safeArtifactFlags = safeRunnerSummary(artifact.redactionFlags());
         Map<String, Object> flags = new LinkedHashMap<>(safeArtifactFlags.value());
         flags.put("aggregateOnly", true);
-        flags.put("rawArtifactStored", false);
-        flags.put("rawArtifactDownloadReady", false);
+        boolean downloadReady = artifactStorage.isDownloadReady(storageRef);
+        flags.put("rawArtifactStored", downloadReady);
+        flags.put("rawArtifactDownloadReady", downloadReady);
         flags.put("secretPlaintextStored", false);
         flags.put("storageCredentialStored", false);
         flags.put("unsafeRedactionFlagKeysFiltered", safeArtifactFlags.filteredUnsafeKeys());
@@ -672,13 +705,17 @@ public class UiE2eRunService {
     }
 
     private UiE2eArtifactManifestResponse artifactResponse(UiE2eArtifactManifest manifest) {
+        Map<String, Object> redactionFlags = new LinkedHashMap<>(readMap(manifest.redactionFlagsJson()));
+        boolean downloadReady = downloadReady(manifest);
+        redactionFlags.put("rawArtifactStored", downloadReady);
+        redactionFlags.put("rawArtifactDownloadReady", downloadReady);
         return new UiE2eArtifactManifestResponse(
                 manifest.id(),
                 manifest.artifactType(),
                 manifest.storageRef(),
                 manifest.artifactDigest(),
                 manifest.sizeBytes(),
-                readMap(manifest.redactionFlagsJson()),
+                redactionFlags,
                 manifest.captureStatus(),
                 manifest.createdAt(),
                 manifest.updatedAt()
@@ -835,6 +872,22 @@ public class UiE2eRunService {
         return bounded.matches("^[0-9a-f]{1,64}$") ? bounded : SensitiveTextSanitizer.sha256Hex(bounded);
     }
 
+    private boolean downloadReady(UiE2eArtifactManifest manifest) {
+        return manifest != null && artifactStorage.isDownloadReady(manifest.storageRef());
+    }
+
+    private boolean downloadReadyResponse(UiE2eArtifactManifestResponse manifest) {
+        if (manifest == null || manifest.redactionFlags() == null) {
+            return false;
+        }
+        Object ready = manifest.redactionFlags().get("rawArtifactDownloadReady");
+        return Boolean.TRUE.equals(ready);
+    }
+
+    private String normalizeContentType(String contentType) {
+        return StringUtils.hasText(contentType) ? contentType.trim() : MediaType.APPLICATION_OCTET_STREAM_VALUE;
+    }
+
     private UiE2eRunQuery normalizeQuery(UiE2eRunQuery query) {
         return new UiE2eRunQuery(
                 boundedNullable(query.projectId(), 64),
@@ -898,6 +951,13 @@ public class UiE2eRunService {
     private record SanitizedMap(
             Map<String, Object> value,
             boolean filteredUnsafeKeys
+    ) {
+    }
+
+    public record DownloadableArtifact(
+            String fileName,
+            String contentType,
+            byte[] content
     ) {
     }
 }

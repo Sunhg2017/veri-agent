@@ -16,7 +16,7 @@
 3. 场景、bundle、运行、artifact 和 Flaky 都必须写审计，且 payload 只保存摘要、计数、digest 和错误码。
 4. WP7 不直接读取 WP3/WP5/WP8/WP9/WP10 表；跨 WP 输入必须走应用服务、导出接口或明确 port。
 5. 账号凭据只以 `accountLeaseRef` 为句柄流转；控制面只接收账号摘要和 `secretRefDigest`，不持久化密码、token、cookie、`secret://` 原文或租借 token 明文。
-6. 原始 artifact 不进入当前 P0 主数据面；WP7 只保存 manifest、digest、size、storageRef 和 redaction flags。
+6. 原始 artifact 不进入当前 P0 主数据面；WP7 只保存 manifest、digest、size、storageRef 和 redaction flags，并允许从受控本地存储按权限下载。
 7. Runner 必须受 allowlist、超时、并发、artifact 大小、步骤数和网络策略限制；默认 disabled。
 
 ## 2. 模块划分
@@ -69,6 +69,7 @@
 | `veri-agent.ui-e2e.capture-video-enabled` | `false` | 首期默认不强制视频。 |
 | `veri-agent.ui-e2e.capture-trace-enabled` | `true` | 是否采集 trace 摘要。 |
 | `veri-agent.ui-e2e.export-enabled` | `true` | 是否允许导出脱敏摘要。 |
+| `veri-agent.ui-e2e.artifact-storage-dir` | `${java.io.tmpdir}/veri-agent/ui-e2e-artifacts` | 受控原始 artifact 本地落盘根目录，仅通过 API 下载，不回显真实路径。 |
 
 ## 5. 跨 WP 依赖
 
@@ -104,6 +105,7 @@
 | `GET` | `/runs/{id}` | `uiE2e:read` | 查询运行详情、步骤结果和 artifact 摘要。 |
 | `POST` | `/runs/{id}/cancel` | `uiE2e:execute` | 取消运行。 |
 | `GET` | `/runs/{id}/export` | `uiE2e:export` | 导出运行脱敏摘要。 |
+| `GET` | `/runs/{id}/artifacts/{artifactId}/download` | `uiE2e:export` | 下载已落入受控存储的原始 artifact 文件。 |
 | `POST` | `/flaky-marks` | `uiE2e:flaky` | 创建或更新 Flaky 标记。 |
 | `GET` | `/flaky-marks` | `uiE2e:read` | 查询 Flaky 标记列表。 |
 
@@ -206,6 +208,17 @@
 3. cookie、Authorization、token、密码
 4. 外部对象存储密钥
 
+## 8.1 Artifact 下载契约
+
+`GET /api/v1/ui-e2e/runs/{id}/artifacts/{artifactId}/download` 返回 `application/octet-stream` 或推断出的具体媒体类型，并带 `Content-Disposition: attachment`。
+
+约束：
+
+1. 只有 manifest `storageRef` 已指向受控存储且文件存在时才返回 200。
+2. `storageRef` 仍只作为 opaque ref 出现在详情与导出中，不回显真实宿主机路径。
+3. 下载失败统一返回 `UI_E2E_ARTIFACT_DOWNLOAD_NOT_READY`，不把文件系统错误暴露给调用方。
+4. 本地存储 adapter 必须阻断路径逃逸和超出 `max-artifact-size-bytes` 的文件落盘。
+
 ## 9. Runner Port 草案
 
 建议新增应用层端口：
@@ -219,8 +232,9 @@
 默认实现：
 
 1. `DisabledUiE2eRunnerAdapter`：总是返回 `EXECUTION_RUNNER_NOT_READY` 或 `UI_E2E_RUNNER_DISABLED`。
-2. `PlaywrightManagedUiE2eRunnerAdapter`：本地受控执行，读取账号契约，运行时完成凭据注入。
-3. 首期不开放任意 shell、自定义浏览器启动参数和未批准网络出口。
+2. `ManagedPreviewUiE2eRunnerAdapter`：本地受控预览，读取账号契约并输出脱敏注入计划摘要。
+3. `PlaywrightSubprocessUiE2eRunnerAdapter`：本地受控真实浏览器执行，运行时完成凭据注入，并把 screenshot/trace/log 复制到受控 artifact 存储。
+4. 首期不开放任意 shell、自定义浏览器启动参数和未批准网络出口。
 
 ## 10. WP8 凭据注入契约
 
@@ -298,6 +312,7 @@ WP10 只读取：
 | `UI_E2E_BUNDLE_NOT_READY` | bundle 未审批或静态校验失败。 |
 | `UI_E2E_RUNNER_DISABLED` | runner 开关关闭。 |
 | `EXECUTION_RUNNER_NOT_READY` | WP7 runner 尚未进入可执行状态。 |
+| `UI_E2E_ARTIFACT_DOWNLOAD_NOT_READY` | artifact 尚未落入受控存储、文件不存在或下载策略未就绪。 |
 | `UI_E2E_ACCOUNT_LEASE_INVALID` | `accountLeaseRef` 不存在、越权或状态不允许。 |
 | `UI_E2E_BASE_URL_NOT_ALLOWED` | baseUrl 不在 allowlist。 |
 | `UI_E2E_ARTIFACT_POLICY_BLOCKED` | artifact 采集或导出命中安全阻断。 |
@@ -321,6 +336,6 @@ WP10 只读取：
 1. M1：权限点、DB schema、health API、domain skeleton。
 2. M2：scene CRUD、step template、source summary 绑定。
 3. M3：bundle 摘要、静态校验、评审流。
-4. M4：run API、`UiE2eRunnerPort`、WP8 adapter、凭据注入 adapter。
-5. M5：artifact manifest、failure classifier、Flaky API。
+4. M4：run API、`UiE2eRunnerPort`、WP8 adapter、凭据注入 adapter、Playwright 子进程 runner。
+5. M5：artifact manifest、受控 artifact 下载、failure classifier、Flaky API。
 6. M6：WP9/WP10 契约联调和前端闭环。

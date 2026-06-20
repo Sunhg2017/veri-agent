@@ -25,6 +25,7 @@ import com.songhg.veri.agent.testdata.application.command.CreateTestAccountPoolC
 import com.songhg.veri.agent.testdata.application.command.UpsertTestPooledAccountCommand;
 import com.songhg.veri.agent.testdata.config.TestDataProperties;
 import com.songhg.veri.agent.testdata.infrastructure.InMemoryTestDataRepository;
+import com.songhg.veri.agent.uie2e.application.port.UiE2eArtifactStorage;
 import com.songhg.veri.agent.uie2e.application.command.CancelUiE2eRunCommand;
 import com.songhg.veri.agent.uie2e.application.command.CreateUiE2eBundleCommand;
 import com.songhg.veri.agent.uie2e.application.command.CreateUiE2eRunCommand;
@@ -37,6 +38,7 @@ import com.songhg.veri.agent.uie2e.application.view.UiE2eRunSummaryResponse;
 import com.songhg.veri.agent.uie2e.config.UiE2eProperties;
 import com.songhg.veri.agent.uie2e.domain.UiE2eFlakyMark;
 import com.songhg.veri.agent.uie2e.infrastructure.InMemoryUiE2eRepository;
+import com.songhg.veri.agent.uie2e.infrastructure.LocalUiE2eArtifactStorage;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
@@ -377,7 +379,8 @@ class UiE2eRunServiceTest {
                 true,
                 true,
                 "node",
-                "../portal-web/node_modules"
+                "../portal-web/node_modules",
+                ""
         ));
 
         var health = service.health();
@@ -410,7 +413,8 @@ class UiE2eRunServiceTest {
                 true,
                 true,
                 "node",
-                "../portal-web/node_modules"
+                "../portal-web/node_modules",
+                ""
         ), referenceService);
 
         var health = service.health();
@@ -555,7 +559,9 @@ class UiE2eRunServiceTest {
             assertThat(created.artifacts()).anySatisfy(artifact -> {
                 assertThat(artifact.artifactType()).isEqualTo("SCREENSHOT");
                 assertThat(artifact.captureStatus()).isEqualTo("CAPTURED");
+                assertThat(artifact.redactionFlags()).containsEntry("rawArtifactDownloadReady", true);
             });
+            assertThat(created.executionSummary()).containsEntry("rawArtifactDownloadReady", true);
         } finally {
             portalFixture.close();
         }
@@ -658,8 +664,10 @@ class UiE2eRunServiceTest {
                 true,
                 true,
                 "node",
-                "../portal-web/node_modules"
+                "../portal-web/node_modules",
+                ""
         );
+        UiE2eArtifactStorage artifactStorage = new LocalUiE2eArtifactStorage(properties);
         UiE2eSceneService sceneService = new UiE2eSceneService(
                 repository,
                 contextClient,
@@ -697,16 +705,18 @@ class UiE2eRunServiceTest {
                                 ? new com.songhg.veri.agent.uie2e.infrastructure.PlaywrightSubprocessUiE2eRunnerAdapter(
                                         repository,
                                         properties,
-                                        testDataFixture.referenceService()
+                                        testDataFixture.referenceService(),
+                                        artifactStorage
                                 )
                                 : new com.songhg.veri.agent.uie2e.infrastructure.ManagedPreviewUiE2eRunnerAdapter(
                                         repository,
                                         properties,
                                         testDataFixture.referenceService()
-                                )
+                        )
                                 : new com.songhg.veri.agent.uie2e.infrastructure.DisabledUiE2eRunnerAdapter(),
                         new UiE2eRunEnvironmentResolver(managementStore),
                         testDataFixture.referenceService(),
+                        artifactStorage,
                         objectMapper
                 )
         );

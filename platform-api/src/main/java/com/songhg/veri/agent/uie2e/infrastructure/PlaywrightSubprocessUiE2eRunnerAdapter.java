@@ -8,6 +8,7 @@ import com.songhg.veri.agent.common.error.ErrorCode;
 import com.songhg.veri.agent.common.util.SensitiveTextSanitizer;
 import com.songhg.veri.agent.testdata.application.TestDataCrossWpReferenceService;
 import com.songhg.veri.agent.testdata.application.TestDataRunnerCredentialResolver;
+import com.songhg.veri.agent.uie2e.application.port.UiE2eArtifactStorage;
 import com.songhg.veri.agent.uie2e.application.port.UiE2eRepository;
 import com.songhg.veri.agent.uie2e.application.port.UiE2eRunnerPort;
 import com.songhg.veri.agent.uie2e.config.UiE2eProperties;
@@ -55,18 +56,21 @@ public class PlaywrightSubprocessUiE2eRunnerAdapter implements UiE2eRunnerPort {
     private final TestDataCrossWpReferenceService testDataCrossWpReferenceService;
     private final ObjectMapper objectMapper;
     private final UiE2eRunnerCredentialPlanSupport credentialPlanSupport;
+    private final UiE2eArtifactStorage artifactStorage;
     private final CommandExecutor commandExecutor;
 
     public PlaywrightSubprocessUiE2eRunnerAdapter(
             UiE2eRepository repository,
             UiE2eProperties properties,
-            TestDataCrossWpReferenceService testDataCrossWpReferenceService
+            TestDataCrossWpReferenceService testDataCrossWpReferenceService,
+            UiE2eArtifactStorage artifactStorage
     ) {
         this(
                 repository,
                 properties,
                 testDataCrossWpReferenceService,
                 new ObjectMapper(),
+                artifactStorage,
                 new ProcessBuilderCommandExecutor()
         );
     }
@@ -76,6 +80,7 @@ public class PlaywrightSubprocessUiE2eRunnerAdapter implements UiE2eRunnerPort {
             UiE2eProperties properties,
             TestDataCrossWpReferenceService testDataCrossWpReferenceService,
             ObjectMapper objectMapper,
+            UiE2eArtifactStorage artifactStorage,
             CommandExecutor commandExecutor
     ) {
         this.repository = repository;
@@ -83,6 +88,7 @@ public class PlaywrightSubprocessUiE2eRunnerAdapter implements UiE2eRunnerPort {
         this.testDataCrossWpReferenceService = testDataCrossWpReferenceService;
         this.objectMapper = objectMapper;
         this.credentialPlanSupport = new UiE2eRunnerCredentialPlanSupport(objectMapper);
+        this.artifactStorage = artifactStorage;
         this.commandExecutor = commandExecutor;
     }
 
@@ -183,10 +189,10 @@ public class PlaywrightSubprocessUiE2eRunnerAdapter implements UiE2eRunnerPort {
                         RUNNER_FAILED,
                         "playwright subprocess did not produce a bounded result summary",
                         failedSteps(repository.sceneSteps(scene.id()), "runnerResultMissing"),
-                        blockedArtifacts("runnerResultMissing")
+                    blockedArtifacts("runnerResultMissing")
                 );
             }
-            return readPayload(resultFile).toResult(request.runId(), processResult.exitCode(), properties);
+            return readPayload(resultFile).toResult(request.runId(), processResult.exitCode(), properties, workspace, artifactStorage);
         } catch (BusinessException exception) {
             String errorCode = StringUtils.hasText(exception.getMessage()) ? exception.getMessage() : RUNNER_FAILED;
             return failure(
@@ -711,7 +717,8 @@ public class PlaywrightSubprocessUiE2eRunnerAdapter implements UiE2eRunnerPort {
                         rawArtifactStored: false,
                         rawArtifactDownloadReady: false
                       },
-                      captureStatus: 'CAPTURED'
+                      captureStatus: 'CAPTURED',
+                      workspaceFile: 'screenshot.png'
                     });
                   }
                   if (captureTrace && context) {
@@ -727,20 +734,30 @@ public class PlaywrightSubprocessUiE2eRunnerAdapter implements UiE2eRunnerPort {
                         rawArtifactStored: false,
                         rawArtifactDownloadReady: false
                       },
-                      captureStatus: 'CAPTURED'
+                      captureStatus: 'CAPTURED',
+                      workspaceFile: 'trace.zip'
                     });
                   }
+                  const runnerLogPath = path.join(workspaceDir, 'runner.log');
+                  await fs.writeFile(runnerLogPath, JSON.stringify({
+                    status: result.status,
+                    failureCode: result.failureCode,
+                    stepCount: result.stepResults.length,
+                    captureScreenshot,
+                    captureTrace
+                  }), 'utf8');
                   result.artifacts.push({
                     artifactType: 'LOG',
                     storageRef: `summary://ui-e2e/${path.basename(workspaceDir)}/runner-log`,
-                    artifactDigest: 'runnerlogsummary',
-                    sizeBytes: 96,
+                    artifactDigest: await hash(runnerLogPath),
+                    sizeBytes: (await fs.stat(runnerLogPath)).size,
                     redactionFlags: {
                       aggregateOnly: true,
                       rawArtifactStored: false,
                       rawArtifactDownloadReady: false
                     },
-                    captureStatus: 'CAPTURED'
+                    captureStatus: 'CAPTURED',
+                    workspaceFile: 'runner.log'
                   });
                 } catch (error) {
                   result.status = 'FAILED';
@@ -817,7 +834,13 @@ public class PlaywrightSubprocessUiE2eRunnerAdapter implements UiE2eRunnerPort {
             List<RunnerStepPayload> stepResults,
             List<RunnerArtifactPayload> artifacts
     ) {
-        RunnerRunResult toResult(UUID runId, int exitCode, UiE2eProperties properties) {
+        RunnerRunResult toResult(
+                UUID runId,
+                int exitCode,
+                UiE2eProperties properties,
+                Path workspace,
+                UiE2eArtifactStorage artifactStorage
+        ) {
             String normalizedStatus = StringUtils.hasText(status) ? status.trim().toUpperCase(Locale.ROOT) : "FAILED";
             String effectiveStatus = Set.of("SUCCEEDED", "FAILED", "TIMEOUT", "BLOCKED").contains(normalizedStatus)
                     ? normalizedStatus
@@ -833,7 +856,7 @@ public class PlaywrightSubprocessUiE2eRunnerAdapter implements UiE2eRunnerPort {
                     : artifacts.stream()
                     .filter(item -> item != null)
                     .limit(properties.effectiveMaxArtifactCount())
-                    .map(item -> item.toManifest(runId, properties))
+                    .map(item -> item.toManifest(runId, properties, workspace, artifactStorage))
                     .toList();
             return new RunnerRunResult(
                     effectiveStatus,
@@ -879,26 +902,64 @@ public class PlaywrightSubprocessUiE2eRunnerAdapter implements UiE2eRunnerPort {
             String artifactDigest,
             long sizeBytes,
             Map<String, Object> redactionFlags,
-            String captureStatus
+            String captureStatus,
+            String workspaceFile
     ) {
-        RunnerArtifactManifest toManifest(UUID runId, UiE2eProperties properties) {
+        RunnerArtifactManifest toManifest(
+                UUID runId,
+                UiE2eProperties properties,
+                Path workspace,
+                UiE2eArtifactStorage artifactStorage
+        ) {
             Map<String, Object> safeFlags = sanitizeMap(redactionFlags);
+            UiE2eArtifactStorage.StoredArtifact storedArtifact = store(runId, workspace, artifactStorage);
             safeFlags.put("aggregateOnly", true);
-            safeFlags.put("rawArtifactStored", false);
-            safeFlags.put("rawArtifactDownloadReady", false);
+            safeFlags.put("rawArtifactStored", storedArtifact != null);
+            safeFlags.put("rawArtifactDownloadReady", storedArtifact != null);
             safeFlags.put("secretPlaintextStored", false);
+            safeFlags.put("storageCredentialStored", false);
             long boundedSize = Math.max(0L, Math.min(sizeBytes, properties.effectiveMaxArtifactSizeBytes()));
             String digest = StringUtils.hasText(artifactDigest)
                     ? SensitiveTextSanitizer.boundedText(artifactDigest.trim().toLowerCase(Locale.ROOT), 64)
                     : SensitiveTextSanitizer.sha256Hex(String.valueOf(runId) + ":" + artifactType + ":" + boundedSize);
             return new RunnerArtifactManifest(
                     StringUtils.hasText(artifactType) ? artifactType.trim().toUpperCase(Locale.ROOT) : "LOG",
-                    SensitiveTextSanitizer.sanitizedEvidenceText(storageRef, 256),
+                    storedArtifact == null
+                            ? SensitiveTextSanitizer.sanitizedEvidenceText(storageRef, 256)
+                            : storedArtifact.storageRef(),
                     digest.matches("^[0-9a-f]{1,64}$") ? digest : SensitiveTextSanitizer.sha256Hex(digest),
-                    boundedSize,
+                    storedArtifact == null ? boundedSize : Math.max(0L, Math.min(storedArtifact.sizeBytes(), properties.effectiveMaxArtifactSizeBytes())),
                     Map.copyOf(safeFlags),
                     StringUtils.hasText(captureStatus) ? captureStatus.trim().toUpperCase(Locale.ROOT) : "BLOCKED"
             );
+        }
+
+        /**
+         * Copies the runner-emitted file into controlled storage before the temp workspace is deleted. Failures are
+         * intentionally folded into aggregate flags so one bad artifact does not erase the whole run result.
+         */
+        private UiE2eArtifactStorage.StoredArtifact store(
+                UUID runId,
+                Path workspace,
+                UiE2eArtifactStorage artifactStorage
+        ) {
+            if (runId == null || artifactStorage == null || workspace == null || !StringUtils.hasText(workspaceFile)) {
+                return null;
+            }
+            try {
+                Path source = workspace.resolve(workspaceFile).normalize();
+                if (!source.startsWith(workspace) || !Files.exists(source) || !Files.isRegularFile(source)) {
+                    return null;
+                }
+                return artifactStorage.store(
+                        runId,
+                        UUID.randomUUID(),
+                        StringUtils.hasText(artifactType) ? artifactType.trim().toUpperCase(Locale.ROOT) : "LOG",
+                        source
+                );
+            } catch (IOException ignored) {
+                return null;
+            }
         }
     }
 

@@ -46,6 +46,7 @@ AI 驱动的端到端企业级测试平台。WP1、WP2、WP3、WP4 是研发任�
 | `doc/mvp/final/engineering/WP7-Web管理后台UI-E2E-前端页面设计.md` | WP7 前端工作台、路由、权限、状态、响应式和可测性设计。 |
 | `doc/mvp/final/engineering/WP7-Web管理后台UI-E2E-测试策略与用例脚本.md` | WP7 测试策略、浏览器 smoke、runner smoke、脱敏扫描和质量门禁建议。 |
 | `doc/mvp/final/engineering/WP7-Web管理后台UI-E2E-研发任务拆解.md` | WP7 Epic/Story/Task 研发拆解、实施顺序和 P0 完成定义。 |
+| `doc/mvp/final/engineering/WP7-Web管理后台UI-E2E-M5受控Artifact下载交付说明.md` | WP7 M5 受控 artifact 下载交付记录，覆盖本地受控存储、下载端点、脱敏边界和验证命令。 |
 | `doc/mvp/final/engineering/WP8-测试数据与账号池-正式启动准备.md` | WP8 测试数据与账号池的范围冻结、里程碑、风险和启动准入。 |
 | `doc/mvp/final/engineering/WP8-测试数据与账号池-需求文档与PRD.md` | WP8 需求文档和产品 PRD，定义数据集、账号池、租借、清理和验收标准。 |
 | `doc/mvp/final/engineering/WP8-测试数据与账号池-技术设计与接口契约.md` | WP8 服务端技术设计、数据模型、状态机、权限、审计和 API 契约草案。 |

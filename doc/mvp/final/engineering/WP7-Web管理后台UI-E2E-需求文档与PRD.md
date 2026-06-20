@@ -44,7 +44,7 @@ WP7 的目标是在平台内建立可评审、可执行、可审计、可复用�
 | 人工评审 | 支持提交评审、通过、驳回、归档和意见记录 | 审批状态和原因可追踪 |
 | 受控浏览器运行 | 支持手动触发 Chromium 场景，采集运行状态、步骤结果、失败分类和产物摘要 | 默认禁用 runner，显式开启后仍受 allowlist、超时、并发和产物大小限制 |
 | WP8 账号租借接入 | 运行时通过 `accountLeaseRef` 获取账号摘要与 `secretRefDigest` | 控制面不返回密码、token、cookie 或 `secret://` 原文 |
-| Artifact 摘要 | 记录 screenshot/video/trace/log 的 digest、size、storageRef 和 redaction flags | 首期只提供摘要和对象引用，不承诺原始文件下载 |
+| Artifact 摘要 | 记录 screenshot/video/trace/log 的 digest、size、storageRef 和 redaction flags，并支持受权下载受控存储内的原始文件 | 下载链路只暴露受权端点和 opaque storageRef，不回显宿主机路径或存储凭据 |
 | Flaky 治理 | 标记 `FLAKY_CANDIDATE`、重试摘要和失败原因标签 | 不做无限自动重跑，不做视觉回归判定 |
 | 前端工作台 | 提供 `#ui-e2e` 场景、脚本包、运行、证据摘要和 Flaky 面板 | 桌面和 390px 窄屏均可完成主链路 |
 
@@ -143,7 +143,7 @@ WP7 的目标是在平台内建立可评审、可执行、可审计、可复用�
 3. Runner 默认关闭；关闭状态下 API 需返回可解释错误码，而不是 silent failure。
 4. `accountLeaseRef` 必须来自同项目、同环境允许范围，且租借处于可执行状态。
 5. API、前端、导出、审计、artifact 摘要均不得包含密码、token、cookie、Authorization、`secret://` 原文。
-6. 任何原始 screenshot/video/trace 下载都不属于当前 P0 范围。
+6. 原始 screenshot/trace/log 下载仅限受控存储内已通过脱敏策略的 artifact，并且必须走 `uiE2e:export` 权限校验。
 7. 运行取消必须能回传给受控 runner 或返回稳定 `CANCEL_NOT_SUPPORTED`/`RUNNER_NOT_READY` 类错误。
 
 ## 10. 产品验收标准
@@ -163,9 +163,9 @@ WP7 的目标是在平台内建立可评审、可执行、可审计、可复用�
 
 ## 11. 当前产品口径
 
-当前阶段 WP7 处于“文档启动准备完成、运行时代码未开工”的状态。现阶段产品口径已冻结：
+截至 2026-06-20，WP7 已完成场景、bundle、run、Flaky、`#ui-e2e` 前端工作台、Playwright 子进程 runner、WP8 凭据注入和 artifact 受控下载的 P0 主链路。当前产品口径更新为：
 
-1. Web 管理后台 UI/E2E 是独立工作包，不再由 WP8/WP9/WP10 继续代为占位。
-2. P0 聚焦后台 UI 场景治理、受控执行和摘要化证据，不承诺完整原始产物平台能力。
+1. Web 管理后台 UI/E2E 已形成独立工作包实现，不再由 WP8/WP9/WP10 继续代为占位。
+2. P0 聚焦后台 UI 场景治理、受控执行、摘要化证据和受控 artifact 下载，不承诺完整原始产物平台、对象存储治理或对外分享链路。
 3. 所有凭据边界复用 WP8，所有调度边界复用 WP9，所有报告边界复用 WP10。
-4. 后续任何范围扩大，如移动端、视觉回归、分布式浏览器池、外部回调体系，都必须补充独立 PRD 和准出文档。
+4. 后续任何范围扩大，如移动端、视觉回归、分布式浏览器池、WebSocket 实时日志、外部回调体系或对象存储多介质归档，都必须补充独立 PRD 和准出文档。

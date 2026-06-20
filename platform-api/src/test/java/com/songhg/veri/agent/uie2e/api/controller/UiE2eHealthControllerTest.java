@@ -63,7 +63,7 @@ class UiE2eHealthControllerTest {
                 .andExpect(jsonPath("$.data.artifactPolicy.maxArtifactCount").value(3))
                 .andExpect(jsonPath("$.data.artifactPolicy.maxArtifactSizeBytes").value(4096))
                 .andExpect(jsonPath("$.data.artifactPolicy.redactionScanRequired").value(true))
-                .andExpect(jsonPath("$.data.artifactPolicy.rawArtifactDownloadReady").value(false))
+                .andExpect(jsonPath("$.data.artifactPolicy.rawArtifactDownloadReady").value(true))
                 .andExpect(jsonPath("$.data.policy.foundationReady").value(true))
                 .andExpect(jsonPath("$.data.policy.moduleSkeletonReady").value(true))
                 .andExpect(jsonPath("$.data.policy.healthApiReady").value(true))

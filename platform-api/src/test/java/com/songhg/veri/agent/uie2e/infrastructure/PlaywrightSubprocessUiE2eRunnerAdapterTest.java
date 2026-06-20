@@ -17,6 +17,7 @@ import com.songhg.veri.agent.testdata.application.command.CreateTestAccountPoolC
 import com.songhg.veri.agent.testdata.application.command.UpsertTestPooledAccountCommand;
 import com.songhg.veri.agent.testdata.config.TestDataProperties;
 import com.songhg.veri.agent.testdata.infrastructure.InMemoryTestDataRepository;
+import com.songhg.veri.agent.uie2e.application.port.UiE2eArtifactStorage;
 import com.songhg.veri.agent.uie2e.application.port.UiE2eRunnerPort;
 import com.songhg.veri.agent.uie2e.config.UiE2eProperties;
 import com.songhg.veri.agent.uie2e.domain.UiE2eBundle;
@@ -148,16 +149,19 @@ class PlaywrightSubprocessUiE2eRunnerAdapterTest {
                 true,
                 true,
                 "node",
-                "../portal-web/node_modules"
+                "../portal-web/node_modules",
+                ""
         );
         TestDataFixture testDataFixture = referenceService();
         UUID leaseRef = acquireLease(testDataFixture.referenceService(), testDataFixture.poolId());
+        UiE2eArtifactStorage artifactStorage = new LocalUiE2eArtifactStorage(properties);
         return new Fixture(
                 new PlaywrightSubprocessUiE2eRunnerAdapter(
                         repository,
                         properties,
                         testDataFixture.referenceService(),
                         new ObjectMapper(),
+                        artifactStorage,
                         executor
                 ),
                 leaseRef,

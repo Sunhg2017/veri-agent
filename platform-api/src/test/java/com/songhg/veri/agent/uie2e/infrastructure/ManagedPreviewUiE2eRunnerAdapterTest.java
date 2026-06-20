@@ -296,7 +296,8 @@ class ManagedPreviewUiE2eRunnerAdapterTest {
                 true,
                 true,
                 "node",
-                "../portal-web/node_modules"
+                "../portal-web/node_modules",
+                ""
         );
         TestDataFixture testDataFixture = testDataFixture(secretProviders);
         TestDataCrossWpReferenceService referenceService = testDataFixture.referenceService();

@@ -1,6 +1,7 @@
 package com.songhg.veri.agent.uie2e.config;
 
 import java.util.List;
+import java.nio.file.Path;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.boot.context.properties.bind.ConstructorBinding;
 import org.springframework.boot.context.properties.bind.DefaultValue;
@@ -42,7 +43,9 @@ public record UiE2eProperties(
         /** Node executable used by the local real-browser runner. */
         @DefaultValue("node") String runnerNodeCommand,
         /** Node modules directory that provides the Playwright runtime. */
-        @DefaultValue("../portal-web/node_modules") String runnerNodeModulesDir
+        @DefaultValue("../portal-web/node_modules") String runnerNodeModulesDir,
+        /** Controlled local root used to persist downloadable raw artifacts. */
+        @DefaultValue("") String artifactStorageDir
 ) {
     private static final int DEFAULT_TIMEOUT_SECONDS = 300;
     private static final int MAX_TIMEOUT_SECONDS = 86_400;
@@ -77,6 +80,13 @@ public record UiE2eProperties(
 
     public String effectiveRunnerNodeModulesDir() {
         return StringUtils.hasText(runnerNodeModulesDir) ? runnerNodeModulesDir.trim() : "../portal-web/node_modules";
+    }
+
+    public String effectiveArtifactStorageDir() {
+        if (StringUtils.hasText(artifactStorageDir)) {
+            return artifactStorageDir.trim();
+        }
+        return Path.of(System.getProperty("java.io.tmpdir"), "veri-agent", "ui-e2e-artifacts").toString();
     }
 
     public int effectiveDefaultTimeoutSeconds() {

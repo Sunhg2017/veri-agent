@@ -158,4 +158,4 @@
 
 ## 15. 当前启动结论
 
-WP7 当前处于“文档启动准备完成、运行时代码未开工”的阶段。仓库已具备 Playwright 基础设施、WP8 `runnerAccountContract` 脱敏账号契约、WP9 `UI_TEST` 占位节点语义和 WP10 报告消费边界，因此可以按本拆解直接进入 PRD/设计补齐和 M1 基础实现阶段。当前未实现真实 UI runner、凭据注入 adapter、artifact 存储/下载、Flaky 规则和 `#ui-e2e` 工作台，这些都应按本拆解逐步推进，而不应再由 WP8/WP9/WP10 继续占位。
+截至 2026-06-20，WP7 已完成文档启动准备，并落地 scene/bundle/run/flaky 控制面、`#ui-e2e` 前端工作台、Playwright 子进程真实浏览器 runner、WP8 凭据注入 adapter、artifact 受控存储/下载、浏览器 smoke、runner smoke 和 quality gate。当前剩余工作不再是 P0 主链路缺口，而是后续专项，如 Runner Runbook、发布准出说明、剩余工作盘点、视频/HAR/JUnit XML 扩展、实时日志推送、容器化隔离执行和外部对象存储归档。这些都应按本拆解后续里程碑继续推进，而不应再由 WP8/WP9/WP10 继续占位。

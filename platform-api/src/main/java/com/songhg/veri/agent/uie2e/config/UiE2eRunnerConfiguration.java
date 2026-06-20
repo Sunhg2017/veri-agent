@@ -1,8 +1,10 @@
 package com.songhg.veri.agent.uie2e.config;
 
 import com.songhg.veri.agent.uie2e.application.port.UiE2eRepository;
+import com.songhg.veri.agent.uie2e.application.port.UiE2eArtifactStorage;
 import com.songhg.veri.agent.uie2e.application.port.UiE2eRunnerPort;
 import com.songhg.veri.agent.uie2e.infrastructure.DisabledUiE2eRunnerAdapter;
+import com.songhg.veri.agent.uie2e.infrastructure.LocalUiE2eArtifactStorage;
 import com.songhg.veri.agent.uie2e.infrastructure.ManagedPreviewUiE2eRunnerAdapter;
 import com.songhg.veri.agent.uie2e.infrastructure.PlaywrightSubprocessUiE2eRunnerAdapter;
 import com.songhg.veri.agent.testdata.application.TestDataCrossWpReferenceService;
@@ -18,6 +20,12 @@ import org.springframework.context.annotation.Configuration;
 public class UiE2eRunnerConfiguration {
 
     @Bean
+    @ConditionalOnMissingBean(UiE2eArtifactStorage.class)
+    public UiE2eArtifactStorage uiE2eArtifactStorage(UiE2eProperties properties) {
+        return new LocalUiE2eArtifactStorage(properties);
+    }
+
+    @Bean
     @ConditionalOnMissingBean(UiE2eRunnerPort.class)
     @ConditionalOnProperty(
             prefix = "veri-agent.ui-e2e",
@@ -27,10 +35,16 @@ public class UiE2eRunnerConfiguration {
     public UiE2eRunnerPort enabledUiE2eRunnerPort(
             UiE2eRepository repository,
             UiE2eProperties properties,
-            TestDataCrossWpReferenceService testDataCrossWpReferenceService
+            TestDataCrossWpReferenceService testDataCrossWpReferenceService,
+            UiE2eArtifactStorage artifactStorage
     ) {
         if (Set.of("playwright-subprocess", "real-browser").contains(properties.effectiveRunnerMode())) {
-            return new PlaywrightSubprocessUiE2eRunnerAdapter(repository, properties, testDataCrossWpReferenceService);
+            return new PlaywrightSubprocessUiE2eRunnerAdapter(
+                    repository,
+                    properties,
+                    testDataCrossWpReferenceService,
+                    artifactStorage
+            );
         }
         return new ManagedPreviewUiE2eRunnerAdapter(repository, properties, testDataCrossWpReferenceService);
     }
