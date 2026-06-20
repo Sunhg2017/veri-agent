@@ -44,7 +44,7 @@ WP7 的目标是在平台内建立可评审、可执行、可审计、可复用�
 | 人工评审 | 支持提交评审、通过、驳回、归档和意见记录 | 审批状态和原因可追踪 |
 | 受控浏览器运行 | 支持手动触发 Chromium 场景，采集运行状态、步骤结果、失败分类和产物摘要 | 默认禁用 runner，显式开启后仍受 allowlist、超时、并发和产物大小限制 |
 | WP8 账号租借接入 | 运行时通过 `accountLeaseRef` 获取账号摘要与 `secretRefDigest` | 控制面不返回密码、token、cookie 或 `secret://` 原文 |
-| Artifact 摘要 | 记录 screenshot/video/trace/log 的 digest、size、storageRef 和 redaction flags，并支持受权下载受控存储内的原始文件 | 下载链路只暴露受权端点和 opaque storageRef，不回显宿主机路径或存储凭据 |
+| Artifact 摘要 | 记录 screenshot/trace/runner log、`HAR`、`JUNIT_XML` 以及登录免凭据场景 `VIDEO` 的 digest、size、storageRef 和 redaction flags，并支持受权下载受控存储内的原始文件 | 下载链路只暴露受权端点和 opaque storageRef，不回显宿主机路径或存储凭据；含 `LOGIN` 场景的视频必须阻断 |
 | Flaky 治理 | 标记 `FLAKY_CANDIDATE`、重试摘要和失败原因标签 | 不做无限自动重跑，不做视觉回归判定 |
 | 前端工作台 | 提供 `#ui-e2e` 场景、脚本包、运行、证据摘要和 Flaky 面板 | 桌面和 390px 窄屏均可完成主链路 |
 
@@ -70,7 +70,7 @@ WP7 的目标是在平台内建立可评审、可执行、可审计、可复用�
 | Bundle 评审 `UiE2eBundleReview` | 记录评审状态、意见、审批人与审批时间 |
 | 运行 `UiE2eRun` | 一次浏览器执行记录，关联场景、bundle、账号租借摘要和执行摘要 |
 | 步骤结果 `UiE2eRunStepResult` | 每一步的状态、耗时、失败分类和 artifact 引用摘要 |
-| Artifact Manifest | 运行产生的 screenshot/video/trace/log 摘要 |
+| Artifact Manifest | 运行产生的 screenshot/trace/runner log、`HAR`、`JUNIT_XML` 和受控 `VIDEO` 摘要 |
 | Flaky 标记 `UiE2eFlakyMark` | 对场景或运行添加波动性标记和理由 |
 
 ## 7. 主流程

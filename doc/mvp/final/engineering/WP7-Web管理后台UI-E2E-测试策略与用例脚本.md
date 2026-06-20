@@ -27,7 +27,7 @@
 | Scene | create/list/detail/update/archive、项目 scope、状态保护、来源摘要绑定。 |
 | Bundle | create/detail/list、静态校验、submit-review/approve/reject、危险 import/硬编码凭据阻断。 |
 | Run | create/detail/list/cancel/export、requestKey 幂等、runner disabled、lease invalid、allowlist、timeout。 |
-| Artifact | screenshot/video/trace/log manifest、digest、storageRef、size、redaction flags，以及受控下载端点。 |
+| Artifact | screenshot/trace/runner log、`HAR`、`JUNIT_XML` 和受控 `VIDEO` manifest、digest、storageRef、size、redaction flags，以及受控下载端点。 |
 | Flaky | 标记、更新、查询、审计和状态流。 |
 | WP8 adapter | `runnerAccountContract` 摘要字段白名单和项目越权拦截。 |
 | WP9 contract | `UI_TEST` 节点摘要输出、错误码和未就绪语义。 |
@@ -72,7 +72,7 @@
 ## 4. 安全测试
 
 1. API 响应、日志、审计、导出、artifact 下载响应头和前端 DOM 不包含密码、token、cookie、Authorization、`secret://` 原文、租借 token 明文或宿主机路径。
-2. screenshot/video/trace/log manifest 摘要命中禁止字段时必须阻断，而不是回显敏感命中值。
+2. screenshot/trace/runner log、`HAR`、`JUNIT_XML` 和受控 `VIDEO` manifest 摘要命中禁止字段时必须阻断，而不是回显敏感命中值。
 3. `scopeSummary`、`sourceSummary`、`failureSummary` 和 `resultSummary` 只允许白名单 key。
 4. baseUrl allowlist 必须阻断未批准域名或环境。
 5. runner 关闭时不能通过任何旁路实际执行浏览器脚本。

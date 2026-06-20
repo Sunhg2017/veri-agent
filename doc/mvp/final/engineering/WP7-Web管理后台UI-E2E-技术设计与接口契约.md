@@ -39,7 +39,7 @@
 | `ui_e2e_bundle_review` | `id`、`bundle_id`、`project_id`、`review_status`、`review_comment`、`reviewed_by`、`reviewed_at` | bundle 审批记录。 |
 | `ui_e2e_run` | `id`、`scene_id`、`bundle_id`、`project_id`、`status`、`request_key`、`runner_mode`、`base_url_digest`、`account_lease_ref`、`account_summary_json`、`failure_code`、`failure_summary`、`started_at`、`finished_at` | 单次执行记录和运行摘要。 |
 | `ui_e2e_run_step_result` | `id`、`run_id`、`scene_step_id`、`step_order`、`status`、`duration_ms`、`failure_bucket`、`error_code`、`summary_json` | 步骤级结果和失败分类。 |
-| `ui_e2e_artifact_manifest` | `id`、`run_id`、`artifact_type`、`storage_ref`、`artifact_digest`、`size_bytes`、`redaction_flags_json`、`capture_status` | screenshot/video/trace/log 摘要。 |
+| `ui_e2e_artifact_manifest` | `id`、`run_id`、`artifact_type`、`storage_ref`、`artifact_digest`、`size_bytes`、`redaction_flags_json`、`capture_status` | screenshot/trace/runner log、`HAR`、`JUNIT_XML` 和受控 `VIDEO` 摘要。 |
 | `ui_e2e_flaky_mark` | `id`、`project_id`、`scene_id`、`run_id`、`status`、`reason_code`、`reason_summary` | Flaky 标记与处理结果。 |
 
 约束要求：
@@ -57,7 +57,7 @@
 |---|---|---|
 | `veri-agent.ui-e2e.enabled` | `true` | WP7 控制面总开关。 |
 | `veri-agent.ui-e2e.runner-enabled` | `false` | 浏览器执行总开关，默认关闭。 |
-| `veri-agent.ui-e2e.runner-mode` | `disabled` | `disabled/managed/http-adapter`。 |
+| `veri-agent.ui-e2e.runner-mode` | `disabled` | `disabled`、`managed`、`http-adapter`、`playwright-subprocess`、`real-browser`。 |
 | `veri-agent.ui-e2e.default-timeout-seconds` | `300` | 单次运行默认超时。 |
 | `veri-agent.ui-e2e.max-timeout-seconds` | `1800` | 单次运行最大超时。 |
 | `veri-agent.ui-e2e.max-scenes-per-run` | `1` | P0 单次运行场景数上限。 |
