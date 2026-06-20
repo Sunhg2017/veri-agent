@@ -21,8 +21,8 @@ class PytestSubprocessApiAutomationRunnerAdapterTest {
     @Test
     void executesPytestSubprocessAndMapsJunitResultsWithoutLeakingSecrets() {
         UUID caseId = UUID.randomUUID();
-        RecordingExecutor executor = new RecordingExecutor((command, environment, workingDirectory, timeoutSeconds) -> {
-            assertThat(command).containsExactly(
+        RecordingExecutor executor = new RecordingExecutor((plan, workingDirectory, timeoutSeconds) -> {
+            assertThat(plan.command()).containsExactly(
                     "python3",
                     "-m",
                     "pytest",
@@ -34,11 +34,12 @@ class PytestSubprocessApiAutomationRunnerAdapterTest {
                     "https://api.example.test/service",
                     "tests/test_generated_api.py"
             );
-            assertThat(environment).containsEntry("WP6_RUNNER_SECRET_VALUE_1", "resolved-secret-value");
-            assertThat(environment.get("WP6_RUNNER_SECRET_HEADERS_JSON"))
+            assertThat(plan.environment()).containsEntry("WP6_RUNNER_SECRET_VALUE_1", "resolved-secret-value");
+            assertThat(plan.environment().get("WP6_RUNNER_SECRET_HEADERS_JSON"))
                     .contains("X-VA-WP6-Secret-1")
                     .contains("sha256:secret-ref-digest")
                     .doesNotContain("resolved-secret-value");
+            assertThat(plan.runnerAdapter()).isEqualTo("PYTEST_SUBPROCESS");
             assertThat(Files.readString(workingDirectory.resolve("tests/test_generated_api.py")))
                     .contains(caseId.toString())
                     .contains("/v1/items/1")
@@ -74,6 +75,7 @@ class PytestSubprocessApiAutomationRunnerAdapterTest {
             assertThat(caseResult.status()).isEqualTo("PASSED");
             assertThat(caseResult.assertionSummaryJson())
                     .contains("\"runnerAdapter\":\"PYTEST_SUBPROCESS\"")
+                    .contains("\"sandboxed\":false")
                     .contains("\"rawRequestResponseStored\":false")
                     .contains("\"secretValuesStored\":false")
                     .contains("\"stdoutBytes\":")
@@ -85,7 +87,7 @@ class PytestSubprocessApiAutomationRunnerAdapterTest {
     @Test
     void returnsFailedWhenJunitContainsFailure() {
         UUID caseId = UUID.randomUUID();
-        RecordingExecutor executor = new RecordingExecutor((command, environment, workingDirectory, timeoutSeconds) -> {
+        RecordingExecutor executor = new RecordingExecutor((plan, workingDirectory, timeoutSeconds) -> {
             writeJunit(workingDirectory.resolve("runner-results.xml"), caseId, "failure");
             return new PytestSubprocessApiAutomationRunnerAdapter.ProcessResult(
                     1,
@@ -96,7 +98,7 @@ class PytestSubprocessApiAutomationRunnerAdapterTest {
         });
         PytestSubprocessApiAutomationRunnerAdapter adapter = adapter(executor);
 
-        ApiAutomationRunnerPort.RunnerRunResult result = adapter.run(runRequest(caseId, executor));
+        ApiAutomationRunnerPort.RunnerRunResult result = adapter.run(runRequest(caseId));
 
         assertThat(result.status()).isEqualTo("FAILED");
         assertThat(result.errorCode()).isEqualTo("RUNNER_FAILED");
@@ -110,7 +112,7 @@ class PytestSubprocessApiAutomationRunnerAdapterTest {
     @Test
     void returnsTimeoutWhenSubprocessDoesNotFinish() {
         UUID caseId = UUID.randomUUID();
-        RecordingExecutor executor = new RecordingExecutor((command, environment, workingDirectory, timeoutSeconds) ->
+        RecordingExecutor executor = new RecordingExecutor((plan, workingDirectory, timeoutSeconds) ->
                 new PytestSubprocessApiAutomationRunnerAdapter.ProcessResult(
                         124,
                         true,
@@ -119,7 +121,7 @@ class PytestSubprocessApiAutomationRunnerAdapterTest {
                 ));
         PytestSubprocessApiAutomationRunnerAdapter adapter = adapter(executor);
 
-        ApiAutomationRunnerPort.RunnerRunResult result = adapter.run(runRequest(caseId, executor));
+        ApiAutomationRunnerPort.RunnerRunResult result = adapter.run(runRequest(caseId));
 
         assertThat(result.status()).isEqualTo("TIMEOUT");
         assertThat(result.errorCode()).isEqualTo("RUNNER_TIMEOUT");
@@ -132,7 +134,7 @@ class PytestSubprocessApiAutomationRunnerAdapterTest {
     @Test
     void failsWhenSubprocessDoesNotProduceJunitEvidence() {
         UUID caseId = UUID.randomUUID();
-        RecordingExecutor executor = new RecordingExecutor((command, environment, workingDirectory, timeoutSeconds) ->
+        RecordingExecutor executor = new RecordingExecutor((plan, workingDirectory, timeoutSeconds) ->
                 new PytestSubprocessApiAutomationRunnerAdapter.ProcessResult(
                         0,
                         false,
@@ -141,7 +143,7 @@ class PytestSubprocessApiAutomationRunnerAdapterTest {
                 ));
         PytestSubprocessApiAutomationRunnerAdapter adapter = adapter(executor);
 
-        ApiAutomationRunnerPort.RunnerRunResult result = adapter.run(runRequest(caseId, executor));
+        ApiAutomationRunnerPort.RunnerRunResult result = adapter.run(runRequest(caseId));
 
         assertThat(result.status()).isEqualTo("FAILED");
         assertThat(result.errorCode()).isEqualTo("RUNNER_FAILED");
@@ -153,7 +155,7 @@ class PytestSubprocessApiAutomationRunnerAdapterTest {
 
     @Test
     void rejectsUnsafeSecretHeaderBeforeExecutingSubprocess() {
-        RecordingExecutor executor = new RecordingExecutor((command, environment, workingDirectory, timeoutSeconds) -> {
+        RecordingExecutor executor = new RecordingExecutor((plan, workingDirectory, timeoutSeconds) -> {
             throw new AssertionError("subprocess should not run for unsafe secret header");
         });
         PytestSubprocessApiAutomationRunnerAdapter adapter = adapter(executor);
@@ -181,7 +183,7 @@ class PytestSubprocessApiAutomationRunnerAdapterTest {
 
     @Test
     void rejectsUnsafeCaseMetadataBeforeExecutingSubprocess() {
-        RecordingExecutor executor = new RecordingExecutor((command, environment, workingDirectory, timeoutSeconds) -> {
+        RecordingExecutor executor = new RecordingExecutor((plan, workingDirectory, timeoutSeconds) -> {
             throw new AssertionError("subprocess should not run for unsafe case metadata");
         });
         PytestSubprocessApiAutomationRunnerAdapter adapter = adapter(executor);
@@ -206,6 +208,97 @@ class PytestSubprocessApiAutomationRunnerAdapterTest {
         });
     }
 
+    @Test
+    void buildsDockerSandboxCommandWhenSandboxModeIsEnabled() {
+        UUID caseId = UUID.randomUUID();
+        RecordingExecutor executor = new RecordingExecutor((plan, workingDirectory, timeoutSeconds) -> {
+            assertThat(plan.command()).contains(
+                    "docker",
+                    "run",
+                    "--rm",
+                    "--network",
+                    "bridge",
+                    "--read-only",
+                    "--tmpfs",
+                    "/tmp",
+                    "--tmpfs",
+                    "/run",
+                    "--cap-drop",
+                    "ALL",
+                    "--security-opt",
+                    "no-new-privileges",
+                    "--pids-limit",
+                    "256",
+                    "--memory",
+                    "256m",
+                    "--cpus",
+                    "1",
+                    "--user",
+                    "65534:65534",
+                    "-w",
+                    "/workspace",
+                    "veri-agent/wp6-pytest-runner:test"
+            );
+            assertThat(plan.command()).contains("python3", "-m", "pytest");
+            assertThat(plan.command()).anySatisfy(item -> assertThat(item).contains("/workspace:rw"));
+            assertThat(plan.command()).contains("-e", "WP6_RUNNER_SECRET_VALUE_1=resolved-secret-value");
+            assertThat(plan.command()).contains("-e");
+            assertThat(plan.command().toString()).contains("WP6_RUNNER_SECRET_HEADERS_JSON=");
+            assertThat(plan.environment()).isEmpty();
+            assertThat(plan.sandboxContainerName()).startsWith("wp6-pytest-");
+            assertThat(plan.runnerAdapter()).isEqualTo("PYTEST_DOCKER_SANDBOX");
+            writeJunit(workingDirectory.resolve("runner-results.xml"), caseId, null);
+            return new PytestSubprocessApiAutomationRunnerAdapter.ProcessResult(0, false, "", "");
+        });
+        PytestSubprocessApiAutomationRunnerAdapter adapter = sandboxAdapter(executor);
+
+        ApiAutomationRunnerPort.RunnerRunResult result = adapter.run(new ApiAutomationRunnerPort.RunnerRunRequest(
+                UUID.randomUUID(),
+                scriptBundle(),
+                List.of(automationCase(caseId, "GET", "/v1/items/{id}", 200)),
+                "https://api.example.test/service",
+                10,
+                List.of("sha256:secret-ref-digest"),
+                List.of(new ApiAutomationRunnerPort.RunnerSecret(
+                        "X-VA-WP6-Secret-1",
+                        "sha256:secret-ref-digest",
+                        "resolved-secret-value"
+                ))
+        ));
+
+        assertThat(result.status()).isEqualTo("PASSED");
+        assertThat(result.runnerMode()).isEqualTo("EXTERNAL");
+        assertThat(result.caseResults()).singleElement().satisfies(caseResult -> {
+            assertThat(caseResult.assertionSummaryJson())
+                    .contains("\"runnerAdapter\":\"PYTEST_DOCKER_SANDBOX\"")
+                    .contains("\"sandboxed\":true");
+        });
+        assertThat(executor.workingDirectoryDeleted()).isTrue();
+    }
+
+    @Test
+    void failsClosedWhenDockerSandboxImageIsMissing() {
+        RecordingExecutor executor = new RecordingExecutor((plan, workingDirectory, timeoutSeconds) -> {
+            throw new AssertionError("sandbox executor should not run without an image");
+        });
+        PytestSubprocessApiAutomationRunnerAdapter adapter = new PytestSubprocessApiAutomationRunnerAdapter(
+                new ObjectMapper(),
+                executor,
+                List.of("python3", "-m", "pytest"),
+                PytestSubprocessApiAutomationRunnerAdapter.ExecutionBackend.DOCKER_SANDBOX,
+                List.of("docker"),
+                "",
+                "bridge"
+        );
+
+        ApiAutomationRunnerPort.RunnerRunResult result = adapter.run(runRequest(UUID.randomUUID()));
+
+        assertThat(executor.calls).isZero();
+        assertThat(result.status()).isEqualTo("FAILED");
+        assertThat(result.errorCode()).isEqualTo("RUNNER_FAILED");
+        assertThat(result.errorSummary()).isEqualTo("docker sandbox runner image is required");
+    }
+
     private static PytestSubprocessApiAutomationRunnerAdapter adapter(RecordingExecutor executor) {
         return new PytestSubprocessApiAutomationRunnerAdapter(
                 new ObjectMapper(),
@@ -214,7 +307,19 @@ class PytestSubprocessApiAutomationRunnerAdapterTest {
         );
     }
 
-    private static ApiAutomationRunnerPort.RunnerRunRequest runRequest(UUID caseId, RecordingExecutor executor) {
+    private static PytestSubprocessApiAutomationRunnerAdapter sandboxAdapter(RecordingExecutor executor) {
+        return new PytestSubprocessApiAutomationRunnerAdapter(
+                new ObjectMapper(),
+                executor,
+                List.of("python3", "-m", "pytest"),
+                PytestSubprocessApiAutomationRunnerAdapter.ExecutionBackend.DOCKER_SANDBOX,
+                List.of("docker"),
+                "veri-agent/wp6-pytest-runner:test",
+                "bridge"
+        );
+    }
+
+    private static ApiAutomationRunnerPort.RunnerRunRequest runRequest(UUID caseId) {
         return new ApiAutomationRunnerPort.RunnerRunRequest(
                 UUID.randomUUID(),
                 scriptBundle(),
@@ -299,14 +404,13 @@ class PytestSubprocessApiAutomationRunnerAdapterTest {
 
         @Override
         public PytestSubprocessApiAutomationRunnerAdapter.ProcessResult execute(
-                List<String> command,
-                Map<String, String> environment,
+                PytestSubprocessApiAutomationRunnerAdapter.CommandExecutionPlan plan,
                 Path workingDirectory,
                 int timeoutSeconds
         ) throws IOException {
             this.calls++;
             this.workingDirectory = workingDirectory;
-            return callback.execute(command, environment, workingDirectory, timeoutSeconds);
+            return callback.execute(plan, workingDirectory, timeoutSeconds);
         }
 
         private boolean workingDirectoryDeleted() {
@@ -318,8 +422,7 @@ class PytestSubprocessApiAutomationRunnerAdapterTest {
     private interface ExecutorCallback {
 
         PytestSubprocessApiAutomationRunnerAdapter.ProcessResult execute(
-                List<String> command,
-                Map<String, String> environment,
+                PytestSubprocessApiAutomationRunnerAdapter.CommandExecutionPlan plan,
                 Path workingDirectory,
                 int timeoutSeconds
         ) throws IOException;

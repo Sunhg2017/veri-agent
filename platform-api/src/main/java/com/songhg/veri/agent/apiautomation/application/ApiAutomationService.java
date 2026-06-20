@@ -182,6 +182,8 @@ public class ApiAutomationService {
     }
 
     public ApiAutomationHealthResponse health() {
+        boolean sandboxEnabled = properties.dockerSandboxEnabled();
+        String sandboxImage = properties.effectiveRunnerSandboxImage();
         return new ApiAutomationHealthResponse(
                 "api-automation",
                 "UP",
@@ -207,6 +209,12 @@ public class ApiAutomationService {
                         Map.entry("scriptBundleReviewReady", true),
                         Map.entry("runnerRunReady", true),
                         Map.entry("runnerMode", properties.effectiveRunnerMode()),
+                        Map.entry("runnerExecutionIsolation", sandboxEnabled ? "DOCKER_SANDBOX" : "HOST_PROCESS_OR_MANAGED"),
+                        Map.entry("runnerSandboxEnabled", sandboxEnabled),
+                        Map.entry("runnerSandboxReady", sandboxEnabled && StringUtils.hasText(sandboxImage)),
+                        Map.entry("runnerSandboxImageConfigured", StringUtils.hasText(sandboxImage)),
+                        Map.entry("runnerSandboxNetwork",
+                                sandboxEnabled ? properties.effectiveRunnerSandboxNetwork() : "disabled"),
                         Map.entry("runnerArtifactMaxBytes", properties.effectiveRunnerArtifactMaxBytes()),
                         Map.entry("runnerAllowedBaseUrlConfigured", runTargetGuard.allowedBaseUrlConfigured()),
                         Map.entry("aggregateOnly", true)

@@ -60,6 +60,11 @@ class ApiAutomationControllerTest {
                 .andExpect(jsonPath("$.data.status").value("UP"))
                 .andExpect(jsonPath("$.data.supportedOpenApiVersions[0]").value("3.x"))
                 .andExpect(jsonPath("$.data.runnerEnabled").value(false))
+                .andExpect(jsonPath("$.data.policy.runnerMode").value("managed-http"))
+                .andExpect(jsonPath("$.data.policy.runnerExecutionIsolation").value("HOST_PROCESS_OR_MANAGED"))
+                .andExpect(jsonPath("$.data.policy.runnerSandboxEnabled").value(false))
+                .andExpect(jsonPath("$.data.policy.runnerSandboxReady").value(false))
+                .andExpect(jsonPath("$.data.policy.runnerSandboxNetwork").value("disabled"))
                 .andExpect(jsonPath("$.data.policy.rawRequestResponseStored").value(false))
                 .andExpect(jsonPath("$.data.policy.urlFetchEnabled").value(false));
     }

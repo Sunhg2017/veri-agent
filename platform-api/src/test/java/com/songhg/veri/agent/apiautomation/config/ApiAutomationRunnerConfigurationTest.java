@@ -61,4 +61,34 @@ class ApiAutomationRunnerConfigurationTest {
                             .isInstanceOf(PytestSubprocessApiAutomationRunnerAdapter.class);
                 });
     }
+
+    @Test
+    void createsDockerSandboxRunnerWhenExplicitlySelected() {
+        contextRunner
+                .withPropertyValues(
+                        "veri-agent.api-automation.runner-enabled=true",
+                        "veri-agent.api-automation.runner-mode=pytest-docker-sandbox",
+                        "veri-agent.api-automation.runner-sandbox-image=veri-agent/wp6-pytest-runner:test"
+                )
+                .run(context -> {
+                    assertThat(context).hasSingleBean(ApiAutomationRunnerPort.class);
+                    assertThat(context.getBean(ApiAutomationRunnerPort.class))
+                            .isInstanceOf(PytestSubprocessApiAutomationRunnerAdapter.class);
+                });
+    }
+
+    @Test
+    void createsDockerSandboxRunnerForAliasModeWhenEnabled() {
+        contextRunner
+                .withPropertyValues(
+                        "veri-agent.api-automation.runner-enabled=true",
+                        "veri-agent.api-automation.runner-mode=sandbox",
+                        "veri-agent.api-automation.runner-sandbox-image=veri-agent/wp6-pytest-runner:test"
+                )
+                .run(context -> {
+                    assertThat(context).hasSingleBean(ApiAutomationRunnerPort.class);
+                    assertThat(context.getBean(ApiAutomationRunnerPort.class))
+                            .isInstanceOf(PytestSubprocessApiAutomationRunnerAdapter.class);
+                });
+    }
 }

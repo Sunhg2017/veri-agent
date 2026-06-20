@@ -9,7 +9,7 @@
 
 ## 1. 适用范围
 
-本 Runbook 适用于 WP6 手动试运行和发布准出检查。当前 `platform-api` 默认使用 `DisabledApiAutomationRunnerAdapter`，不会访问外部网络；显式 `runner-enabled=true` 时默认装配基础 `ManagedHttpApiAutomationRunnerAdapter`，仅执行无请求体、丢弃响应体的受控 HTTP 状态码探测；显式 `runner-mode=pytest-subprocess` 时装配 `PytestSubprocessApiAutomationRunnerAdapter`，在临时目录重建已审批脚本包的最小 Pytest/httpx 文件树并执行本地子进程。runner smoke 通过 `ApiAutomationRunnerSmokeTest`、`ManagedHttpApiAutomationRunnerAdapterTest`、`PytestSubprocessApiAutomationRunnerAdapterTest` 和配置测试验证执行分支、allowlist、timeout、loopback HTTP 执行、Pytest 子进程契约、artifact size 准入和脱敏规则。
+本 Runbook 适用于 WP6 手动试运行和发布准出检查。当前 `platform-api` 默认使用 `DisabledApiAutomationRunnerAdapter`，不会访问外部网络；显式 `runner-enabled=true` 时默认装配基础 `ManagedHttpApiAutomationRunnerAdapter`，仅执行无请求体、丢弃响应体的受控 HTTP 状态码探测；显式 `runner-mode=pytest-subprocess` 时装配 `PytestSubprocessApiAutomationRunnerAdapter`，在临时目录重建已审批脚本包的最小 Pytest/httpx 文件树并执行本地子进程；显式 `runner-mode=pytest-docker-sandbox` 时使用同一 adapter 的 Docker 沙箱后端，把临时工作目录 bind mount 到容器内并在只读根文件系统、`tmpfs`、丢弃 capabilities、`no-new-privileges`、CPU/内存/PID 限额下执行 Pytest。runner smoke 通过 `ApiAutomationRunnerSmokeTest`、`ManagedHttpApiAutomationRunnerAdapterTest`、`PytestSubprocessApiAutomationRunnerAdapterTest` 和配置测试验证执行分支、allowlist、timeout、loopback HTTP 执行、Pytest 子进程/沙箱契约、artifact size 准入和脱敏规则。
 
 ## 2. 开关和配置
 
@@ -20,11 +20,15 @@
 | `veri-agent.api-automation.runner-max-cases` | `100` | 单次运行用例上限。 |
 | `veri-agent.api-automation.runner-allowed-base-url-patterns` | 空 | 允许访问的 host 或 `*.domain` 模式，不在 health 中展示明细。 |
 | `veri-agent.api-automation.runner-artifact-max-bytes` | `1048576` | runner case 级断言/产物摘要最大字节数；超限折叠为聚合证据。 |
-| `veri-agent.api-automation.runner-mode` | `managed-http` | `managed-http` 或 `pytest-subprocess`；Pytest 子进程必须显式启用。 |
+| `veri-agent.api-automation.runner-mode` | `managed-http` | `managed-http`、`pytest-subprocess` 或 `pytest-docker-sandbox`；也接受 `pytest`、`sandbox` 等别名。 |
 | `veri-agent.api-automation.runner-pytest-command` | `python3 -m pytest` | Pytest 子进程命令，不经 shell 执行；运行环境需预装 pytest/httpx。 |
-| `WP6_RUNNER_SMOKE` | `0` | `managed/pytest/auto/external/1/true` 时执行 runner smoke。 |
+| `veri-agent.api-automation.runner-sandbox-command` | `docker` | Docker CLI 命令；如需经过包装器，可配置成多段命令。 |
+| `veri-agent.api-automation.runner-sandbox-image` | `veri-agent/wp6-pytest-runner:local` | 沙箱镜像，镜像内需预装 Python、pytest、httpx。 |
+| `veri-agent.api-automation.runner-sandbox-network` | `bridge` | Docker 网络模式；建议使用专用 bridge 网络或显式受控网络。 |
+| `WP6_RUNNER_SMOKE` | `0` | `managed/pytest/sandbox/auto/external/1/true` 时执行 runner smoke。 |
 | `WP6_RUNNER_BASE_URL` | `https://api.wp6-smoke.example.test/service` | `external` 模式必须显式配置并人工评审。 |
 | `WP6_RUNNER_ALLOWED_HOST` | 从 baseUrl 派生 | smoke 测试使用的 allowlist host；通常不需要手工设置。 |
+| `WP6_RUNNER_SANDBOX_BUILD_IMAGE` | `0` | `sandbox` smoke 时是否先构建本地沙箱镜像；默认只跑契约测试，不依赖本机 Docker build。 |
 | `WP6_RUNNER_SECRET_HEADERS_JSON` | `[]` | Pytest 子进程 runner 注入的受控 header 映射，只允许 `X-VA-WP6-Secret-N`。 |
 | `WP6_RUNNER_SECRET_VALUE_N` | 空 | Pytest 子进程 runner 注入的第 N 个 secret 明文值；只存在于运行期进程环境，不得落库、审计或导出。 |
 
@@ -48,6 +52,21 @@ WP6_RUNNER_SMOKE=managed bash scripts/wp6_runner_smoke.sh
 WP6_RUNNER_SMOKE=pytest bash scripts/wp6_runner_smoke.sh
 ```
 
+执行 Docker 沙箱 runner 契约 smoke：
+
+```bash
+WP6_RUNNER_SMOKE=sandbox bash scripts/wp6_runner_smoke.sh
+```
+
+如需同时验证本地镜像可构建：
+
+```bash
+WP6_RUNNER_SMOKE=sandbox \
+WP6_RUNNER_SANDBOX_BUILD_IMAGE=1 \
+WP6_RUNNER_SANDBOX_IMAGE=veri-agent/wp6-pytest-runner:local \
+bash scripts/wp6_runner_smoke.sh
+```
+
 发布模式必须显式启 runner smoke：
 
 ```bash
@@ -62,6 +81,12 @@ WP6_RUNNER_BASE_URL=https://api.example.test/service \
 bash scripts/wp6_runner_smoke.sh
 ```
 
+构建默认 WP6 沙箱镜像：
+
+```bash
+docker build -t veri-agent/wp6-pytest-runner:local -f infra/Dockerfile.wp6-pytest-runner .
+```
+
 ## 4. 准出检查点
 
 1. 未配置 runner smoke 的 release/preprod/prod gate 必须阻断。
@@ -72,6 +97,8 @@ bash scripts/wp6_runner_smoke.sh
 6. runner case 级 artifact 超过 `runner-artifact-max-bytes` 时必须归一化为 run `FAILED`、case result `ERROR` 和 `RUNNER_ARTIFACT_TOO_LARGE`，只保存 `artifactBytes/artifactMaxBytes` 等聚合证据。
 7. 导出结果只能包含 baseUrl host/digest、状态、耗时、错误码和聚合断言摘要。
 8. Pytest 模板的运行期 secret header 映射必须来自 `WP6_RUNNER_SECRET_HEADERS_JSON`，值只能来自对应的 `WP6_RUNNER_SECRET_VALUE_N`；脚本包摘要只保存环境变量名、header pattern 和脱敏策略，不保存 `secret://` 引用或 secret 明文。
+9. `pytest-docker-sandbox` 必须使用只读根文件系统、`tmpfs /tmp`、`tmpfs /run`、`--cap-drop ALL`、`--security-opt no-new-privileges`、`--pids-limit 256`、`--memory 256m`、`--cpus 1` 和非 root UID/GID 运行。
+10. 当前持久化 `api_automation_run.runner_mode` 仍沿用既有 `EXTERNAL` 枚举；沙箱路径通过 health policy、assertion summary 的 `runnerAdapter=PYTEST_DOCKER_SANDBOX` 和 `sandboxed=true` 识别，独立持久化枚举后续由 DB/契约变更承接。
 
 ## 5. 排障
 
@@ -82,6 +109,9 @@ bash scripts/wp6_runner_smoke.sh
 | `RUNNER_DISABLED` | 开发环境符合预期；真实试运行需显式开启 `runner-enabled` 并配置 allowlist。 |
 | smoke 中出现 secret 明文 | 视为安全阻断，先回滚 runner adapter 或禁用 runner，再修复脱敏后重跑。 |
 | Pytest 模板提示 `invalid WP6 runner header mapping` | 检查 `WP6_RUNNER_SECRET_HEADERS_JSON` 是否为数组，元素是否只包含 `X-VA-WP6-Secret-N` 和对应 `WP6_RUNNER_SECRET_VALUE_N`。 |
+| `docker: command not found` 或 `Cannot connect to the Docker daemon` | 宿主机未安装或未启动 Docker；切回 `managed`/`pytest` smoke，或先恢复 Docker 再跑 `sandbox` smoke。 |
+| `docker sandbox runner image is required` | 配置 `runner-sandbox-image` 或设置 `WP6_RUNNER_SANDBOX_IMAGE`；本地预构建可使用 `infra/Dockerfile.wp6-pytest-runner`。 |
+| 容器内无法读取 `/workspace` | 检查宿主机文件系统权限或安全软件；adapter 会尽力放宽临时目录权限，仍失败时先回退到 `pytest-subprocess` 并排查挂载限制。 |
 | `RUNNER_ARTIFACT_TOO_LARGE` | 检查 runner 是否返回了完整 stdout/stderr、请求/响应正文或过大断言详情；默认应缩减为聚合断言摘要，不建议直接调高上限。 |
 | timeout 未归一化 | 检查 runner adapter 返回状态和 errorCode 是否符合契约，服务端应持久化 `TIMEOUT/RUNNER_TIMEOUT`。 |
 
@@ -96,4 +126,4 @@ bash scripts/wp6_runner_smoke.sh
 
 ## 7. 当前限制
 
-当前 smoke 验证 runner port 契约、控制面脱敏、secretRef 引用 digest、SecretProvider 解析、Managed HTTP 受控 header 注入、Pytest subprocess 命令/env/JUnit XML 解析契约、Pytest runtime secret header 映射、runner artifact size 准入与导出脱敏、取消 API 幂等语义、调度型 runner 控制面异步 cancel、基础 Managed HTTP loopback 执行和 WP6 前端复杂页面主链路；`POST /api/v1/api-automation/runs/{id}/cancel` 已作为控制面尽力取消入口，当前同步 runner 通常只能对终态 run 幂等返回，runner smoke 会模拟已持久化 `RUNNING` run 验证未来异步 runner 的取消状态收敛。运行请求支持 `secretRefs`，完整引用只用于运行期 SecretProvider resolve，审计、落库和导出只保留 `sha256:<digest>`；Managed HTTP 和 Pytest subprocess runner 都只允许注入服务端生成的 `X-VA-WP6-Secret-N` header，不接受任意 Authorization/Cookie header 覆盖。Pytest subprocess adapter 不持久化生成源码、stdout/stderr 原文、请求/响应正文或 secret；真实执行环境需预装 Python、pytest 和 httpx。不启动 WP9 调度、不提供真实进程级中断或 Allure 风格报告。后续真实后台调度、进程级中断和分布式任务回收由异步 runner/WP9 调度能力承接。
+当前 smoke 验证 runner port 契约、控制面脱敏、secretRef 引用 digest、SecretProvider 解析、Managed HTTP 受控 header 注入、Pytest subprocess/Docker sandbox 命令/env/JUnit XML 解析契约、Pytest runtime secret header 映射、runner artifact size 准入与导出脱敏、取消 API 幂等语义、调度型 runner 控制面异步 cancel、基础 Managed HTTP loopback 执行和 WP6 前端复杂页面主链路；`POST /api/v1/api-automation/runs/{id}/cancel` 已作为控制面尽力取消入口，当前同步 runner 通常只能对终态 run 幂等返回，runner smoke 会模拟已持久化 `RUNNING` run 验证未来异步 runner 的取消状态收敛。运行请求支持 `secretRefs`，完整引用只用于运行期 SecretProvider resolve，审计、落库和导出只保留 `sha256:<digest>`；Managed HTTP、Pytest subprocess 和 Docker sandbox runner 都只允许注入服务端生成的 `X-VA-WP6-Secret-N` header，不接受任意 Authorization/Cookie header 覆盖。Pytest runner adapter 不持久化生成源码、stdout/stderr 原文、请求/响应正文或 secret；Docker 沙箱模式当前只实现单机 Docker CLI 后端，不启动 WP9 调度、不提供真实进程级中断或 Allure 风格报告，且持久化 run mode 仍沿用 `EXTERNAL`。后续真实后台调度、进程级中断、分布式任务回收和独立沙箱枚举由异步 runner/WP9 调度能力承接。

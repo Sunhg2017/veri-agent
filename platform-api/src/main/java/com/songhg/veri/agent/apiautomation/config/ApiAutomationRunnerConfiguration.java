@@ -22,6 +22,14 @@ public class ApiAutomationRunnerConfiguration {
             havingValue = "true"
     )
     public ApiAutomationRunnerPort enabledApiAutomationRunnerPort(ApiAutomationProperties properties) {
+        if ("pytest-docker-sandbox".equals(properties.effectiveRunnerMode())) {
+            return new PytestSubprocessApiAutomationRunnerAdapter(
+                    properties.effectiveRunnerPytestCommand(),
+                    properties.effectiveRunnerSandboxCommand(),
+                    properties.effectiveRunnerSandboxImage(),
+                    properties.effectiveRunnerSandboxNetwork()
+            );
+        }
         if ("pytest-subprocess".equals(properties.effectiveRunnerMode())) {
             return new PytestSubprocessApiAutomationRunnerAdapter(properties.effectiveRunnerPytestCommand());
         }

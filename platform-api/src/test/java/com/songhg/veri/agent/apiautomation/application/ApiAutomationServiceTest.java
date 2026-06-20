@@ -110,6 +110,49 @@ class ApiAutomationServiceTest {
     }
 
     @Test
+    void reportsDockerSandboxRunnerPolicyInHealth() {
+        ApiAutomationService service = new ApiAutomationService(
+                mock(ApiAutomationRepository.class),
+                new DisabledApiAutomationRunnerAdapter(),
+                mock(OpenApiSpecParser.class),
+                new ApiAutomationProperties(
+                        65_536,
+                        50,
+                        true,
+                        120,
+                        100,
+                        "*.example.test",
+                        1_048_576,
+                        "wp6-api-automation-v1",
+                        true,
+                        "sandbox",
+                        "python3 -m pytest",
+                        "docker",
+                        "veri-agent/wp6-pytest-runner:test",
+                        "wp6-sandbox"
+                ),
+                mock(ApiAutomationPlatformContextClient.class),
+                mock(ApiAutomationActorResolver.class),
+                mock(AssetApiService.class),
+                mock(AssetTestCaseService.class),
+                mock(ModelInvocationService.class),
+                new ApiAutomationModelOutputParser(new ObjectMapper()),
+                new ObjectMapper()
+        );
+
+        var response = service.health();
+
+        assertThat(response.runnerEnabled()).isTrue();
+        assertThat(response.policy()).containsEntry("runnerMode", "pytest-docker-sandbox")
+                .containsEntry("runnerExecutionIsolation", "DOCKER_SANDBOX")
+                .containsEntry("runnerSandboxEnabled", true)
+                .containsEntry("runnerSandboxReady", true)
+                .containsEntry("runnerSandboxImageConfigured", true)
+                .containsEntry("runnerSandboxNetwork", "wp6-sandbox")
+                .containsEntry("runnerAllowedBaseUrlConfigured", true);
+    }
+
+    @Test
     void evaluatesDiffStatusesAgainstWp3ApiAssets() {
         InMemoryApiAutomationRepository repository = new InMemoryApiAutomationRepository();
         AssetApiService assetApiService = mock(AssetApiService.class);

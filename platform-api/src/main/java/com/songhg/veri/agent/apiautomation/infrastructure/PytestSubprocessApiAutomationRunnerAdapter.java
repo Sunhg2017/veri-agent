@@ -32,7 +32,8 @@ import org.xml.sax.SAXException;
 
 /**
  * Explicit WP6 runner adapter that rebuilds the generated Pytest/httpx bundle in a temporary directory and executes it
- * as a local subprocess. The adapter never persists generated source, stdout, stderr, response bodies or secret values.
+ * either as a local subprocess or inside a Docker sandbox. The adapter never persists generated source, stdout, stderr,
+ * response bodies or secret values.
  */
 public class PytestSubprocessApiAutomationRunnerAdapter implements ApiAutomationRunnerPort {
 
@@ -44,13 +45,46 @@ public class PytestSubprocessApiAutomationRunnerAdapter implements ApiAutomation
     private static final int PYTEST_EXTRA_TIMEOUT_SECONDS = 5;
     private static final String SECRET_HEADER_MAPPING_ENV = "WP6_RUNNER_SECRET_HEADERS_JSON";
     private static final String SECRET_VALUE_ENV_PREFIX = "WP6_RUNNER_SECRET_VALUE_";
+    private static final String CONTAINER_WORKSPACE = "/workspace";
+    private static final String RUNNER_MODE_EXTERNAL = "EXTERNAL";
+    private static final String RUNNER_ADAPTER_PYTEST_SUBPROCESS = "PYTEST_SUBPROCESS";
+    private static final String RUNNER_ADAPTER_PYTEST_DOCKER_SANDBOX = "PYTEST_DOCKER_SANDBOX";
 
     private final ObjectMapper objectMapper;
     private final CommandExecutor commandExecutor;
     private final List<String> pytestCommand;
+    private final ExecutionBackend executionBackend;
+    private final List<String> sandboxCommand;
+    private final String sandboxImage;
+    private final String sandboxNetwork;
 
     public PytestSubprocessApiAutomationRunnerAdapter(String pytestCommand) {
-        this(new ObjectMapper(), new ProcessBuilderCommandExecutor(), splitCommand(pytestCommand));
+        this(
+                new ObjectMapper(),
+                new ProcessBuilderCommandExecutor(),
+                splitCommand(pytestCommand),
+                ExecutionBackend.HOST_SUBPROCESS,
+                List.of("docker"),
+                "",
+                "bridge"
+        );
+    }
+
+    public PytestSubprocessApiAutomationRunnerAdapter(
+            String pytestCommand,
+            String sandboxCommand,
+            String sandboxImage,
+            String sandboxNetwork
+    ) {
+        this(
+                new ObjectMapper(),
+                new ProcessBuilderCommandExecutor(),
+                splitCommand(pytestCommand),
+                ExecutionBackend.DOCKER_SANDBOX,
+                splitCommand(sandboxCommand),
+                sandboxImage,
+                sandboxNetwork
+        );
     }
 
     PytestSubprocessApiAutomationRunnerAdapter(
@@ -58,11 +92,37 @@ public class PytestSubprocessApiAutomationRunnerAdapter implements ApiAutomation
             CommandExecutor commandExecutor,
             List<String> pytestCommand
     ) {
+        this(
+                objectMapper,
+                commandExecutor,
+                pytestCommand,
+                ExecutionBackend.HOST_SUBPROCESS,
+                List.of("docker"),
+                "",
+                "bridge"
+        );
+    }
+
+    PytestSubprocessApiAutomationRunnerAdapter(
+            ObjectMapper objectMapper,
+            CommandExecutor commandExecutor,
+            List<String> pytestCommand,
+            ExecutionBackend executionBackend,
+            List<String> sandboxCommand,
+            String sandboxImage,
+            String sandboxNetwork
+    ) {
         this.objectMapper = objectMapper;
         this.commandExecutor = commandExecutor;
         this.pytestCommand = pytestCommand == null || pytestCommand.isEmpty()
                 ? List.of("python3", "-m", "pytest")
                 : List.copyOf(pytestCommand);
+        this.executionBackend = executionBackend == null ? ExecutionBackend.HOST_SUBPROCESS : executionBackend;
+        this.sandboxCommand = sandboxCommand == null || sandboxCommand.isEmpty()
+                ? List.of("docker")
+                : List.copyOf(sandboxCommand);
+        this.sandboxImage = nullToEmpty(sandboxImage).trim();
+        this.sandboxNetwork = StringUtils.hasText(sandboxNetwork) ? sandboxNetwork.trim() : "bridge";
     }
 
     @Override
@@ -85,19 +145,23 @@ public class PytestSubprocessApiAutomationRunnerAdapter implements ApiAutomation
     @Override
     public RunnerRunResult run(RunnerRunRequest request) {
         if (request == null || request.cases() == null || request.cases().isEmpty()) {
-            return new RunnerRunResult("FAILED", "EXTERNAL", "RUNNER_FAILED", "runner request has no cases", List.of());
+            return new RunnerRunResult("FAILED", RUNNER_MODE_EXTERNAL, "RUNNER_FAILED", "runner request has no cases", List.of());
         }
         Instant startedAt = Instant.now();
         if (hasUnsafeCaseMetadata(request.cases())) {
             return failedRun("RUNNER_FAILED", "pytest runner received unsafe case metadata", request.cases(), startedAt);
         }
+        if (executionBackend == ExecutionBackend.DOCKER_SANDBOX && !StringUtils.hasText(sandboxImage)) {
+            return failedRun("RUNNER_FAILED", "docker sandbox runner image is required", request.cases(), startedAt);
+        }
         Path workspace = null;
         try {
             workspace = Files.createTempDirectory("wp6-pytest-runner-");
             writeBundle(workspace, request.cases());
+            relaxWorkspacePermissions(workspace);
             Path junitXml = workspace.resolve("runner-results.xml");
-            List<String> command = command(workspace, request.baseUrl(), junitXml);
-            ProcessResult result = commandExecutor.execute(command, environment(request.secrets()), workspace, request.timeoutSeconds());
+            CommandExecutionPlan executionPlan = commandExecutionPlan(workspace, request.baseUrl(), junitXml, request.secrets());
+            ProcessResult result = commandExecutor.execute(executionPlan, workspace, request.timeoutSeconds());
             List<RunnerCaseResult> caseResults = parseResults(junitXml, request.cases(), result, startedAt);
             return aggregate(caseResults, result);
         } catch (IllegalArgumentException exception) {
@@ -114,19 +178,88 @@ public class PytestSubprocessApiAutomationRunnerAdapter implements ApiAutomation
 
     @Override
     public RunnerCancelResult cancel(UUID runId) {
-        return new RunnerCancelResult(false, "RUNNER_CANCELED", "pytest subprocess runner is synchronous; cancel is best effort only");
+            return new RunnerCancelResult(false, "RUNNER_CANCELED", runnerLabel() + " runner is synchronous; cancel is best effort only");
     }
 
-    private List<String> command(Path workspace, String baseUrl, Path junitXml) {
+    private CommandExecutionPlan commandExecutionPlan(
+            Path workspace,
+            String baseUrl,
+            Path junitXml,
+            List<RunnerSecret> secrets
+    ) {
+        Map<String, String> runnerEnvironment = environment(secrets);
+        return switch (executionBackend) {
+            case HOST_SUBPROCESS -> new CommandExecutionPlan(
+                    hostCommand(baseUrl, junitXml),
+                    runnerEnvironment,
+                    null,
+                    RUNNER_ADAPTER_PYTEST_SUBPROCESS,
+                    List.of()
+            );
+            case DOCKER_SANDBOX -> dockerSandboxPlan(workspace, baseUrl, junitXml, runnerEnvironment);
+        };
+    }
+
+    private List<String> hostCommand(String baseUrl, Path junitXml) {
         List<String> command = new ArrayList<>(pytestCommand);
         command.add("-q");
         command.add("--disable-warnings");
         command.add("--junitxml");
-        command.add(workspace.relativize(junitXml).toString());
+        command.add(junitXml.getFileName().toString());
         command.add("--base-url");
         command.add(baseUrl == null ? "" : baseUrl);
         command.add("tests/test_generated_api.py");
         return command;
+    }
+
+    private CommandExecutionPlan dockerSandboxPlan(
+            Path workspace,
+            String baseUrl,
+            Path junitXml,
+            Map<String, String> runnerEnvironment
+    ) {
+        String containerName = sandboxContainerName();
+        List<String> command = new ArrayList<>(sandboxCommand);
+        command.add("run");
+        command.add("--rm");
+        command.add("--name");
+        command.add(containerName);
+        command.add("--network");
+        command.add(sandboxNetwork);
+        command.add("--read-only");
+        command.add("--tmpfs");
+        command.add("/tmp");
+        command.add("--tmpfs");
+        command.add("/run");
+        command.add("--cap-drop");
+        command.add("ALL");
+        command.add("--security-opt");
+        command.add("no-new-privileges");
+        command.add("--pids-limit");
+        command.add("256");
+        command.add("--memory");
+        command.add("256m");
+        command.add("--cpus");
+        command.add("1");
+        command.add("--user");
+        command.add("65534:65534");
+        command.add("-v");
+        command.add(workspace.toAbsolutePath() + ":" + CONTAINER_WORKSPACE + ":rw");
+        command.add("-w");
+        command.add(CONTAINER_WORKSPACE);
+        runnerEnvironment.forEach((key, value) -> {
+            command.add("-e");
+            command.add(key + "=" + value);
+        });
+        command.add(sandboxImage);
+        command.addAll(hostCommand(baseUrl, junitXml));
+        return new CommandExecutionPlan(
+                command,
+                Map.of(),
+                containerName,
+                RUNNER_ADAPTER_PYTEST_DOCKER_SANDBOX,
+                sandboxCommand
+        );
     }
 
     /**
@@ -394,12 +527,12 @@ public class PytestSubprocessApiAutomationRunnerAdapter implements ApiAutomation
         boolean timeout = processResult.timedOut() || results.stream().anyMatch(result -> "TIMEOUT".equals(result.status()));
         boolean failed = results.stream().anyMatch(result -> "FAILED".equals(result.status()) || "ERROR".equals(result.status()));
         if (timeout) {
-            return new RunnerRunResult("TIMEOUT", "EXTERNAL", "RUNNER_TIMEOUT", "pytest subprocess runner timed out", results);
+            return new RunnerRunResult("TIMEOUT", RUNNER_MODE_EXTERNAL, "RUNNER_TIMEOUT", runnerLabel() + " runner timed out", results);
         }
         if (failed || processResult.exitCode() != 0) {
-            return new RunnerRunResult("FAILED", "EXTERNAL", "RUNNER_FAILED", "pytest subprocess runner found failed cases", results);
+            return new RunnerRunResult("FAILED", RUNNER_MODE_EXTERNAL, "RUNNER_FAILED", runnerLabel() + " runner found failed cases", results);
         }
-        return new RunnerRunResult("PASSED", "EXTERNAL", null, null, results);
+        return new RunnerRunResult("PASSED", RUNNER_MODE_EXTERNAL, null, null, results);
     }
 
     private RunnerRunResult failedRun(
@@ -419,7 +552,7 @@ public class PytestSubprocessApiAutomationRunnerAdapter implements ApiAutomation
                         errorSummary
                 ))
                 .toList();
-        return new RunnerRunResult("FAILED", "EXTERNAL", errorCode, errorSummary, results);
+        return new RunnerRunResult("FAILED", RUNNER_MODE_EXTERNAL, errorCode, errorSummary, results);
     }
 
     private String assertionSummary(Integer expectedStatus, String status, ProcessResult processResult) {
@@ -427,7 +560,10 @@ public class PytestSubprocessApiAutomationRunnerAdapter implements ApiAutomation
         summary.put("aggregateOnly", true);
         summary.put("rawRequestResponseStored", false);
         summary.put("secretValuesStored", false);
-        summary.put("runnerAdapter", "PYTEST_SUBPROCESS");
+        summary.put("runnerAdapter", executionBackend == ExecutionBackend.DOCKER_SANDBOX
+                ? RUNNER_ADAPTER_PYTEST_DOCKER_SANDBOX
+                : RUNNER_ADAPTER_PYTEST_SUBPROCESS);
+        summary.put("sandboxed", executionBackend == ExecutionBackend.DOCKER_SANDBOX);
         summary.put("assertions", List.of("PYTEST_HTTPX"));
         summary.put("expectedStatus", expectedStatus);
         summary.put("status", status);
@@ -454,9 +590,9 @@ public class PytestSubprocessApiAutomationRunnerAdapter implements ApiAutomation
             return null;
         }
         if (processResult.timedOut() || "TIMEOUT".equals(status)) {
-            return "pytest subprocess timed out";
+            return runnerLabel() + " timed out";
         }
-        return "pytest subprocess case did not pass";
+        return runnerLabel() + " case did not pass";
     }
 
     private int utf8Bytes(String value) {
@@ -499,6 +635,37 @@ public class PytestSubprocessApiAutomationRunnerAdapter implements ApiAutomation
         return value == null ? "" : value;
     }
 
+    private void relaxWorkspacePermissions(Path workspace) {
+        if (executionBackend != ExecutionBackend.DOCKER_SANDBOX || workspace == null || !Files.exists(workspace)) {
+            return;
+        }
+        try (var stream = Files.walk(workspace)) {
+            stream.forEach(this::relaxPathPermissions);
+        } catch (IOException ignored) {
+            // Best-effort only; docker sandbox execution will fail closed if the workspace stays inaccessible.
+        }
+    }
+
+    private void relaxPathPermissions(Path path) {
+        if (path == null) {
+            return;
+        }
+        boolean directory = Files.isDirectory(path);
+        path.toFile().setReadable(true, false);
+        path.toFile().setWritable(true, false);
+        path.toFile().setExecutable(directory, false);
+    }
+
+    private String sandboxContainerName() {
+        return "wp6-pytest-" + UUID.randomUUID().toString().replace("-", "");
+    }
+
+    private String runnerLabel() {
+        return executionBackend == ExecutionBackend.DOCKER_SANDBOX
+                ? "pytest docker sandbox"
+                : "pytest subprocess";
+    }
+
     private static List<String> splitCommand(String command) {
         if (!StringUtils.hasText(command)) {
             return List.of("python3", "-m", "pytest");
@@ -537,11 +704,19 @@ public class PytestSubprocessApiAutomationRunnerAdapter implements ApiAutomation
     interface CommandExecutor {
 
         ProcessResult execute(
-                List<String> command,
-                Map<String, String> environment,
+                CommandExecutionPlan plan,
                 Path workingDirectory,
                 int timeoutSeconds
         ) throws IOException, InterruptedException;
+    }
+
+    record CommandExecutionPlan(
+            List<String> command,
+            Map<String, String> environment,
+            String sandboxContainerName,
+            String runnerAdapter,
+            List<String> sandboxCleanupCommand
+    ) {
     }
 
     record ProcessResult(
@@ -556,26 +731,32 @@ public class PytestSubprocessApiAutomationRunnerAdapter implements ApiAutomation
 
         @Override
         public ProcessResult execute(
-                List<String> command,
-                Map<String, String> environment,
+                CommandExecutionPlan plan,
                 Path workingDirectory,
                 int timeoutSeconds
         ) throws IOException, InterruptedException {
             Path stdoutFile = workingDirectory.resolve("pytest-stdout.log");
             Path stderrFile = workingDirectory.resolve("pytest-stderr.log");
-            ProcessBuilder builder = new ProcessBuilder(command)
+            ProcessBuilder builder = new ProcessBuilder(plan.command())
                     .directory(workingDirectory.toFile())
                     .redirectOutput(stdoutFile.toFile())
                     .redirectError(stderrFile.toFile());
-            builder.environment().putAll(environment);
+            builder.environment().putAll(plan.environment());
             Process process = builder.start();
-            boolean completed = process.waitFor(Math.max(1, timeoutSeconds) + PYTEST_EXTRA_TIMEOUT_SECONDS, TimeUnit.SECONDS);
-            if (!completed) {
+            try {
+                boolean completed = process.waitFor(Math.max(1, timeoutSeconds) + PYTEST_EXTRA_TIMEOUT_SECONDS, TimeUnit.SECONDS);
+                if (!completed) {
+                    process.destroyForcibly();
+                    process.waitFor(1, TimeUnit.SECONDS);
+                    cleanupSandbox(plan);
+                    return new ProcessResult(124, true, readLog(stdoutFile), readLog(stderrFile));
+                }
+                return new ProcessResult(process.exitValue(), false, readLog(stdoutFile), readLog(stderrFile));
+            } catch (InterruptedException exception) {
                 process.destroyForcibly();
-                process.waitFor(1, TimeUnit.SECONDS);
-                return new ProcessResult(124, true, readLog(stdoutFile), readLog(stderrFile));
+                cleanupSandbox(plan);
+                throw exception;
             }
-            return new ProcessResult(process.exitValue(), false, readLog(stdoutFile), readLog(stderrFile));
         }
 
         private String readLog(Path path) throws IOException {
@@ -586,5 +767,34 @@ public class PytestSubprocessApiAutomationRunnerAdapter implements ApiAutomation
                 return new String(inputStream.readNBytes(OUTPUT_READ_MAX_BYTES), StandardCharsets.UTF_8);
             }
         }
+
+        private void cleanupSandbox(CommandExecutionPlan plan) {
+            if (plan == null
+                    || !StringUtils.hasText(plan.sandboxContainerName())
+                    || plan.sandboxCleanupCommand() == null
+                    || plan.sandboxCleanupCommand().isEmpty()) {
+                return;
+            }
+            try {
+                List<String> cleanupCommand = new ArrayList<>(plan.sandboxCleanupCommand());
+                cleanupCommand.add("rm");
+                cleanupCommand.add("-f");
+                cleanupCommand.add(plan.sandboxContainerName());
+                Process cleanup = new ProcessBuilder(cleanupCommand)
+                        .redirectOutput(ProcessBuilder.Redirect.DISCARD)
+                        .redirectError(ProcessBuilder.Redirect.DISCARD)
+                        .start();
+                cleanup.waitFor(5, TimeUnit.SECONDS);
+            } catch (IOException | InterruptedException ignored) {
+                if (ignored instanceof InterruptedException exception) {
+                    Thread.currentThread().interrupt();
+                }
+            }
+        }
+    }
+
+    enum ExecutionBackend {
+        HOST_SUBPROCESS,
+        DOCKER_SANDBOX
     }
 }

@@ -8,13 +8,36 @@ case "$mode" in
   1|true|TRUE|auto)
     mode="managed"
     ;;
+  sandbox|docker-sandbox|pytest-docker-sandbox)
+    mode="sandbox"
+    ;;
   managed|external|pytest)
     ;;
   *)
-    echo "Unsupported WP6_RUNNER_SMOKE=${WP6_RUNNER_SMOKE:-}; use managed, pytest, auto, external, 1, or true." >&2
+    echo "Unsupported WP6_RUNNER_SMOKE=${WP6_RUNNER_SMOKE:-}; use managed, pytest, sandbox, auto, external, 1, or true." >&2
     exit 2
     ;;
 esac
+
+is_truthy() {
+  case "${1:-}" in
+    1|true|TRUE|yes|YES|on|ON)
+      return 0
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+}
+
+maybe_build_sandbox_image() {
+  if [[ "$mode" != "sandbox" ]] || ! is_truthy "${WP6_RUNNER_SANDBOX_BUILD_IMAGE:-0}"; then
+    return
+  fi
+  local image="${WP6_RUNNER_SANDBOX_IMAGE:-veri-agent/wp6-pytest-runner:local}"
+  echo "== building wp6 sandbox runner image ${image} =="
+  docker build -t "$image" -f "$ROOT_DIR/infra/Dockerfile.wp6-pytest-runner" "$ROOT_DIR"
+}
 
 derive_host() {
   local url="$1"
@@ -43,6 +66,11 @@ fi
 
 echo "== wp6 runner ${mode} smoke =="
 if [[ "$mode" == "pytest" ]]; then
+  mvn -B -pl platform-api \
+    -Dtest=PytestSubprocessApiAutomationRunnerAdapterTest,ApiAutomationRunnerConfigurationTest \
+    test
+elif [[ "$mode" == "sandbox" ]]; then
+  maybe_build_sandbox_image
   mvn -B -pl platform-api \
     -Dtest=PytestSubprocessApiAutomationRunnerAdapterTest,ApiAutomationRunnerConfigurationTest \
     test

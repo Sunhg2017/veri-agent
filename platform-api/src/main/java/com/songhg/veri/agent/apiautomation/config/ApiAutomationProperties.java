@@ -30,8 +30,14 @@ public record ApiAutomationProperties(
         @DefaultValue("true") boolean modelFallbackEnabled,
         /** runner adapter 模式；默认托管 HTTP 探测，pytest 子进程必须显式启用 */
         @DefaultValue("managed-http") String runnerMode,
-        /** pytest 子进程命令；仅 runner-mode=pytest-subprocess 时使用，不经 shell 执行 */
-        @DefaultValue("python3 -m pytest") String runnerPytestCommand
+        /** pytest 子进程命令；仅 runner-mode=pytest-subprocess/pytest-docker-sandbox 时使用，不经 shell 执行 */
+        @DefaultValue("python3 -m pytest") String runnerPytestCommand,
+        /** Docker 沙箱执行器命令；仅 runner-mode=pytest-docker-sandbox 时使用 */
+        @DefaultValue("docker") String runnerSandboxCommand,
+        /** Docker 沙箱执行器镜像；镜像内需预装 python/pytest/httpx */
+        @DefaultValue("veri-agent/wp6-pytest-runner:local") String runnerSandboxImage,
+        /** Docker 沙箱执行器网络模式；默认 bridge */
+        @DefaultValue("bridge") String runnerSandboxNetwork
 ) {
     private static final int DEFAULT_SPEC_MAX_BYTES = 1_048_576;
     private static final int MAX_SPEC_BYTES = 5 * 1_048_576;
@@ -45,6 +51,9 @@ public record ApiAutomationProperties(
     private static final int MAX_RUNNER_ARTIFACT_MAX_BYTES = 10 * 1_048_576;
     private static final String DEFAULT_RUNNER_MODE = "managed-http";
     private static final String DEFAULT_RUNNER_PYTEST_COMMAND = "python3 -m pytest";
+    private static final String DEFAULT_RUNNER_SANDBOX_COMMAND = "docker";
+    private static final String DEFAULT_RUNNER_SANDBOX_IMAGE = "veri-agent/wp6-pytest-runner:local";
+    private static final String DEFAULT_RUNNER_SANDBOX_NETWORK = "bridge";
 
     @ConstructorBinding
     public ApiAutomationProperties {
@@ -70,7 +79,10 @@ public record ApiAutomationProperties(
                 promptKey,
                 modelFallbackEnabled,
                 DEFAULT_RUNNER_MODE,
-                DEFAULT_RUNNER_PYTEST_COMMAND
+                DEFAULT_RUNNER_PYTEST_COMMAND,
+                DEFAULT_RUNNER_SANDBOX_COMMAND,
+                DEFAULT_RUNNER_SANDBOX_IMAGE,
+                DEFAULT_RUNNER_SANDBOX_NETWORK
         );
     }
 
@@ -96,7 +108,10 @@ public record ApiAutomationProperties(
                 promptKey,
                 modelFallbackEnabled,
                 DEFAULT_RUNNER_MODE,
-                DEFAULT_RUNNER_PYTEST_COMMAND
+                DEFAULT_RUNNER_PYTEST_COMMAND,
+                DEFAULT_RUNNER_SANDBOX_COMMAND,
+                DEFAULT_RUNNER_SANDBOX_IMAGE,
+                DEFAULT_RUNNER_SANDBOX_NETWORK
         );
     }
 
@@ -128,6 +143,7 @@ public record ApiAutomationProperties(
         return switch (normalized) {
             case "managed", "managed-http" -> "managed-http";
             case "pytest", "pytest-subprocess" -> "pytest-subprocess";
+            case "sandbox", "docker-sandbox", "sandbox-docker", "pytest-docker-sandbox" -> "pytest-docker-sandbox";
             default -> DEFAULT_RUNNER_MODE;
         };
     }
@@ -137,6 +153,32 @@ public record ApiAutomationProperties(
             return DEFAULT_RUNNER_PYTEST_COMMAND;
         }
         return runnerPytestCommand.trim();
+    }
+
+    public String effectiveRunnerSandboxCommand() {
+        if (runnerSandboxCommand == null || runnerSandboxCommand.trim().isEmpty()) {
+            return DEFAULT_RUNNER_SANDBOX_COMMAND;
+        }
+        return runnerSandboxCommand.trim();
+    }
+
+    public String effectiveRunnerSandboxImage() {
+        if (runnerSandboxImage == null || runnerSandboxImage.trim().isEmpty()) {
+            return DEFAULT_RUNNER_SANDBOX_IMAGE;
+        }
+        return runnerSandboxImage.trim();
+    }
+
+    public String effectiveRunnerSandboxNetwork() {
+        if (runnerSandboxNetwork == null || runnerSandboxNetwork.trim().isEmpty()) {
+            return DEFAULT_RUNNER_SANDBOX_NETWORK;
+        }
+        String normalized = runnerSandboxNetwork.trim().toLowerCase(Locale.ROOT);
+        return normalized.matches("[a-z0-9][a-z0-9_.-]*") ? normalized : DEFAULT_RUNNER_SANDBOX_NETWORK;
+    }
+
+    public boolean dockerSandboxEnabled() {
+        return "pytest-docker-sandbox".equals(effectiveRunnerMode());
     }
 
     private static int boundedPositive(int value, int defaultValue, int maxValue) {

@@ -1,0 +1,16 @@
+veri-agent:
+  api-automation:
+    spec-max-bytes: ${WP6_SPEC_MAX_BYTES:1048576}
+    endpoint-max-count: ${WP6_ENDPOINT_MAX_COUNT:500}
+    runner-enabled: ${WP6_RUNNER_ENABLED:false}
+    runner-timeout-seconds: ${WP6_RUNNER_TIMEOUT_SECONDS:120}
+    runner-max-cases: ${WP6_RUNNER_MAX_CASES:100}
+    runner-allowed-base-url-patterns: ${WP6_RUNNER_ALLOWED_BASE_URL_PATTERNS:}
+    runner-artifact-max-bytes: ${WP6_RUNNER_ARTIFACT_MAX_BYTES:1048576}
+    prompt-key: ${WP6_PROMPT_KEY:wp6-api-automation-v1}
+    model-fallback-enabled: ${WP6_MODEL_FALLBACK_ENABLED:true}
+    runner-mode: ${WP6_RUNNER_MODE:managed-http}
+    runner-pytest-command: ${WP6_RUNNER_PYTEST_COMMAND:python3 -m pytest}
+    runner-sandbox-command: ${WP6_RUNNER_SANDBOX_COMMAND:docker}
+    runner-sandbox-image: ${WP6_RUNNER_SANDBOX_IMAGE:veri-agent/wp6-pytest-runner:local}
+    runner-sandbox-network: ${WP6_RUNNER_SANDBOX_NETWORK:bridge}

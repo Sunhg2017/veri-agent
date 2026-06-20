@@ -118,11 +118,13 @@ OpenAPI fixture smoke 可独立执行：
 bash scripts/wp6_openapi_fixture_smoke.sh
 ```
 
-发布或显式 runner smoke。`managed/auto` 使用仓库内受控 runner port contract 测试、基础 Managed HTTP loopback adapter 测试和 Pytest subprocess adapter 契约测试；`pytest` 只跑 Pytest subprocess adapter 契约；`external` 要求显式提供已评审的 baseUrl 并派生 allowlist host：
+发布或显式 runner smoke。`managed/auto` 使用仓库内受控 runner port contract 测试、基础 Managed HTTP loopback adapter 测试和 Pytest runner 契约测试；`pytest` 只跑宿主机 Pytest adapter 契约；`sandbox` 只跑 Docker 沙箱 adapter/config 契约，可选预构建镜像；`external` 要求显式提供已评审的 baseUrl 并派生 allowlist host：
 
 ```bash
 WP6_RUNNER_SMOKE=managed bash scripts/wp6_runner_smoke.sh
 WP6_RUNNER_SMOKE=pytest bash scripts/wp6_runner_smoke.sh
+WP6_RUNNER_SMOKE=sandbox bash scripts/wp6_runner_smoke.sh
+WP6_RUNNER_SMOKE=sandbox WP6_RUNNER_SANDBOX_BUILD_IMAGE=1 bash scripts/wp6_runner_smoke.sh
 WP6_RUNNER_SMOKE=external WP6_RUNNER_BASE_URL=https://api.example.test/service bash scripts/wp6_runner_smoke.sh
 WP6_GATE_MODE=release WP6_RUNNER_SMOKE=managed bash scripts/wp6_quality_gate.sh
 ```
@@ -138,7 +140,7 @@ WP6_GATE_MODE=release WP6_RUNNER_SMOKE=managed bash scripts/wp6_quality_gate.sh
 5. 前端 Playwright smoke：`bash scripts/wp6_frontend_e2e_smoke.sh`，覆盖桌面/390px 窄屏下的导入、diff 筛选、同步、已同步 API 范围选择、生成任务历史详情回看、脚本包评审、运行、取消和脱敏导出；可用 `WP6_SKIP_FRONTEND_E2E=1` 显式跳过。
 6. 前端构建：`npm run build`。
 7. DB validation：`bash db/validation/run_wp1_db_validation.sh`。
-8. runner smoke：默认关闭；release/preprod/prod 模式必须显式配置，当前调用 `scripts/wp6_runner_smoke.sh` 覆盖 runner 执行分支、allowlist 阻断、基础 loopback HTTP pass/fail/path-template/timeout、Pytest subprocess 命令/env/JUnit XML 解析、失败摘要和导出脱敏。
+8. runner smoke：默认关闭；release/preprod/prod 模式必须显式配置，当前调用 `scripts/wp6_runner_smoke.sh` 覆盖 runner 执行分支、allowlist 阻断、基础 loopback HTTP pass/fail/path-template/timeout、Pytest subprocess/Docker sandbox 命令/env/JUnit XML 解析、失败摘要和导出脱敏；如需预检查沙箱镜像，可显式设置 `WP6_RUNNER_SANDBOX_BUILD_IMAGE=1`。
 
 ## 8. 准出标准
 
