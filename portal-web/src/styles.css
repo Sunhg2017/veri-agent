@@ -1400,6 +1400,212 @@ tbody tr:hover td {
 }
 
 /* ============================================================
+   WP3 资产追踪拓扑
+   ============================================================ */
+
+.trace-summary-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: var(--space-sm);
+}
+
+.trace-summary-strip span,
+.trace-topology-summary span,
+.trace-topology-legend span {
+  min-height: 24px;
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-sm);
+  background: var(--bg-alt);
+  color: var(--text-secondary);
+  font-size: var(--font-size-xs);
+  overflow-wrap: anywhere;
+}
+
+.trace-topology-heading {
+  display: grid;
+  gap: 4px;
+  margin-bottom: var(--space-sm);
+}
+
+.trace-topology-heading strong {
+  color: var(--text-primary);
+  font-size: var(--font-size-sm);
+  overflow-wrap: anywhere;
+}
+
+.trace-topology-heading span {
+  color: var(--text-tertiary);
+  font-size: var(--font-size-xs);
+}
+
+.trace-topology-panel {
+  display: grid;
+  gap: var(--space-sm);
+}
+
+.trace-topology-summary,
+.trace-topology-footer,
+.trace-topology-hint,
+.trace-topology-legend {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.trace-topology-scroller {
+  overflow-x: auto;
+  padding-bottom: 4px;
+}
+
+.trace-topology-graph {
+  position: relative;
+  min-width: 100%;
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-sm);
+  background:
+    linear-gradient(to right, rgba(15, 23, 42, 0.03) 1px, transparent 1px) 0 0 / 216px 100%,
+    linear-gradient(to bottom, rgba(15, 23, 42, 0.02) 1px, transparent 1px) 0 0 / 100% 96px,
+    var(--surface);
+}
+
+.trace-topology-svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.trace-topology-edge {
+  fill: none;
+  stroke: rgba(71, 85, 105, 0.35);
+  stroke-width: 1.5;
+}
+
+.trace-topology-edge.emphasis {
+  stroke: rgba(91, 110, 247, 0.7);
+  stroke-width: 2.2;
+}
+
+.trace-topology-lane {
+  position: absolute;
+}
+
+.trace-topology-lane-label {
+  min-height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 0 10px;
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-sm);
+  background: rgba(248, 250, 252, 0.92);
+  color: var(--text-secondary);
+  font-size: var(--font-size-xs);
+  font-weight: 650;
+}
+
+.trace-topology-lane-label strong {
+  color: var(--text-primary);
+  font-size: var(--font-size-xs);
+}
+
+.trace-topology-node-shell {
+  position: absolute;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 4px;
+  align-items: start;
+}
+
+.trace-topology-node {
+  min-height: 78px;
+  display: grid;
+  gap: 4px;
+  align-content: start;
+  padding: 10px 11px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text-secondary);
+  text-align: left;
+  cursor: pointer;
+  transition: border-color var(--transition-fast), box-shadow var(--transition-fast), background var(--transition-fast);
+}
+
+.trace-topology-node:hover {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--primary) 30%, transparent);
+}
+
+.trace-topology-node strong,
+.trace-topology-node em,
+.trace-topology-node span {
+  overflow-wrap: anywhere;
+}
+
+.trace-topology-node strong {
+  color: var(--text-primary);
+  font-size: var(--font-size-sm);
+  line-height: 1.35;
+}
+
+.trace-topology-node em {
+  color: var(--text-tertiary);
+  font-size: var(--font-size-xs);
+  font-style: normal;
+  line-height: 1.35;
+}
+
+.trace-topology-node-type {
+  color: var(--primary);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.trace-topology-node.focus {
+  border-color: rgba(91, 110, 247, 0.7);
+  background: rgba(91, 110, 247, 0.08);
+}
+
+.trace-topology-node.neighbor {
+  border-color: rgba(59, 130, 246, 0.32);
+}
+
+.trace-topology-node.context {
+  background: rgba(248, 250, 252, 0.92);
+}
+
+.trace-topology-open {
+  align-self: start;
+}
+
+.trace-topology-legend .focus {
+  color: var(--primary);
+  background: rgba(91, 110, 247, 0.1);
+}
+
+.trace-topology-legend .neighbor {
+  color: #1d4ed8;
+  background: rgba(59, 130, 246, 0.1);
+}
+
+.trace-topology-legend .context {
+  color: var(--text-secondary);
+}
+
+.trace-topology-hint {
+  color: var(--text-tertiary);
+  font-size: var(--font-size-xs);
+}
+
+/* ============================================================
    WP6 接口自动化
    ============================================================ */
 

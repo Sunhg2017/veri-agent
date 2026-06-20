@@ -13,22 +13,34 @@ import {
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import type { CurrentUser } from '../api/auth';
 import {
+  buildAssetTraceTopologyGraph,
+  labelAssetTraceSubjectType,
+  type AssetTraceSubject
+} from '../assetTraceTopology';
+import {
   ASSET_API_STATUSES,
+  ASSET_FLOW_STATUSES,
+  ASSET_PAGE_STATUSES,
   ASSET_REQUIREMENT_STATUSES,
   ASSET_TEST_CASE_STATUSES,
   fetchAssetApis,
+  fetchAssetBusinessFlows,
   fetchAssetHealth,
+  fetchAssetPages,
   fetchAssetRequirements,
   fetchAssetTestCases,
   fetchAssetTraceLinks,
   type AssetApiView,
+  type AssetBusinessFlowView,
   type AssetHealth,
+  type AssetPageView,
   type AssetRequirementView,
   type AssetTestCaseView,
   type TraceLinkView
 } from '../api/assets';
 import { hasPermission } from '../permissions';
 import type { AssetNavigationKey } from './AssetStructuredWorkbench';
+import { AssetTraceTopologyPanel, describeTopologyFocus } from './AssetTraceTopologyPanel';
 
 type AssetNavigationTab = {
   key: AssetNavigationKey;
@@ -48,6 +60,8 @@ type TraceFilters = {
   projectId: string;
   requirementStatus: string;
   apiStatus: string;
+  pageStatus: string;
+  flowStatus: string;
   caseStatus: string;
   coverage: string;
   keyword: string;
@@ -55,16 +69,13 @@ type TraceFilters = {
 
 type CoverageStatus = 'covered' | 'partial' | 'uncovered';
 type ImpactLevel = 'low' | 'medium' | 'high';
-type SubjectType = 'requirement' | 'api' | 'case';
-
-type SelectedSubject = {
-  type: SubjectType;
-  id: string;
-};
+type SelectedSubject = AssetTraceSubject;
 
 type MatrixRow = {
   requirement: AssetRequirementView;
   apis: AssetApiView[];
+  pages: AssetPageView[];
+  flows: AssetBusinessFlowView[];
   cases: AssetTestCaseView[];
   coverage: CoverageStatus;
   impactLevel: ImpactLevel;
@@ -74,24 +85,35 @@ type MatrixRow = {
 
 type TraceRelations = {
   requirementToApi: Map<string, Set<string>>;
+  requirementToPage: Map<string, Set<string>>;
+  requirementToFlow: Map<string, Set<string>>;
   requirementToCase: Map<string, Set<string>>;
   apiToRequirement: Map<string, Set<string>>;
+  pageToRequirement: Map<string, Set<string>>;
+  flowToRequirement: Map<string, Set<string>>;
   apiToCase: Map<string, Set<string>>;
   caseToRequirement: Map<string, Set<string>>;
   caseToApi: Map<string, Set<string>>;
+};
+
+type TraceContextItem = {
+  primary: string;
+  secondary?: string;
 };
 
 const initialFilters: TraceFilters = {
   projectId: '',
   requirementStatus: '',
   apiStatus: '',
+  pageStatus: '',
+  flowStatus: '',
   caseStatus: '',
   coverage: '',
   keyword: ''
 };
 
 const coverageLabels: Record<CoverageStatus, string> = {
-  covered: '已覆盖',
+  covered: '全覆盖',
   partial: '部分覆盖',
   uncovered: '未覆盖'
 };
@@ -112,6 +134,8 @@ export function AssetTraceWorkbench(props: {
   const [health, setHealth] = useState<AssetHealth | null>(null);
   const [requirements, setRequirements] = useState<AssetRequirementView[]>([]);
   const [apis, setApis] = useState<AssetApiView[]>([]);
+  const [pages, setPages] = useState<AssetPageView[]>([]);
+  const [flows, setFlows] = useState<AssetBusinessFlowView[]>([]);
   const [cases, setCases] = useState<AssetTestCaseView[]>([]);
   const [links, setLinks] = useState<TraceLinkView[]>([]);
   const [filters, setFilters] = useState<TraceFilters>(initialFilters);
@@ -136,6 +160,8 @@ export function AssetTraceWorkbench(props: {
       setHealth(null);
       setRequirements([]);
       setApis([]);
+      setPages([]);
+      setFlows([]);
       setCases([]);
       setLinks([]);
       setLoadState({ loading: false });
@@ -144,7 +170,7 @@ export function AssetTraceWorkbench(props: {
 
     setLoadState({ loading: true });
     const projectId = appliedFilters.projectId.trim();
-    const [healthResult, requirementResult, apiResult, caseResult, linkResult] = await Promise.allSettled([
+    const [healthResult, requirementResult, apiResult, pageResult, flowResult, caseResult, linkResult] = await Promise.allSettled([
       fetchAssetHealth(),
       fetchAssetRequirements({
         size: 200,
@@ -155,6 +181,16 @@ export function AssetTraceWorkbench(props: {
         size: 200,
         projectId,
         status: appliedFilters.apiStatus
+      }),
+      fetchAssetPages({
+        size: 200,
+        projectId,
+        status: appliedFilters.pageStatus
+      }),
+      fetchAssetBusinessFlows({
+        size: 200,
+        projectId,
+        status: appliedFilters.flowStatus
       }),
       fetchAssetTestCases({
         size: 200,
@@ -190,6 +226,22 @@ export function AssetTraceWorkbench(props: {
       errors.push(errorMessage(apiResult.reason, 'API 资产加载失败'));
     }
 
+    if (pageResult.status === 'fulfilled') {
+      setPages(pageResult.value.data.items);
+      traceIds.push(pageResult.value.trace_id);
+    } else {
+      setPages([]);
+      errors.push(errorMessage(pageResult.reason, '页面资产加载失败'));
+    }
+
+    if (flowResult.status === 'fulfilled') {
+      setFlows(flowResult.value.data.items);
+      traceIds.push(flowResult.value.trace_id);
+    } else {
+      setFlows([]);
+      errors.push(errorMessage(flowResult.reason, '业务流资产加载失败'));
+    }
+
     if (caseResult.status === 'fulfilled') {
       setCases(caseResult.value.data.items);
       traceIds.push(caseResult.value.trace_id);
@@ -219,11 +271,13 @@ export function AssetTraceWorkbench(props: {
 
   const requirementById = useMemo(() => mapById(requirements), [requirements]);
   const apiById = useMemo(() => mapById(apis), [apis]);
+  const pageById = useMemo(() => mapById(pages), [pages]);
+  const flowById = useMemo(() => mapById(flows), [flows]);
   const caseById = useMemo(() => mapById(cases), [cases]);
   const relations = useMemo(() => buildRelations(links, cases), [cases, links]);
   const matrixRows = useMemo(
-    () => buildMatrixRows(requirements, apiById, caseById, relations),
-    [apiById, caseById, relations, requirements]
+    () => buildMatrixRows(requirements, apiById, pageById, flowById, caseById, relations),
+    [apiById, caseById, flowById, pageById, relations, requirements]
   );
   const visibleRows = useMemo(
     () => filterRows(matrixRows, appliedFilters),
@@ -235,19 +289,43 @@ export function AssetTraceWorkbench(props: {
   );
   const apisWithoutCases = useMemo(
     () => apis.filter((api) => !hasResolvedRelation(relations.apiToCase.get(api.id), caseById)),
-    [apis, relations, caseById]
+    [apis, caseById, relations]
+  );
+  const orphanPages = useMemo(
+    () => pages.filter((page) => !hasResolvedRelation(relations.pageToRequirement.get(page.id), requirementById)),
+    [pages, relations, requirementById]
+  );
+  const orphanFlows = useMemo(
+    () => flows.filter((flow) => !hasResolvedRelation(relations.flowToRequirement.get(flow.id), requirementById)),
+    [flows, relations, requirementById]
   );
   const orphanCases = useMemo(
     () => cases.filter((item) => !hasResolvedRelation(relations.caseToRequirement.get(item.id), requirementById)),
     [cases, relations, requirementById]
   );
   const stats = useMemo(
-    () => traceStats(matrixRows, orphanApis, orphanCases),
-    [matrixRows, orphanApis, orphanCases]
+    () => traceStats(matrixRows),
+    [matrixRows]
+  );
+  const topologyGraph = useMemo(
+    () => buildAssetTraceTopologyGraph({
+      focus: selectedSubject,
+      requirements,
+      apis,
+      pages,
+      flows,
+      cases,
+      links
+    }),
+    [apis, cases, flows, links, pages, requirements, selectedSubject]
+  );
+  const topologyFocusLabel = useMemo(
+    () => describeTopologyFocus(selectedSubject, topologyGraph?.nodes ?? []),
+    [selectedSubject, topologyGraph]
   );
 
   useEffect(() => {
-    if (selectedSubject && subjectExists(selectedSubject, requirementById, apiById, caseById)) {
+    if (selectedSubject && subjectExists(selectedSubject, requirementById, apiById, pageById, flowById, caseById)) {
       return;
     }
     if (visibleRows[0]?.requirement.id) {
@@ -258,12 +336,20 @@ export function AssetTraceWorkbench(props: {
       setSelectedSubject({ type: 'api', id: orphanApis[0].id });
       return;
     }
+    if (orphanPages[0]?.id) {
+      setSelectedSubject({ type: 'page', id: orphanPages[0].id });
+      return;
+    }
+    if (orphanFlows[0]?.id) {
+      setSelectedSubject({ type: 'flow', id: orphanFlows[0].id });
+      return;
+    }
     if (orphanCases[0]?.id) {
       setSelectedSubject({ type: 'case', id: orphanCases[0].id });
       return;
     }
     setSelectedSubject(null);
-  }, [apiById, caseById, orphanApis, orphanCases, requirementById, selectedSubject, visibleRows]);
+  }, [apiById, caseById, flowById, orphanApis, orphanCases, orphanFlows, orphanPages, pageById, requirementById, selectedSubject, visibleRows]);
 
   const disabled = !props.signedIn || !canReadAssets || loadState.loading;
 
@@ -374,6 +460,34 @@ export function AssetTraceWorkbench(props: {
                 ))}
               </select>
             </label>
+            <label className="field" htmlFor="asset-trace-filter-page-status">
+              <span>页面状态</span>
+              <select
+                id="asset-trace-filter-page-status"
+                value={filters.pageStatus}
+                disabled={disabled}
+                onChange={(event) => setFilters((current) => ({ ...current, pageStatus: event.target.value }))}
+              >
+                <option value="">全部</option>
+                {ASSET_PAGE_STATUSES.map((status) => (
+                  <option key={status} value={status}>{status}</option>
+                ))}
+              </select>
+            </label>
+            <label className="field" htmlFor="asset-trace-filter-flow-status">
+              <span>业务流状态</span>
+              <select
+                id="asset-trace-filter-flow-status"
+                value={filters.flowStatus}
+                disabled={disabled}
+                onChange={(event) => setFilters((current) => ({ ...current, flowStatus: event.target.value }))}
+              >
+                <option value="">全部</option>
+                {ASSET_FLOW_STATUSES.map((status) => (
+                  <option key={status} value={status}>{status}</option>
+                ))}
+              </select>
+            </label>
             <label className="field" htmlFor="asset-trace-filter-case-status">
               <span>用例状态</span>
               <select
@@ -397,7 +511,7 @@ export function AssetTraceWorkbench(props: {
                 onChange={(event) => setFilters((current) => ({ ...current, coverage: event.target.value }))}
               >
                 <option value="">全部</option>
-                <option value="covered">已覆盖</option>
+                <option value="covered">全覆盖</option>
                 <option value="partial">部分覆盖</option>
                 <option value="uncovered">未覆盖</option>
               </select>
@@ -409,7 +523,7 @@ export function AssetTraceWorkbench(props: {
                 value={filters.keyword}
                 disabled={disabled}
                 onChange={(event) => setFilters((current) => ({ ...current, keyword: event.target.value }))}
-                placeholder="需求 / API / 用例"
+                placeholder="需求 / API / 页面 / 业务流 / 用例"
               />
             </label>
             <div className="asset-filter-actions">
@@ -431,6 +545,7 @@ export function AssetTraceWorkbench(props: {
                   <th>需求</th>
                   <th>覆盖状态</th>
                   <th>关联 API</th>
+                  <th>页面 / 业务流</th>
                   <th>关联用例</th>
                   <th>缺口</th>
                   <th>更新时间</th>
@@ -466,6 +581,18 @@ export function AssetTraceWorkbench(props: {
                       </td>
                       <td>
                         <LinkedList
+                          items={requirementContextItems(row.pages, row.flows)}
+                          empty="无页面 / 业务流"
+                          render={(item) => (
+                            <>
+                              <strong>{item.primary}</strong>
+                              <em>{item.secondary ?? '-'}</em>
+                            </>
+                          )}
+                        />
+                      </td>
+                      <td>
+                        <LinkedList
                           items={row.cases}
                           empty="无关联用例"
                           render={(item) => (
@@ -488,14 +615,14 @@ export function AssetTraceWorkbench(props: {
                           onClick={() => selectSubject({ type: 'requirement', id: row.requirement.id })}
                         >
                           <Eye size={14} />
-                          影响
+                          拓扑
                         </button>
                       </td>
                     </tr>
                   ))
                 ) : (
                   <tr>
-                    <td className="table-empty" colSpan={7}>
+                    <td className="table-empty" colSpan={8}>
                       {props.signedIn ? (loadState.loading ? '加载中' : '暂无追踪矩阵数据') : '请先登录'}
                     </td>
                   </tr>
@@ -542,6 +669,28 @@ export function AssetTraceWorkbench(props: {
               )}
             />
             <GapBucket
+              title="无需求关联页面"
+              items={orphanPages}
+              empty="页面均已关联需求"
+              render={(page) => (
+                <button className="trace-chip" type="button" onClick={() => selectSubject({ type: 'page', id: page.id })}>
+                  <strong>{page.name}</strong>
+                  <span>{page.urlPattern ?? page.status}</span>
+                </button>
+              )}
+            />
+            <GapBucket
+              title="无需求关联业务流"
+              items={orphanFlows}
+              empty="业务流均已关联需求"
+              render={(flow) => (
+                <button className="trace-chip" type="button" onClick={() => selectSubject({ type: 'flow', id: flow.id })}>
+                  <strong>{flow.name}</strong>
+                  <span>{flow.status}</span>
+                </button>
+              )}
+            />
+            <GapBucket
               title="无需求关联用例"
               items={orphanCases}
               empty="用例均已关联需求"
@@ -554,6 +703,30 @@ export function AssetTraceWorkbench(props: {
             />
           </div>
         </section>
+
+        <section className="panel module-panel asset-panel">
+          <div className="panel-toolbar">
+            <div className="section-heading compact">
+              <div className="section-icon">
+                <GitBranch size={20} />
+              </div>
+              <div>
+                <span className="eyebrow">Asset Topology</span>
+                <h2>资产关系拓扑图</h2>
+              </div>
+            </div>
+            {selectedSubject && <SubjectPill subject={selectedSubject} />}
+          </div>
+          <div className="trace-topology-heading">
+            <strong>{topologyFocusLabel}</strong>
+            <span>基于需求、API、页面、业务流、用例与追踪链接构建</span>
+          </div>
+          <AssetTraceTopologyPanel
+            graph={topologyGraph}
+            onOpenAsset={openAsset}
+            onSelectSubject={selectSubject}
+          />
+        </section>
       </div>
 
       <aside className="side-stack asset-side-stack">
@@ -563,11 +736,19 @@ export function AssetTraceWorkbench(props: {
             <StatusMetric label="服务" value={health?.service ?? 'asset-service'} />
             <StatusMetric label="状态" value={health?.status ?? (props.signedIn ? '等待响应' : '等待登录')} pill />
             <StatusMetric label="需求" value={String(requirements.length)} />
-            <StatusMetric label="已覆盖" value={String(stats.covered)} />
+            <StatusMetric label="API" value={String(apis.length)} />
+            <StatusMetric label="页面" value={String(pages.length)} />
+            <StatusMetric label="业务流" value={String(flows.length)} />
+            <StatusMetric label="用例" value={String(cases.length)} />
+            <StatusMetric label="全覆盖" value={String(stats.covered)} />
             <StatusMetric label="部分覆盖" value={String(stats.partial)} />
             <StatusMetric label="未覆盖" value={String(stats.uncovered)} />
-            <StatusMetric label="孤立 API" value={String(orphanApis.length)} />
-            <StatusMetric label="孤立用例" value={String(orphanCases.length)} />
+          </div>
+          <div className="trace-summary-strip">
+            <span>孤立 API {orphanApis.length}</span>
+            <span>孤立页面 {orphanPages.length}</span>
+            <span>孤立业务流 {orphanFlows.length}</span>
+            <span>孤立用例 {orphanCases.length}</span>
           </div>
           {loadState.error && (
             <div className="inline-error">
@@ -579,14 +760,16 @@ export function AssetTraceWorkbench(props: {
 
         <section className="panel insight-panel asset-detail-panel">
           <div className="panel-title-row">
-            <h2>一跳影响范围</h2>
+            <h2>焦点资产详情</h2>
             {selectedSubject && <SubjectPill subject={selectedSubject} />}
           </div>
           <ImpactPanel
             apiById={apiById}
             caseById={caseById}
+            flowById={flowById}
             onOpenAsset={openAsset}
             onSelectSubject={selectSubject}
+            pageById={pageById}
             relations={relations}
             requirementById={requirementById}
             rows={matrixRows}
@@ -601,27 +784,46 @@ export function AssetTraceWorkbench(props: {
 function buildRelations(links: TraceLinkView[], cases: AssetTestCaseView[]): TraceRelations {
   const relations: TraceRelations = {
     requirementToApi: new Map(),
+    requirementToPage: new Map(),
+    requirementToFlow: new Map(),
     requirementToCase: new Map(),
     apiToRequirement: new Map(),
+    pageToRequirement: new Map(),
+    flowToRequirement: new Map(),
     apiToCase: new Map(),
     caseToRequirement: new Map(),
     caseToApi: new Map()
   };
 
   links.forEach((link) => {
-    addTraceEdge(relations, link.requirementId, link.apiId, link.caseId);
+    addTraceEdge(relations, link.requirementId, link.apiId, link.pageId, link.flowId, link.caseId);
   });
   cases.forEach((item) => {
-    addTraceEdge(relations, item.requirementId, item.apiId, item.id);
+    addTraceEdge(relations, item.requirementId, item.apiId, undefined, undefined, item.id);
   });
 
   return relations;
 }
 
-function addTraceEdge(relations: TraceRelations, requirementId?: string, apiId?: string, caseId?: string) {
+function addTraceEdge(
+  relations: TraceRelations,
+  requirementId?: string,
+  apiId?: string,
+  pageId?: string,
+  flowId?: string,
+  caseId?: string
+) {
   if (requirementId && apiId) {
     addToSet(relations.requirementToApi, requirementId, apiId);
     addToSet(relations.apiToRequirement, apiId, requirementId);
+  }
+  if (requirementId && pageId) {
+    addToSet(relations.requirementToPage, requirementId, pageId);
+    addToSet(relations.pageToRequirement, pageId, requirementId);
+  }
+  if (requirementId && flowId) {
+    addToSet(relations.requirementToFlow, requirementId, flowId);
+    addToSet(relations.flowToRequirement, flowId, requirementId);
   }
   if (requirementId && caseId) {
     addToSet(relations.requirementToCase, requirementId, caseId);
@@ -636,22 +838,34 @@ function addTraceEdge(relations: TraceRelations, requirementId?: string, apiId?:
 function buildMatrixRows(
   requirements: AssetRequirementView[],
   apiById: Map<string, AssetApiView>,
+  pageById: Map<string, AssetPageView>,
+  flowById: Map<string, AssetBusinessFlowView>,
   caseById: Map<string, AssetTestCaseView>,
   relations: TraceRelations
 ): MatrixRow[] {
   return requirements.map((requirement) => {
     const apis = resolvedItems(relations.requirementToApi.get(requirement.id), apiById);
+    const pages = resolvedItems(relations.requirementToPage.get(requirement.id), pageById);
+    const flows = resolvedItems(relations.requirementToFlow.get(requirement.id), flowById);
     const cases = resolvedItems(relations.requirementToCase.get(requirement.id), caseById);
-    const coverage = coverageFor(apis.length, cases.length);
-    const gaps = gapsFor(apis.length, cases.length);
+    const coverage = coverageFor(apis.length, pages.length, flows.length, cases.length);
+    const gaps = gapsFor(apis.length, pages.length, flows.length, cases.length);
     return {
       requirement,
       apis,
+      pages,
+      flows,
       cases,
       coverage,
-      impactLevel: impactLevelFor(requirement, coverage),
+      impactLevel: impactLevelFor(requirement, gaps.length),
       gaps,
-      updatedAt: [requirement.updatedAt, ...apis.map((item) => item.updatedAt), ...cases.map((item) => item.updatedAt)]
+      updatedAt: [
+        requirement.updatedAt,
+        ...apis.map((item) => item.updatedAt),
+        ...pages.map((item) => item.updatedAt),
+        ...flows.map((item) => item.updatedAt),
+        ...cases.map((item) => item.updatedAt)
+      ]
         .filter(Boolean)
         .sort()
         .at(-1)
@@ -675,6 +889,8 @@ function filterRows(rows: MatrixRow[], filters: TraceFilters) {
       row.requirement.projectId,
       row.requirement.tags.join(','),
       ...row.apis.flatMap((api) => [api.summary, api.path, api.code, api.sourceRef]),
+      ...row.pages.flatMap((page) => [page.name, page.urlPattern, page.code, page.sourceRef]),
+      ...row.flows.flatMap((flow) => [flow.name, flow.description, flow.code]),
       ...row.cases.flatMap((item) => [item.title, item.code, item.description, item.tags.join(',')])
     ]
       .filter(Boolean)
@@ -682,20 +898,26 @@ function filterRows(rows: MatrixRow[], filters: TraceFilters) {
   });
 }
 
-function coverageFor(apiCount: number, caseCount: number): CoverageStatus {
-  if (apiCount > 0 && caseCount > 0) {
+function coverageFor(apiCount: number, pageCount: number, flowCount: number, caseCount: number): CoverageStatus {
+  if (apiCount > 0 && pageCount > 0 && flowCount > 0 && caseCount > 0) {
     return 'covered';
   }
-  if (apiCount > 0 || caseCount > 0) {
+  if (apiCount > 0 || pageCount > 0 || flowCount > 0 || caseCount > 0) {
     return 'partial';
   }
   return 'uncovered';
 }
 
-function gapsFor(apiCount: number, caseCount: number) {
+function gapsFor(apiCount: number, pageCount: number, flowCount: number, caseCount: number) {
   const gaps: string[] = [];
   if (apiCount === 0) {
     gaps.push('缺 API 覆盖');
+  }
+  if (pageCount === 0) {
+    gaps.push('缺页面覆盖');
+  }
+  if (flowCount === 0) {
+    gaps.push('缺业务流覆盖');
   }
   if (caseCount === 0) {
     gaps.push('缺用例覆盖');
@@ -703,17 +925,17 @@ function gapsFor(apiCount: number, caseCount: number) {
   return gaps;
 }
 
-function impactLevelFor(requirement: AssetRequirementView, coverage: CoverageStatus): ImpactLevel {
-  if (coverage === 'covered') {
+function impactLevelFor(requirement: AssetRequirementView, gapCount: number): ImpactLevel {
+  if (gapCount === 0) {
     return 'low';
   }
-  if (coverage === 'uncovered' && ['CRITICAL', 'HIGH'].includes(String(requirement.priority))) {
+  if (gapCount >= 3 && ['CRITICAL', 'HIGH'].includes(String(requirement.priority))) {
     return 'high';
   }
   return 'medium';
 }
 
-function traceStats(rows: MatrixRow[], orphanApis: AssetApiView[], orphanCases: AssetTestCaseView[]) {
+function traceStats(rows: MatrixRow[]) {
   return rows.reduce(
     (stats, row) => {
       stats[row.coverage] += 1;
@@ -722,9 +944,7 @@ function traceStats(rows: MatrixRow[], orphanApis: AssetApiView[], orphanCases: 
     {
       covered: 0,
       partial: 0,
-      uncovered: 0,
-      orphanApis: orphanApis.length,
-      orphanCases: orphanCases.length
+      uncovered: 0
     }
   );
 }
@@ -753,15 +973,24 @@ function subjectExists(
   subject: SelectedSubject,
   requirementById: Map<string, AssetRequirementView>,
   apiById: Map<string, AssetApiView>,
+  pageById: Map<string, AssetPageView>,
+  flowById: Map<string, AssetBusinessFlowView>,
   caseById: Map<string, AssetTestCaseView>
 ) {
-  if (subject.type === 'requirement') {
-    return requirementById.has(subject.id);
+  switch (subject.type) {
+    case 'requirement':
+      return requirementById.has(subject.id);
+    case 'api':
+      return apiById.has(subject.id);
+    case 'page':
+      return pageById.has(subject.id);
+    case 'flow':
+      return flowById.has(subject.id);
+    case 'case':
+      return caseById.has(subject.id);
+    default:
+      return false;
   }
-  if (subject.type === 'api') {
-    return apiById.has(subject.id);
-  }
-  return caseById.has(subject.id);
 }
 
 function subjectFromHash(): SelectedSubject | null {
@@ -771,6 +1000,12 @@ function subjectFromHash(): SelectedSubject | null {
   }
   if (parts[2] === 'api' && parts[3]) {
     return { type: 'api', id: decodeURIComponent(parts[3]) };
+  }
+  if (parts[2] === 'page' && parts[3]) {
+    return { type: 'page', id: decodeURIComponent(parts[3]) };
+  }
+  if (parts[2] === 'flow' && parts[3]) {
+    return { type: 'flow', id: decodeURIComponent(parts[3]) };
   }
   if (parts[2] === 'case' && parts[3]) {
     return { type: 'case', id: decodeURIComponent(parts[3]) };
@@ -787,8 +1022,10 @@ function subjectFromHash(): SelectedSubject | null {
 function ImpactPanel(props: {
   apiById: Map<string, AssetApiView>;
   caseById: Map<string, AssetTestCaseView>;
+  flowById: Map<string, AssetBusinessFlowView>;
   onOpenAsset: (tab: AssetNavigationKey, id: string) => void;
   onSelectSubject: (subject: SelectedSubject) => void;
+  pageById: Map<string, AssetPageView>;
   relations: TraceRelations;
   requirementById: Map<string, AssetRequirementView>;
   rows: MatrixRow[];
@@ -799,8 +1036,8 @@ function ImpactPanel(props: {
       <div className="empty-state compact">
         <GitBranch size={20} />
         <div>
-          <strong>暂无影响对象</strong>
-          <span>从矩阵或缺口清单中选择需求、API 或用例</span>
+          <strong>暂无焦点资产</strong>
+          <span>从矩阵、缺口清单或拓扑图中选择资产</span>
         </div>
       </div>
     );
@@ -825,10 +1062,10 @@ function ImpactPanel(props: {
           <div><span>覆盖</span><em>{coverageLabels[row.coverage]}</em></div>
           <div><span>影响等级</span><em>{impactLabels[row.impactLevel]}</em></div>
           <div><span>缺口</span><em>{row.gaps.length ? row.gaps.join('，') : '暂无缺口'}</em></div>
-          <div><span>口径</span><em>基于当前需求、API、用例与追踪链接的一跳分析</em></div>
+          <div><span>口径</span><em>基于直连追踪链接的一跳分析</em></div>
         </div>
         <ImpactAssetList
-          title="受影响 API"
+          title="关联 API"
           items={row.apis}
           empty="暂无关联 API"
           render={(api) => (
@@ -841,7 +1078,33 @@ function ImpactPanel(props: {
           )}
         />
         <ImpactAssetList
-          title="受影响用例"
+          title="关联页面"
+          items={row.pages}
+          empty="暂无关联页面"
+          render={(page) => (
+            <TraceAssetButton
+              onImpact={() => props.onSelectSubject({ type: 'page', id: page.id })}
+              onOpen={() => props.onOpenAsset('pages', page.id)}
+              primary={page.name}
+              secondary={page.urlPattern ?? page.status}
+            />
+          )}
+        />
+        <ImpactAssetList
+          title="关联业务流"
+          items={row.flows}
+          empty="暂无关联业务流"
+          render={(flow) => (
+            <TraceAssetButton
+              onImpact={() => props.onSelectSubject({ type: 'flow', id: flow.id })}
+              onOpen={() => props.onOpenAsset('flows', flow.id)}
+              primary={flow.name}
+              secondary={flow.status}
+            />
+          )}
+        />
+        <ImpactAssetList
+          title="关联用例"
           items={row.cases}
           empty="暂无关联用例"
           render={(item) => (
@@ -918,6 +1181,92 @@ function ImpactPanel(props: {
     );
   }
 
+  if (props.subject.type === 'page') {
+    const page = props.pageById.get(props.subject.id);
+    if (!page) {
+      return <MissingSubject />;
+    }
+    const requirements = resolvedItems(props.relations.pageToRequirement.get(page.id), props.requirementById);
+    return (
+      <div className="asset-detail-stack">
+        <div className="resource-summary">
+          <strong>{page.name}</strong>
+          <div><span>projectId</span><em>{page.projectId ?? '-'}</em></div>
+          <div><span>urlPattern</span><em>{page.urlPattern ?? '-'}</em></div>
+          <div><span>status</span><em>{page.status}</em></div>
+          <div><span>id</span><em>{page.id}</em></div>
+        </div>
+        <div className="asset-source-trace">
+          <strong>影响说明</strong>
+          <div><span>需求</span><em>{requirements.length}</em></div>
+          <div><span>来源</span><em>{page.source}</em></div>
+          <div><span>缺口</span><em>{requirements.length ? '暂无需求缺口' : '缺需求关联'}</em></div>
+          <div><span>口径</span><em>基于页面直连需求的一跳反查</em></div>
+        </div>
+        <ImpactAssetList
+          title="关联需求"
+          items={requirements}
+          empty="暂无需求关联"
+          render={(requirement) => (
+            <TraceAssetButton
+              onImpact={() => props.onSelectSubject({ type: 'requirement', id: requirement.id })}
+              onOpen={() => props.onOpenAsset('requirements', requirement.id)}
+              primary={requirement.title}
+              secondary={requirement.status}
+            />
+          )}
+        />
+        <button className="mini-button" type="button" onClick={() => props.onOpenAsset('pages', page.id)}>
+          <Eye size={14} />
+          打开页面详情
+        </button>
+      </div>
+    );
+  }
+
+  if (props.subject.type === 'flow') {
+    const flow = props.flowById.get(props.subject.id);
+    if (!flow) {
+      return <MissingSubject />;
+    }
+    const requirements = resolvedItems(props.relations.flowToRequirement.get(flow.id), props.requirementById);
+    return (
+      <div className="asset-detail-stack">
+        <div className="resource-summary">
+          <strong>{flow.name}</strong>
+          <div><span>projectId</span><em>{flow.projectId ?? '-'}</em></div>
+          <div><span>priority</span><em>{flow.priority}</em></div>
+          <div><span>status</span><em>{flow.status}</em></div>
+          <div><span>id</span><em>{flow.id}</em></div>
+        </div>
+        <div className="asset-source-trace">
+          <strong>影响说明</strong>
+          <div><span>需求</span><em>{requirements.length}</em></div>
+          <div><span>说明</span><em>{flow.description ?? '-'}</em></div>
+          <div><span>缺口</span><em>{requirements.length ? '暂无需求缺口' : '缺需求关联'}</em></div>
+          <div><span>口径</span><em>基于业务流直连需求的一跳反查</em></div>
+        </div>
+        <ImpactAssetList
+          title="关联需求"
+          items={requirements}
+          empty="暂无需求关联"
+          render={(requirement) => (
+            <TraceAssetButton
+              onImpact={() => props.onSelectSubject({ type: 'requirement', id: requirement.id })}
+              onOpen={() => props.onOpenAsset('requirements', requirement.id)}
+              primary={requirement.title}
+              secondary={requirement.status}
+            />
+          )}
+        />
+        <button className="mini-button" type="button" onClick={() => props.onOpenAsset('flows', flow.id)}>
+          <Eye size={14} />
+          打开业务流详情
+        </button>
+      </div>
+    );
+  }
+
   const testCase = props.caseById.get(props.subject.id);
   if (!testCase) {
     return <MissingSubject />;
@@ -985,8 +1334,7 @@ function CoveragePill(props: { status: CoverageStatus }) {
 }
 
 function SubjectPill(props: { subject: SelectedSubject }) {
-  const label = props.subject.type === 'requirement' ? '需求' : props.subject.type === 'api' ? 'API' : '用例';
-  return <span className="coverage-pill neutral">{label}</span>;
+  return <span className="coverage-pill neutral">{labelAssetTraceSubjectType(props.subject.type)}</span>;
 }
 
 function LinkedList<T>(props: { empty: string; items: T[]; render: (item: T) => ReactNode }) {
@@ -1099,6 +1447,19 @@ function StateLine(props: { state: WorkState }) {
     return <span className="document-state-line">Trace ID：{props.state.traceId}</span>;
   }
   return null;
+}
+
+function requirementContextItems(pages: AssetPageView[], flows: AssetBusinessFlowView[]): TraceContextItem[] {
+  return [
+    ...pages.map((page) => ({
+      primary: page.name,
+      secondary: page.urlPattern ?? page.status
+    })),
+    ...flows.map((flow) => ({
+      primary: flow.name,
+      secondary: flow.status
+    }))
+  ];
 }
 
 function errorMessage(error: unknown, fallback: string) {
