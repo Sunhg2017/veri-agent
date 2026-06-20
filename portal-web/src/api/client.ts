@@ -22,6 +22,13 @@ export interface TextResponse {
   filename?: string;
 }
 
+export interface BinaryResponse {
+  blob: Blob;
+  traceId: string;
+  contentType: string;
+  filename?: string;
+}
+
 type ApiEnvelope<T> = Omit<ApiResponse<T>, 'trace_id'> & {
   trace_id?: string;
   traceId?: string;
@@ -161,6 +168,37 @@ export async function requestText(path: string, init?: RequestInit): Promise<Tex
   return textResponse(response);
 }
 
+export async function requestBinary(path: string, init?: RequestInit): Promise<BinaryResponse> {
+  const token = getAuthToken();
+  const headers = new Headers(init?.headers);
+  if (token && !headers.has('Authorization')) {
+    headers.set('Authorization', `Bearer ${token}`);
+  }
+
+  const response = await fetch(path, {
+    ...init,
+    headers
+  });
+
+  if (response.status === 401 && token) {
+    const refreshed = await attemptRefresh();
+    if (refreshed) {
+      const newToken = getAuthToken();
+      if (newToken) {
+        headers.set('Authorization', `Bearer ${newToken}`);
+        const retryResponse = await fetch(path, {
+          ...init,
+          headers
+        });
+        return binaryResponse(retryResponse);
+      }
+    }
+    throw new ApiError('登录已过期，请重新登录', 'SESSION_EXPIRED', '', 401);
+  }
+
+  return binaryResponse(response);
+}
+
 async function request<T>(path: string, init: RequestInit | undefined, jsonBody: boolean): Promise<ApiResponse<T>> {
   const token = getAuthToken();
   const headers = new Headers(init?.headers);
@@ -231,6 +269,24 @@ async function textResponse(response: Response): Promise<TextResponse> {
 
   return {
     text,
+    traceId,
+    contentType,
+    filename: filenameFromContentDisposition(contentDisposition)
+  };
+}
+
+async function binaryResponse(response: Response): Promise<BinaryResponse> {
+  const traceId = response.headers.get('X-Trace-Id') ?? '';
+  const contentType = response.headers.get('Content-Type') ?? '';
+  const contentDisposition = response.headers.get('Content-Disposition') ?? '';
+
+  if (!response.ok) {
+    const text = await response.text();
+    throw errorFromTextResponse(text, response.status, traceId);
+  }
+
+  return {
+    blob: await response.blob(),
     traceId,
     contentType,
     filename: filenameFromContentDisposition(contentDisposition)

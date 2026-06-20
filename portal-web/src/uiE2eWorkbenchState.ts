@@ -158,6 +158,13 @@ export type UiE2eRunDiagnosis = {
   nextActions: string[];
 };
 
+export type UiE2eArtifactDownloadState = {
+  canDownload: boolean;
+  downloadReady: boolean;
+  tone: UiE2eWorkbenchNoticeTone;
+  summary: string;
+};
+
 export type UiE2eBundleListSummary = {
   headline: string;
   detail: string;
@@ -1407,6 +1414,76 @@ export function explainUiE2eArtifactCaptureBlockedReason(reason?: string) {
   }
 }
 
+export function buildUiE2eArtifactDownloadState(artifact: UiE2eArtifactManifest): UiE2eArtifactDownloadState {
+  const captureStatus = (artifact.captureStatus || '').trim().toUpperCase();
+  const blockedReason = extractUiE2eArtifactCaptureBlockedReason(artifact.redactionFlags);
+  const downloadReady = booleanFromUnknown(artifact.redactionFlags?.rawArtifactDownloadReady)
+    || (isUiE2eArtifactCapturedStatus(captureStatus) && (artifact.storageRef || '').startsWith('artifact://ui-e2e/'));
+
+  if (captureStatus === 'BLOCKED') {
+    return {
+      canDownload: false,
+      downloadReady: false,
+      tone: 'warning',
+      summary: explainUiE2eArtifactCaptureBlockedReason(blockedReason)
+    };
+  }
+
+  if (captureStatus === 'FAILED') {
+    return {
+      canDownload: false,
+      downloadReady: false,
+      tone: 'error',
+      summary: 'artifact 捕获失败，当前没有可下载的原始文件。'
+    };
+  }
+
+  if (captureStatus === 'SKIPPED') {
+    return {
+      canDownload: false,
+      downloadReady: false,
+      tone: 'info',
+      summary: 'artifact 本次未采集，因此只保留 manifest 摘要。'
+    };
+  }
+
+  if (captureStatus === 'PENDING') {
+    return {
+      canDownload: false,
+      downloadReady: false,
+      tone: 'info',
+      summary: 'artifact 仍在等待采集或回写，稍后刷新运行详情查看。'
+    };
+  }
+
+  if (downloadReady) {
+    return {
+      canDownload: true,
+      downloadReady: true,
+      tone: 'success',
+      summary: captureStatus === 'REDACTED'
+        ? 'artifact 已完成脱敏落盘，可按权限下载当前产物。'
+        : 'artifact 已入受控存储，可按权限下载原始产物。'
+    };
+  }
+
+  if (isUiE2eArtifactCapturedStatus(captureStatus)) {
+    return {
+      canDownload: false,
+      downloadReady: false,
+      tone: 'warning',
+      summary: 'artifact 已采集，但当前仅提供 manifest 摘要，原始下载未就绪。'
+    };
+  }
+
+  return {
+    canDownload: false,
+    downloadReady: false,
+    tone: 'info',
+    summary: `artifact 当前处于 ${captureStatus || 'UNKNOWN'} 状态，请结合 manifest 摘要继续排查。`
+  };
+}
+
 export function buildUiE2eScenePayload(draft: UiE2eSceneDraft): { payload?: CreateUiE2eScenePayload; issues: string[] } {
   const { payload: partialPayload, issues } = buildUiE2eScenePayloadBase(draft);
   if (!draft.projectId.trim()) issues.push('请填写 scene projectId');
@@ -1741,6 +1818,10 @@ function artifactBlockedReasonAction(reason?: string) {
     default:
       return reason ? `复核 artifact captureBlockedReason=${reason} 对应的 runner 回传逻辑。` : undefined;
   }
+}
+
+function isUiE2eArtifactCapturedStatus(status: string) {
+  return status === 'CAPTURED' || status === 'REDACTED';
 }
 
 function runFlakyReasonCode(failureCode?: string, failureBucket?: string) {

@@ -32,6 +32,7 @@ import {
   fetchUiE2eRuns,
   fetchUiE2eScene,
   fetchUiE2eScenes,
+  downloadUiE2eArtifact,
   rejectUiE2eBundle,
   submitUiE2eBundleReview,
   updateUiE2eScene,
@@ -53,6 +54,7 @@ import { canUseButton, hasPermission } from '../permissions';
 import {
   blankUiE2eSceneDraft,
   buildUiE2eBundleListSummary,
+  buildUiE2eArtifactDownloadState,
   buildUiE2eFlakyDetailInsight,
   buildUiE2eBundleQueueOverview,
   buildUiE2eFlakyListSummary,
@@ -619,6 +621,30 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
       setRunActionState({ loading: false, success: '运行脱敏摘要已导出', traceId: result.trace_id });
     } catch (error: unknown) {
       setRunActionState({ loading: false, error: error instanceof Error ? error.message : '导出运行摘要失败' });
+    }
+  }
+
+  async function onDownloadArtifact(artifact: UiE2eArtifactManifest) {
+    if (!runDetail || !canExport) {
+      return;
+    }
+    const downloadState = buildUiE2eArtifactDownloadState(artifact);
+    if (!downloadState.canDownload) {
+      setRunActionState({ loading: false, error: downloadState.summary });
+      return;
+    }
+
+    setRunActionState({ loading: true });
+    try {
+      const response = await downloadUiE2eArtifact(runDetail.id, artifact.id);
+      downloadBlob(response.blob, response.filename || fallbackArtifactFileName(artifact), response.contentType);
+      setRunActionState({
+        loading: false,
+        success: `${artifact.artifactType} 已下载`,
+        traceId: response.traceId
+      });
+    } catch (error: unknown) {
+      setRunActionState({ loading: false, error: error instanceof Error ? error.message : '下载 artifact 失败' });
     }
   }
 
@@ -1294,8 +1320,10 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
             detail={runDetail}
             exported={runExport}
             state={runActionState}
+            canExport={canExport}
             canFlaky={canFlaky}
             flakyState={flakyActionState}
+            onDownloadArtifact={(artifact) => void onDownloadArtifact(artifact)}
             onApplyFlakyPreset={(status, reasonCode, reasonSummary) => void onApplyRunFlakyPreset(status, reasonCode, reasonSummary)}
           />
           <FlakyDetailPanel item={flakyDetail} state={flakyActionState} />
@@ -1576,8 +1604,10 @@ function RunDetailPanel(props: {
   detail: UiE2eRunDetail | null;
   exported: UiE2eRunExport | null;
   state: WorkState;
+  canExport: boolean;
   canFlaky: boolean;
   flakyState: WorkState;
+  onDownloadArtifact: (artifact: UiE2eArtifactManifest) => void;
   onApplyFlakyPreset: (status: UiE2eFlakyDraft['status'], reasonCode: string, reasonSummary: string) => void;
 }) {
   if (!props.detail) {
@@ -1656,7 +1686,12 @@ function RunDetailPanel(props: {
         <div className="notice warning">当前环境禁用了 run export；仍可在工作台内继续查看聚合详情与 traceId。</div>
       )}
       <StepResultsList steps={props.detail.stepResults} />
-      <ArtifactList artifacts={props.detail.artifacts} />
+      <ArtifactList
+        artifacts={props.detail.artifacts}
+        canExport={props.canExport}
+        downloading={props.state.loading}
+        onDownloadArtifact={props.onDownloadArtifact}
+      />
       {props.exported ? (
         <div className="report-card-list">
           <div className="report-mini-card">
@@ -1772,29 +1807,66 @@ function StepResultsList(props: { steps: UiE2eRunStepResult[] }) {
   );
 }
 
-function ArtifactList(props: { artifacts: UiE2eArtifactManifest[] }) {
+function ArtifactList(props: {
+  artifacts: UiE2eArtifactManifest[];
+  canExport: boolean;
+  downloading: boolean;
+  onDownloadArtifact: (artifact: UiE2eArtifactManifest) => void;
+}) {
   if (!props.artifacts.length) {
     return <div className="notice info">暂无 artifact manifest。</div>;
   }
   return (
     <div className="report-card-list">
       {props.artifacts.map((artifact) => (
-        <div className="report-mini-card" key={artifact.id}>
+        <ArtifactCard
+          key={artifact.id}
+          artifact={artifact}
+          canExport={props.canExport}
+          downloading={props.downloading}
+          onDownloadArtifact={props.onDownloadArtifact}
+        />
+      ))}
+    </div>
+  );
+}
+
+function ArtifactCard(props: {
+  artifact: UiE2eArtifactManifest;
+  canExport: boolean;
+  downloading: boolean;
+  onDownloadArtifact: (artifact: UiE2eArtifactManifest) => void;
+}) {
+  const downloadState = buildUiE2eArtifactDownloadState(props.artifact);
+  return (
+    <div className="report-mini-card">
           <div className="report-card-heading">
-            <strong>{artifact.artifactType}</strong>
-            <span className={`badge badge-${statusTone(artifact.captureStatus)}`}>{artifact.captureStatus}</span>
+        <strong>{props.artifact.artifactType}</strong>
+        <span className={`badge badge-${statusTone(props.artifact.captureStatus)}`}>{props.artifact.captureStatus}</span>
           </div>
           <div className="report-section-grid">
-            <InfoBlock title="digest" value={artifact.artifactDigest || '-'} />
-            <InfoBlock title="storageRef" value={artifact.storageRef || '-'} />
-            <InfoBlock title="sizeBytes" value={String(artifact.sizeBytes)} />
-            <InfoBlock title="redactionFlags" value={formatRecord(artifact.redactionFlags)} />
+        <InfoBlock title="digest" value={props.artifact.artifactDigest || '-'} />
+        <InfoBlock title="storageRef" value={props.artifact.storageRef || '-'} />
+        <InfoBlock title="sizeBytes" value={String(props.artifact.sizeBytes)} />
+        <InfoBlock title="redactionFlags" value={formatRecord(props.artifact.redactionFlags)} />
           </div>
-          {artifact.captureStatus === 'BLOCKED' ? (
-            <small>{explainUiE2eArtifactCaptureBlockedReason(extractUiE2eArtifactCaptureBlockedReason(artifact.redactionFlags))}</small>
+          <div className="report-actions-row">
+            <button
+              className="btn btn-secondary btn-sm"
+              type="button"
+          disabled={!props.canExport || props.downloading || !downloadState.canDownload}
+          title={!props.canExport ? '当前账号缺少 uiE2e:export 权限。' : downloadState.summary}
+          onClick={() => props.onDownloadArtifact(props.artifact)}
+            >
+              <Download size={15} />下载产物
+            </button>
+          </div>
+          <div className={`notice ${downloadState.tone}`}>
+            <span>{downloadState.summary}</span>
+          </div>
+      {props.artifact.captureStatus === 'BLOCKED' ? (
+        <small>{explainUiE2eArtifactCaptureBlockedReason(extractUiE2eArtifactCaptureBlockedReason(props.artifact.redactionFlags))}</small>
           ) : null}
-        </div>
-      ))}
     </div>
   );
 }
@@ -2047,6 +2119,44 @@ function formatRecord(input: unknown): string {
     return text.length > 180 ? `${text.slice(0, 177)}...` : text;
   }
   return String(input);
+}
+
+function downloadBlob(blob: Blob, filename: string, contentType: string) {
+  const downloadBlobValue = blob.type ? blob : new Blob([blob], { type: contentType || 'application/octet-stream' });
+  const url = URL.createObjectURL(downloadBlobValue);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
+function fallbackArtifactFileName(artifact: UiE2eArtifactManifest) {
+  return `${artifact.artifactType.toLowerCase()}-${shortId(artifact.id).replace(/\.+/g, '-')}${artifactFileExtension(artifact)}`;
+}
+
+function artifactFileExtension(artifact: UiE2eArtifactManifest) {
+  const loweredRef = (artifact.storageRef || '').toLowerCase();
+  if (loweredRef.endsWith('.png')) return '.png';
+  if (loweredRef.endsWith('.zip')) return '.zip';
+  if (loweredRef.endsWith('.webm')) return '.webm';
+  if (loweredRef.endsWith('.xml')) return '.xml';
+  if (loweredRef.endsWith('.har')) return '.har';
+
+  switch (artifact.artifactType) {
+    case 'SCREENSHOT':
+      return '.png';
+    case 'TRACE':
+      return '.zip';
+    case 'VIDEO':
+      return '.webm';
+    case 'JUNIT_XML':
+      return '.xml';
+    case 'HAR':
+      return '.har';
+    default:
+      return '.log';
+  }
 }
 
 function optionalText(value: string) {

@@ -19,6 +19,7 @@
 4. `UiE2eRunService` 新增 `downloadArtifact` 应用服务，统一校验 run、artifact manifest 和下载就绪状态。
 5. `UiE2eRunController` 新增 `GET /api/v1/ui-e2e/runs/{id}/artifacts/{artifactId}/download`，要求 `uiE2e:export` 权限。
 6. `UiE2eHealthService` 与 health API 同步暴露 `artifactPolicy.rawArtifactDownloadReady=true`。
+7. `portal-web` 的 `#ui-e2e` 工作台在运行详情中新增 artifact 下载按钮、就绪提示和失败反馈，直接消费受控下载端点。
 
 ## 3. 安全边界
 
@@ -42,6 +43,7 @@ mvn -B -pl platform-api -Dtest=LocalUiE2eArtifactStorageTest,UiE2eRunnerConfigur
 2. `UiE2eRunControllerTest` 覆盖受权下载返回 200、附件文件名和文件内容。
 3. `UiE2eRunServiceTest` 覆盖真实浏览器 runner 成功时 `rawArtifactDownloadReady=true`。
 4. `UiE2eOpenApiContractTest` 覆盖下载端点已出现在 OpenAPI。
+5. `portal-web` Vitest 覆盖 artifact 下载 helper、前端下载就绪判断和运行详情下载入口状态。
 
 ## 5. 非目标
 
@@ -56,5 +58,5 @@ mvn -B -pl platform-api -Dtest=LocalUiE2eArtifactStorageTest,UiE2eRunnerConfigur
 | 资深项目经理 | 通过 | 变更范围聚焦 WP7 artifact 下载缺口，未扩散到跨 WP 调度。 |
 | 资深产品经理 | 通过 | 满足“可下载受控产物但不泄露宿主机路径”的产品边界。 |
 | 资深服务端架构师 | 通过 | 通过 port + local adapter 落地，保持权限、脱敏和错误码边界稳定。 |
-| 资深前端工程师 | 无影响 | 本轮未改前端运行时代码，后续可按下载端点补 UI 按钮。 |
-| 资深质量工程师 | 有条件通过 | 后端定点验证已通过；完整 WP7 quality gate 仍需与前端/DB 一起执行。 |
+| 资深前端工程师 | 通过 | 工作台已接入 artifact 下载按钮、状态提示和受权失败反馈，沿用既有 run 详情交互。 |
+| 资深质量工程师 | 通过 | 后端、前端、构建和完整 WP7 quality gate 已通过，可作为本轮验收证据。 |

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   blankUiE2eSceneDraft,
   buildUiE2eBundleListSummary,
+  buildUiE2eArtifactDownloadState,
   buildUiE2eFlakyDetailInsight,
   buildUiE2eBundleQueueOverview,
   buildUiE2eFlakyListSummary,
@@ -585,6 +586,41 @@ describe('ui e2e workbench state helpers', () => {
       '检查 runner 回传的 artifact storageRef 与 digest 是否完整。',
       '当前运行已标记为 CONFIRMED_FLAKY，可优先按不稳定场景治理而不是直接回归 blocker。'
     ]));
+  });
+
+  it('builds artifact download state for ready, blocked, and pending manifests', () => {
+    expect(buildUiE2eArtifactDownloadState({
+      id: 'artifact-ready',
+      artifactType: 'SCREENSHOT',
+      storageRef: 'artifact://ui-e2e/run-1/screenshot-artifact-ready.png',
+      sizeBytes: 128,
+      redactionFlags: { rawArtifactDownloadReady: true },
+      captureStatus: 'CAPTURED'
+    })).toMatchObject({
+      canDownload: true,
+      downloadReady: true,
+      tone: 'success'
+    });
+
+    expect(buildUiE2eArtifactDownloadState({
+      id: 'artifact-blocked',
+      artifactType: 'TRACE',
+      sizeBytes: 0,
+      redactionFlags: { captureBlockedReason: 'artifactRefIncomplete' },
+      captureStatus: 'BLOCKED'
+    }).summary).toContain('storageRef 或 digest 缺失');
+
+    expect(buildUiE2eArtifactDownloadState({
+      id: 'artifact-pending',
+      artifactType: 'LOG',
+      sizeBytes: 0,
+      redactionFlags: {},
+      captureStatus: 'PENDING'
+    })).toMatchObject({
+      canDownload: false,
+      downloadReady: false,
+      tone: 'info'
+    });
   });
 
   it('builds run flaky guidance for failed, confirmed, and successful runs', () => {

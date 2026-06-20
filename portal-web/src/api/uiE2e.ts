@@ -1,4 +1,4 @@
-import { requestJson, type ApiResponse } from './client';
+import { requestBinary, requestJson, type ApiResponse, type BinaryResponse } from './client';
 
 const UI_E2E_BASE = '/api/v1/ui-e2e';
 
@@ -454,6 +454,10 @@ export async function cancelUiE2eRun(id: string, payload: CancelUiE2eRunPayload 
 export async function exportUiE2eRun(id: string): Promise<ApiResponse<UiE2eRunExport>> {
   const response = await requestJson<unknown>(`${UI_E2E_BASE}/runs/${encodeURIComponent(id)}/export`);
   return { ...response, data: normalizeUiE2eRunExport(response.data) };
+}
+
+export async function downloadUiE2eArtifact(runId: string, artifactId: string): Promise<BinaryResponse> {
+  return requestBinary(`${UI_E2E_BASE}/runs/${encodeURIComponent(runId)}/artifacts/${encodeURIComponent(artifactId)}/download`);
 }
 
 export async function fetchUiE2eFlakyMarks(filters: UiE2eFlakyFilters = {}): Promise<ApiResponse<UiE2eList<UiE2eFlakyMark>>> {

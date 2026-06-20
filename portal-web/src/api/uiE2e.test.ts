@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { requestJson } from './client';
+import { requestBinary, requestJson } from './client';
 import {
   approveUiE2eBundle,
   archiveUiE2eBundle,
@@ -19,6 +19,7 @@ import {
   fetchUiE2eRuns,
   fetchUiE2eScene,
   fetchUiE2eScenes,
+  downloadUiE2eArtifact,
   normalizeUiE2eBundleDetail,
   normalizeUiE2eBundleExport,
   normalizeUiE2eBundleSummary,
@@ -36,14 +37,23 @@ import {
 } from './uiE2e';
 
 vi.mock('./client', () => ({
-  requestJson: vi.fn()
+  requestJson: vi.fn(),
+  requestBinary: vi.fn()
 }));
 
 const requestJsonMock = vi.mocked(requestJson);
+const requestBinaryMock = vi.mocked(requestBinary);
 
 describe('WP7 ui e2e API helpers', () => {
   beforeEach(() => {
     requestJsonMock.mockReset();
+    requestBinaryMock.mockReset();
+    requestBinaryMock.mockResolvedValue({
+      blob: new Blob(['artifact-bytes'], { type: 'application/zip' }),
+      traceId: 'trc-artifact',
+      contentType: 'application/zip',
+      filename: 'trace.zip'
+    });
   });
 
   it('normalizes health, scene, bundle, run, flaky and export responses', () => {
@@ -309,6 +319,7 @@ describe('WP7 ui e2e API helpers', () => {
     });
     await cancelUiE2eRun('run-1', { reason: 'cancel' });
     await exportUiE2eRun('run-1');
+    await downloadUiE2eArtifact('run-1', 'artifact-1');
     await fetchUiE2eFlakyMarks({ projectId: 'project-alpha', status: 'CONFIRMED_FLAKY', keyword: 'locator' });
     await fetchUiE2eFlakyMark('flaky-1');
     await upsertUiE2eFlakyMark({
@@ -381,6 +392,7 @@ describe('WP7 ui e2e API helpers', () => {
       body: JSON.stringify({ reason: 'cancel' })
     });
     expect(requestJsonMock).toHaveBeenNthCalledWith(19, '/api/v1/ui-e2e/runs/run-1/export');
+    expect(requestBinaryMock).toHaveBeenNthCalledWith(1, '/api/v1/ui-e2e/runs/run-1/artifacts/artifact-1/download');
     expect(requestJsonMock).toHaveBeenNthCalledWith(20, '/api/v1/ui-e2e/flaky-marks?projectId=project-alpha&status=CONFIRMED_FLAKY&keyword=locator');
     expect(requestJsonMock).toHaveBeenNthCalledWith(21, '/api/v1/ui-e2e/flaky-marks/flaky-1');
     expect(requestJsonMock).toHaveBeenNthCalledWith(22, '/api/v1/ui-e2e/flaky-marks', {
