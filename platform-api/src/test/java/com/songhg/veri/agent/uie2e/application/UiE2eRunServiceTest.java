@@ -14,6 +14,7 @@ import com.songhg.veri.agent.management.application.port.ManagementStoreParams;
 import com.songhg.veri.agent.management.application.port.ManagementStoreRows.EnvironmentConnectivityTargetRow;
 import com.songhg.veri.agent.management.application.port.ManagementStoreRows.EnvironmentRef;
 import com.songhg.veri.agent.management.application.port.ManagementStoreRows.EnvironmentRuntimeRef;
+import com.songhg.veri.agent.notification.application.AsyncTaskNotificationService;
 import com.songhg.veri.agent.testdata.application.TestAccountLeaseService;
 import com.songhg.veri.agent.testdata.application.TestAccountPoolService;
 import com.songhg.veri.agent.testdata.application.TestDataActorResolver;
@@ -49,10 +50,14 @@ import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 class UiE2eRunServiceTest {
@@ -121,6 +126,9 @@ class UiE2eRunServiceTest {
 
         assertThat(replayed.id()).isEqualTo(created.id());
         assertThat(replayed.idempotentReplay()).isTrue();
+        verify(fixture.notificationService(), times(1)).notifyUiE2eRunFinished(argThat(run ->
+                created.id().equals(run.id()) && "BLOCKED".equals(run.status())
+        ));
     }
 
     @Test
@@ -193,6 +201,7 @@ class UiE2eRunServiceTest {
         assertThat(created.executionSummary()).containsEntry("stepResultCount", 2);
         assertThat(((Map<?, ?>) created.executionSummary().get("stepStatusCounts")).get("RUNNING")).isEqualTo(1);
         assertThat(((Map<?, ?>) created.executionSummary().get("stepStatusCounts")).get("SUCCEEDED")).isEqualTo(1);
+        verifyNoInteractions(fixture.notificationService());
 
         UiE2eRunDetailResponse canceled = fixture.service().cancelRun(
                 created.id(),
@@ -202,6 +211,9 @@ class UiE2eRunServiceTest {
         assertThat(canceled.status()).isEqualTo("CANCELED");
         assertThat(canceled.failureCode()).isEqualTo("UI_E2E_RUNNER_CANCELED");
         assertThat(canceled.finishedAt()).isNotNull();
+        verify(fixture.notificationService()).notifyUiE2eRunFinished(argThat(run ->
+                canceled.id().equals(run.id()) && "CANCELED".equals(run.status())
+        ));
 
         UiE2eRunPageRequest request = new UiE2eRunPageRequest();
         request.setProjectId(PROJECT_ID);
@@ -831,6 +843,7 @@ class UiE2eRunServiceTest {
                 ""
         );
         UiE2eArtifactStorage artifactStorage = new LocalUiE2eArtifactStorage(properties);
+        AsyncTaskNotificationService notificationService = mock(AsyncTaskNotificationService.class);
         UiE2eSceneService sceneService = new UiE2eSceneService(
                 repository,
                 contextClient,
@@ -856,6 +869,7 @@ class UiE2eRunServiceTest {
                 testDataFixture.referenceService(),
                 testDataFixture.alphaPoolId(),
                 testDataFixture.betaPoolId(),
+                notificationService,
                 new UiE2eRunService(
                         repository,
                         actorResolver,
@@ -880,7 +894,8 @@ class UiE2eRunServiceTest {
                         new UiE2eRunEnvironmentResolver(managementStore),
                         testDataFixture.referenceService(),
                         artifactStorage,
-                        objectMapper
+                        objectMapper,
+                        notificationService
                 )
         );
     }
@@ -1082,6 +1097,7 @@ class UiE2eRunServiceTest {
             TestDataCrossWpReferenceService testDataCrossWpReferenceService,
             UUID alphaPoolId,
             UUID betaPoolId,
+            AsyncTaskNotificationService notificationService,
             UiE2eRunService service
     ) {
     }

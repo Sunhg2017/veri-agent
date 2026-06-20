@@ -8,6 +8,7 @@ import com.songhg.veri.agent.reporting.domain.ReportExecutionReport;
 import com.songhg.veri.agent.testdata.domain.TestDataTask;
 import com.songhg.veri.agent.testdesign.application.view.TestDesignPublishResponse;
 import com.songhg.veri.agent.testdesign.domain.TestDesignTask;
+import com.songhg.veri.agent.uie2e.domain.UiE2eRun;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
@@ -205,6 +206,33 @@ public class AsyncTaskNotificationService {
         ));
     }
 
+    /**
+     * UI/E2E runs are currently aggregate-only control-plane snapshots, so notifications point users back to the
+     * workbench instead of embedding any runner-originated payload.
+     */
+    public void notifyUiE2eRunFinished(UiE2eRun run) {
+        targetUserId(run.createdBy()).ifPresent(userId -> notificationPublisher.publishToUser(
+                userId,
+                uiE2eCanceled(run.status()) ? "SYSTEM_INFO" : executionSuccess(run.status()) ? "ASYNC_TASK_COMPLETED" : "ASYNC_TASK_FAILED",
+                uiE2eCanceled(run.status()) ? "UI E2E 运行已取消" : executionSuccess(run.status()) ? "UI E2E 运行已完成" : "UI E2E 运行结束但存在异常",
+                uiE2eCanceled(run.status())
+                        ? "UI E2E 运行已取消，可前往 UI E2E 工作台确认当前运行状态。"
+                        : executionSuccess(run.status())
+                        ? "UI E2E 运行已完成，可前往 UI E2E 工作台查看运行详情。"
+                        : asyncFailureBody("UI E2E 运行已结束，但存在失败、超时或阻断情况，请在 UI E2E 工作台查看详情。", run.failureSummary()),
+                "#ui-e2e",
+                Map.of(
+                        "runId", run.id(),
+                        "projectId", run.projectId(),
+                        "sceneId", run.sceneId(),
+                        "bundleId", run.bundleId(),
+                        "status", run.status(),
+                        "runnerMode", safeText(run.runnerMode()),
+                        "failureCode", safeText(run.failureCode())
+                )
+        ));
+    }
+
     public void notifyModelInvocationJobSucceeded(ModelInvocationJobRecord job) {
         targetUserId(job.delegatedUserId()).ifPresent(userId -> notificationPublisher.publishToUser(
                 userId,
@@ -284,5 +312,9 @@ public class AsyncTaskNotificationService {
 
     private boolean executionSuccess(String status) {
         return "SUCCEEDED".equals(status);
+    }
+
+    private boolean uiE2eCanceled(String status) {
+        return "CANCELED".equals(status);
     }
 }

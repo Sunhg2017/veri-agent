@@ -10,6 +10,7 @@ import com.songhg.veri.agent.modelaccess.application.view.ModelInvocationJobStat
 import com.songhg.veri.agent.testdata.domain.TestDataTask;
 import com.songhg.veri.agent.testdesign.application.view.TestDesignPublishResponse;
 import com.songhg.veri.agent.testdesign.domain.TestDesignTask;
+import com.songhg.veri.agent.uie2e.domain.UiE2eRun;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
@@ -301,5 +302,130 @@ class AsyncTaskNotificationServiceTest {
                 eq("#model-access"),
                 argThat(metadata -> "CANCELLED".equals(metadata.get("errorCode")))
         );
+    }
+
+    @Test
+    void publishesUiE2eRunTerminalNotifications() {
+        UUID userId = UUID.randomUUID();
+        Instant now = Instant.now();
+        UiE2eRun succeeded = new UiE2eRun(
+                UUID.randomUUID(),
+                UUID.randomUUID(),
+                UUID.randomUUID(),
+                "project-ui",
+                "SUCCEEDED",
+                "run-ok",
+                "PLAYWRIGHT_SUBPROCESS",
+                "digest",
+                "lease-1",
+                "{}",
+                null,
+                null,
+                "trc_ui_ok",
+                userId.toString(),
+                now.minusSeconds(20),
+                now.minusSeconds(10),
+                now.minusSeconds(20),
+                now.minusSeconds(10)
+        );
+        UiE2eRun failed = new UiE2eRun(
+                UUID.randomUUID(),
+                UUID.randomUUID(),
+                UUID.randomUUID(),
+                "project-ui",
+                "FAILED",
+                "run-failed",
+                "MANAGED",
+                "digest",
+                "lease-2",
+                "{}",
+                "UI_E2E_RUNNER_FAILED",
+                "locator timeout",
+                "trc_ui_failed",
+                userId.toString(),
+                now.minusSeconds(30),
+                now.minusSeconds(5),
+                now.minusSeconds(30),
+                now.minusSeconds(5)
+        );
+        UiE2eRun canceled = new UiE2eRun(
+                UUID.randomUUID(),
+                UUID.randomUUID(),
+                UUID.randomUUID(),
+                "project-ui",
+                "CANCELED",
+                "run-canceled",
+                "MANAGED",
+                "digest",
+                "lease-3",
+                "{}",
+                "UI_E2E_RUNNER_CANCELED",
+                "operator canceled",
+                "trc_ui_canceled",
+                userId.toString(),
+                now.minusSeconds(40),
+                now.minusSeconds(1),
+                now.minusSeconds(40),
+                now.minusSeconds(1)
+        );
+
+        service.notifyUiE2eRunFinished(succeeded);
+        service.notifyUiE2eRunFinished(failed);
+        service.notifyUiE2eRunFinished(canceled);
+
+        verify(publisher).publishToUser(
+                eq(userId),
+                eq("ASYNC_TASK_COMPLETED"),
+                eq("UI E2E 运行已完成"),
+                eq("UI E2E 运行已完成，可前往 UI E2E 工作台查看运行详情。"),
+                eq("#ui-e2e"),
+                argThat(metadata -> succeeded.id().equals(metadata.get("runId")) && "SUCCEEDED".equals(metadata.get("status")))
+        );
+        verify(publisher).publishToUser(
+                eq(userId),
+                eq("ASYNC_TASK_FAILED"),
+                eq("UI E2E 运行结束但存在异常"),
+                eq("UI E2E 运行已结束，但存在失败、超时或阻断情况，请在 UI E2E 工作台查看详情。 原因：locator timeout"),
+                eq("#ui-e2e"),
+                argThat(metadata -> failed.id().equals(metadata.get("runId"))
+                        && "UI_E2E_RUNNER_FAILED".equals(metadata.get("failureCode")))
+        );
+        verify(publisher).publishToUser(
+                eq(userId),
+                eq("SYSTEM_INFO"),
+                eq("UI E2E 运行已取消"),
+                eq("UI E2E 运行已取消，可前往 UI E2E 工作台确认当前运行状态。"),
+                eq("#ui-e2e"),
+                argThat(metadata -> canceled.id().equals(metadata.get("runId"))
+                        && "CANCELED".equals(metadata.get("status")))
+        );
+    }
+
+    @Test
+    void skipsUiE2eNotificationWhenActorIsNotUuid() {
+        UiE2eRun run = new UiE2eRun(
+                UUID.randomUUID(),
+                UUID.randomUUID(),
+                UUID.randomUUID(),
+                "project-ui",
+                "FAILED",
+                "run-non-uuid",
+                "MANAGED",
+                "digest",
+                "lease-4",
+                "{}",
+                "UI_E2E_RUNNER_FAILED",
+                "runner failed",
+                "trc_ui_skip",
+                "system",
+                Instant.now().minusSeconds(10),
+                Instant.now(),
+                Instant.now().minusSeconds(10),
+                Instant.now()
+        );
+
+        service.notifyUiE2eRunFinished(run);
+
+        verifyNoInteractions(publisher);
     }
 }

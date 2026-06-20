@@ -8,6 +8,7 @@ import com.songhg.veri.agent.common.error.BusinessException;
 import com.songhg.veri.agent.common.error.ErrorCode;
 import com.songhg.veri.agent.common.trace.TraceContext;
 import com.songhg.veri.agent.common.util.SensitiveTextSanitizer;
+import com.songhg.veri.agent.notification.application.AsyncTaskNotificationService;
 import com.songhg.veri.agent.testdata.application.TestDataCrossWpReferenceService;
 import com.songhg.veri.agent.testdata.application.view.TestDataCrossWpAccountSummary;
 import com.songhg.veri.agent.testdata.application.view.TestDataRunnerAccountContractResponse;
@@ -101,6 +102,7 @@ public class UiE2eRunService {
     private final TestDataCrossWpReferenceService testDataCrossWpReferenceService;
     private final UiE2eArtifactStorage artifactStorage;
     private final ObjectMapper objectMapper;
+    private final AsyncTaskNotificationService notificationService;
 
     public UiE2eRunService(
             UiE2eRepository repository,
@@ -111,7 +113,8 @@ public class UiE2eRunService {
             UiE2eRunEnvironmentResolver environmentResolver,
             TestDataCrossWpReferenceService testDataCrossWpReferenceService,
             UiE2eArtifactStorage artifactStorage,
-            ObjectMapper objectMapper
+            ObjectMapper objectMapper,
+            AsyncTaskNotificationService notificationService
     ) {
         this.repository = repository;
         this.actorResolver = actorResolver;
@@ -122,6 +125,7 @@ public class UiE2eRunService {
         this.testDataCrossWpReferenceService = testDataCrossWpReferenceService;
         this.artifactStorage = artifactStorage;
         this.objectMapper = objectMapper;
+        this.notificationService = notificationService;
     }
 
     /**
@@ -205,6 +209,7 @@ public class UiE2eRunService {
                 "status", canceled.status(),
                 "runnerCancelAccepted", cancelResult != null && cancelResult.accepted()
         ));
+        notificationService.notifyUiE2eRunFinished(canceled);
         return detail(canceled, false);
     }
 
@@ -348,6 +353,7 @@ public class UiE2eRunService {
             completedAudit.put("stepResultCount", stepResults.size());
             completedAudit.put("artifactManifestCount", manifests.size());
             auditRun(run, "BLOCKED".equals(run.status()) ? "FAILED" : "SUCCESS", "ui_e2e.run.completed", completedAudit);
+            notificationService.notifyUiE2eRunFinished(run);
         }
         return detail(run, false);
     }
