@@ -3,6 +3,7 @@ package com.songhg.veri.agent.execution.application;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.songhg.veri.agent.execution.application.view.ExecutionRunArtifactResponse;
 import com.songhg.veri.agent.execution.application.view.ExecutionRunDetailResponse;
 import com.songhg.veri.agent.execution.application.view.ExecutionRunSummaryResponse;
 import com.songhg.veri.agent.execution.domain.ExecutionNodeRun;
@@ -10,6 +11,7 @@ import com.songhg.veri.agent.execution.domain.ExecutionPlanNode;
 import com.songhg.veri.agent.execution.domain.ExecutionRun;
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 
@@ -26,12 +28,30 @@ class ExecutionRunResponseMapperTest {
         ExecutionNodeRun apiNodeRun = nodeRun(runId, apiNodeId, "SUCCEEDED", "{\"durationMs\":120}");
         ExecutionNodeRun orphanNodeRun = nodeRun(runId, UUID.randomUUID(), "FAILED", "{not-json");
         ExecutionPlanNode apiNode = planNode(apiNodeId, planId, "api-smoke", "API_TEST");
+        ExecutionRunArtifactResponse artifact = new ExecutionRunArtifactResponse(
+                UUID.randomUUID(),
+                apiNodeRun.id(),
+                apiNodeId,
+                "api-smoke",
+                "API_TEST",
+                "WP6_API",
+                "WP6_API_AUTOMATION",
+                "LOG",
+                "artifact-digest",
+                128,
+                "CAPTURED",
+                false,
+                Map.of("aggregateOnly", true),
+                Instant.EPOCH,
+                Instant.EPOCH
+        );
 
         ExecutionRunDetailResponse response = mapper.toDetail(
                 run,
                 true,
                 List.of(apiNodeRun, orphanNodeRun),
-                List.of(apiNode)
+                List.of(apiNode),
+                List.of(artifact)
         );
 
         assertThat(response.id()).isEqualTo(runId);
@@ -40,6 +60,10 @@ class ExecutionRunResponseMapperTest {
                 .containsEntry("nodeCount", 2)
                 .containsEntry("runnerDispatched", true);
         assertThat(response.nodes()).hasSize(2);
+        assertThat(response.artifacts()).singleElement().satisfies(item -> {
+            assertThat(item.sourceType()).isEqualTo("WP6_API_AUTOMATION");
+            assertThat(item.artifactType()).isEqualTo("LOG");
+        });
         assertThat(response.nodes().getFirst()).satisfies(node -> {
             assertThat(node.nodeKey()).isEqualTo("api-smoke");
             assertThat(node.nodeType()).isEqualTo("API_TEST");
@@ -78,6 +102,8 @@ class ExecutionRunResponseMapperTest {
                 .containsEntry("rawRequestResponseExported", false)
                 .containsEntry("secretRefsExported", false)
                 .containsEntry("claimTokenExported", false)
+                .containsEntry("artifactManifestExported", true)
+                .containsEntry("rawArtifactDownloadExported", false)
                 .containsEntry("onlySanitizedSummariesExported", true);
     }
 

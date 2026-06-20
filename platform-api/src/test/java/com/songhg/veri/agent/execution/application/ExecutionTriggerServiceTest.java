@@ -238,6 +238,7 @@ class ExecutionTriggerServiceTest {
                 null,
                 null,
                 List.of(),
+                List.of(),
                 false,
                 "system",
                 null,

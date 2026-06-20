@@ -18,7 +18,9 @@ import com.songhg.veri.agent.notification.application.AsyncTaskNotificationServi
 import com.songhg.veri.agent.testdata.application.TestDataCrossWpReferenceService;
 import com.songhg.veri.agent.uie2e.application.UiE2eRunService;
 import com.songhg.veri.agent.uie2e.application.command.CancelUiE2eRunCommand;
+import com.songhg.veri.agent.uie2e.application.view.UiE2eArtifactManifestResponse;
 import com.songhg.veri.agent.uie2e.application.view.UiE2eRunDetailResponse;
+import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
@@ -355,6 +357,76 @@ class ExecutionRunServiceTest {
         verify(repository, never()).updateNodeRuns(any());
     }
 
+    @Test
+    void runDetailFederatesWp7ArtifactsWithoutLeakingStorageRefs() {
+        UUID runId = UUID.randomUUID();
+        UUID planId = UUID.randomUUID();
+        UUID uiNodeId = UUID.randomUUID();
+        UUID wp7RunId = UUID.randomUUID();
+        UUID sourceArtifactId = UUID.randomUUID();
+        ExecutionNodeRun nodeRun = nodeRun(runId, uiNodeId, "SUCCEEDED", "WP7_UI", wp7RunId.toString());
+        when(repository.run(runId)).thenReturn(Optional.of(activeRun(runId, planId)));
+        when(repository.nodeRuns(runId)).thenReturn(List.of(nodeRun));
+        when(repository.planNodes(planId)).thenReturn(List.of(planNode(uiNodeId, "ui-smoke", "UI_TEST")));
+        when(uiE2eRunService.run(wp7RunId)).thenReturn(wp7RunWithArtifact(wp7RunId, "SUCCEEDED", sourceArtifactId));
+
+        ExecutionRunDetailResponse response = service.run(runId);
+
+        assertThat(response.artifacts()).singleElement().satisfies(artifact -> {
+            assertThat(artifact.nodeRunId()).isEqualTo(nodeRun.id());
+            assertThat(artifact.planNodeId()).isEqualTo(uiNodeId);
+            assertThat(artifact.nodeKey()).isEqualTo("ui-smoke");
+            assertThat(artifact.nodeType()).isEqualTo("UI_TEST");
+            assertThat(artifact.runnerType()).isEqualTo("WP7_UI");
+            assertThat(artifact.sourceType()).isEqualTo("WP7_UI_E2E");
+            assertThat(artifact.artifactType()).isEqualTo("LOG");
+            assertThat(artifact.downloadReady()).isTrue();
+            assertThat(artifact.redactionFlags()).containsEntry("rawArtifactDownloadReady", true);
+            assertThat(artifact.redactionFlags().values())
+                    .allSatisfy(value -> assertThat(String.valueOf(value)).doesNotContain("artifact://"));
+        });
+        verify(uiE2eRunService).run(wp7RunId);
+    }
+
+    @Test
+    void downloadArtifactDelegatesToWp7ArtifactDownload() {
+        UUID runId = UUID.randomUUID();
+        UUID planId = UUID.randomUUID();
+        UUID uiNodeId = UUID.randomUUID();
+        UUID wp7RunId = UUID.randomUUID();
+        UUID sourceArtifactId = UUID.randomUUID();
+        ExecutionNodeRun nodeRun = nodeRun(runId, uiNodeId, "SUCCEEDED", "WP7_UI", wp7RunId.toString());
+        when(repository.run(runId)).thenReturn(Optional.of(activeRun(runId, planId)));
+        when(repository.nodeRuns(runId)).thenReturn(List.of(nodeRun));
+        when(repository.planNodes(planId)).thenReturn(List.of(planNode(uiNodeId, "ui-smoke", "UI_TEST")));
+        when(uiE2eRunService.run(wp7RunId)).thenReturn(wp7RunWithArtifact(wp7RunId, "SUCCEEDED", sourceArtifactId));
+        when(uiE2eRunService.downloadArtifact(wp7RunId, sourceArtifactId))
+                .thenReturn(new UiE2eRunService.DownloadableArtifact(
+                        "runner.log",
+                        "text/plain",
+                        "wp7 artifact body".getBytes(StandardCharsets.UTF_8)
+                ));
+
+        ExecutionRunDetailResponse response = service.run(runId);
+        ExecutionRunService.DownloadableArtifact downloaded = service.downloadArtifact(
+                runId,
+                response.artifacts().getFirst().id()
+        );
+
+        assertThat(downloaded.fileName()).isEqualTo("runner.log");
+        assertThat(downloaded.contentType()).isEqualTo("text/plain");
+        assertThat(new String(downloaded.content(), StandardCharsets.UTF_8)).isEqualTo("wp7 artifact body");
+        verify(uiE2eRunService).downloadArtifact(wp7RunId, sourceArtifactId);
+        verify(contextClient).writeAuditEvent(
+                eq("execution.run.artifact.downloaded"),
+                eq("EXECUTION_RUN"),
+                eq(runId.toString()),
+                eq("project-alpha"),
+                eq("SUCCESS"),
+                any()
+        );
+    }
+
     private void stubMutableRunState(
             UUID runId,
             UUID planId,
@@ -488,6 +560,46 @@ class ExecutionRunServiceTest {
                 Map.of(),
                 List.of(),
                 List.of(),
+                null,
+                now.minusSeconds(10),
+                "CANCELED".equals(status) ? now : null,
+                now.minusSeconds(20),
+                now,
+                false
+        );
+    }
+
+    private UiE2eRunDetailResponse wp7RunWithArtifact(UUID id, String status, UUID artifactId) {
+        Instant now = Instant.now();
+        return new UiE2eRunDetailResponse(
+                id,
+                "project-alpha",
+                UUID.randomUUID(),
+                "portal-login",
+                "Portal Login",
+                "APPROVED",
+                UUID.randomUUID(),
+                "APPROVED",
+                status,
+                "wp9-ui-request",
+                "MANAGED",
+                null,
+                null,
+                "trc_wp7",
+                Map.of("accountLeaseRef", UUID.randomUUID().toString()),
+                Map.of("artifactManifestCount", 1),
+                List.of(),
+                List.of(new UiE2eArtifactManifestResponse(
+                        artifactId,
+                        "LOG",
+                        "artifact://ui-e2e/" + artifactId,
+                        "artifact-digest",
+                        42,
+                        Map.of("rawArtifactStored", true, "rawArtifactDownloadReady", true),
+                        "CAPTURED",
+                        now.minusSeconds(5),
+                        now
+                )),
                 null,
                 now.minusSeconds(10),
                 "CANCELED".equals(status) ? now : null,

@@ -5,6 +5,7 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.songhg.veri.agent.common.util.SensitiveTextSanitizer;
 import com.songhg.veri.agent.execution.application.view.ExecutionNodeRunResponse;
+import com.songhg.veri.agent.execution.application.view.ExecutionRunArtifactResponse;
 import com.songhg.veri.agent.execution.application.view.ExecutionRunDetailResponse;
 import com.songhg.veri.agent.execution.application.view.ExecutionRunSummaryResponse;
 import com.songhg.veri.agent.execution.domain.ExecutionNodeRun;
@@ -38,6 +39,16 @@ final class ExecutionRunResponseMapper {
             List<ExecutionNodeRun> nodeRuns,
             List<ExecutionPlanNode> planNodes
     ) {
+        return toDetail(run, idempotentReplay, nodeRuns, planNodes, List.of());
+    }
+
+    ExecutionRunDetailResponse toDetail(
+            ExecutionRun run,
+            boolean idempotentReplay,
+            List<ExecutionNodeRun> nodeRuns,
+            List<ExecutionPlanNode> planNodes,
+            List<ExecutionRunArtifactResponse> artifacts
+    ) {
         Map<UUID, ExecutionPlanNode> nodeById = planNodes.stream()
                 .collect(Collectors.toMap(ExecutionPlanNode::id, Function.identity()));
         return new ExecutionRunDetailResponse(
@@ -56,6 +67,7 @@ final class ExecutionRunResponseMapper {
                 nodeRuns.stream()
                         .map(nodeRun -> toNodeRunResponse(nodeRun, nodeById.get(nodeRun.planNodeId())))
                         .toList(),
+                artifacts == null ? List.of() : List.copyOf(artifacts),
                 idempotentReplay,
                 run.createdBy(),
                 run.startedAt(),
@@ -103,6 +115,8 @@ final class ExecutionRunResponseMapper {
                 "rawBaseUrlExported", false,
                 "secretRefsExported", false,
                 "claimTokenExported", false,
+                "artifactManifestExported", true,
+                "rawArtifactDownloadExported", false,
                 "triggerPayloadExported", false,
                 "onlySanitizedSummariesExported", true
         );

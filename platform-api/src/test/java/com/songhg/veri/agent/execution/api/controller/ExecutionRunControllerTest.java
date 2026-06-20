@@ -11,7 +11,17 @@ import com.songhg.veri.agent.auth.application.AuthTokenService;
 import com.songhg.veri.agent.auth.domain.AuthUserRecord;
 import com.songhg.veri.agent.execution.application.port.ExecutionRepository;
 import com.songhg.veri.agent.execution.domain.ExecutionNodeRun;
+import com.songhg.veri.agent.execution.domain.ExecutionPlanNode;
 import com.songhg.veri.agent.execution.domain.ExecutionRun;
+import com.songhg.veri.agent.uie2e.application.port.UiE2eArtifactStorage;
+import com.songhg.veri.agent.uie2e.application.port.UiE2eRepository;
+import com.songhg.veri.agent.uie2e.domain.UiE2eArtifactManifest;
+import com.songhg.veri.agent.uie2e.domain.UiE2eBundle;
+import com.songhg.veri.agent.uie2e.domain.UiE2eRun;
+import com.songhg.veri.agent.uie2e.domain.UiE2eScene;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
@@ -32,6 +42,7 @@ import static org.hamcrest.Matchers.startsWith;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -57,6 +68,12 @@ class ExecutionRunControllerTest {
 
     @Autowired
     private ExecutionRepository executionRepository;
+
+    @Autowired
+    private UiE2eRepository uiE2eRepository;
+
+    @Autowired
+    private UiE2eArtifactStorage artifactStorage;
 
     @Test
     void createsManualRunAndReplaysRequestKeyIdempotently() throws Exception {
@@ -477,6 +494,35 @@ class ExecutionRunControllerTest {
     }
 
     @Test
+    void downloadsFederatedWp7ArtifactThroughExecutionSurface() throws Exception {
+        UUID bundleId = approvedBundle("project-alpha");
+        String ownerToken = userAccessToken(List.of("ProjectOwner@PROJECT:project-alpha"));
+        String exportToken = userAccessToken(List.of("SuperAdmin"));
+        UUID planId = createPlan(bundleId, ownerToken, "READY");
+        UUID runId = triggerRun(planId, ownerToken, "artifact-download-smoke");
+
+        UUID sourceArtifactId = seedWp7Artifact(runId, planId);
+
+        MvcResult detail = mockMvc.perform(get("/api/v1/execution/runs/{id}", runId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + ownerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.artifacts.length()").value(1))
+                .andExpect(jsonPath("$.data.artifacts[0].sourceType").value("WP7_UI_E2E"))
+                .andExpect(jsonPath("$.data.artifacts[0].artifactType").value("LOG"))
+                .andExpect(jsonPath("$.data.artifacts[0].downloadReady").value(true))
+                .andExpect(content().string(not(containsString("artifact://ui-e2e/"))))
+                .andReturn();
+        UUID artifactId = UUID.fromString(JsonPath.read(detail.getResponse().getContentAsString(), "$.data.artifacts[0].id"));
+
+        mockMvc.perform(get("/api/v1/execution/runs/{id}/artifacts/{artifactId}/download", runId, artifactId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + exportToken))
+                .andExpect(status().isOk())
+                .andExpect(content().contentType(MediaType.APPLICATION_OCTET_STREAM))
+                .andExpect(header().string(HttpHeaders.CONTENT_DISPOSITION, containsString(sourceArtifactId.toString())))
+                .andExpect(content().string("wp7 artifact body"));
+    }
+
+    @Test
     void heartbeatsClaimAndRequeuesExpiredClaimForAnotherWorker() throws Exception {
         UUID bundleId = approvedBundle("project-alpha");
         String ownerToken = userAccessToken(List.of("ProjectOwner@PROJECT:project-alpha"));
@@ -630,6 +676,132 @@ class ExecutionRunControllerTest {
                 run.createdAt(),
                 now
         ));
+    }
+
+    private UUID seedWp7Artifact(UUID runId, UUID planId) throws Exception {
+        Instant now = Instant.now();
+        ExecutionNodeRun firstNode = executionRepository.nodeRuns(runId).get(0);
+        List<ExecutionPlanNode> nodes = executionRepository.planNodes(planId);
+        ExecutionPlanNode firstPlanNode = nodes.get(0);
+        executionRepository.replacePlanNodes(planId, List.of(
+                new ExecutionPlanNode(
+                        firstPlanNode.id(),
+                        firstPlanNode.planId(),
+                        "ui-smoke",
+                        "UI_TEST",
+                        firstPlanNode.dependencyKeysCsv(),
+                        firstPlanNode.inputSummaryJson(),
+                        firstPlanNode.failurePolicy(),
+                        firstPlanNode.timeoutSeconds(),
+                        firstPlanNode.retryPolicyJson(),
+                        firstPlanNode.createdAt(),
+                        now
+                ),
+                nodes.get(1)
+        ));
+
+        UUID sceneId = UUID.randomUUID();
+        UUID bundleId = UUID.randomUUID();
+        UUID wp7RunId = UUID.randomUUID();
+        UUID sourceArtifactId = UUID.randomUUID();
+        uiE2eRepository.insertScene(new UiE2eScene(
+                sceneId,
+                "project-alpha",
+                "app-alpha",
+                "staging",
+                "portal-login",
+                "Portal Login",
+                "APPROVED",
+                "HIGH",
+                "{}",
+                "[]",
+                "tester",
+                "tester",
+                null,
+                now.minusSeconds(30),
+                now.minusSeconds(30)
+        ));
+        uiE2eRepository.insertBundle(new UiE2eBundle(
+                bundleId,
+                sceneId,
+                "project-alpha",
+                "APPROVED",
+                "wp7-bundle-digest-" + bundleId,
+                "{}",
+                "{}",
+                "{}",
+                "tester",
+                "tester",
+                now.minusSeconds(20),
+                now.minusSeconds(20),
+                null,
+                "tester",
+                "tester",
+                null,
+                now.minusSeconds(30),
+                now.minusSeconds(20)
+        ));
+        uiE2eRepository.insertRun(new UiE2eRun(
+                wp7RunId,
+                sceneId,
+                bundleId,
+                "project-alpha",
+                "SUCCEEDED",
+                "wp7-request",
+                "MANAGED",
+                "wp7-base-url-digest",
+                UUID.randomUUID().toString(),
+                "{\"accountLeaseRef\":\"" + UUID.randomUUID() + "\"}",
+                null,
+                null,
+                "trc_wp7",
+                "tester",
+                now.minusSeconds(15),
+                now.minusSeconds(5),
+                now.minusSeconds(20),
+                now.minusSeconds(5)
+        ));
+        Path tempFile = Files.createTempFile("wp9-execution-artifact-", ".log");
+        try {
+            Files.writeString(tempFile, "wp7 artifact body", StandardCharsets.UTF_8);
+            UiE2eArtifactStorage.StoredArtifact stored = artifactStorage.store(wp7RunId, sourceArtifactId, "LOG", tempFile);
+            uiE2eRepository.replaceArtifacts(wp7RunId, List.of(new UiE2eArtifactManifest(
+                    sourceArtifactId,
+                    wp7RunId,
+                    "LOG",
+                    stored.storageRef(),
+                    "artifact-digest",
+                    stored.sizeBytes(),
+                    "{\"aggregateOnly\":true,\"rawArtifactStored\":true,\"rawArtifactDownloadReady\":true}",
+                    "CAPTURED",
+                    "tester",
+                    "tester",
+                    now.minusSeconds(5),
+                    now.minusSeconds(5)
+            )));
+        } finally {
+            Files.deleteIfExists(tempFile);
+        }
+
+        executionRepository.updateNodeRuns(List.of(new ExecutionNodeRun(
+                firstNode.id(),
+                firstNode.runId(),
+                firstNode.planNodeId(),
+                "SUCCEEDED",
+                firstNode.attempt(),
+                "WP7_UI",
+                wp7RunId.toString(),
+                null,
+                null,
+                "{\"runnerDispatched\":true,\"wp7ArtifactCount\":1}",
+                now.minusSeconds(5),
+                firstNode.queuedAt(),
+                now.minusSeconds(10),
+                now.minusSeconds(5),
+                firstNode.createdAt(),
+                now.minusSeconds(5)
+        )));
+        return sourceArtifactId;
     }
 
     private UUID approvedBundle(String projectId) {

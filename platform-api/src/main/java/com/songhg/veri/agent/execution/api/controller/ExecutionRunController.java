@@ -18,8 +18,12 @@ import com.songhg.veri.agent.execution.application.view.ExecutionRunDetailRespon
 import com.songhg.veri.agent.execution.application.view.ExecutionRunExportResponse;
 import com.songhg.veri.agent.execution.application.view.ExecutionRunSummaryResponse;
 import jakarta.validation.Valid;
+import java.nio.charset.StandardCharsets;
 import java.util.UUID;
+import org.springframework.http.ContentDisposition;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -69,6 +73,22 @@ public class ExecutionRunController {
     @RequirePermission(value = PermissionCodes.EXECUTION_EXPORT, scope = ExecutionPermissionScopes.RUN)
     public ExecutionRunExportResponse exportRun(@PathVariable UUID id) {
         return service.exportRun(id);
+    }
+
+    @GetMapping("/runs/{id}/artifacts/{artifactId}/download")
+    @RequirePermission(value = PermissionCodes.EXECUTION_EXPORT, scope = ExecutionPermissionScopes.RUN)
+    public ResponseEntity<byte[]> downloadArtifact(@PathVariable UUID id, @PathVariable UUID artifactId) {
+        ExecutionRunService.DownloadableArtifact artifact = service.downloadArtifact(id, artifactId);
+        return ResponseEntity.ok()
+                .contentType(MediaType.parseMediaType(artifact.contentType()))
+                .header(
+                        HttpHeaders.CONTENT_DISPOSITION,
+                        ContentDisposition.attachment()
+                                .filename(artifact.fileName(), StandardCharsets.UTF_8)
+                                .build()
+                                .toString()
+                )
+                .body(artifact.content());
     }
 
     @PostMapping("/runs/{id}/cancel")

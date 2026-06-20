@@ -46,6 +46,7 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.annotation.Transactional;
@@ -73,6 +74,7 @@ public class ExecutionRunService {
     private final ManagementStore managementStore;
     private final ExecutionRunJsonSupport jsonSupport;
     private final ExecutionRunResponseMapper responseMapper;
+    private final ExecutionRunArtifactSupport artifactSupport;
     private final ExecutionAccountLeaseSupport accountLeaseSupport;
     private final ExecutionRunQueueSupport queueSupport;
     private final ExecutionRunDispatchSupport dispatchSupport;
@@ -103,6 +105,7 @@ public class ExecutionRunService {
         this.managementStore = managementStores.getIfAvailable();
         this.jsonSupport = new ExecutionRunJsonSupport(objectMapper);
         this.responseMapper = new ExecutionRunResponseMapper(objectMapper);
+        this.artifactSupport = new ExecutionRunArtifactSupport(this.uiE2eRunService);
         this.properties = properties;
         this.notificationService = notificationService;
         this.accountLeaseSupport = new ExecutionAccountLeaseSupport(
@@ -237,9 +240,11 @@ public class ExecutionRunService {
         );
         auditRun(run, "execution.run.exported", "SUCCESS", Map.of(
                 "nodeCount", detail.nodes().size(),
+                "artifactManifestCount", detail.artifacts().size(),
                 "nodeStatusCounts", nodeStatusCounts,
                 "rawOutputExported", false,
                 "rawRequestResponseExported", false,
+                "rawArtifactDownloadExported", false,
                 "secretRefsExported", false,
                 "claimTokenExported", false
         ));
@@ -474,6 +479,33 @@ public class ExecutionRunService {
     public String runProjectScopeId(UUID id) {
         return repository.runProjectScopeId(id)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "执行运行不存在"));
+    }
+
+    /**
+     * Downloads one runner artifact through the WP9 execution surface while keeping provider-specific storage opaque.
+     */
+    @Transactional(readOnly = true)
+    public DownloadableArtifact downloadArtifact(UUID runId, UUID artifactId) {
+        ExecutionRun run = requireRun(runId);
+        List<ExecutionNodeRun> nodeRuns = repository.nodeRuns(run.id());
+        List<ExecutionPlanNode> planNodes = repository.planNodes(run.planId());
+        ExecutionRunArtifactSupport.DownloadableArtifact artifact = artifactSupport.downloadArtifact(
+                artifactId,
+                nodeRuns,
+                planNodes
+        );
+        auditRun(run, "execution.run.artifact.downloaded", "SUCCESS", Map.of(
+                "nodeRunId", String.valueOf(artifact.nodeRunId()),
+                "artifactId", String.valueOf(artifact.artifactId()),
+                "runnerType", artifact.runnerType(),
+                "artifactType", artifact.artifactType(),
+                "rawArtifactBodyExported", true
+        ));
+        return new DownloadableArtifact(
+                artifact.fileName(),
+                normalizeContentType(artifact.contentType()),
+                artifact.content()
+        );
     }
 
     private ExecutionRunDetailResponse createRun(
@@ -804,7 +836,13 @@ public class ExecutionRunService {
             List<ExecutionNodeRun> nodeRuns,
             List<ExecutionPlanNode> planNodes
     ) {
-        return responseMapper.toDetail(run, idempotentReplay, nodeRuns, planNodes);
+        return responseMapper.toDetail(
+                run,
+                idempotentReplay,
+                nodeRuns,
+                planNodes,
+                artifactSupport.artifacts(nodeRuns, planNodes)
+        );
     }
 
     private ExecutionPlan requirePlan(UUID id) {
@@ -857,6 +895,17 @@ public class ExecutionRunService {
 
     private void auditRun(ExecutionRun run, String action, String result, Map<String, Object> afterJson) {
         contextClient.writeAuditEvent(action, "EXECUTION_RUN", run.id().toString(), run.projectId(), result, afterJson);
+    }
+
+    private String normalizeContentType(String contentType) {
+        return StringUtils.hasText(contentType) ? contentType.trim() : MediaType.APPLICATION_OCTET_STREAM_VALUE;
+    }
+
+    public record DownloadableArtifact(
+            String fileName,
+            String contentType,
+            byte[] content
+    ) {
     }
 
     private record RunnerCancelAttempt(

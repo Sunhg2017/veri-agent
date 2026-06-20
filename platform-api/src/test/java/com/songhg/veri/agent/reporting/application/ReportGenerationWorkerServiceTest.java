@@ -354,6 +354,7 @@ class ReportGenerationWorkerServiceTest {
                 null,
                 null,
                 nodes,
+                List.of(),
                 false,
                 "tester",
                 startedAt,

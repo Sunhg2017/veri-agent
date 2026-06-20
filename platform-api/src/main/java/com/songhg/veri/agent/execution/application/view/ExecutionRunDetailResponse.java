@@ -33,6 +33,8 @@ public record ExecutionRunDetailResponse(
         String errorSummary,
         @Schema(description = "Node runs")
         List<ExecutionNodeRunResponse> nodes,
+        @Schema(description = "Federated execution artifact manifests")
+        List<ExecutionRunArtifactResponse> artifacts,
         @Schema(description = "Whether this response came from requestKey replay")
         boolean idempotentReplay,
         String createdBy,
