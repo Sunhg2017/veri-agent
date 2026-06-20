@@ -378,12 +378,16 @@ class UiE2eRunServiceTest {
                 false,
                 true,
                 true,
+                true,
+                true,
                 "node",
                 "../portal-web/node_modules",
                 ""
         ));
 
         var health = service.health();
+        assertThat(health.artifactPolicy()).containsEntry("captureHarEnabled", true);
+        assertThat(health.artifactPolicy()).containsEntry("captureJunitXmlEnabled", true);
         assertThat(health.policy()).containsEntry("runControlPlaneReady", true);
         assertThat(health.policy()).containsEntry("runnerPortReady", true);
         assertThat(health.policy()).containsEntry("artifactManifestReady", true);
@@ -410,6 +414,8 @@ class UiE2eRunServiceTest {
                 List.of("https://portal.example.test"),
                 true,
                 false,
+                true,
+                true,
                 true,
                 true,
                 "node",
@@ -504,13 +510,16 @@ class UiE2eRunServiceTest {
     void createsSucceededRunWhenRealBrowserRunnerModeIsEnabled() {
         LocalPortalFixture portalFixture = LocalPortalFixture.start();
         try {
-            Fixture fixture = fixtureWithRunnerMode(
+            Fixture fixture = fixtureWithRunnerArtifactPolicy(
                     true,
                     "playwright-subprocess",
                     List.of("https://127.0.0.1"),
                     List.of(new AcceptingUiE2eSecretProvider()),
                     null,
-                    portalFixture.baseUrlRef()
+                    portalFixture.baseUrlRef(),
+                    false,
+                    false,
+                    false
             );
             SeededRunRefs refs = seedApprovedSceneAndBundle(fixture, List.of(
                     new CreateUiE2eSceneCommand.SceneStepPayload(
@@ -562,6 +571,134 @@ class UiE2eRunServiceTest {
                 assertThat(artifact.redactionFlags()).containsEntry("rawArtifactDownloadReady", true);
             });
             assertThat(created.executionSummary()).containsEntry("rawArtifactDownloadReady", true);
+        } finally {
+            portalFixture.close();
+        }
+    }
+
+    @Test
+    void capturesHarAndJunitXmlButBlocksVideoForLoginScene() {
+        LocalPortalFixture portalFixture = LocalPortalFixture.start();
+        try {
+            Fixture fixture = fixtureWithRunnerArtifactPolicy(
+                    true,
+                    "playwright-subprocess",
+                    List.of("https://127.0.0.1"),
+                    List.of(new AcceptingUiE2eSecretProvider()),
+                    null,
+                    portalFixture.baseUrlRef(),
+                    true,
+                    true,
+                    true
+            );
+            SeededRunRefs refs = seedApprovedSceneAndBundle(fixture, List.of(
+                    new CreateUiE2eSceneCommand.SceneStepPayload(
+                            "LOGIN",
+                            Map.of(
+                                    "principalField", "data-testid=username",
+                                    "credentialField", "data-testid=password",
+                                    "submitAction", "click"
+                            ),
+                            Map.of("preferred", "testId", "target", "login-form"),
+                            Map.of("successSignal", "url contains /dashboard"),
+                            Map.of("timeoutSeconds", 5)
+                    ),
+                    new CreateUiE2eSceneCommand.SceneStepPayload(
+                            "ASSERT",
+                            Map.of(),
+                            Map.of("preferred", "text", "target", "dashboard-title"),
+                            Map.of("expectedText", "Dashboard"),
+                            Map.of("timeoutSeconds", 5)
+                    )
+            ));
+            UUID leaseRef = acquireLease(fixture);
+
+            UiE2eRunDetailResponse created = fixture.service().createRun(new CreateUiE2eRunCommand(
+                    PROJECT_ID,
+                    refs.sceneId(),
+                    refs.bundleId(),
+                    ENVIRONMENT_KEY,
+                    "env:" + ENVIRONMENT_KEY,
+                    leaseRef,
+                    "run-request-real-browser-artifacts-001",
+                    "real browser artifact expansion"
+            ));
+
+            assertThat(created.status()).isEqualTo("SUCCEEDED");
+            assertThat(created.artifacts()).anySatisfy(artifact -> {
+                assertThat(artifact.artifactType()).isEqualTo("HAR");
+                assertThat(artifact.captureStatus()).isEqualTo("CAPTURED");
+                assertThat(artifact.redactionFlags()).containsEntry("rawArtifactDownloadReady", true);
+                assertThat(artifact.redactionFlags()).containsEntry("contentMode", "omit");
+                assertThat(artifact.redactionFlags()).containsEntry("sanitizedAfterCapture", true);
+            });
+            assertThat(created.artifacts()).anySatisfy(artifact -> {
+                assertThat(artifact.artifactType()).isEqualTo("JUNIT_XML");
+                assertThat(artifact.captureStatus()).isEqualTo("CAPTURED");
+                assertThat(artifact.redactionFlags()).containsEntry("rawArtifactDownloadReady", true);
+            });
+            assertThat(created.artifacts()).anySatisfy(artifact -> {
+                assertThat(artifact.artifactType()).isEqualTo("VIDEO");
+                assertThat(artifact.captureStatus()).isEqualTo("BLOCKED");
+                assertThat(artifact.redactionFlags()).containsEntry("rawArtifactDownloadReady", false);
+                assertThat(artifact.redactionFlags()).containsEntry("captureBlockedReason", "credentialEntryWindow");
+            });
+        } finally {
+            portalFixture.close();
+        }
+    }
+
+    @Test
+    void capturesVideoForLoginFreeSceneWhenEnabled() {
+        LocalPortalFixture portalFixture = LocalPortalFixture.start();
+        try {
+            Fixture fixture = fixtureWithRunnerArtifactPolicy(
+                    true,
+                    "playwright-subprocess",
+                    List.of("https://127.0.0.1"),
+                    List.of(new AcceptingUiE2eSecretProvider()),
+                    null,
+                    portalFixture.baseUrlRef(),
+                    true,
+                    false,
+                    false
+            );
+            SeededRunRefs refs = seedApprovedSceneAndBundle(fixture, List.of(
+                    new CreateUiE2eSceneCommand.SceneStepPayload(
+                            "NAVIGATE",
+                            Map.of("path", "/dashboard"),
+                            Map.of("preferred", "path", "target", "/dashboard"),
+                            Map.of("urlContains", "/dashboard"),
+                            Map.of("timeoutSeconds", 5)
+                    ),
+                    new CreateUiE2eSceneCommand.SceneStepPayload(
+                            "ASSERT",
+                            Map.of(),
+                            Map.of("preferred", "text", "target", "dashboard-title"),
+                            Map.of("expectedText", "Dashboard"),
+                            Map.of("timeoutSeconds", 5)
+                    )
+            ));
+            UUID leaseRef = acquireLease(fixture);
+
+            UiE2eRunDetailResponse created = fixture.service().createRun(new CreateUiE2eRunCommand(
+                    PROJECT_ID,
+                    refs.sceneId(),
+                    refs.bundleId(),
+                    ENVIRONMENT_KEY,
+                    "env:" + ENVIRONMENT_KEY,
+                    leaseRef,
+                    "run-request-real-browser-video-001",
+                    "real browser video capture"
+            ));
+
+            assertThat(created.status()).isEqualTo("SUCCEEDED");
+            assertThat(created.artifacts()).anySatisfy(artifact -> {
+                assertThat(artifact.artifactType()).isEqualTo("VIDEO");
+                assertThat(artifact.captureStatus()).isEqualTo("CAPTURED");
+                assertThat(artifact.redactionFlags()).containsEntry("rawArtifactDownloadReady", true);
+                assertThat(artifact.redactionFlags()).containsEntry("loginFreeScene", true);
+            });
         } finally {
             portalFixture.close();
         }
@@ -639,6 +776,30 @@ class UiE2eRunServiceTest {
             com.songhg.veri.agent.uie2e.application.port.UiE2eRunnerPort runnerPortOverride,
             String managementWebUrl
     ) {
+        return fixtureWithRunnerArtifactPolicy(
+                managedRunner,
+                runnerMode,
+                allowlistBaseUrls,
+                secretProviders,
+                runnerPortOverride,
+                managementWebUrl,
+                false,
+                false,
+                false
+        );
+    }
+
+    private Fixture fixtureWithRunnerArtifactPolicy(
+            boolean managedRunner,
+            String runnerMode,
+            List<String> allowlistBaseUrls,
+            List<SecretProvider> secretProviders,
+            com.songhg.veri.agent.uie2e.application.port.UiE2eRunnerPort runnerPortOverride,
+            String managementWebUrl,
+            boolean captureVideoEnabled,
+            boolean captureHarEnabled,
+            boolean captureJunitXmlEnabled
+    ) {
         InMemoryUiE2eRepository repository = new InMemoryUiE2eRepository();
         UiE2ePlatformContextClient contextClient = mock(UiE2ePlatformContextClient.class);
         when(contextClient.projectContext(PROJECT_ID)).thenReturn(platformContext(PROJECT_ID));
@@ -660,8 +821,10 @@ class UiE2eRunServiceTest {
                 2,
                 allowlistBaseUrls,
                 true,
-                false,
+                captureVideoEnabled,
+                captureHarEnabled,
                 true,
+                captureJunitXmlEnabled,
                 true,
                 "node",
                 "../portal-web/node_modules",

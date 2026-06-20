@@ -66,8 +66,10 @@
 | `veri-agent.ui-e2e.max-concurrency` | `2` | 单机 runner 并发上限。 |
 | `veri-agent.ui-e2e.allowlist-base-urls` | 空 | 允许执行的 baseUrl host 白名单。 |
 | `veri-agent.ui-e2e.capture-screenshot-enabled` | `true` | 是否采集截图摘要。 |
-| `veri-agent.ui-e2e.capture-video-enabled` | `false` | 首期默认不强制视频。 |
+| `veri-agent.ui-e2e.capture-video-enabled` | `false` | 是否允许视频采集；含 `LOGIN` 步骤的场景即使开启也必须按 `credentialEntryWindow` 阻断。 |
+| `veri-agent.ui-e2e.capture-har-enabled` | `false` | 是否采集 `HAR`；落盘前必须做脱敏和 `content=omit` 限制。 |
 | `veri-agent.ui-e2e.capture-trace-enabled` | `true` | 是否采集 trace 摘要。 |
+| `veri-agent.ui-e2e.capture-junit-xml-enabled` | `false` | 是否导出基于 step result 合成的 `JUnit XML`。 |
 | `veri-agent.ui-e2e.export-enabled` | `true` | 是否允许导出脱敏摘要。 |
 | `veri-agent.ui-e2e.artifact-storage-dir` | `${java.io.tmpdir}/veri-agent/ui-e2e-artifacts` | 受控原始 artifact 本地落盘根目录，仅通过 API 下载，不回显真实路径。 |
 
@@ -200,6 +202,8 @@
 10. `credentialPolicy`
 11. `artifactPolicy`
 12. `supportedNodeType=UI_TEST`
+
+其中 `artifactPolicy` 至少包含 `captureScreenshotEnabled`、`captureVideoEnabled`、`captureHarEnabled`、`captureTraceEnabled`、`captureJunitXmlEnabled`、`maxArtifactCount`、`maxArtifactSizeBytes` 和 `rawArtifactDownloadReady`。
 
 不得返回：
 

@@ -36,8 +36,12 @@ public record UiE2eProperties(
         @DefaultValue("true") boolean captureScreenshotEnabled,
         /** Whether video capture is enabled. */
         @DefaultValue("false") boolean captureVideoEnabled,
+        /** Whether HAR capture is enabled. */
+        @DefaultValue("false") boolean captureHarEnabled,
         /** Whether trace capture is enabled. */
         @DefaultValue("true") boolean captureTraceEnabled,
+        /** Whether JUnit XML capture is enabled. */
+        @DefaultValue("false") boolean captureJunitXmlEnabled,
         /** Whether run summary export is enabled. */
         @DefaultValue("true") boolean exportEnabled,
         /** Node executable used by the local real-browser runner. */

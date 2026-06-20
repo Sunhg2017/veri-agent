@@ -24,8 +24,8 @@ import java.util.UUID;
 import org.springframework.util.StringUtils;
 
 /**
- * WP7 managed preview runner persists aggregate-only, redacted execution intent so the control plane can exercise the
- * enabled path before real browser execution, raw artifact storage and credential injection land.
+ * WP7 managed preview runner persists aggregate-only, redacted execution intent so the control plane can rehearse the
+ * runner contract without opening a real browser session or emitting raw runtime artifacts.
  */
 public class ManagedPreviewUiE2eRunnerAdapter implements UiE2eRunnerPort {
 
@@ -251,6 +251,12 @@ public class ManagedPreviewUiE2eRunnerAdapter implements UiE2eRunnerPort {
         }
         if (properties.captureVideoEnabled()) {
             artifacts.add(blockedArtifact("VIDEO"));
+        }
+        if (properties.captureHarEnabled()) {
+            artifacts.add(blockedArtifact("HAR"));
+        }
+        if (properties.captureJunitXmlEnabled()) {
+            artifacts.add(blockedArtifact("JUNIT_XML"));
         }
         return List.copyOf(artifacts);
     }

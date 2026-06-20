@@ -96,6 +96,16 @@ class ManagedPreviewUiE2eRunnerAdapterTest {
             assertThat(artifact.captureStatus()).isEqualTo("BLOCKED");
             assertThat(artifact.redactionFlags()).containsEntry("captureBlockedReason", "browserExecutionNotProvisioned");
         });
+        assertThat(result.artifacts()).anySatisfy(artifact -> {
+            assertThat(artifact.artifactType()).isEqualTo("HAR");
+            assertThat(artifact.captureStatus()).isEqualTo("BLOCKED");
+            assertThat(artifact.redactionFlags()).containsEntry("captureBlockedReason", "browserExecutionNotProvisioned");
+        });
+        assertThat(result.artifacts()).anySatisfy(artifact -> {
+            assertThat(artifact.artifactType()).isEqualTo("JUNIT_XML");
+            assertThat(artifact.captureStatus()).isEqualTo("BLOCKED");
+            assertThat(artifact.redactionFlags()).containsEntry("captureBlockedReason", "browserExecutionNotProvisioned");
+        });
     }
 
     @Test
@@ -292,7 +302,9 @@ class ManagedPreviewUiE2eRunnerAdapterTest {
                 2,
                 List.of("https://portal.example.test"),
                 true,
-                false,
+                true,
+                true,
+                true,
                 true,
                 true,
                 "node",

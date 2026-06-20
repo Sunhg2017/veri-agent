@@ -75,7 +75,9 @@ public class UiE2eHealthService {
                 Map.ofEntries(
                         Map.entry("captureScreenshotEnabled", properties.captureScreenshotEnabled()),
                         Map.entry("captureVideoEnabled", properties.captureVideoEnabled()),
+                        Map.entry("captureHarEnabled", properties.captureHarEnabled()),
                         Map.entry("captureTraceEnabled", properties.captureTraceEnabled()),
+                        Map.entry("captureJunitXmlEnabled", properties.captureJunitXmlEnabled()),
                         Map.entry("maxArtifactCount", properties.effectiveMaxArtifactCount()),
                         Map.entry("maxArtifactSizeBytes", properties.effectiveMaxArtifactSizeBytes()),
                         Map.entry("redactionScanRequired", true),

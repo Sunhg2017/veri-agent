@@ -23,7 +23,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         "veri-agent.ui-e2e.max-concurrency=4",
         "veri-agent.ui-e2e.allowlist-base-urls[0]=https://portal.example.test",
         "veri-agent.ui-e2e.allowlist-base-urls[1]=https://admin.example.test",
-        "veri-agent.ui-e2e.capture-video-enabled=true"
+        "veri-agent.ui-e2e.capture-video-enabled=true",
+        "veri-agent.ui-e2e.capture-har-enabled=true",
+        "veri-agent.ui-e2e.capture-junit-xml-enabled=true"
 })
 @AutoConfigureMockMvc
 class UiE2eHealthControllerTest {
@@ -59,7 +61,9 @@ class UiE2eHealthControllerTest {
                 .andExpect(jsonPath("$.data.credentialPolicy.plaintextCredentialExported").value(false))
                 .andExpect(jsonPath("$.data.artifactPolicy.captureScreenshotEnabled").value(true))
                 .andExpect(jsonPath("$.data.artifactPolicy.captureVideoEnabled").value(true))
+                .andExpect(jsonPath("$.data.artifactPolicy.captureHarEnabled").value(true))
                 .andExpect(jsonPath("$.data.artifactPolicy.captureTraceEnabled").value(true))
+                .andExpect(jsonPath("$.data.artifactPolicy.captureJunitXmlEnabled").value(true))
                 .andExpect(jsonPath("$.data.artifactPolicy.maxArtifactCount").value(3))
                 .andExpect(jsonPath("$.data.artifactPolicy.maxArtifactSizeBytes").value(4096))
                 .andExpect(jsonPath("$.data.artifactPolicy.redactionScanRequired").value(true))

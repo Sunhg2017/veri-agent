@@ -36,7 +36,8 @@ import org.springframework.util.StringUtils;
 
 /**
  * Minimal real-browser runner for WP7 that executes a bounded LOGIN/NAVIGATE/ASSERT slice through Playwright.
- * All persisted outputs remain aggregate-only and redact raw DOM, runner logs and credential plaintext.
+ * Manifests stay aggregate-only, while raw artifacts are copied into controlled storage only after redaction rules and
+ * capture-specific safety gates have been applied.
  */
 public class PlaywrightSubprocessUiE2eRunnerAdapter implements UiE2eRunnerPort {
 
@@ -335,7 +336,10 @@ public class PlaywrightSubprocessUiE2eRunnerAdapter implements UiE2eRunnerPort {
                 Path.of(properties.effectiveRunnerNodeModulesDir()).toAbsolutePath().normalize().toString()
         );
         environment.put("VA_WP7_CAPTURE_SCREENSHOT", String.valueOf(properties.captureScreenshotEnabled()));
+        environment.put("VA_WP7_CAPTURE_VIDEO", String.valueOf(properties.captureVideoEnabled()));
+        environment.put("VA_WP7_CAPTURE_HAR", String.valueOf(properties.captureHarEnabled()));
         environment.put("VA_WP7_CAPTURE_TRACE", String.valueOf(properties.captureTraceEnabled()));
+        environment.put("VA_WP7_CAPTURE_JUNIT_XML", String.valueOf(properties.captureJunitXmlEnabled()));
         environment.put("VA_WP7_STEPS_JSON", writeJson(stepPayloads(steps)));
         environment.put("VA_WP7_CREDENTIAL_PLAN_JSON", writeJson(Map.of(
                 "principalIdentifier", plan.principalIdentifier(),
@@ -391,6 +395,15 @@ public class PlaywrightSubprocessUiE2eRunnerAdapter implements UiE2eRunnerPort {
         }
         if (properties.captureTraceEnabled()) {
             artifacts.add(blockedArtifact("TRACE", blockedReason));
+        }
+        if (properties.captureVideoEnabled()) {
+            artifacts.add(blockedArtifact("VIDEO", blockedReason));
+        }
+        if (properties.captureHarEnabled()) {
+            artifacts.add(blockedArtifact("HAR", blockedReason));
+        }
+        if (properties.captureJunitXmlEnabled()) {
+            artifacts.add(blockedArtifact("JUNIT_XML", blockedReason));
         }
         return List.copyOf(artifacts);
     }
@@ -554,6 +567,11 @@ public class PlaywrightSubprocessUiE2eRunnerAdapter implements UiE2eRunnerPort {
         }
     }
 
+    /**
+     * Builds the bounded Playwright worker script. Video capture is disabled for any scene that contains LOGIN so the
+     * credential entry window is never written to disk, while HAR and video artifacts are finalized only after browser
+     * shutdown so Playwright has flushed the files completely.
+     */
     private String runnerScript() {
         return """
                 import fs from 'node:fs/promises';
@@ -564,9 +582,14 @@ public class PlaywrightSubprocessUiE2eRunnerAdapter implements UiE2eRunnerPort {
                 const workspaceDir = process.env.VA_WP7_WORKSPACE_DIR;
                 const nodeModulesDir = process.env.VA_WP7_NODE_MODULES_DIR;
                 const captureScreenshot = process.env.VA_WP7_CAPTURE_SCREENSHOT === 'true';
+                const captureVideo = process.env.VA_WP7_CAPTURE_VIDEO === 'true';
+                const captureHar = process.env.VA_WP7_CAPTURE_HAR === 'true';
                 const captureTrace = process.env.VA_WP7_CAPTURE_TRACE === 'true';
+                const captureJunitXml = process.env.VA_WP7_CAPTURE_JUNIT_XML === 'true';
                 const steps = JSON.parse(process.env.VA_WP7_STEPS_JSON || '[]');
                 const credentialPlan = JSON.parse(process.env.VA_WP7_CREDENTIAL_PLAN_JSON || '{}');
+                const containsLoginStep = steps.some((step) => String(step.stepType || '').toUpperCase() === 'LOGIN');
+                const captureVideoEligible = captureVideo && !containsLoginStep;
                 const require = createRequire(path.resolve(nodeModulesDir, 'playwright', 'package.json'));
                 const { chromium } = require('playwright');
                 const result = {
@@ -585,6 +608,13 @@ public class PlaywrightSubprocessUiE2eRunnerAdapter implements UiE2eRunnerPort {
                     .replace(/https?:\\/\\/[^\\s,;]+/gi, '[REDACTED_URL]')
                     .replace(/\\b(bearer\\s+[a-z0-9._-]{8,}|token\\s*[:=]\\s*[^\\s,;]+|password\\s*[:=]\\s*[^\\s,;]+|cookie\\s*[:=]\\s*[^\\s,;]+)/gi, '[REDACTED]');
                 };
+
+                const escapeXml = (value) => sanitize(value == null ? '' : value)
+                  .replace(/&/g, '&amp;')
+                  .replace(/</g, '&lt;')
+                  .replace(/>/g, '&gt;')
+                  .replace(/"/g, '&quot;')
+                  .replace(/'/g, '&apos;');
 
                 const hash = async (filePath) => {
                   const { createHash } = await import('node:crypto');
@@ -613,13 +643,26 @@ public class PlaywrightSubprocessUiE2eRunnerAdapter implements UiE2eRunnerPort {
                 let browser;
                 let context;
                 let page;
+                let pendingVideoPath = null;
+                let videoHandle = null;
                 try {
                   browser = await chromium.launch({ headless: true });
-                  context = await browser.newContext();
+                  context = await browser.newContext({
+                    recordHar: captureHar ? {
+                      path: path.join(workspaceDir, 'session.har'),
+                      mode: 'minimal',
+                      content: 'omit'
+                    } : undefined,
+                    recordVideo: captureVideoEligible ? {
+                      dir: workspaceDir,
+                      size: { width: 1280, height: 720 }
+                    } : undefined
+                  });
                   if (captureTrace) {
                     await context.tracing.start({ screenshots: true, snapshots: false, sources: false });
                   }
                   page = await context.newPage();
+                  videoHandle = captureVideoEligible ? page.video() : null;
 
                   for (const step of steps) {
                     const startedAt = Date.now();
@@ -739,12 +782,49 @@ public class PlaywrightSubprocessUiE2eRunnerAdapter implements UiE2eRunnerPort {
                     });
                   }
                   const runnerLogPath = path.join(workspaceDir, 'runner.log');
+                  if (captureJunitXml) {
+                    const junitPath = path.join(workspaceDir, 'junit.xml');
+                    const suiteFailures = result.stepResults.filter((item) => item.status === 'FAILED' || item.status === 'TIMEOUT');
+                    const suiteSkipped = result.stepResults.filter((item) => item.status === 'BLOCKED' || item.status === 'SKIPPED');
+                    const junitXml = `<?xml version="1.0" encoding="UTF-8"?>\n<testsuite name="wp7-ui-e2e" tests="${result.stepResults.length}" failures="${suiteFailures.length}" skipped="${suiteSkipped.length}" time="${(result.stepResults.reduce((sum, item) => sum + Number(item.durationMs || 0), 0) / 1000).toFixed(3)}">\n${result.stepResults.map((item) => {
+                      const caseName = `step-${item.stepOrder}-${String(item.summary?.stepType || 'UNKNOWN').toLowerCase()}`;
+                      const duration = (Number(item.durationMs || 0) / 1000).toFixed(3);
+                      if (item.status === 'FAILED' || item.status === 'TIMEOUT') {
+                        const failureBucket = item.failureBucket || 'RUNNER';
+                        const errorCode = item.errorCode || 'UI_E2E_RUNNER_FAILED';
+                        const summaryText = escapeXml(item.summary?.errorSummary || result.failureSummary || errorCode);
+                        return `  <testcase classname="wp7.ui.e2e" name="${escapeXml(caseName)}" time="${duration}"><failure type="${escapeXml(failureBucket)}" message="${escapeXml(errorCode)}">${summaryText}</failure></testcase>`;
+                      }
+                      if (item.status === 'BLOCKED' || item.status === 'SKIPPED') {
+                        return `  <testcase classname="wp7.ui.e2e" name="${escapeXml(caseName)}" time="${duration}"><skipped message="${escapeXml(item.status)}"/></testcase>`;
+                      }
+                      return `  <testcase classname="wp7.ui.e2e" name="${escapeXml(caseName)}" time="${duration}"/>`;
+                    }).join('\\n')}\n</testsuite>\n`;
+                    await fs.writeFile(junitPath, junitXml, 'utf8');
+                    result.artifacts.push({
+                      artifactType: 'JUNIT_XML',
+                      storageRef: `summary://ui-e2e/${path.basename(workspaceDir)}/junit`,
+                      artifactDigest: await hash(junitPath),
+                      sizeBytes: (await fs.stat(junitPath)).size,
+                      redactionFlags: {
+                        aggregateOnly: true,
+                        rawArtifactStored: false,
+                        rawArtifactDownloadReady: false
+                      },
+                      captureStatus: 'CAPTURED',
+                      workspaceFile: 'junit.xml'
+                    });
+                  }
                   await fs.writeFile(runnerLogPath, JSON.stringify({
                     status: result.status,
                     failureCode: result.failureCode,
                     stepCount: result.stepResults.length,
                     captureScreenshot,
-                    captureTrace
+                    captureVideoRequested: captureVideo,
+                    captureVideoActive: captureVideoEligible,
+                    captureHar,
+                    captureTrace,
+                    captureJunitXml
                   }), 'utf8');
                   result.artifacts.push({
                     artifactType: 'LOG',
@@ -766,6 +846,97 @@ public class PlaywrightSubprocessUiE2eRunnerAdapter implements UiE2eRunnerPort {
                 } finally {
                   if (context) await context.close().catch(() => {});
                   if (browser) await browser.close().catch(() => {});
+                }
+
+                pendingVideoPath = captureVideoEligible && videoHandle ? await videoHandle.path().catch(() => null) : null;
+
+                if (captureHar) {
+                  const harPath = path.join(workspaceDir, 'session.har');
+                  try {
+                    const harText = sanitize(await fs.readFile(harPath, 'utf8'));
+                    await fs.writeFile(harPath, harText, 'utf8');
+                    result.artifacts.push({
+                      artifactType: 'HAR',
+                      storageRef: `summary://ui-e2e/${path.basename(workspaceDir)}/har`,
+                      artifactDigest: await hash(harPath),
+                      sizeBytes: (await fs.stat(harPath)).size,
+                      redactionFlags: {
+                        aggregateOnly: true,
+                        rawArtifactStored: false,
+                        rawArtifactDownloadReady: false,
+                        contentMode: 'omit',
+                        sanitizedAfterCapture: true
+                      },
+                      captureStatus: 'CAPTURED',
+                      workspaceFile: 'session.har'
+                    });
+                  } catch {
+                    result.artifacts.push({
+                      artifactType: 'HAR',
+                      storageRef: `summary://ui-e2e/${path.basename(workspaceDir)}/har`,
+                      artifactDigest: null,
+                      sizeBytes: 0,
+                      redactionFlags: {
+                        aggregateOnly: true,
+                        rawArtifactStored: false,
+                        rawArtifactDownloadReady: false,
+                        captureBlockedReason: 'harNotProduced'
+                      },
+                      captureStatus: 'BLOCKED',
+                      workspaceFile: 'session.har'
+                    });
+                  }
+                }
+
+                if (captureVideo) {
+                  if (captureVideoEligible && pendingVideoPath) {
+                    try {
+                      result.artifacts.push({
+                        artifactType: 'VIDEO',
+                        storageRef: `summary://ui-e2e/${path.basename(workspaceDir)}/video`,
+                        artifactDigest: await hash(pendingVideoPath),
+                        sizeBytes: (await fs.stat(pendingVideoPath)).size,
+                        redactionFlags: {
+                          aggregateOnly: true,
+                          rawArtifactStored: false,
+                          rawArtifactDownloadReady: false,
+                          loginFreeScene: true
+                        },
+                        captureStatus: 'CAPTURED',
+                        workspaceFile: path.basename(pendingVideoPath)
+                      });
+                    } catch {
+                      result.artifacts.push({
+                        artifactType: 'VIDEO',
+                        storageRef: `summary://ui-e2e/${path.basename(workspaceDir)}/video`,
+                        artifactDigest: null,
+                        sizeBytes: 0,
+                        redactionFlags: {
+                          aggregateOnly: true,
+                          rawArtifactStored: false,
+                          rawArtifactDownloadReady: false,
+                          captureBlockedReason: 'videoNotProduced'
+                        },
+                        captureStatus: 'BLOCKED',
+                        workspaceFile: path.basename(pendingVideoPath)
+                      });
+                    }
+                  } else {
+                    result.artifacts.push({
+                      artifactType: 'VIDEO',
+                      storageRef: `summary://ui-e2e/${path.basename(workspaceDir)}/video`,
+                      artifactDigest: null,
+                      sizeBytes: 0,
+                      redactionFlags: {
+                        aggregateOnly: true,
+                        rawArtifactStored: false,
+                        rawArtifactDownloadReady: false,
+                        captureBlockedReason: captureVideoEligible ? 'videoNotProduced' : 'credentialEntryWindow'
+                      },
+                      captureStatus: 'BLOCKED',
+                      workspaceFile: pendingVideoPath ? path.basename(pendingVideoPath) : 'video.webm'
+                    });
+                  }
                 }
 
                 await fs.writeFile(path.join(workspaceDir, 'result.json'), JSON.stringify(result), 'utf8');

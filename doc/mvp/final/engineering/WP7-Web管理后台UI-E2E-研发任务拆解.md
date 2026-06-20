@@ -158,4 +158,4 @@
 
 ## 15. 当前启动结论
 
-截至 2026-06-20，WP7 已完成文档启动准备，并落地 scene/bundle/run/flaky 控制面、`#ui-e2e` 前端工作台、Playwright 子进程真实浏览器 runner、WP8 凭据注入 adapter、artifact 受控存储/下载、浏览器 smoke、runner smoke 和 quality gate。当前剩余工作不再是 P0 主链路缺口，而是后续专项，如 Runner Runbook、发布准出说明、剩余工作盘点、视频/HAR/JUnit XML 扩展、实时日志推送、容器化隔离执行和外部对象存储归档。这些都应按本拆解后续里程碑继续推进，而不应再由 WP8/WP9/WP10 继续占位。
+截至 2026-06-20，WP7 已完成文档启动准备，并落地 scene/bundle/run/flaky 控制面、`#ui-e2e` 前端工作台、Playwright 子进程真实浏览器 runner、WP8 凭据注入 adapter、artifact 受控存储/下载、`HAR/JUnit XML` 真实采集、登录免凭据场景视频采集、浏览器 smoke、runner smoke 和 quality gate。当前剩余工作不再是 P0 主链路缺口，而是后续专项，如 Runner Runbook、发布准出说明、剩余工作盘点、实时日志推送、容器化隔离执行、更细粒度的视频脱敏能力和外部对象存储归档。这些都应按本拆解后续里程碑继续推进，而不应再由 WP8/WP9/WP10 继续占位。
