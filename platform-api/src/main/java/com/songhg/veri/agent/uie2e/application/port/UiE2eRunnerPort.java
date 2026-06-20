@@ -18,8 +18,23 @@ public interface UiE2eRunnerPort {
             String projectId,
             String baseUrl,
             String accountLeaseRef,
-            Map<String, Object> accountSummary
+            Map<String, Object> accountSummary,
+            List<String> browserTypes,
+            boolean visualRegressionEnabled,
+            UUID baselineRunId,
+            Double visualMismatchThreshold
     ) {
+
+        public RunnerValidationRequest(
+                UUID sceneId,
+                UUID bundleId,
+                String projectId,
+                String baseUrl,
+                String accountLeaseRef,
+                Map<String, Object> accountSummary
+        ) {
+            this(sceneId, bundleId, projectId, baseUrl, accountLeaseRef, accountSummary, List.of(), false, null, null);
+        }
     }
 
     record RunnerRunRequest(
@@ -29,8 +44,24 @@ public interface UiE2eRunnerPort {
             String projectId,
             String baseUrl,
             String accountLeaseRef,
-            Map<String, Object> accountSummary
+            Map<String, Object> accountSummary,
+            List<String> browserTypes,
+            boolean visualRegressionEnabled,
+            UUID baselineRunId,
+            Double visualMismatchThreshold
     ) {
+
+        public RunnerRunRequest(
+                UUID runId,
+                UUID sceneId,
+                UUID bundleId,
+                String projectId,
+                String baseUrl,
+                String accountLeaseRef,
+                Map<String, Object> accountSummary
+        ) {
+            this(runId, sceneId, bundleId, projectId, baseUrl, accountLeaseRef, accountSummary, List.of(), false, null, null);
+        }
     }
 
     record RunnerValidation(
@@ -46,8 +77,20 @@ public interface UiE2eRunnerPort {
             String failureCode,
             String failureSummary,
             List<RunnerStepResult> stepResults,
-            List<RunnerArtifactManifest> artifacts
+            List<RunnerArtifactManifest> artifacts,
+            Map<String, Object> executionSummary
     ) {
+
+        public RunnerRunResult(
+                String status,
+                String runnerMode,
+                String failureCode,
+                String failureSummary,
+                List<RunnerStepResult> stepResults,
+                List<RunnerArtifactManifest> artifacts
+        ) {
+            this(status, runnerMode, failureCode, failureSummary, stepResults, artifacts, Map.of());
+        }
     }
 
     record RunnerStepResult(

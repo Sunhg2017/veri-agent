@@ -86,7 +86,7 @@ public class ManagedPreviewUiE2eRunnerAdapter implements UiE2eRunnerPort {
     @Override
     public RunnerRunResult run(RunnerRunRequest request) {
         if (request == null || request.sceneId() == null || request.bundleId() == null) {
-            return blockedResult("EXECUTION_RUNNER_NOT_READY", "runner preview request is incomplete", List.of(), List.of());
+            return blockedResult("EXECUTION_RUNNER_NOT_READY", "runner preview request is incomplete", List.of(), List.of(), request);
         }
         UiE2eScene scene = repository.scene(request.sceneId()).orElse(null);
         UiE2eBundle bundle = repository.bundle(request.bundleId()).orElse(null);
@@ -95,7 +95,8 @@ public class ManagedPreviewUiE2eRunnerAdapter implements UiE2eRunnerPort {
                     "EXECUTION_RUNNER_NOT_READY",
                     "runner preview dependencies are missing",
                     List.of(),
-                    previewArtifacts(request)
+                    previewArtifacts(request),
+                    request
             );
         }
         CredentialPreviewState credentialState = resolveCredentialState(request);
@@ -111,7 +112,8 @@ public class ManagedPreviewUiE2eRunnerAdapter implements UiE2eRunnerPort {
                             credentialState.plan(),
                             credentialState.failureCode()
                     ),
-                    previewArtifacts(request)
+                    previewArtifacts(request),
+                    request
             );
         }
         List<UiE2eSceneStep> sceneSteps = repository.sceneSteps(scene.id());
@@ -127,7 +129,8 @@ public class ManagedPreviewUiE2eRunnerAdapter implements UiE2eRunnerPort {
                 EXECUTION_NOT_READY,
                 "managed preview built a redacted credential injection plan, but browser execution is not ready yet",
                 stepResults,
-                previewArtifacts(request)
+                previewArtifacts(request),
+                request
         );
     }
 
@@ -140,7 +143,8 @@ public class ManagedPreviewUiE2eRunnerAdapter implements UiE2eRunnerPort {
             String failureCode,
             String failureSummary,
             List<RunnerStepResult> stepResults,
-            List<RunnerArtifactManifest> artifacts
+            List<RunnerArtifactManifest> artifacts,
+            RunnerRunRequest request
     ) {
         return new RunnerRunResult(
                 "BLOCKED",
@@ -148,7 +152,8 @@ public class ManagedPreviewUiE2eRunnerAdapter implements UiE2eRunnerPort {
                 failureCode,
                 SensitiveTextSanitizer.sanitizedEvidenceText(failureSummary, 256),
                 stepResults,
-                artifacts
+                artifacts,
+                previewExecutionSummary(stepResults, artifacts, request)
         );
     }
 
@@ -435,6 +440,31 @@ public class ManagedPreviewUiE2eRunnerAdapter implements UiE2eRunnerPort {
 
     private String runnerMode() {
         return "http-adapter".equals(properties.effectiveRunnerMode()) ? "HTTP_ADAPTER" : "MANAGED";
+    }
+
+    private Map<String, Object> previewExecutionSummary(
+            List<RunnerStepResult> stepResults,
+            List<RunnerArtifactManifest> artifacts,
+            RunnerRunRequest request
+    ) {
+        List<String> browserTypes = request == null || request.browserTypes() == null || request.browserTypes().isEmpty()
+                ? List.of("CHROMIUM")
+                : List.copyOf(request.browserTypes());
+        Map<String, Object> summary = new LinkedHashMap<>();
+        summary.put("aggregateOnly", true);
+        summary.put("browserTypes", browserTypes);
+        summary.put("browserCount", browserTypes.size());
+        summary.put("parallelExecutionEnabled", browserTypes.size() > 1);
+        summary.put("visualRegressionEnabled", request != null && request.visualRegressionEnabled());
+        if (request != null && request.baselineRunId() != null) {
+            summary.put("visualBaselineRunId", request.baselineRunId().toString());
+        }
+        if (request != null && request.visualMismatchThreshold() != null) {
+            summary.put("visualMismatchThreshold", request.visualMismatchThreshold());
+        }
+        summary.put("stepResultCount", stepResults == null ? 0 : stepResults.size());
+        summary.put("artifactManifestCount", artifacts == null ? 0 : artifacts.size());
+        return Map.copyOf(summary);
     }
 
     private String safeRunSegment(UUID runId) {

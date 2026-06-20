@@ -192,7 +192,13 @@ describe('WP7 ui e2e API helpers', () => {
       runner_mode: 'DISABLED',
       failure_code: 'UI_E2E_RUNNER_DISABLED',
       account_summary: { secretPlaintextReturned: false },
-      execution_summary: { aggregateOnly: true, stepResultCount: '1' },
+      execution_summary: {
+        aggregateOnly: true,
+        stepResultCount: '1',
+        browserTypes: ['CHROMIUM', 'FIREFOX'],
+        visualRegressionEnabled: true,
+        visualMismatchCount: '1'
+      },
       step_results: [{
         id: 'step-result-1',
         step_order: '1',
@@ -217,6 +223,11 @@ describe('WP7 ui e2e API helpers', () => {
     })).toMatchObject({
       failureCode: 'UI_E2E_RUNNER_DISABLED',
       accountSummary: { secretPlaintextReturned: false },
+      executionSummary: {
+        browserTypes: ['CHROMIUM', 'FIREFOX'],
+        visualRegressionEnabled: true,
+        visualMismatchCount: '1'
+      },
       stepResults: [{ failureBucket: 'RUNNER', durationMs: 0 }],
       artifacts: [{ artifactType: 'SCREENSHOT', captureStatus: 'BLOCKED' }],
       flakyMark: { status: 'CONFIRMED_FLAKY' },
@@ -315,7 +326,11 @@ describe('WP7 ui e2e API helpers', () => {
       sceneId: 'scene-1',
       bundleId: 'bundle-1',
       baseUrlRef: 'env:staging',
-      accountLeaseRef: 'lease-1'
+      accountLeaseRef: 'lease-1',
+      browsers: ['CHROMIUM', 'FIREFOX'],
+      visualRegressionEnabled: true,
+      baselineRunId: 'baseline-run-1',
+      visualMismatchThreshold: 0.02
     });
     await cancelUiE2eRun('run-1', { reason: 'cancel' });
     await exportUiE2eRun('run-1');
@@ -384,7 +399,11 @@ describe('WP7 ui e2e API helpers', () => {
         sceneId: 'scene-1',
         bundleId: 'bundle-1',
         baseUrlRef: 'env:staging',
-        accountLeaseRef: 'lease-1'
+        accountLeaseRef: 'lease-1',
+        browsers: ['CHROMIUM', 'FIREFOX'],
+        visualRegressionEnabled: true,
+        baselineRunId: 'baseline-run-1',
+        visualMismatchThreshold: 0.02
       })
     });
     expect(requestJsonMock).toHaveBeenNthCalledWith(18, '/api/v1/ui-e2e/runs/run-1/cancel', {

@@ -318,6 +318,10 @@ export interface CreateUiE2eRunPayload {
   accountLeaseRef: string;
   requestKey?: string;
   reason?: string;
+  browsers?: string[];
+  visualRegressionEnabled?: boolean;
+  baselineRunId?: string;
+  visualMismatchThreshold?: number;
 }
 
 export interface CancelUiE2eRunPayload {

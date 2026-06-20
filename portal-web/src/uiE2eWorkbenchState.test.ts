@@ -136,7 +136,11 @@ describe('ui e2e workbench state helpers', () => {
       baseUrlRef: 'env:staging',
       accountLeaseRef: '33333333-3333-4333-8333-333333333333',
       requestKey: 'wp7.run-1',
-      reason: 'manual smoke'
+      reason: 'manual smoke',
+      browsersText: 'chromium firefoX',
+      visualRegressionEnabled: true,
+      baselineRunId: '44444444-4444-4444-8444-444444444444',
+      visualMismatchThreshold: '0.05'
     })).toMatchObject({
       issues: [],
       payload: {
@@ -144,7 +148,11 @@ describe('ui e2e workbench state helpers', () => {
         sceneId: '11111111-1111-4111-8111-111111111111',
         bundleId: '22222222-2222-4222-8222-222222222222',
         accountLeaseRef: '33333333-3333-4333-8333-333333333333',
-        requestKey: 'wp7.run-1'
+        requestKey: 'wp7.run-1',
+        browsers: ['CHROMIUM', 'FIREFOX'],
+        visualRegressionEnabled: true,
+        baselineRunId: '44444444-4444-4444-8444-444444444444',
+        visualMismatchThreshold: 0.05
       }
     });
 
@@ -156,7 +164,11 @@ describe('ui e2e workbench state helpers', () => {
       baseUrlRef: '',
       accountLeaseRef: 'lease-1',
       requestKey: 'bad key',
-      reason: ''
+      reason: '',
+      browsersText: 'chromium safari',
+      visualRegressionEnabled: true,
+      baselineRunId: 'bad-baseline',
+      visualMismatchThreshold: '1.5'
     });
     expect(invalid.payload).toBeUndefined();
     expect(invalid.issues).toContain('请填写 run projectId');
@@ -164,6 +176,9 @@ describe('ui e2e workbench state helpers', () => {
     expect(invalid.issues).toContain('bundleId 需要是 UUID');
     expect(invalid.issues).toContain('请填写 baseUrlRef');
     expect(invalid.issues).toContain('accountLeaseRef 需要是 UUID');
+    expect(invalid.issues).toContain('浏览器仅支持 CHROMIUM / FIREFOX / WEBKIT');
+    expect(invalid.issues).toContain('baselineRunId 需要是 UUID');
+    expect(invalid.issues).toContain('visualMismatchThreshold 需要在 0 到 1 之间');
     expect(invalid.issues).toContain('requestKey 只能包含字母、数字、-、_、.、:，且不超过 128 字符');
   });
 
@@ -383,14 +398,17 @@ describe('ui e2e workbench state helpers', () => {
         sceneId: '',
         bundleId: '',
         baseUrlRef: '',
-        accountLeaseRef: ''
+        accountLeaseRef: '',
+        browsersText: '',
+        visualRegressionEnabled: false,
+        baselineRunId: ''
       }
     })).toMatchObject({
       ready: false,
       tone: 'info',
       label: '填写运行参数',
-      summary: '请先补全 projectId / sceneId / bundleId / baseUrlRef / accountLeaseRef，再触发单次 UI 运行。',
-      checks: expect.arrayContaining(['health=pending', 'missing=projectId,sceneId,bundleId,baseUrlRef,accountLeaseRef'])
+      summary: '请先补全 projectId / sceneId / bundleId / baseUrlRef / accountLeaseRef / browsers，再触发单次 UI 运行。',
+      checks: expect.arrayContaining(['health=pending', 'missing=projectId,sceneId,bundleId,baseUrlRef,accountLeaseRef,browsers'])
     });
 
     expect(buildUiE2eRunCreationReadiness({
@@ -417,7 +435,10 @@ describe('ui e2e workbench state helpers', () => {
         sceneId: 'scene-1',
         bundleId: 'bundle-1',
         baseUrlRef: 'env:staging',
-        accountLeaseRef: '11111111-1111-4111-8111-111111111111'
+        accountLeaseRef: '11111111-1111-4111-8111-111111111111',
+        browsersText: 'CHROMIUM',
+        visualRegressionEnabled: false,
+        baselineRunId: ''
       },
       scene: {
         code: 'portal-login',
@@ -459,7 +480,10 @@ describe('ui e2e workbench state helpers', () => {
         sceneId: 'scene-1',
         bundleId: 'bundle-1',
         baseUrlRef: 'env:staging',
-        accountLeaseRef: '11111111-1111-4111-8111-111111111111'
+        accountLeaseRef: '11111111-1111-4111-8111-111111111111',
+        browsersText: 'CHROMIUM',
+        visualRegressionEnabled: false,
+        baselineRunId: ''
       },
       scene: {
         code: 'portal-login',
@@ -500,7 +524,10 @@ describe('ui e2e workbench state helpers', () => {
         sceneId: 'scene-1',
         bundleId: 'bundle-1',
         baseUrlRef: 'env:staging',
-        accountLeaseRef: '11111111-1111-4111-8111-111111111111'
+        accountLeaseRef: '11111111-1111-4111-8111-111111111111',
+        browsersText: 'CHROMIUM FIREFOX',
+        visualRegressionEnabled: true,
+        baselineRunId: ''
       },
       scene: {
         code: 'portal-login',
@@ -515,7 +542,7 @@ describe('ui e2e workbench state helpers', () => {
       ready: true,
       tone: 'success',
       label: 'Ready To Run',
-      checks: expect.arrayContaining(['runner=ON:MANAGED', 'scene=APPROVED', 'bundle=APPROVED'])
+      checks: expect.arrayContaining(['runner=ON:MANAGED', 'scene=APPROVED', 'bundle=APPROVED', 'visualBaseline=auto-latest-success'])
     });
   });
 
@@ -585,6 +612,57 @@ describe('ui e2e workbench state helpers', () => {
       '核对 scene/bundle 中 locator 策略是否与当前页面结构一致。',
       '检查 runner 回传的 artifact storageRef 与 digest 是否完整。',
       '当前运行已标记为 CONFIRMED_FLAKY，可优先按不稳定场景治理而不是直接回归 blocker。'
+    ]));
+  });
+
+  it('builds run diagnosis for visual regression mismatches across browsers', () => {
+    const diagnosis = buildUiE2eRunDiagnosis({
+      id: 'run-visual-1',
+      projectId: 'project-alpha',
+      sceneId: 'scene-1',
+      bundleId: 'bundle-1',
+      status: 'FAILED',
+      runnerMode: 'PLAYWRIGHT_SUBPROCESS',
+      failureCode: 'UI_E2E_VISUAL_REGRESSION_FAILED',
+      failureSummary: 'visual mismatch exceeded threshold on FIREFOX',
+      accountSummary: {},
+      executionSummary: {
+        aggregateOnly: true,
+        rawArtifactDownloadReady: true,
+        browserTypes: ['CHROMIUM', 'FIREFOX'],
+        browserCount: 2,
+        parallelExecutionEnabled: true,
+        visualRegressionEnabled: true,
+        visualBaselineRunId: 'baseline-run-1',
+        visualMismatchThreshold: 0.03,
+        visualComparisonCount: 2,
+        visualMismatchCount: 1,
+        visualMismatchBrowsers: ['FIREFOX'],
+        stepResultCount: 2
+      },
+      stepResults: [],
+      artifacts: [],
+      idempotentReplay: false
+    });
+
+    expect(diagnosis).toMatchObject({
+      tone: 'error',
+      label: 'VISUAL_REGRESSION_FAILED',
+      rawArtifactDownloadReady: true
+    });
+    expect(diagnosis.signals).toEqual(expect.arrayContaining([
+      'failureCode=UI_E2E_VISUAL_REGRESSION_FAILED',
+      'browserTypes=CHROMIUM,FIREFOX',
+      'parallelExecutionEnabled=true（2 browsers）',
+      'visualRegressionEnabled=true（threshold=0.03）',
+      'visualBaselineRunId=baseline-run-1',
+      'visualComparison=2 compared / 1 mismatched',
+      'visualMismatchBrowsers=FIREFOX'
+    ]));
+    expect(diagnosis.nextActions).toEqual(expect.arrayContaining([
+      '优先查看 DIFF/BASELINE/ACTUAL 三类截图产物，确认是预期 UI 变更还是样式回归。',
+      '如属于预期改版，请更新基线运行；如属于噪声波动，再评估是否需要放宽 mismatch threshold。',
+      '优先复核 FIREFOX 浏览器上的布局、样式和截图基线是否仍匹配。'
     ]));
   });
 

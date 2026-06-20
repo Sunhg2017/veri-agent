@@ -4213,6 +4213,24 @@ tbody tr:hover td {
   gap: var(--space-md);
 }
 
+.field-inline {
+  display: grid;
+  gap: 6px;
+}
+
+.field-inline-main {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-primary);
+  font-size: var(--font-size-sm);
+}
+
+.field-inline small {
+  color: var(--text-tertiary);
+  font-size: var(--font-size-xs);
+}
+
 .ui-e2e-health-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));

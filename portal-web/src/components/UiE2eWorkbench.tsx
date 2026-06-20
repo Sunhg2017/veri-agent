@@ -1095,7 +1095,43 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
                 <Field label="reason">
                   <input value={runDraft.reason} onChange={(event) => setRunDraftValue('reason', event.target.value)} placeholder="可选触发原因" disabled={!canExecute || runActionState.loading} />
                 </Field>
+                <Field label="browsers">
+                  <input
+                    value={runDraft.browsersText}
+                    onChange={(event) => setRunDraftValue('browsersText', event.target.value)}
+                    placeholder="CHROMIUM FIREFOX WEBKIT"
+                    disabled={!canExecute || runActionState.loading}
+                  />
+                </Field>
+                <Field label="baselineRunId">
+                  <input
+                    value={runDraft.baselineRunId}
+                    onChange={(event) => setRunDraftValue('baselineRunId', event.target.value)}
+                    placeholder="可选 UUID，不填则自动取最近成功基线"
+                    disabled={!canExecute || runActionState.loading || !runDraft.visualRegressionEnabled}
+                  />
+                </Field>
+                <Field label="visualThreshold">
+                  <input
+                    value={runDraft.visualMismatchThreshold}
+                    onChange={(event) => setRunDraftValue('visualMismatchThreshold', event.target.value)}
+                    placeholder="0 - 1，可选"
+                    disabled={!canExecute || runActionState.loading || !runDraft.visualRegressionEnabled}
+                  />
+                </Field>
               </div>
+              <label className="field field-inline">
+                <span className="field-inline-main">
+                  <input
+                    type="checkbox"
+                    checked={runDraft.visualRegressionEnabled}
+                    onChange={(event) => setRunDraftBooleanValue('visualRegressionEnabled', event.target.checked)}
+                    disabled={!canExecute || runActionState.loading}
+                  />
+                  <span>启用截图 Diff / 视觉回归</span>
+                </span>
+                <small>基于当前浏览器矩阵逐一比对截图；未指定 baseline 时会自动选择最近成功运行。</small>
+              </label>
               <div className={`notice ${runCreationReadiness.tone}`}>
                 <strong>{runCreationReadiness.label}</strong>
                 <span>{runCreationReadiness.summary}</span>
@@ -1366,6 +1402,11 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
     setRunActionState({ loading: false });
   }
 
+  function setRunDraftBooleanValue(key: keyof Pick<UiE2eRunDraft, 'visualRegressionEnabled'>, value: boolean) {
+    setRunDraft((current) => ({ ...current, [key]: value }));
+    setRunActionState({ loading: false });
+  }
+
   function setFlakyDraftValue(key: keyof UiE2eFlakyDraft, value: string) {
     setFlakyDraft((current) => ({ ...current, [key]: value }));
     setFlakyActionState({ loading: false });
@@ -1617,6 +1658,17 @@ function RunDetailPanel(props: {
   const diagnosis = buildUiE2eRunDiagnosis(props.detail);
   const flakyGuidance = buildUiE2eRunFlakyGuidance(props.detail);
   const auditTimeline = buildUiE2eRunAuditTimeline(props.detail);
+  const browserTypes = recordStringArray(executionSummary.browserTypes);
+  const browserCount = recordNumber(executionSummary.browserCount, browserTypes.length || 1);
+  const parallelExecutionEnabled = recordBoolean(executionSummary.parallelExecutionEnabled, browserCount > 1);
+  const visualRegressionEnabled = recordBoolean(executionSummary.visualRegressionEnabled);
+  const visualBaselineRunId = recordText(executionSummary.visualBaselineRunId);
+  const visualThreshold = recordNumberOrText(executionSummary.visualMismatchThreshold);
+  const visualComparisonCount = recordNumber(executionSummary.visualComparisonCount);
+  const visualMismatchCount = recordNumber(executionSummary.visualMismatchCount);
+  const visualDiffArtifactCount = recordNumber(executionSummary.visualDiffArtifactCount);
+  const visualMismatchBrowsers = recordStringArray(executionSummary.visualMismatchBrowsers);
+  const browserRuns = recordObjectArray(executionSummary.browserRuns);
   return (
     <Panel title="运行详情" desc={`${props.detail.projectId} · ${props.detail.sceneCode || props.detail.sceneId}`}>
       <div className="report-detail-header">
@@ -1629,12 +1681,63 @@ function RunDetailPanel(props: {
         <SummaryTile label="steps" value={String(props.detail.stepResults.length)} />
         <SummaryTile label="artifacts" value={String(props.detail.artifacts.length)} />
       </div>
+      <div className="report-summary-grid">
+        <SummaryTile label="browsers" value={browserTypes.join(' / ') || 'CHROMIUM'} tone={parallelExecutionEnabled ? 'info' : undefined} />
+        <SummaryTile label="parallel" value={parallelExecutionEnabled ? `ON (${browserCount})` : 'OFF'} tone={parallelExecutionEnabled ? 'info' : undefined} />
+        <SummaryTile label="visual" value={visualRegressionEnabled ? 'ON' : 'OFF'} tone={visualRegressionEnabled ? 'warning' : undefined} />
+        <SummaryTile label="diffs" value={visualRegressionEnabled ? `${visualMismatchCount}/${visualComparisonCount}` : '-'} tone={visualMismatchCount > 0 ? 'danger' : visualComparisonCount > 0 ? 'success' : undefined} />
+      </div>
       <div className="report-section-grid">
         <InfoBlock title="failureCode" value={props.detail.failureCode || '-'} />
         <InfoBlock title="traceId" value={props.detail.traceId || props.state.traceId || '-'} />
         <InfoBlock title="accountSummary" value={formatRecord(props.detail.accountSummary)} />
         <InfoBlock title="executionSummary" value={formatRecord(executionSummary)} />
       </div>
+      {(browserRuns.length || visualRegressionEnabled) ? (
+        <div className="report-card-list">
+          <div className="report-mini-card report-mini-card-muted">
+            <div className="report-card-heading">
+              <strong>执行矩阵</strong>
+              <span className="badge badge-neutral">{browserCount} browsers</span>
+            </div>
+            <span>{browserTypes.join(' / ') || 'CHROMIUM'}</span>
+            <small>{parallelExecutionEnabled ? '当前 run 通过浏览器矩阵聚合，步骤与 artifact 都是合并视图。' : '当前 run 只执行单浏览器链路。'}</small>
+            {browserRuns.length ? (
+              <div className="report-policy-list">
+                <div className="report-policy-title">浏览器结果</div>
+                {browserRuns.map((item, index) => (
+                  <span key={`${recordText(item.browserType) || 'browser'}-${index}`}>
+                    {(recordText(item.browserType) || 'UNKNOWN')}={recordText(item.status) || 'UNKNOWN'}
+                    {recordText(item.failureCode) ? ` (${recordText(item.failureCode)})` : ''}
+                  </span>
+                ))}
+              </div>
+            ) : null}
+          </div>
+          {visualRegressionEnabled ? (
+            <div className="report-mini-card report-mini-card-muted">
+              <div className="report-card-heading">
+                <strong>视觉回归</strong>
+                <span className={`badge badge-${visualMismatchCount > 0 ? 'danger' : visualComparisonCount > 0 ? 'success' : 'neutral'}`}>
+                  {visualMismatchCount > 0 ? 'MISMATCH' : visualComparisonCount > 0 ? 'MATCHED' : 'PENDING'}
+                </span>
+              </div>
+              <span>
+                baseline={visualBaselineRunId || 'auto latest succeeded'}
+                {visualThreshold !== '-' ? ` · threshold=${visualThreshold}` : ' · threshold=exact-match'}
+              </span>
+              <small>
+                已对比 {visualComparisonCount} 个浏览器，差异 {visualMismatchCount} 个，生成 diff 产物 {visualDiffArtifactCount} 个。
+              </small>
+              {visualMismatchBrowsers.length ? (
+                <div className="notice warning">
+                  <span>差异浏览器：{visualMismatchBrowsers.join(' / ')}</span>
+                </div>
+              ) : null}
+            </div>
+          ) : null}
+        </div>
+      ) : null}
       <div className={`notice ${diagnosis.tone}`}>
         <strong>诊断 · {diagnosis.label}</strong>
         <span>{diagnosis.summary}</span>
@@ -1800,6 +1903,17 @@ function StepResultsList(props: { steps: UiE2eRunStepResult[] }) {
             <InfoBlock title="summary" value={formatRecord(step.summary)} />
             <InfoBlock title="sceneStepId" value={step.sceneStepId || '-'} />
           </div>
+          {Array.isArray(step.summary?.browserResults) && step.summary.browserResults.length ? (
+            <div className="report-policy-list">
+              <div className="report-policy-title">浏览器步骤结果</div>
+              {(step.summary.browserResults as Array<Record<string, unknown>>).map((item, index) => (
+                <span key={`${recordText(item.browserType) || 'browser'}-${index}`}>
+                  {(recordText(item.browserType) || 'UNKNOWN')}={recordText(item.status) || 'UNKNOWN'}
+                  {recordText(item.errorCode) ? ` · ${recordText(item.errorCode)}` : ''}
+                </span>
+              ))}
+            </div>
+          ) : null}
           {step.failureBucket ? <small>{explainUiE2eFailureBucket(step.failureBucket)}</small> : null}
         </div>
       ))}
@@ -1838,35 +1952,48 @@ function ArtifactCard(props: {
   onDownloadArtifact: (artifact: UiE2eArtifactManifest) => void;
 }) {
   const downloadState = buildUiE2eArtifactDownloadState(props.artifact);
+  const browserType = recordText(props.artifact.redactionFlags?.browserType);
+  const visualRole = recordText(props.artifact.redactionFlags?.visualRole);
+  const visualMismatchRatio = recordNumberOrText(props.artifact.redactionFlags?.visualMismatchRatio);
+  const visualPassed = recordBooleanOrBlank(props.artifact.redactionFlags?.visualPassed);
   return (
     <div className="report-mini-card">
-          <div className="report-card-heading">
+      <div className="report-card-heading">
         <strong>{props.artifact.artifactType}</strong>
         <span className={`badge badge-${statusTone(props.artifact.captureStatus)}`}>{props.artifact.captureStatus}</span>
-          </div>
-          <div className="report-section-grid">
+      </div>
+      {(browserType || visualRole) ? (
+        <div className="report-policy-list">
+          <div className="report-policy-title">artifact 标签</div>
+          {browserType ? <span>browser={browserType}</span> : null}
+          {visualRole ? <span>visualRole={visualRole}</span> : null}
+          {visualMismatchRatio !== '-' ? <span>mismatchRatio={visualMismatchRatio}</span> : null}
+          {visualPassed ? <span>visualPassed={visualPassed}</span> : null}
+        </div>
+      ) : null}
+      <div className="report-section-grid">
         <InfoBlock title="digest" value={props.artifact.artifactDigest || '-'} />
         <InfoBlock title="storageRef" value={props.artifact.storageRef || '-'} />
         <InfoBlock title="sizeBytes" value={String(props.artifact.sizeBytes)} />
         <InfoBlock title="redactionFlags" value={formatRecord(props.artifact.redactionFlags)} />
-          </div>
-          <div className="report-actions-row">
-            <button
-              className="btn btn-secondary btn-sm"
-              type="button"
+      </div>
+      <div className="report-actions-row">
+        <button
+          className="btn btn-secondary btn-sm"
+          type="button"
           disabled={!props.canExport || props.downloading || !downloadState.canDownload}
           title={!props.canExport ? '当前账号缺少 uiE2e:export 权限。' : downloadState.summary}
           onClick={() => props.onDownloadArtifact(props.artifact)}
-            >
-              <Download size={15} />下载产物
-            </button>
-          </div>
-          <div className={`notice ${downloadState.tone}`}>
-            <span>{downloadState.summary}</span>
-          </div>
+        >
+          <Download size={15} />下载产物
+        </button>
+      </div>
+      <div className={`notice ${downloadState.tone}`}>
+        <span>{downloadState.summary}</span>
+      </div>
       {props.artifact.captureStatus === 'BLOCKED' ? (
         <small>{explainUiE2eArtifactCaptureBlockedReason(extractUiE2eArtifactCaptureBlockedReason(props.artifact.redactionFlags))}</small>
-          ) : null}
+      ) : null}
     </div>
   );
 }
@@ -2119,6 +2246,57 @@ function formatRecord(input: unknown): string {
     return text.length > 180 ? `${text.slice(0, 177)}...` : text;
   }
   return String(input);
+}
+
+function recordText(value: unknown) {
+  return typeof value === 'string' && value.trim() ? value.trim() : undefined;
+}
+
+function recordBoolean(value: unknown, fallback = false) {
+  if (typeof value === 'boolean') return value;
+  if (typeof value === 'string') {
+    const normalized = value.trim().toLowerCase();
+    if (normalized === 'true') return true;
+    if (normalized === 'false') return false;
+  }
+  return fallback;
+}
+
+function recordBooleanOrBlank(value: unknown) {
+  if (typeof value === 'boolean') return value ? 'true' : 'false';
+  if (typeof value === 'string' && value.trim()) return value.trim();
+  return '';
+}
+
+function recordNumber(value: unknown, fallback = 0) {
+  if (typeof value === 'number' && Number.isFinite(value)) return value;
+  if (typeof value === 'string') {
+    const parsed = Number(value);
+    if (Number.isFinite(parsed)) return parsed;
+  }
+  return fallback;
+}
+
+function recordNumberOrText(value: unknown) {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return String(value);
+  }
+  if (typeof value === 'string' && value.trim()) {
+    return value.trim();
+  }
+  return '-';
+}
+
+function recordStringArray(value: unknown) {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((item) => recordText(item))
+    .filter((item): item is string => Boolean(item));
+}
+
+function recordObjectArray(value: unknown) {
+  if (!Array.isArray(value)) return [] as Array<Record<string, unknown>>;
+  return value.filter((item): item is Record<string, unknown> => Boolean(item) && typeof item === 'object' && !Array.isArray(item));
 }
 
 function downloadBlob(blob: Blob, filename: string, contentType: string) {

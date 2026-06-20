@@ -92,6 +92,7 @@
             <arg column="base_url_digest" javaType="java.lang.String"/>
             <arg column="account_lease_ref" javaType="java.lang.String"/>
             <arg column="account_summary_json" javaType="java.lang.String"/>
+            <arg column="execution_summary_json" javaType="java.lang.String"/>
             <arg column="failure_code" javaType="java.lang.String"/>
             <arg column="failure_summary" javaType="java.lang.String"/>
             <arg column="trace_id" javaType="java.lang.String"/>
@@ -186,6 +187,7 @@
     <sql id="runColumns">
         r.id, r.scene_id, r.bundle_id, r.project_id, r.status, r.request_key, r.runner_mode,
         r.base_url_digest, r.account_lease_ref, r.account_summary_json::text as account_summary_json,
+        r.execution_summary_json::text as execution_summary_json,
         r.failure_code, r.failure_summary, r.trace_id, r.created_by, r.started_at, r.finished_at,
         r.created_at, r.updated_at
     </sql>
@@ -473,11 +475,12 @@
     <insert id="insertRun">
         insert into ui_e2e_run (
             id, scene_id, bundle_id, project_id, status, request_key, runner_mode, base_url_digest,
-            account_lease_ref, account_summary_json, failure_code, failure_summary, trace_id, created_by,
+            account_lease_ref, account_summary_json, execution_summary_json, failure_code, failure_summary, trace_id, created_by,
             started_at, finished_at, created_at, updated_at
         ) values (
             #{id}, #{sceneId}, #{bundleId}, #{projectId}, #{status}, #{requestKey}, #{runnerMode}, #{baseUrlDigest},
-            #{accountLeaseRef}, cast(coalesce(#{accountSummaryJson}, '{}') as jsonb), #{failureCode}, #{failureSummary},
+            #{accountLeaseRef}, cast(coalesce(#{accountSummaryJson}, '{}') as jsonb),
+            cast(coalesce(#{executionSummaryJson}, '{}') as jsonb), #{failureCode}, #{failureSummary},
             #{traceId}, #{createdBy}, #{startedAt}, #{finishedAt}, #{createdAt}, #{updatedAt}
         )
     </insert>
@@ -490,6 +493,7 @@
             base_url_digest = #{baseUrlDigest},
             account_lease_ref = #{accountLeaseRef},
             account_summary_json = cast(coalesce(#{accountSummaryJson}, '{}') as jsonb),
+            execution_summary_json = cast(coalesce(#{executionSummaryJson}, '{}') as jsonb),
             failure_code = #{failureCode},
             failure_summary = #{failureSummary},
             trace_id = #{traceId},

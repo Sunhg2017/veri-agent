@@ -42,10 +42,10 @@ WP7 的目标是在平台内建立可评审、可执行、可审计、可复用�
 | 场景控制面 | 维护项目内 UI 场景、步骤模板、页面绑定、风险标签和状态流 | 只允许同项目资源引用，非 APPROVED 场景不可执行 |
 | Playwright 脚本包摘要 | 生成或维护 bundle 摘要、依赖、定位策略、fixture 和 digest | 不回显完整敏感源码，不允许危险 import 和任意网络访问 |
 | 人工评审 | 支持提交评审、通过、驳回、归档和意见记录 | 审批状态和原因可追踪 |
-| 受控浏览器运行 | 支持手动触发 Chromium 场景，采集运行状态、步骤结果、失败分类和产物摘要 | 默认禁用 runner，显式开启后仍受 allowlist、超时、并发和产物大小限制 |
+| 受控浏览器运行 | 支持手动触发单场景浏览器矩阵运行，采集运行状态、步骤结果、失败分类和产物摘要 | 默认禁用 runner，显式开启后仍受 allowlist、超时、并发和产物大小限制 |
 | WP8 账号租借接入 | 运行时通过 `accountLeaseRef` 获取账号摘要与 `secretRefDigest` | 控制面不返回密码、token、cookie 或 `secret://` 原文 |
 | Artifact 摘要 | 记录 screenshot/trace/runner log、`HAR`、`JUNIT_XML` 以及登录免凭据场景 `VIDEO` 的 digest、size、storageRef 和 redaction flags，并支持受权下载受控存储内的原始文件 | 下载链路只暴露受权端点和 opaque storageRef，不回显宿主机路径或存储凭据；含 `LOGIN` 场景的视频必须阻断 |
-| Flaky 治理 | 标记 `FLAKY_CANDIDATE`、重试摘要和失败原因标签 | 不做无限自动重跑，不做视觉回归判定 |
+| Flaky 治理 | 标记 `FLAKY_CANDIDATE`、重试摘要和失败原因标签 | 不做无限自动重跑，不做人工验图平台 |
 | 前端工作台 | 提供 `#ui-e2e` 场景、脚本包、运行、证据摘要和 Flaky 面板 | 桌面和 390px 窄屏均可完成主链路 |
 
 ## 5. 非目标
@@ -53,7 +53,7 @@ WP7 的目标是在平台内建立可评审、可执行、可审计、可复用�
 | 非目标 | 说明 |
 |---|---|
 | 移动端 native/hybrid 自动化 | 首期只覆盖 Web 管理后台 |
-| 完整视觉回归平台 | 不做大规模像素 diff、基线图库和人工验图体系 |
+| 完整视觉回归平台 | 不做大规模像素 diff、基线图库和人工验图体系，但允许单场景截图 Diff 与阈值判定 |
 | 验证码/短信/第三方登录绕过 | 不提供外部身份体系的自动旁路能力 |
 | 独立分布式浏览器集群 | 不建设 Kubernetes/browser farm 多地域资源池 |
 | WP9 调度生产化 | WP7 只提供 `UI_TEST` 运行契约和手动运行控制面 |
@@ -95,7 +95,7 @@ WP7 的目标是在平台内建立可评审、可执行、可审计、可复用�
 1. 用户选择场景、环境和账号租借输入。
 2. 平台仅接收 `accountLeaseRef`，通过 WP8 读取账号摘要与 `secretRefDigest`。
 3. 受控凭据注入 adapter 在运行时完成登录注入，控制面不返回明文。
-4. Runner 执行 Chromium 场景并返回 aggregate-only 步骤摘要、失败分类和 artifact manifest。
+4. Runner 执行单浏览器或多浏览器矩阵场景，并返回 aggregate-only 步骤摘要、失败分类、截图 Diff 结果和 artifact manifest。
 5. 运行详情页展示状态、traceId、失败分类、步骤结果和产物摘要引用。
 
 ### 7.4 Flaky 与证据治理
@@ -154,7 +154,8 @@ WP7 的目标是在平台内建立可评审、可执行、可审计、可复用�
 | A2 | 场景可绑定 WP3 页面/业务流摘要和 WP5 已发布测试用例摘要。 |
 | A3 | 场景可生成或维护 Playwright bundle 摘要，并经过静态校验与人工评审。 |
 | A4 | 系统仅接受 `accountLeaseRef` 和 `secretRefDigest` 摘要，不展示凭据明文。 |
-| A5 | 用户可手动触发单次浏览器运行，并查看运行状态、失败分类、traceId 和 artifact 摘要。 |
+| A5 | 用户可手动触发单次浏览器运行，并查看运行状态、失败分类、traceId、浏览器矩阵摘要和 artifact 摘要。 |
+| A5.1 | 用户可选填 `browsers`、`baselineRunId`、`visualMismatchThreshold` 并启用视觉回归，系统按浏览器生成截图 Diff 结果。 |
 | A6 | 失败分类至少覆盖 locator 失效、权限拒绝、环境超时、账号异常、数据准备异常和 runner 未就绪。 |
 | A7 | 用户可对场景或运行做 Flaky 标记，且操作有审计。 |
 | A8 | 前端工作台覆盖 loading、empty、error、403、409、runner disabled 和 blocked 状态。 |
@@ -168,4 +169,4 @@ WP7 的目标是在平台内建立可评审、可执行、可审计、可复用�
 1. Web 管理后台 UI/E2E 已形成独立工作包实现，不再由 WP8/WP9/WP10 继续代为占位。
 2. P0 聚焦后台 UI 场景治理、受控执行、摘要化证据和受控 artifact 下载，不承诺完整原始产物平台、对象存储治理或对外分享链路。
 3. 所有凭据边界复用 WP8，所有调度边界复用 WP9，所有报告边界复用 WP10。
-4. 后续任何范围扩大，如移动端、视觉回归、分布式浏览器池、WebSocket 实时日志、外部回调体系或对象存储多介质归档，都必须补充独立 PRD 和准出文档。
+4. 后续任何范围扩大，如移动端、大规模视觉回归平台、分布式浏览器池、WebSocket 实时日志、外部回调体系或对象存储多介质归档，都必须补充独立 PRD 和准出文档。

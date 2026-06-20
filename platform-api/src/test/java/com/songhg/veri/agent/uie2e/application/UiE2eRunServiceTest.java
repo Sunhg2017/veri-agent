@@ -37,15 +37,23 @@ import com.songhg.veri.agent.uie2e.application.view.UiE2eRunDetailResponse;
 import com.songhg.veri.agent.uie2e.application.view.UiE2eRunExportResponse;
 import com.songhg.veri.agent.uie2e.application.view.UiE2eRunSummaryResponse;
 import com.songhg.veri.agent.uie2e.config.UiE2eProperties;
+import com.songhg.veri.agent.uie2e.domain.UiE2eArtifactManifest;
 import com.songhg.veri.agent.uie2e.domain.UiE2eFlakyMark;
+import com.songhg.veri.agent.uie2e.domain.UiE2eRun;
 import com.songhg.veri.agent.uie2e.infrastructure.InMemoryUiE2eRepository;
 import com.songhg.veri.agent.uie2e.infrastructure.LocalUiE2eArtifactStorage;
+import java.awt.Color;
+import java.awt.image.BufferedImage;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
+import javax.imageio.ImageIO;
 import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -752,6 +760,99 @@ class UiE2eRunServiceTest {
         });
     }
 
+    @Test
+    void aggregatesMultiBrowserAttemptsIntoSingleRunSnapshot() {
+        Fixture fixture = fixture(
+                true,
+                List.of("https://portal.example.test"),
+                new BrowserMatrixRunnerStub()
+        );
+        SeededRunRefs refs = seedApprovedSceneAndBundle(fixture);
+        UUID leaseRef = acquireLease(fixture);
+
+        UiE2eRunDetailResponse created = fixture.service().createRun(new CreateUiE2eRunCommand(
+                PROJECT_ID,
+                refs.sceneId(),
+                refs.bundleId(),
+                ENVIRONMENT_KEY,
+                "env:" + ENVIRONMENT_KEY,
+                leaseRef,
+                "run-request-matrix-001",
+                "browser matrix",
+                List.of("CHROMIUM", "FIREFOX"),
+                false,
+                null,
+                null
+        ));
+
+        assertThat(created.status()).isEqualTo("FAILED");
+        assertThat(created.executionSummary()).containsEntry("browserCount", 2);
+        assertThat(created.executionSummary()).containsEntry("parallelExecutionEnabled", true);
+        assertThat(created.executionSummary()).containsEntry("browserTypes", List.of("CHROMIUM", "FIREFOX"));
+        assertThat(((Map<?, ?>) created.executionSummary().get("browserStatusCounts")).get("SUCCEEDED")).isEqualTo(1);
+        assertThat(((Map<?, ?>) created.executionSummary().get("browserStatusCounts")).get("FAILED")).isEqualTo(1);
+        assertThat(created.stepResults()).singleElement().satisfies(step -> {
+            assertThat(step.status()).isEqualTo("FAILED");
+            assertThat(step.summary()).containsEntry("browserCount", 2);
+            assertThat(step.summary()).containsEntry("aggregateOnly", true);
+            assertThat(step.summary()).containsKey("browserResults");
+        });
+        assertThat(created.artifacts()).hasSize(2);
+        assertThat(created.artifacts()).allSatisfy(artifact -> assertThat(artifact.redactionFlags()).containsKey("browserType"));
+        assertThat(created.failureCode()).isEqualTo("UI_E2E_RUNNER_FAILED");
+        assertThat(created.failureSummary()).contains("FIREFOX");
+    }
+
+    @Test
+    void createsVisualDiffArtifactsAndFailsWhenMismatchExceedsThreshold() {
+        Fixture fixture = fixture(
+                true,
+                List.of("https://portal.example.test"),
+                new VisualRegressionRunnerStub()
+        );
+        SeededRunRefs refs = seedApprovedSceneAndBundle(fixture);
+        UUID leaseRef = acquireLease(fixture);
+        UUID baselineRunId = seedBaselineRunWithScreenshots(fixture, refs, List.of("CHROMIUM", "FIREFOX"));
+
+        UiE2eRunDetailResponse created = fixture.service().createRun(new CreateUiE2eRunCommand(
+                PROJECT_ID,
+                refs.sceneId(),
+                refs.bundleId(),
+                ENVIRONMENT_KEY,
+                "env:" + ENVIRONMENT_KEY,
+                leaseRef,
+                "run-request-visual-001",
+                "visual regression",
+                List.of("CHROMIUM", "FIREFOX"),
+                true,
+                baselineRunId,
+                0.0D
+        ));
+
+        assertThat(created.status()).isEqualTo("FAILED");
+        assertThat(created.failureCode()).isEqualTo("UI_E2E_VISUAL_REGRESSION_FAILED");
+        assertThat(created.executionSummary()).containsEntry("visualRegressionEnabled", true);
+        assertThat(created.executionSummary()).containsEntry("visualBaselineRunId", baselineRunId.toString());
+        assertThat(created.executionSummary()).containsEntry("visualComparisonCount", 2);
+        assertThat(created.executionSummary()).containsEntry("visualMismatchCount", 1);
+        assertThat(created.executionSummary()).containsEntry("visualMismatchBrowsers", List.of("FIREFOX"));
+        assertThat(created.executionSummary()).containsEntry("visualDiffArtifactCount", 2);
+        assertThat(created.executionSummary()).containsEntry("visualRegressionFailure", true);
+        assertThat(created.artifacts()).anySatisfy(artifact -> {
+            assertThat(artifact.redactionFlags()).containsEntry("visualRole", "DIFF");
+            assertThat(artifact.redactionFlags()).containsEntry("browserType", "FIREFOX");
+            assertThat(artifact.redactionFlags()).containsEntry("visualPassed", false);
+        });
+        assertThat(created.artifacts()).anySatisfy(artifact -> {
+            assertThat(artifact.redactionFlags()).containsEntry("visualRole", "BASELINE");
+            assertThat(artifact.redactionFlags()).containsEntry("visualBaselineRunId", baselineRunId.toString());
+        });
+        assertThat(created.artifacts()).anySatisfy(artifact -> {
+            assertThat(artifact.redactionFlags()).containsEntry("visualRole", "ACTUAL");
+            assertThat(artifact.redactionFlags()).containsEntry("browserType", "CHROMIUM");
+        });
+    }
+
     private Fixture fixture(boolean managedRunner, List<String> allowlistBaseUrls) {
         return fixture(managedRunner, allowlistBaseUrls, List.of(new AcceptingUiE2eSecretProvider()), null);
     }
@@ -870,6 +971,7 @@ class UiE2eRunServiceTest {
                 testDataFixture.alphaPoolId(),
                 testDataFixture.betaPoolId(),
                 notificationService,
+                artifactStorage,
                 new UiE2eRunService(
                         repository,
                         actorResolver,
@@ -1098,6 +1200,7 @@ class UiE2eRunServiceTest {
             UUID alphaPoolId,
             UUID betaPoolId,
             AsyncTaskNotificationService notificationService,
+            UiE2eArtifactStorage artifactStorage,
             UiE2eRunService service
     ) {
     }
@@ -1221,6 +1324,97 @@ class UiE2eRunServiceTest {
         }
     }
 
+    private static final class BrowserMatrixRunnerStub implements com.songhg.veri.agent.uie2e.application.port.UiE2eRunnerPort {
+
+        @Override
+        public RunnerValidation validate(RunnerValidationRequest request) {
+            return new RunnerValidation(true, null, null);
+        }
+
+        @Override
+        public RunnerRunResult run(RunnerRunRequest request) {
+            String browserType = request.browserTypes() == null || request.browserTypes().isEmpty()
+                    ? "CHROMIUM"
+                    : request.browserTypes().getFirst();
+            boolean firefox = "FIREFOX".equals(browserType);
+            return new RunnerRunResult(
+                    firefox ? "FAILED" : "SUCCEEDED",
+                    "MANAGED",
+                    firefox ? "UI_E2E_RUNNER_FAILED" : null,
+                    firefox ? "step failed on FIREFOX" : null,
+                    List.of(new RunnerStepResult(
+                            null,
+                            1,
+                            firefox ? "FAILED" : "SUCCEEDED",
+                            firefox ? 210 : 180,
+                            firefox ? "ASSERTION" : null,
+                            firefox ? "ASSERTION_MISMATCH" : null,
+                            Map.of("stepType", "ASSERT", "browser", browserType)
+                    )),
+                    List.of(new RunnerArtifactManifest(
+                            "SCREENSHOT",
+                            "artifact://" + browserType.toLowerCase() + "-shot",
+                            browserType.toLowerCase() + "-digest",
+                            512,
+                            Map.of("scanStatus", "clean"),
+                            "CAPTURED"
+                    )),
+                    Map.of("runnerBrowserType", browserType)
+            );
+        }
+
+        @Override
+        public RunnerCancelResult cancel(UUID runId) {
+            return new RunnerCancelResult(true, null, null);
+        }
+    }
+
+    private static final class VisualRegressionRunnerStub implements com.songhg.veri.agent.uie2e.application.port.UiE2eRunnerPort {
+
+        @Override
+        public RunnerValidation validate(RunnerValidationRequest request) {
+            return new RunnerValidation(true, null, null);
+        }
+
+        @Override
+        public RunnerRunResult run(RunnerRunRequest request) {
+            String browserType = request.browserTypes() == null || request.browserTypes().isEmpty()
+                    ? "CHROMIUM"
+                    : request.browserTypes().getFirst();
+            Path image = screenshot(browserType, "FIREFOX".equals(browserType) ? Color.BLUE : Color.RED);
+            UiE2eArtifactStorage.StoredArtifact stored = storeTestScreenshot(request.runId(), image);
+            return new RunnerRunResult(
+                    "SUCCEEDED",
+                    "PLAYWRIGHT_SUBPROCESS",
+                    null,
+                    null,
+                    List.of(new RunnerStepResult(
+                            null,
+                            1,
+                            "SUCCEEDED",
+                            220,
+                            null,
+                            null,
+                            Map.of("stepType", "ASSERT", "browser", browserType)
+                    )),
+                    List.of(new RunnerArtifactManifest(
+                            "SCREENSHOT",
+                            stored.storageRef(),
+                            browserType.toLowerCase() + "-actual-digest",
+                            stored.sizeBytes(),
+                            Map.of("rawArtifactDownloadReady", true),
+                            "CAPTURED"
+                    )),
+                    Map.of("runnerBrowserType", browserType)
+            );
+        }
+
+        @Override
+        public RunnerCancelResult cancel(UUID runId) {
+            return new RunnerCancelResult(true, null, null);
+        }
+    }
+
     private static final class SensitiveRunnerStub implements com.songhg.veri.agent.uie2e.application.port.UiE2eRunnerPort {
 
         @Override
@@ -1292,5 +1486,115 @@ class UiE2eRunServiceTest {
             }
             return Optional.of(new ResolvedSecret(secretRef, "Resolved-Runner-Password-001", "unit-test-provider", "v1"));
         }
+    }
+
+    private UUID seedBaselineRunWithScreenshots(Fixture fixture, SeededRunRefs refs, List<String> browsers) {
+        Instant now = Instant.now().minusSeconds(120);
+        UUID baselineRunId = UUID.randomUUID();
+        fixture.repository().insertRun(new UiE2eRun(
+                baselineRunId,
+                refs.sceneId(),
+                refs.bundleId(),
+                PROJECT_ID,
+                "SUCCEEDED",
+                "baseline-visual-001",
+                "PLAYWRIGHT_SUBPROCESS",
+                "baseline-digest",
+                UUID.randomUUID().toString(),
+                "{\"accountLeaseRef\":\"baseline-lease\"}",
+                "{\"aggregateOnly\":true,\"browserTypes\":" + toJsonArray(browsers) + "}",
+                null,
+                null,
+                "trc_baseline_visual",
+                "wp7-run-tester",
+                now,
+                now.plusSeconds(3),
+                now,
+                now.plusSeconds(3)
+        ));
+        fixture.repository().replaceArtifacts(baselineRunId, browsers.stream()
+                .map(browser -> baselineArtifact(fixture, baselineRunId, browser, Color.RED, now.plusSeconds(1)))
+                .toList());
+        return baselineRunId;
+    }
+
+    private UiE2eArtifactManifest baselineArtifact(Fixture fixture, UUID runId, String browser, Color color, Instant createdAt) {
+        Path image = screenshot(browser + "-baseline", color);
+        try {
+            UiE2eArtifactStorage.StoredArtifact stored = fixture.artifactStorage().store(runId, UUID.randomUUID(), "SCREENSHOT", image);
+            return new UiE2eArtifactManifest(
+                    UUID.randomUUID(),
+                    runId,
+                    "SCREENSHOT",
+                    stored.storageRef(),
+                    browser.toLowerCase() + "-baseline-digest",
+                    stored.sizeBytes(),
+                    "{\"browserType\":\"" + browser + "\",\"rawArtifactDownloadReady\":true}",
+                    "CAPTURED",
+                    "wp7-run-tester",
+                    "wp7-run-tester",
+                    createdAt,
+                    createdAt
+            );
+        } catch (IOException exception) {
+            throw new IllegalStateException("failed to seed baseline screenshot", exception);
+        }
+    }
+
+    private static Path screenshot(String prefix, Color color) {
+        try {
+            BufferedImage image = new BufferedImage(2, 2, BufferedImage.TYPE_INT_ARGB);
+            for (int y = 0; y < image.getHeight(); y++) {
+                for (int x = 0; x < image.getWidth(); x++) {
+                    image.setRGB(x, y, color.getRGB());
+                }
+            }
+            Path file = Files.createTempFile("wp7-" + prefix + "-", ".png");
+            ImageIO.write(image, "png", file.toFile());
+            file.toFile().deleteOnExit();
+            return file;
+        } catch (IOException exception) {
+            throw new IllegalStateException("failed to create screenshot fixture", exception);
+        }
+    }
+
+    private static long fileSize(Path file) {
+        try {
+            return Files.size(file);
+        } catch (IOException exception) {
+            throw new IllegalStateException("failed to measure screenshot fixture", exception);
+        }
+    }
+
+    private static UiE2eArtifactStorage.StoredArtifact storeTestScreenshot(UUID runId, Path image) {
+        try {
+            return new LocalUiE2eArtifactStorage(new UiE2eProperties(
+                    true,
+                    true,
+                    "managed",
+                    300,
+                    1800,
+                    1,
+                    20 * 1024 * 1024L,
+                    20,
+                    2,
+                    List.of("https://portal.example.test"),
+                    true,
+                    false,
+                    false,
+                    true,
+                    false,
+                    true,
+                    "node",
+                    "../portal-web/node_modules",
+                    ""
+            )).store(runId, UUID.randomUUID(), "SCREENSHOT", image);
+        } catch (IOException exception) {
+            throw new IllegalStateException("failed to store screenshot fixture", exception);
+        }
+    }
+
+    private static String toJsonArray(List<String> values) {
+        return values.stream().map(value -> "\"" + value + "\"").collect(java.util.stream.Collectors.joining(",", "[", "]"));
     }
 }

@@ -110,20 +110,23 @@ class UiE2eRunControllerTest {
         UUID sceneId = createApprovedScene(ownerToken);
         UUID bundleId = createApprovedBundle(ownerToken, sceneId);
         UUID leaseRef = createLease(ownerToken);
+        Map<String, Object> createPayload = new LinkedHashMap<>();
+        createPayload.put("projectId", PROJECT_ID);
+        createPayload.put("sceneId", sceneId.toString());
+        createPayload.put("bundleId", bundleId.toString());
+        createPayload.put("environmentId", ENVIRONMENT_KEY);
+        createPayload.put("baseUrlRef", "env:" + ENVIRONMENT_KEY);
+        createPayload.put("accountLeaseRef", leaseRef.toString());
+        createPayload.put("requestKey", "run-request-ctrl-001");
+        createPayload.put("reason", "manual smoke");
+        createPayload.put("browsers", List.of("CHROMIUM", "FIREFOX"));
+        createPayload.put("visualRegressionEnabled", true);
+        createPayload.put("visualMismatchThreshold", 0.02D);
 
         MvcResult created = mockMvc.perform(post("/api/v1/ui-e2e/runs")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + ownerToken)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(Map.of(
-                                "projectId", PROJECT_ID,
-                                "sceneId", sceneId.toString(),
-                                "bundleId", bundleId.toString(),
-                                "environmentId", ENVIRONMENT_KEY,
-                                "baseUrlRef", "env:" + ENVIRONMENT_KEY,
-                                "accountLeaseRef", leaseRef.toString(),
-                                "requestKey", "run-request-ctrl-001",
-                                "reason", "manual smoke"
-                        ))))
+                        .content(objectMapper.writeValueAsString(createPayload)))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.code").value("OK"))
                 .andExpect(jsonPath("$.traceId", startsWith("trc_")))
@@ -133,6 +136,12 @@ class UiE2eRunControllerTest {
                 .andExpect(jsonPath("$.data.accountSummary.accountLeaseRef").value(leaseRef.toString()))
                 .andExpect(jsonPath("$.data.accountSummary.secretRefDigest").isString())
                 .andExpect(jsonPath("$.data.executionSummary.aggregateOnly").value(true))
+                .andExpect(jsonPath("$.data.executionSummary.browserTypes[0]").value("CHROMIUM"))
+                .andExpect(jsonPath("$.data.executionSummary.browserTypes[1]").value("FIREFOX"))
+                .andExpect(jsonPath("$.data.executionSummary.browserCount").value(2))
+                .andExpect(jsonPath("$.data.executionSummary.parallelExecutionEnabled").value(true))
+                .andExpect(jsonPath("$.data.executionSummary.visualRegressionEnabled").value(true))
+                .andExpect(jsonPath("$.data.executionSummary.visualMismatchThreshold").value(0.02D))
                 .andExpect(jsonPath("$.data.executionSummary.runnerDefaultDisabled").value(true))
                 .andExpect(jsonPath("$.data.executionSummary.stepStatusCounts.RUNNING").value(0))
                 .andExpect(jsonPath("$.data.stepResults.length()").value(0))
@@ -145,15 +154,7 @@ class UiE2eRunControllerTest {
         mockMvc.perform(post("/api/v1/ui-e2e/runs")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + ownerToken)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(Map.of(
-                                "projectId", PROJECT_ID,
-                                "sceneId", sceneId.toString(),
-                                "bundleId", bundleId.toString(),
-                                "environmentId", ENVIRONMENT_KEY,
-                                "baseUrlRef", "env:" + ENVIRONMENT_KEY,
-                                "accountLeaseRef", leaseRef.toString(),
-                                "requestKey", "run-request-ctrl-001"
-                        ))))
+                        .content(objectMapper.writeValueAsString(createPayload)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.id").value(runId.toString()))
                 .andExpect(jsonPath("$.data.idempotentReplay").value(true));

@@ -54,6 +54,9 @@
 | WP7-RUN-005 | P0 | 重复 `sceneId + requestKey` | 幂等回放既有运行。 |
 | WP7-RUN-006 | P0 | 运行超时 | 进入 `TIMEOUT`，失败摘要脱敏。 |
 | WP7-RUN-007 | P0 | 运行取消 | `RUNNING -> CANCELED`，runner 接到取消信号或返回稳定 cancel not supported 语义。 |
+| WP7-RUN-008 | P0 | 多浏览器矩阵运行 | 单个 run 聚合多个浏览器子尝试，返回 `browserTypes/browserRuns/browserStatusCounts` 摘要。 |
+| WP7-RUN-009 | P0 | 视觉回归截图 Diff | 命中基线截图时返回 `ACTUAL/BASELINE/DIFF` artifact 和 `visualComparisonCount/visualMismatchCount`。 |
+| WP7-RUN-010 | P0 | 视觉差异超阈值 | 返回 `UI_E2E_VISUAL_REGRESSION_FAILED`，差异浏览器写入执行摘要。 |
 | WP7-ART-001 | P0 | 采集 screenshot/trace 摘要 | 返回 digest、size、storageRef、redaction flags。 |
 | WP7-ART-002 | P0 | artifact 摘要命中敏感字段 | 返回 `UI_E2E_ARTIFACT_POLICY_BLOCKED`，导出阻断。 |
 | WP7-ART-003 | P0 | 下载已落入受控存储的 artifact | 返回 200、正确 content type 和 attachment 文件名，不暴露真实路径。 |
@@ -88,6 +91,7 @@
 | bundle 驳回无原因 | 本地校验阻断。 |
 | runner disabled | 运行按钮禁用并展示解释。 |
 | 运行详情失败 | 展示错误码、traceId 和失败分类。 |
+| 多浏览器/视觉回归运行详情 | 展示浏览器矩阵、基线运行、Diff 数量和差异浏览器摘要。 |
 | Flaky 标记成功 | 列表和详情同步更新。 |
 | 390px 窄屏 | 无横向溢出，digest/traceId 自动换行。 |
 | DOM 脱敏扫描 | 页面文本不包含禁止字段样本。 |

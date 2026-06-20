@@ -45,6 +45,10 @@ export type UiE2eRunDraft = {
   accountLeaseRef: string;
   requestKey: string;
   reason: string;
+  browsersText: string;
+  visualRegressionEnabled: boolean;
+  baselineRunId: string;
+  visualMismatchThreshold: string;
 };
 
 export type UiE2eFlakyDraft = {
@@ -261,7 +265,11 @@ export const initialUiE2eRunDraft: UiE2eRunDraft = {
   baseUrlRef: 'env:staging',
   accountLeaseRef: '',
   requestKey: '',
-  reason: ''
+  reason: '',
+  browsersText: 'CHROMIUM',
+  visualRegressionEnabled: false,
+  baselineRunId: '',
+  visualMismatchThreshold: ''
 };
 
 export const initialUiE2eFlakyDraft: UiE2eFlakyDraft = {
@@ -707,6 +715,9 @@ export function labelUiE2eRunFocusMode(mode: UiE2eRunFocusMode) {
 export function buildUiE2eRunListSummary(run: UiE2eRunSummary): UiE2eRunListSummary {
   const failureLabel = compactUiE2eFailureCode(run.failureCode);
   const signals: string[] = [];
+  const accountSummary = run.accountSummary || {};
+  const browserTypes = stringArrayFromUnknown(accountSummary.browserTypes);
+  const visualRegressionEnabled = booleanFromUnknown(accountSummary.visualRegressionEnabled);
   if (failureLabel) {
     pushUnique(signals, `failure=${failureLabel}`);
   }
@@ -718,6 +729,12 @@ export function buildUiE2eRunListSummary(run: UiE2eRunSummary): UiE2eRunListSumm
   }
   if (isUiE2eRunActiveStatus(run.status)) {
     pushUnique(signals, 'auto-refresh');
+  }
+  if (browserTypes.length > 1) {
+    pushUnique(signals, `browsers=${browserTypes.join('/')}`);
+  }
+  if (visualRegressionEnabled) {
+    pushUnique(signals, 'visual-regression');
   }
 
   let detail: string;
@@ -746,7 +763,7 @@ export function buildUiE2eRunListSummary(run: UiE2eRunSummary): UiE2eRunListSumm
 
 export function buildUiE2eRunCreationReadiness(input: {
   health: UiE2eHealth | null;
-  draft: Pick<UiE2eRunDraft, 'projectId' | 'sceneId' | 'bundleId' | 'baseUrlRef' | 'accountLeaseRef'>;
+  draft: Pick<UiE2eRunDraft, 'projectId' | 'sceneId' | 'bundleId' | 'baseUrlRef' | 'accountLeaseRef' | 'browsersText' | 'visualRegressionEnabled' | 'baselineRunId'>;
   scene?: Pick<UiE2eSceneSummary, 'code' | 'status'> | null;
   bundle?: Pick<UiE2eBundleSummary, 'status' | 'sceneCode' | 'sceneStatus'> | null;
 }): UiE2eRunCreationReadiness {
@@ -768,6 +785,13 @@ export function buildUiE2eRunCreationReadiness(input: {
   }
   if (!draft.accountLeaseRef.trim()) {
     missingFields.push('accountLeaseRef');
+  }
+  const browsers = splitTags(draft.browsersText || '').map((item) => item.toUpperCase());
+  if (!browsers.length) {
+    missingFields.push('browsers');
+  }
+  if (draft.visualRegressionEnabled && !draft.baselineRunId.trim()) {
+    pushUnique(checks, 'visualBaseline=auto-latest-success');
   }
 
   if (health) {
@@ -863,6 +887,15 @@ export function buildUiE2eRunDiagnosis(detail: UiE2eRunDetail): UiE2eRunDiagnosi
   const flakyStatus = detail.flakyMark?.status || detail.flakyStatus;
   const failureCodeDiagnosis = buildFailureCodeDiagnosis(detail.failureCode);
   const stepResultCount = numberFromUnknown(executionSummary.stepResultCount, detail.stepResults.length);
+  const browserTypes = stringArrayFromUnknown(executionSummary.browserTypes);
+  const browserCount = numberFromUnknown(executionSummary.browserCount, browserTypes.length || 1);
+  const visualRegressionEnabled = booleanFromUnknown(executionSummary.visualRegressionEnabled);
+  const visualComparisonCount = numberFromUnknown(executionSummary.visualComparisonCount);
+  const visualMismatchCount = numberFromUnknown(executionSummary.visualMismatchCount);
+  const visualMismatchBrowsers = stringArrayFromUnknown(executionSummary.visualMismatchBrowsers);
+  const visualBaselineRunId = stringFromUnknown(executionSummary.visualBaselineRunId);
+  const visualThreshold = numberOrUndefined(executionSummary.visualMismatchThreshold);
+  const parallelExecutionEnabled = booleanFromUnknown(executionSummary.parallelExecutionEnabled, browserCount > 1);
 
   if (detail.failureCode) {
     pushUnique(signals, `failureCode=${detail.failureCode}`);
@@ -893,6 +926,32 @@ export function buildUiE2eRunDiagnosis(detail: UiE2eRunDetail): UiE2eRunDiagnosi
   }
   if (stepResultCount === 0 && !isUiE2eRunActiveStatus(detail.status)) {
     pushUnique(signals, 'stepResultCount=0，阻断发生在实际步骤执行之前');
+  }
+  if (browserTypes.length) {
+    pushUnique(signals, `browserTypes=${browserTypes.join(',')}`);
+  }
+  if (parallelExecutionEnabled) {
+    pushUnique(signals, `parallelExecutionEnabled=true（${browserCount} browsers）`);
+  }
+  if (visualRegressionEnabled) {
+    pushUnique(
+      signals,
+      visualThreshold == null
+        ? 'visualRegressionEnabled=true（threshold=exact-match）'
+        : `visualRegressionEnabled=true（threshold=${visualThreshold}）`
+    );
+    if (visualBaselineRunId) {
+      pushUnique(signals, `visualBaselineRunId=${visualBaselineRunId}`);
+    }
+  }
+  if (visualComparisonCount > 0 || visualMismatchCount > 0) {
+    pushUnique(
+      signals,
+      `visualComparison=${visualComparisonCount} compared / ${visualMismatchCount} mismatched`
+    );
+  }
+  if (visualMismatchBrowsers.length) {
+    pushUnique(signals, `visualMismatchBrowsers=${visualMismatchBrowsers.join(',')}`);
   }
 
   let tone: UiE2eWorkbenchNoticeTone;
@@ -945,6 +1004,12 @@ export function buildUiE2eRunDiagnosis(detail: UiE2eRunDetail): UiE2eRunDiagnosi
   blockedArtifactReasons
     .map((reason) => artifactBlockedReasonAction(reason))
     .forEach((item) => pushUnique(nextActions, item));
+  if (visualRegressionEnabled && visualComparisonCount === 0) {
+    pushUnique(nextActions, '确认基线运行是否具备同浏览器截图产物，避免视觉回归仅打开但没有实际对比样本。');
+  }
+  if (visualMismatchBrowsers.length) {
+    pushUnique(nextActions, `优先复核 ${visualMismatchBrowsers.join(' / ')} 浏览器上的布局、样式和截图基线是否仍匹配。`);
+  }
 
   if (detail.status === 'CANCELED' || detail.failureCode === 'UI_E2E_RUNNER_CANCELED') {
     pushUnique(nextActions, '确认外部 runner 侧任务是否同步停止，再决定是否重新发起 run。');
@@ -1582,11 +1647,25 @@ function buildUiE2eScenePayloadBase(
 
 export function buildUiE2eRunPayload(draft: UiE2eRunDraft): { payload?: CreateUiE2eRunPayload; issues: string[] } {
   const issues: string[] = [];
+  const browsers = splitTags(draft.browsersText || '').map((item) => item.toUpperCase());
   if (!draft.projectId.trim()) issues.push('请填写 run projectId');
   if (!uuidPattern.test(draft.sceneId.trim())) issues.push('sceneId 需要是 UUID');
   if (!uuidPattern.test(draft.bundleId.trim())) issues.push('bundleId 需要是 UUID');
   if (!draft.baseUrlRef.trim()) issues.push('请填写 baseUrlRef');
   if (!uuidPattern.test(draft.accountLeaseRef.trim())) issues.push('accountLeaseRef 需要是 UUID');
+  if (!browsers.length) issues.push('至少指定一个浏览器（CHROMIUM/FIREFOX/WEBKIT）');
+  if (browsers.some((item) => !['CHROMIUM', 'FIREFOX', 'WEBKIT'].includes(item))) {
+    issues.push('浏览器仅支持 CHROMIUM / FIREFOX / WEBKIT');
+  }
+  if (draft.visualRegressionEnabled && draft.baselineRunId.trim() && !uuidPattern.test(draft.baselineRunId.trim())) {
+    issues.push('baselineRunId 需要是 UUID');
+  }
+  if (draft.visualMismatchThreshold.trim()) {
+    const threshold = Number(draft.visualMismatchThreshold.trim());
+    if (Number.isNaN(threshold) || threshold < 0 || threshold > 1) {
+      issues.push('visualMismatchThreshold 需要在 0 到 1 之间');
+    }
+  }
   if (draft.requestKey.trim() && !requestKeyPattern.test(draft.requestKey.trim())) {
     issues.push('requestKey 只能包含字母、数字、-、_、.、:，且不超过 128 字符');
   }
@@ -1606,7 +1685,11 @@ export function buildUiE2eRunPayload(draft: UiE2eRunDraft): { payload?: CreateUi
       baseUrlRef: draft.baseUrlRef.trim(),
       accountLeaseRef: draft.accountLeaseRef.trim(),
       requestKey: optionalText(draft.requestKey),
-      reason: optionalText(draft.reason)
+      reason: optionalText(draft.reason),
+      browsers,
+      visualRegressionEnabled: draft.visualRegressionEnabled,
+      baselineRunId: optionalText(draft.baselineRunId),
+      visualMismatchThreshold: draft.visualMismatchThreshold.trim() ? Number(draft.visualMismatchThreshold.trim()) : undefined
     }
   };
 }
@@ -1763,6 +1846,16 @@ function buildFailureCodeDiagnosis(failureCode?: string) {
         summary: '当前环境禁用了运行摘要导出，只能在控制面内查看聚合结果。',
         actions: [
           '如需对外共享摘要，请先确认 export 开关是否允许在该环境打开。'
+        ]
+      };
+    case 'UI_E2E_VISUAL_REGRESSION_FAILED':
+      return {
+        tone: 'error' as const,
+        label: 'VISUAL_REGRESSION_FAILED',
+        summary: '截图 Diff 已完成，但至少一个浏览器的像素差异超过阈值，运行被判定为失败。',
+        actions: [
+          '优先查看 DIFF/BASELINE/ACTUAL 三类截图产物，确认是预期 UI 变更还是样式回归。',
+          '如属于预期改版，请更新基线运行；如属于噪声波动，再评估是否需要放宽 mismatch threshold。'
         ]
       };
     default:
@@ -2025,6 +2118,11 @@ function numberFromUnknown(value: unknown, fallback = 0) {
   return fallback;
 }
 
+function numberOrUndefined(value: unknown) {
+  const parsed = numberFromUnknown(value, Number.NaN);
+  return Number.isFinite(parsed) ? parsed : undefined;
+}
+
 function booleanFromUnknown(value: unknown, fallback = false) {
   if (typeof value === 'boolean') {
     return value;
@@ -2035,6 +2133,19 @@ function booleanFromUnknown(value: unknown, fallback = false) {
     if (normalized === 'false') return false;
   }
   return fallback;
+}
+
+function stringFromUnknown(value: unknown) {
+  return typeof value === 'string' && value.trim() ? value.trim() : undefined;
+}
+
+function stringArrayFromUnknown(value: unknown) {
+  if (Array.isArray(value)) {
+    return value
+      .map((item) => stringFromUnknown(item))
+      .filter((item): item is string => Boolean(item));
+  }
+  return [];
 }
 
 function isUiE2eRunFailureStatus(status?: string) {

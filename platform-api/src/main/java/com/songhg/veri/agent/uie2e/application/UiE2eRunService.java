@@ -88,6 +88,7 @@ public class UiE2eRunService {
     );
     private static final Set<String> ARTIFACT_TYPES = Set.of("SCREENSHOT", "VIDEO", "TRACE", "LOG", "HAR", "JUNIT_XML");
     private static final Set<String> ARTIFACT_CAPTURE_STATUSES = Set.of("PENDING", "CAPTURED", "REDACTED", "BLOCKED", "FAILED", "SKIPPED");
+    private static final Set<String> VISUAL_FAILURE_CODES = Set.of("UI_E2E_VISUAL_REGRESSION_FAILED");
     private static final Pattern UNSAFE_RUNNER_SUMMARY_KEY_PATTERN = Pattern.compile(
             "(?i).*(authorization|cookie|password|passwd|secretref|secreturi|secretvalue|secretplaintext|token|payload|stdout|stderr"
                     + "|request|response|body|dom|html|sourceCode|sourceUrl|webhook).*"
@@ -103,6 +104,8 @@ public class UiE2eRunService {
     private final UiE2eArtifactStorage artifactStorage;
     private final ObjectMapper objectMapper;
     private final AsyncTaskNotificationService notificationService;
+    private final UiE2eRunAttemptAggregator attemptAggregator;
+    private final UiE2eRunAttemptExecutor attemptExecutor;
 
     public UiE2eRunService(
             UiE2eRepository repository,
@@ -126,6 +129,8 @@ public class UiE2eRunService {
         this.artifactStorage = artifactStorage;
         this.objectMapper = objectMapper;
         this.notificationService = notificationService;
+        this.attemptAggregator = new UiE2eRunAttemptAggregator(repository, artifactStorage, properties, objectMapper);
+        this.attemptExecutor = new UiE2eRunAttemptExecutor(runnerPort, properties);
     }
 
     /**
@@ -143,13 +148,14 @@ public class UiE2eRunService {
         assertSameProject(command.projectId(), scene.projectId(), bundle.projectId());
         assertRunnableScene(scene);
         assertRunnableBundle(bundle, scene);
+        UiE2eRunExecutionOptions executionOptions = UiE2eRunExecutionOptions.from(command);
         String requestKey = boundedRequestKey(command.requestKey());
         if (StringUtils.hasText(requestKey)) {
-            return repository.runByProjectSceneAndRequestKey(scene.projectId(), scene.id(), requestKey)
+            return repository.runByProjectSceneAndRequestKey(scene.projectId(), scene.id(), compositeRequestKey(requestKey, executionOptions))
                     .map(existing -> detail(existing, true))
-                    .orElseGet(() -> createRun(scene, bundle, command, requestKey));
+                    .orElseGet(() -> createRun(scene, bundle, command, requestKey, executionOptions));
         }
-        return createRun(scene, bundle, command, null);
+        return createRun(scene, bundle, command, null, executionOptions);
     }
 
     @Transactional(readOnly = true)
@@ -190,6 +196,7 @@ public class UiE2eRunService {
                 run.baseUrlDigest(),
                 run.accountLeaseRef(),
                 json(accountSummary),
+                run.executionSummaryJson(),
                 cancelResult != null && StringUtils.hasText(cancelResult.errorCode())
                         ? SensitiveTextSanitizer.boundedNullableText(cancelResult.errorCode(), 64)
                         : "UI_E2E_RUNNER_CANCELED",
@@ -277,7 +284,8 @@ public class UiE2eRunService {
             UiE2eScene scene,
             UiE2eBundle bundle,
             CreateUiE2eRunCommand command,
-            String requestKey
+            String requestKey,
+            UiE2eRunExecutionOptions executionOptions
     ) {
         UUID runId = UUID.randomUUID();
         UiE2eRunEnvironmentResolver.ResolvedUiE2eBaseUrl resolvedBaseUrl =
@@ -291,7 +299,11 @@ public class UiE2eRunService {
                 scene.projectId(),
                 resolvedBaseUrl.normalizedBaseUrl(),
                 runnerAccountContract.accountLeaseRef().toString(),
-                accountSummary
+                accountSummary,
+                executionOptions.browserTypes(),
+                executionOptions.visualRegressionEnabled(),
+                executionOptions.baselineRunId(),
+                executionOptions.visualMismatchThreshold()
         ));
         if (validation != null && !validation.accepted()) {
             throw new BusinessException(ErrorCode.INVALID_STATE, firstText(validation.errorCode(), "EXECUTION_RUNNER_NOT_READY"));
@@ -299,23 +311,35 @@ public class UiE2eRunService {
         Instant now = Instant.now();
         String actor = actorResolver.currentActor();
         String traceId = TraceContext.getOrCreateTraceId();
-        UiE2eRunnerPort.RunnerRunResult attempt = runnerPort.run(new UiE2eRunnerPort.RunnerRunRequest(
+        UUID baselineRunId = resolvedBaselineRunId(scene, executionOptions);
+        List<UiE2eRunAttemptAggregator.BrowserAttempt> browserAttempts = attemptExecutor.execute(
                 runId,
                 scene.id(),
                 bundle.id(),
                 scene.projectId(),
                 resolvedBaseUrl.normalizedBaseUrl(),
                 runnerAccountContract.accountLeaseRef().toString(),
-                accountSummary
-        ));
+                accountSummary,
+                executionOptions,
+                baselineRunId
+        );
+        UiE2eRunnerPort.RunnerRunResult attempt = attemptAggregator.aggregate(runId, baselineRunId, executionOptions, browserAttempts);
+        Map<String, Object> executionSummary = buildExecutionSummary(
+                attempt,
+                executionOptions,
+                baselineRunId,
+                runnerAccountContract,
+                resolvedBaseUrl
+        );
         UiE2eRun run = runFromAttempt(
                 attempt,
                 runId,
                 scene,
                 bundle,
-                requestKey,
+                compositeRequestKey(requestKey, executionOptions),
                 runnerAccountContract,
                 resolvedBaseUrl,
+                executionSummary,
                 actor,
                 traceId,
                 now
@@ -326,7 +350,7 @@ public class UiE2eRunService {
             repository.insertRun(run);
         } catch (DuplicateKeyException exception) {
             if (StringUtils.hasText(requestKey)) {
-                return repository.runByProjectSceneAndRequestKey(scene.projectId(), scene.id(), requestKey)
+                return repository.runByProjectSceneAndRequestKey(scene.projectId(), scene.id(), compositeRequestKey(requestKey, executionOptions))
                         .map(existing -> detail(existing, true))
                         .orElseThrow(() -> exception);
             }
@@ -339,6 +363,8 @@ public class UiE2eRunService {
         createdAudit.put("runnerMode", run.runnerMode());
         createdAudit.put("baseUrlRefDigest", resolvedBaseUrl.summary().get("baseUrlRefDigest"));
         createdAudit.put("accountLeaseRefPresent", true);
+        createdAudit.put("browserTypes", executionOptions.browserTypes());
+        createdAudit.put("visualRegressionEnabled", executionOptions.visualRegressionEnabled());
         auditRun(run, "SUCCESS", "ui_e2e.run.created", createdAudit);
 
         Map<String, Object> startedAudit = new LinkedHashMap<>();
@@ -363,12 +389,13 @@ public class UiE2eRunService {
             UUID runId,
             UiE2eScene scene,
             UiE2eBundle bundle,
-            String requestKey,
-            TestDataRunnerAccountContractResponse runnerAccountContract,
-            UiE2eRunEnvironmentResolver.ResolvedUiE2eBaseUrl resolvedBaseUrl,
-            String actor,
-            String traceId,
-            Instant now
+        String requestKey,
+        TestDataRunnerAccountContractResponse runnerAccountContract,
+        UiE2eRunEnvironmentResolver.ResolvedUiE2eBaseUrl resolvedBaseUrl,
+        Map<String, Object> executionSummary,
+        String actor,
+        String traceId,
+        Instant now
     ) {
         // WP7 only exposes the run control-plane. Even when execution is disabled, we persist a terminal run snapshot so
         // operators can audit the request and retry idempotently once an asynchronous runner is introduced.
@@ -388,6 +415,7 @@ public class UiE2eRunService {
                 ),
                 runnerAccountContract.accountLeaseRef().toString(),
                 json(accountSummary(runnerAccountContract)),
+                json(executionSummary),
                 SensitiveTextSanitizer.boundedNullableText(attempt == null ? null : attempt.failureCode(), 64),
                 SensitiveTextSanitizer.sanitizedEvidenceText(attempt == null ? null : attempt.failureSummary(), 512),
                 traceId,
@@ -465,7 +493,7 @@ public class UiE2eRunService {
                 scene.name(),
                 run.bundleId(),
                 run.status(),
-                run.requestKey(),
+                displayRequestKey(run.requestKey()),
                 run.runnerMode(),
                 run.failureCode(),
                 run.failureSummary(),
@@ -497,23 +525,10 @@ public class UiE2eRunService {
                 .orElseGet(() -> repository.flakyMarkByScene(scene.id())
                         .map(mark -> flakyResponse(mark, scene, run))
                         .orElse(null));
-        Map<String, Object> executionSummary = new LinkedHashMap<>();
+        Map<String, Object> executionSummary = new LinkedHashMap<>(readMap(run.executionSummaryJson()));
         // runnerReady reflects that the control-plane contracts are live. runnerDefaultDisabled remains the switch that
         // tells the caller whether this environment will actually execute the run by default.
-        executionSummary.put("aggregateOnly", true);
-        executionSummary.put("runnerReady", true);
-        executionSummary.put("stepResultCount", stepResults.size());
-        executionSummary.put("artifactManifestCount", artifacts.size());
-        executionSummary.put("rawArtifactDownloadReady", artifacts.stream().anyMatch(this::downloadReadyResponse));
-        executionSummary.put("secretRefPlaintextReturned", false);
-        executionSummary.put("baseUrlDigest", run.baseUrlDigest());
-        executionSummary.put("accountScopeSummaryKeys", accountSummary.getOrDefault("scopeSummaryKeys", List.of()));
-        executionSummary.put("runnerDefaultDisabled", !properties.runnerEnabled());
-        executionSummary.put("cancelSupported", true);
-        executionSummary.put("stepStatusCounts", stepStatusCounts(stepResults));
-        executionSummary.put("failureBucketCounts", failureBucketCounts(stepResults));
-        executionSummary.put("artifactTypes", artifacts.stream().map(UiE2eArtifactManifestResponse::artifactType).distinct().toList());
-        executionSummary.put("flakyStatus", flakyMark == null ? null : flakyMark.status());
+        enrichExecutionSummary(executionSummary, run, accountSummary, stepResults, artifacts, flakyMark);
         return new UiE2eRunDetailResponse(
                 run.id(),
                 run.projectId(),
@@ -524,7 +539,7 @@ public class UiE2eRunService {
                 run.bundleId(),
                 bundle.status(),
                 run.status(),
-                run.requestKey(),
+                displayRequestKey(run.requestKey()),
                 run.runnerMode(),
                 run.failureCode(),
                 run.failureSummary(),
@@ -915,6 +930,123 @@ public class UiE2eRunService {
             throw new BusinessException(ErrorCode.VALIDATION_ERROR, "run requestKey 格式非法");
         }
         return requestKey;
+    }
+
+    private String compositeRequestKey(String requestKey, UiE2eRunExecutionOptions executionOptions) {
+        if (!StringUtils.hasText(requestKey)) {
+            return null;
+        }
+        if (executionOptions == null) {
+            return requestKey;
+        }
+        String safeBase = requestKey.length() > 113 ? requestKey.substring(0, 113) : requestKey;
+        String digest = SensitiveTextSanitizer.sha256Hex(executionOptions.requestSummaryKey()).substring(0, 12);
+        return safeBase + "::" + digest;
+    }
+
+    private String displayRequestKey(String requestKey) {
+        if (!StringUtils.hasText(requestKey)) {
+            return requestKey;
+        }
+        int separator = requestKey.lastIndexOf("::");
+        if (separator <= 0 || separator >= requestKey.length() - 1) {
+            return requestKey;
+        }
+        String suffix = requestKey.substring(separator + 2);
+        return suffix.matches("^[0-9a-f]{12}$") ? requestKey.substring(0, separator) : requestKey;
+    }
+
+    /**
+     * Builds one aggregate execution summary so browser-matrix, visual regression and existing control-plane flags
+     * share a single persistent contract for WP7 detail, WP9 dispatch summaries and future WP10 evidence adapters.
+     */
+    private Map<String, Object> buildExecutionSummary(
+            UiE2eRunnerPort.RunnerRunResult attempt,
+            UiE2eRunExecutionOptions executionOptions,
+            UUID baselineRunId,
+            TestDataRunnerAccountContractResponse runnerAccountContract,
+            UiE2eRunEnvironmentResolver.ResolvedUiE2eBaseUrl resolvedBaseUrl
+    ) {
+        Map<String, Object> summary = new LinkedHashMap<>();
+        summary.put("aggregateOnly", true);
+        summary.put("runnerReady", true);
+        summary.put("runnerDefaultDisabled", !properties.runnerEnabled());
+        summary.put("cancelSupported", true);
+        summary.put("secretRefPlaintextReturned", false);
+        summary.put("baseUrlDigest", SensitiveTextSanitizer.sha256Hex(
+                resolvedBaseUrl.baseUrlRef() + ":" + resolvedBaseUrl.normalizedHost() + ":" + resolvedBaseUrl.environmentKey()
+        ));
+        summary.put("browserTypes", executionOptions.browserTypes());
+        summary.put("browserCount", executionOptions.browserTypes().size());
+        summary.put("parallelExecutionEnabled", executionOptions.browserTypes().size() > 1);
+        summary.put("visualRegressionEnabled", executionOptions.visualRegressionEnabled());
+        if (baselineRunId != null) {
+            summary.put("visualBaselineRunId", baselineRunId.toString());
+        }
+        if (executionOptions.visualMismatchThreshold() != null) {
+            summary.put("visualMismatchThreshold", executionOptions.visualMismatchThreshold());
+        }
+        summary.put("accountLeaseRef", runnerAccountContract.accountLeaseRef().toString());
+        summary.put("accountScopeSummaryKeys", accountSummary(runnerAccountContract).getOrDefault("scopeSummaryKeys", List.of()));
+        if (attempt != null && attempt.executionSummary() != null && !attempt.executionSummary().isEmpty()) {
+            SanitizedMap safeAttemptSummary = safeRunnerSummary(attempt.executionSummary());
+            summary.putAll(safeAttemptSummary.value());
+            summary.put("unsafeExecutionSummaryKeysFiltered", safeAttemptSummary.filteredUnsafeKeys());
+        }
+        return Map.copyOf(summary);
+    }
+
+    private void enrichExecutionSummary(
+            Map<String, Object> executionSummary,
+            UiE2eRun run,
+            Map<String, Object> accountSummary,
+            List<UiE2eRunStepResultResponse> stepResults,
+            List<UiE2eArtifactManifestResponse> artifacts,
+            UiE2eFlakyMarkResponse flakyMark
+    ) {
+        executionSummary.put("aggregateOnly", true);
+        executionSummary.put("runnerReady", true);
+        executionSummary.put("stepResultCount", stepResults.size());
+        executionSummary.put("artifactManifestCount", artifacts.size());
+        executionSummary.put("rawArtifactDownloadReady", artifacts.stream().anyMatch(this::downloadReadyResponse));
+        executionSummary.put("secretRefPlaintextReturned", false);
+        executionSummary.put("baseUrlDigest", run.baseUrlDigest());
+        executionSummary.putIfAbsent("accountScopeSummaryKeys", accountSummary.getOrDefault("scopeSummaryKeys", List.of()));
+        executionSummary.put("runnerDefaultDisabled", !properties.runnerEnabled());
+        executionSummary.put("cancelSupported", true);
+        executionSummary.put("stepStatusCounts", stepStatusCounts(stepResults));
+        executionSummary.put("failureBucketCounts", failureBucketCounts(stepResults));
+        executionSummary.put("artifactTypes", artifacts.stream().map(UiE2eArtifactManifestResponse::artifactType).distinct().toList());
+        executionSummary.put("flakyStatus", flakyMark == null ? null : flakyMark.status());
+        executionSummary.put("visualRegressionFailure", VISUAL_FAILURE_CODES.contains(String.valueOf(run.failureCode())));
+    }
+
+    private UUID resolvedBaselineRunId(UiE2eScene scene, UiE2eRunExecutionOptions executionOptions) {
+        if (scene == null || executionOptions == null || !executionOptions.visualRegressionEnabled()) {
+            return null;
+        }
+        if (executionOptions.baselineRunId() != null) {
+            UiE2eRun baseline = requireRun(executionOptions.baselineRunId());
+            if (!Objects.equals(baseline.sceneId(), scene.id())) {
+                throw new BusinessException(ErrorCode.INVALID_STATE, "UI_E2E_VISUAL_BASELINE_SCOPE_DENIED");
+            }
+            return baseline.id();
+        }
+        UiE2eRunPageRequest request = new UiE2eRunPageRequest();
+        request.setProjectId(scene.projectId());
+        request.setSceneId(scene.id());
+        request.setStatus("SUCCEEDED");
+        List<UiE2eRunSummaryResponse> items = runs(request).items();
+        for (UiE2eRunSummaryResponse item : items) {
+            if (item == null || item.id() == null) {
+                continue;
+            }
+            if (StringUtils.hasText(item.failureCode()) && VISUAL_FAILURE_CODES.contains(item.failureCode())) {
+                continue;
+            }
+            return item.id();
+        }
+        return null;
     }
 
     private String safeReason(String value) {

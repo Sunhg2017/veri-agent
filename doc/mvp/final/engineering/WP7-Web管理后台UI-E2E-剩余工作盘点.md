@@ -22,6 +22,7 @@
 | WP8 凭据注入 | 已通过 `runnerAccountContract` 和 SecretProvider 链完成运行时凭据注入，控制面只返回脱敏账号摘要和 `secretRefDigest`。 |
 | Run 控制面 | 已支持 create/list/detail/cancel/export、requestKey 幂等、allowlist 校验、失败摘要和步骤结果聚合。 |
 | Artifact manifest | 已支持 screenshot、trace、runner log、`HAR`、`JUNIT_XML` 和登录免凭据场景 `VIDEO` 的 manifest、digest、size、redaction flags。 |
+| 浏览器矩阵与截图 Diff | 已支持单场景多浏览器 fan-out 聚合、截图 `ACTUAL/BASELINE/DIFF` 角色标记、基线自动回溯和阈值判定。 |
 | 受控下载 | 已支持本地受控 artifact 存储与 `GET /api/v1/ui-e2e/runs/{id}/artifacts/{artifactId}/download`。 |
 | 视频安全边界 | 含 `LOGIN` 步骤的场景强制返回 `VIDEO/BLOCKED` 且 `captureBlockedReason=credentialEntryWindow`。 |
 | Flaky 治理 | 已支持 `NONE/FLAKY_CANDIDATE/CONFIRMED_FLAKY/WAIVED` 标记与审计。 |
@@ -40,7 +41,7 @@
 | 实际进程级 cancel / 外部 runner 回送 | 后续异步执行专项 | 当前 cancel 已有稳定控制面语义，但同步 subprocess 只能 best-effort。 |
 | 多场景批量运行与浏览器池 | 后续规模化专项 | 当前 `maxScenesPerRun=1`，先保证单场景受控执行和审计边界稳定。 |
 | 第三方登录、SSO、复杂步骤模板 | 后续产品增强专项 | 当前真实浏览器 runner 只承诺 `LOGIN/NAVIGATE/ASSERT` 三类最小闭环。 |
-| 视觉回归、跨浏览器矩阵、移动端真实执行 | 后续质量增强专项 | 当前浏览器 smoke 主要覆盖控制面主链路，不承诺视觉 diff 和多浏览器执行容量。 |
+| 大规模视觉回归平台、浏览器池、移动端真实执行 | 后续质量增强专项 | 当前已支持单场景多浏览器矩阵和基础截图 Diff，但不承诺基线图库、人工验图体系或大规模容量调度。 |
 
 ## 4. 发布前必做
 
@@ -71,7 +72,7 @@ git diff --check
 3. `LOGIN` 场景视频策略从“强制阻断”改为“脱敏后留存”；
 4. 新增 SSE/WebSocket 实时日志、流式控制台或 runner 事件推送；
 5. 支持 `LOGIN/NAVIGATE/ASSERT` 以外的大量复杂步骤模板或多场景批量执行；
-6. 引入第三方登录、SSO、验证码、视觉回归或跨浏览器矩阵执行承诺。
+6. 引入第三方登录、SSO、验证码、大规模视觉回归平台或跨浏览器容量承诺。
 
 ## 6. 五角色盘点结论
 

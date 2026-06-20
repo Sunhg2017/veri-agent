@@ -37,7 +37,7 @@
 | `ui_e2e_scene_step` | `id`、`scene_id`、`project_id`、`step_order`、`step_type`、`action_summary_json`、`locator_strategy_json`、`assertion_summary_json`、`wait_policy_json` | 结构化步骤模板，不保存敏感 DOM 原文快照。 |
 | `ui_e2e_bundle` | `id`、`scene_id`、`project_id`、`status`、`bundle_digest`、`spec_summary_json`、`fixture_summary_json`、`static_check_summary_json` | Playwright bundle 摘要与静态校验结果。 |
 | `ui_e2e_bundle_review` | `id`、`bundle_id`、`project_id`、`review_status`、`review_comment`、`reviewed_by`、`reviewed_at` | bundle 审批记录。 |
-| `ui_e2e_run` | `id`、`scene_id`、`bundle_id`、`project_id`、`status`、`request_key`、`runner_mode`、`base_url_digest`、`account_lease_ref`、`account_summary_json`、`failure_code`、`failure_summary`、`started_at`、`finished_at` | 单次执行记录和运行摘要。 |
+| `ui_e2e_run` | `id`、`scene_id`、`bundle_id`、`project_id`、`status`、`request_key`、`runner_mode`、`base_url_digest`、`account_lease_ref`、`account_summary_json`、`execution_summary_json`、`failure_code`、`failure_summary`、`started_at`、`finished_at` | 单次执行记录和运行摘要，持久化浏览器矩阵与视觉回归聚合信息。 |
 | `ui_e2e_run_step_result` | `id`、`run_id`、`scene_step_id`、`step_order`、`status`、`duration_ms`、`failure_bucket`、`error_code`、`summary_json` | 步骤级结果和失败分类。 |
 | `ui_e2e_artifact_manifest` | `id`、`run_id`、`artifact_type`、`storage_ref`、`artifact_digest`、`size_bytes`、`redaction_flags_json`、`capture_status` | screenshot/trace/runner log、`HAR`、`JUNIT_XML` 和受控 `VIDEO` 摘要。 |
 | `ui_e2e_flaky_mark` | `id`、`project_id`、`scene_id`、`run_id`、`status`、`reason_code`、`reason_summary` | Flaky 标记与处理结果。 |
@@ -160,7 +160,11 @@
   "baseUrlRef": "env:portal.base-url",
   "accountLeaseRef": "uuid",
   "requestKey": "ui-e2e-login-smoke-001",
-  "reason": "manual smoke"
+  "reason": "manual smoke",
+  "browsers": ["CHROMIUM", "FIREFOX"],
+  "visualRegressionEnabled": true,
+  "baselineRunId": "uuid",
+  "visualMismatchThreshold": 0.03
 }
 ```
 
@@ -230,7 +234,7 @@
 | Port | 方法 | 说明 |
 |---|---|---|
 | `UiE2eRunnerPort` | `validate(UiE2eRunCommand)` | 校验 baseUrl allowlist、scene/bundle 状态、artifact policy 和 account contract。 |
-| `UiE2eRunnerPort` | `run(UiE2eRunCommand)` | 执行浏览器场景并返回 aggregate-only run result。 |
+| `UiE2eRunnerPort` | `run(UiE2eRunCommand)` | 执行单浏览器或多浏览器矩阵场景并返回 aggregate-only run result。 |
 | `UiE2eRunnerPort` | `cancel(UiE2eRunCancelCommand)` | 尝试取消运行并返回稳定状态。 |
 
 默认实现：
@@ -239,6 +243,15 @@
 2. `ManagedPreviewUiE2eRunnerAdapter`：本地受控预览，读取账号契约并输出脱敏注入计划摘要。
 3. `PlaywrightSubprocessUiE2eRunnerAdapter`：本地受控真实浏览器执行，运行时完成凭据注入，并把 screenshot/trace/log 复制到受控 artifact 存储。
 4. 首期不开放任意 shell、自定义浏览器启动参数和未批准网络出口。
+
+## 9.1 浏览器矩阵与视觉回归
+
+1. `CreateUiE2eRunCommand` 支持 `browsers`、`visualRegressionEnabled`、`baselineRunId` 和 `visualMismatchThreshold` 四个可选字段。
+2. 服务端会将一次 run fan-out 为多个浏览器子尝试，再聚合回单条 `ui_e2e_run` 记录；幂等键会自动拼接浏览器/视觉参数摘要，避免同一 `requestKey` 误复用不同执行矩阵。
+3. `execution_summary_json` 至少包含 `browserTypes`、`browserCount`、`parallelExecutionEnabled`、`browserRuns`、`browserStatusCounts`、`visualRegressionEnabled`、`visualBaselineRunId`、`visualMismatchThreshold`、`visualComparisonCount`、`visualMismatchCount`、`visualMismatchBrowsers`、`visualDiffArtifactCount`。
+4. 视觉回归基线优先使用显式 `baselineRunId`；未提供时，系统会自动回溯同场景最近一次成功运行作为基线。
+5. 视觉回归仅比较 screenshot artifact；`ACTUAL / BASELINE / DIFF` 三类角色通过 `redactionFlags.visualRole` 标记，不新增独立 artifact 表结构。
+6. 当任一浏览器的像素差异超过阈值时，run 进入 `FAILED`，`failureCode=UI_E2E_VISUAL_REGRESSION_FAILED`，并在步骤、产物和执行摘要中同步回写差异信息。
 
 ## 10. WP8 凭据注入契约
 
