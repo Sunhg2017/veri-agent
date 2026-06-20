@@ -1,4 +1,5 @@
-import { requestJson, type ApiResponse } from './client';
+import { refreshToken } from './auth';
+import { ApiError, getAuthToken, requestJson, type ApiResponse } from './client';
 
 const EXECUTION_BASE = '/api/v1/execution';
 
@@ -164,6 +165,23 @@ export interface ExecutionRunDetail extends ExecutionRunSummary {
   idempotentReplay: boolean;
 }
 
+export type ExecutionRunStreamEvent =
+  | { type: 'connected'; runId: string; status: string; timestamp?: string }
+  | { type: 'heartbeat'; timestamp?: string }
+  | { type: 'snapshot'; run: ExecutionRunDetail }
+  | {
+    type: 'log';
+    runId: string;
+    status: string;
+    level: 'INFO' | 'WARN' | 'ERROR' | 'SUCCESS';
+    stage?: string;
+    message: string;
+    nodeRunId?: string;
+    nodeKey?: string;
+    timestamp?: string;
+    metadata: Record<string, unknown>;
+  };
+
 export interface ExecutionRunList {
   items: ExecutionRunSummary[];
   index: number;
@@ -328,6 +346,52 @@ export async function fetchExecutionRuns(filters: ExecutionRunFilters = {}): Pro
 export async function fetchExecutionRun(id: string): Promise<ApiResponse<ExecutionRunDetail>> {
   const response = await requestJson<unknown>(`${EXECUTION_BASE}/runs/${encodeURIComponent(id)}`);
   return { ...response, data: normalizeExecutionRunDetail(response.data) };
+}
+
+export async function subscribeExecutionRunStream(
+  id: string,
+  onEvent: (event: ExecutionRunStreamEvent) => void,
+  signal?: AbortSignal
+): Promise<void> {
+  const response = await fetchExecutionRunStream(id, signal, true);
+  const contentType = response.headers.get('Content-Type') ?? '';
+  if (contentType && !contentType.toLowerCase().includes('text/event-stream')) {
+    throw new ApiError(
+      '执行日志流返回类型异常',
+      'INVALID_STREAM_RESPONSE',
+      response.headers.get('X-Trace-Id') ?? '',
+      response.status
+    );
+  }
+
+  const pushEvents = (chunk: string) => {
+    parseExecutionRunStreamEvents(chunk).forEach(onEvent);
+  };
+
+  if (!response.body) {
+    pushEvents(await response.text());
+    return;
+  }
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+  while (true) {
+    const { done, value } = await reader.read();
+    if (signal?.aborted) {
+      return;
+    }
+    buffer += decoder.decode(value, { stream: !done });
+    const parts = buffer.split(/\r?\n\r?\n/);
+    buffer = parts.pop() ?? '';
+    parts.filter(Boolean).forEach(pushEvents);
+    if (done) {
+      break;
+    }
+  }
+  if (buffer.trim()) {
+    pushEvents(buffer);
+  }
 }
 
 export async function exportExecutionRun(id: string): Promise<ApiResponse<ExecutionRunExport>> {
@@ -552,6 +616,15 @@ export function normalizeExecutionRunDetail(input: unknown): ExecutionRunDetail 
   };
 }
 
+export function parseExecutionRunStreamEvents(text: string): ExecutionRunStreamEvent[] {
+  return text
+    .split(/\r?\n\r?\n/)
+    .map((block) => block.trim())
+    .filter(Boolean)
+    .map(parseExecutionRunStreamEvent)
+    .filter((event): event is ExecutionRunStreamEvent => event !== undefined);
+}
+
 export function normalizeExecutionRunExport(input: unknown): ExecutionRunExport {
   const value = objectValue(input);
   return {
@@ -708,5 +781,115 @@ function numberRecord(input: unknown): Record<string, number> {
     Object.entries(value)
       .map(([key, item]) => [key, numberValue(item, 0)])
       .filter(([key]) => Boolean(key))
+  );
+}
+
+async function fetchExecutionRunStream(id: string, signal: AbortSignal | undefined, retryOnUnauthorized: boolean) {
+  const headers = new Headers({ Accept: 'text/event-stream' });
+  const token = getAuthToken();
+  if (token) {
+    headers.set('Authorization', `Bearer ${token}`);
+  }
+  const response = await fetch(`${EXECUTION_BASE}/runs/${encodeURIComponent(id)}/stream`, {
+    method: 'GET',
+    headers,
+    signal
+  });
+  if (response.status === 401 && retryOnUnauthorized && token) {
+    const refreshed = await refreshToken();
+    if (refreshed) {
+      return fetchExecutionRunStream(id, signal, false);
+    }
+    throw new ApiError('登录已过期，请重新登录', 'SESSION_EXPIRED', '', 401);
+  }
+  if (!response.ok) {
+    throw await streamApiError(response, '执行日志流连接失败');
+  }
+  return response;
+}
+
+function parseExecutionRunStreamEvent(block: string): ExecutionRunStreamEvent | undefined {
+  let type = '';
+  const dataLines: string[] = [];
+  for (const line of block.split(/\r?\n/)) {
+    if (line.startsWith('event:')) {
+      type = line.slice('event:'.length).trim();
+    } else if (line.startsWith('data:')) {
+      dataLines.push(line.slice('data:'.length).trimStart());
+    }
+  }
+  if (!type || dataLines.length === 0) {
+    return undefined;
+  }
+  let data: Record<string, unknown>;
+  try {
+    data = objectValue(JSON.parse(dataLines.join('\n')));
+  } catch {
+    return undefined;
+  }
+  if (type === 'connected') {
+    return {
+      type,
+      runId: stringValue(read(data, 'runId', 'run_id')),
+      status: stringValue(read(data, 'status'), 'UNKNOWN'),
+      timestamp: optionalString(read(data, 'timestamp'))
+    };
+  }
+  if (type === 'heartbeat') {
+    return {
+      type,
+      timestamp: optionalString(read(data, 'timestamp'))
+    };
+  }
+  if (type === 'snapshot') {
+    return {
+      type,
+      run: normalizeExecutionRunDetail(read(data, 'run'))
+    };
+  }
+  if (type === 'log') {
+    return {
+      type,
+      runId: stringValue(read(data, 'runId', 'run_id')),
+      status: stringValue(read(data, 'status'), 'UNKNOWN'),
+      level: normalizeExecutionRunStreamLevel(read(data, 'level')),
+      stage: optionalString(read(data, 'stage')),
+      message: stringValue(read(data, 'message')),
+      nodeRunId: optionalString(read(data, 'nodeRunId', 'node_run_id')),
+      nodeKey: optionalString(read(data, 'nodeKey', 'node_key')),
+      timestamp: optionalString(read(data, 'timestamp')),
+      metadata: objectValue(read(data, 'metadata'))
+    };
+  }
+  return undefined;
+}
+
+function normalizeExecutionRunStreamLevel(input: unknown): 'INFO' | 'WARN' | 'ERROR' | 'SUCCESS' {
+  const value = stringValue(input, 'INFO').toUpperCase();
+  return value === 'WARN' || value === 'ERROR' || value === 'SUCCESS' ? value : 'INFO';
+}
+
+async function streamApiError(response: Response, fallbackMessage: string) {
+  const contentType = response.headers.get('Content-Type') ?? '';
+  if (contentType.toLowerCase().includes('application/json')) {
+    try {
+      const body = objectValue(await response.json());
+      throw new ApiError(
+        stringValue(read(body, 'message'), fallbackMessage),
+        stringValue(read(body, 'code'), `HTTP_${response.status}`),
+        stringValue(read(body, 'traceId', 'trace_id'), response.headers.get('X-Trace-Id') ?? ''),
+        response.status
+      );
+    } catch (error) {
+      if (error instanceof ApiError) {
+        throw error;
+      }
+    }
+  }
+  throw new ApiError(
+    fallbackMessage,
+    `HTTP_${response.status}`,
+    response.headers.get('X-Trace-Id') ?? '',
+    response.status
   );
 }

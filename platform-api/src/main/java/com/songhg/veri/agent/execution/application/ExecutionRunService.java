@@ -81,6 +81,7 @@ public class ExecutionRunService {
     private final ExecutionProperties properties;
     private final TransactionTemplate transactionTemplate;
     private final AsyncTaskNotificationService notificationService;
+    private final ExecutionRunStreamService runStreamService;
 
     public ExecutionRunService(
             ExecutionRepository repository,
@@ -94,7 +95,8 @@ public class ExecutionRunService {
             ObjectMapper objectMapper,
             ExecutionProperties properties,
             AsyncTaskNotificationService notificationService,
-            ObjectProvider<PlatformTransactionManager> transactionManagers
+            ObjectProvider<PlatformTransactionManager> transactionManagers,
+            ObjectProvider<ExecutionRunStreamService> runStreamServices
     ) {
         this.repository = repository;
         this.dagValidator = dagValidator;
@@ -108,6 +110,7 @@ public class ExecutionRunService {
         this.artifactSupport = new ExecutionRunArtifactSupport(this.uiE2eRunService);
         this.properties = properties;
         this.notificationService = notificationService;
+        this.runStreamService = runStreamServices.getIfAvailable();
         this.accountLeaseSupport = new ExecutionAccountLeaseSupport(
                 repository,
                 testDataServices.getIfAvailable(),
@@ -121,7 +124,8 @@ public class ExecutionRunService {
                 jsonSupport,
                 responseMapper,
                 accountLeaseSupport,
-                notificationService
+                notificationService,
+                runStreamService
         );
         this.transactionTemplate = OptionalTransactionTemplates.create(transactionManagers);
         this.dispatchSupport = new ExecutionRunDispatchSupport(
@@ -134,7 +138,8 @@ public class ExecutionRunService {
                 accountLeaseSupport,
                 queueSupport,
                 responseMapper,
-                this::inExecutionTransaction
+                this::inExecutionTransaction,
+                runStreamService
         );
     }
 
@@ -217,6 +222,13 @@ public class ExecutionRunService {
     @Transactional(readOnly = true)
     public ExecutionRunDetailResponse run(UUID id) {
         return detail(requireRun(id), false);
+    }
+
+    @Transactional(readOnly = true)
+    public org.springframework.web.servlet.mvc.method.annotation.SseEmitter streamRun(UUID id) {
+        return runStreamService == null
+                ? new org.springframework.web.servlet.mvc.method.annotation.SseEmitter(0L)
+                : runStreamService.subscribe(id, detail(requireRun(id), false));
     }
 
     /**
@@ -316,7 +328,24 @@ public class ExecutionRunService {
                 "runnerCancelFailedCount", runnerCancelSummary.failedCount()
         ));
         notificationService.notifyExecutionRunFinished(releaseAware);
-        return detail(requireRun(releaseAware.id()), false);
+        releaseActiveClaims(existingNodeRuns, now);
+        ExecutionRunDetailResponse detail = detail(requireRun(releaseAware.id()), false);
+        publishRunEvent(
+                detail,
+                runnerCancelSummary.failedCount() > 0 ? "WARN" : "SUCCESS",
+                "run.canceled",
+                runnerCancelSummary.attempted()
+                        ? "Execution run canceled with downstream runner callback"
+                        : "Execution run canceled before runner dispatch",
+                null,
+                Map.of(
+                        "canceledNodeCount", canceledNodeRuns.size(),
+                        "runnerCancelAttemptCount", runnerCancelSummary.attemptedCount(),
+                        "runnerCancelAcceptedCount", runnerCancelSummary.acceptedCount(),
+                        "runnerCancelFailedCount", runnerCancelSummary.failedCount()
+                )
+        );
+        return detail;
     }
 
     /**
@@ -387,7 +416,12 @@ public class ExecutionRunService {
                 "retryNodeCount", retryNodeRuns.size(),
                 "runnerDispatched", false
         ));
-        return detail(requireRun(id), false);
+        ExecutionRunDetailResponse detail = detail(requireRun(id), false);
+        publishRunEvent(detail, "INFO", "run.retried", "Execution run retry submitted", null, Map.of(
+                "attempt", detail.attempt(),
+                "retryNodeCount", retryNodeRuns.size()
+        ));
+        return detail;
     }
 
     /**
@@ -587,7 +621,13 @@ public class ExecutionRunService {
                 "requestKeyPresent", StringUtils.hasText(requestKey),
                 "runnerDispatched", false
         ));
-        return detail(run, false, nodeRuns, orderedPlanNodes);
+        ExecutionRunDetailResponse detail = detail(run, false, nodeRuns, orderedPlanNodes);
+        publishRunEvent(detail, "INFO", "run.created", "Execution run created", null, Map.of(
+                "triggerType", detail.triggerType(),
+                "nodeCount", detail.nodes().size(),
+                "requestKeyPresent", StringUtils.hasText(detail.requestKey())
+        ));
+        return detail;
     }
 
     private List<ExecutionPlanNode> orderedPersistedNodes(
@@ -824,6 +864,41 @@ public class ExecutionRunService {
 
     private <T> T inExecutionTransaction(Supplier<T> action) {
         return transactionTemplate.execute(ignored -> action.get());
+    }
+
+    private void releaseActiveClaims(List<ExecutionNodeRun> nodeRuns, Instant now) {
+        nodeRuns.stream()
+                .map(ExecutionNodeRun::id)
+                .forEach(nodeRunId -> repository.activeQueueClaim(nodeRunId)
+                        .ifPresent(claim -> repository.updateQueueClaimIfStatus(
+                                new com.songhg.veri.agent.execution.domain.ExecutionQueueClaim(
+                                        claim.id(),
+                                        claim.nodeRunId(),
+                                        claim.claimToken(),
+                                        claim.workerId(),
+                                        claim.claimedAt(),
+                                        now,
+                                        claim.expiresAt(),
+                                        "RELEASED",
+                                        claim.createdAt(),
+                                        now
+                                ),
+                                "CLAIMED"
+                        )));
+    }
+
+    private void publishRunEvent(
+            ExecutionRunDetailResponse run,
+            String level,
+            String stage,
+            String message,
+            UUID nodeRunId,
+            Map<String, Object> metadata
+    ) {
+        if (runStreamService == null || run == null) {
+            return;
+        }
+        runStreamService.publish(run, level, stage, message, nodeRunId, metadata);
     }
 
     private ExecutionRunDetailResponse detail(ExecutionRun run, boolean idempotentReplay) {

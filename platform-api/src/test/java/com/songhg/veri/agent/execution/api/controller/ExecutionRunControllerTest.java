@@ -10,6 +10,7 @@ import com.songhg.veri.agent.apiautomation.domain.ApiAutomationSpec;
 import com.songhg.veri.agent.auth.application.AuthTokenService;
 import com.songhg.veri.agent.auth.domain.AuthUserRecord;
 import com.songhg.veri.agent.execution.application.port.ExecutionRepository;
+import com.songhg.veri.agent.execution.application.ExecutionRunStreamService;
 import com.songhg.veri.agent.execution.domain.ExecutionNodeRun;
 import com.songhg.veri.agent.execution.domain.ExecutionPlanNode;
 import com.songhg.veri.agent.execution.domain.ExecutionRun;
@@ -41,9 +42,11 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.startsWith;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.asyncDispatch;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.request;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @SpringBootTest(properties = {
@@ -68,6 +71,9 @@ class ExecutionRunControllerTest {
 
     @Autowired
     private ExecutionRepository executionRepository;
+
+    @Autowired
+    private ExecutionRunStreamService executionRunStreamService;
 
     @Autowired
     private UiE2eRepository uiE2eRepository;
@@ -175,6 +181,35 @@ class ExecutionRunControllerTest {
                 .andExpect(jsonPath("$.data.id").value(runId.toString()))
                 .andExpect(jsonPath("$.data.status").value("CANCELED"))
                 .andExpect(jsonPath("$.data.nodes.length()").value(2));
+    }
+
+    @Test
+    void streamsExecutionRunEventsAsSse() throws Exception {
+        UUID bundleId = approvedBundle("project-alpha");
+        String token = userAccessToken(List.of("ProjectOwner@PROJECT:project-alpha"));
+        UUID planId = createPlan(bundleId, token, "READY");
+        UUID runId = triggerRun(planId, token, "stream-smoke");
+
+        MvcResult streamResult = mockMvc.perform(get("/api/v1/execution/runs/{id}/stream", runId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                        .accept(MediaType.TEXT_EVENT_STREAM))
+                .andExpect(request().asyncStarted())
+                .andReturn();
+
+        mockMvc.perform(post("/api/v1/execution/runs/{id}/cancel", runId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
+                .andExpect(status().isOk());
+        executionRunStreamService.completeRunStreams(runId);
+
+        mockMvc.perform(asyncDispatch(streamResult))
+                .andExpect(status().isOk())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.TEXT_EVENT_STREAM))
+                .andExpect(header().string("Cache-Control", "no-cache"))
+                .andExpect(content().string(containsString("event:connected")))
+                .andExpect(content().string(containsString("event:snapshot")))
+                .andExpect(content().string(containsString("event:log")))
+                .andExpect(content().string(containsString("\"stage\":\"run.canceled\"")))
+                .andExpect(content().string(containsString("\"status\":\"CANCELED\"")));
     }
 
     @Test

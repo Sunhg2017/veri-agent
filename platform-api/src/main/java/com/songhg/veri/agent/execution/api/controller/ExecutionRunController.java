@@ -32,6 +32,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 @ApiVersion
 @RestController
@@ -67,6 +68,16 @@ public class ExecutionRunController {
     @RequirePermission(value = PermissionCodes.EXECUTION_READ, scope = ExecutionPermissionScopes.RUN)
     public ExecutionRunDetailResponse run(@PathVariable UUID id) {
         return service.run(id);
+    }
+
+    @GetMapping(value = "/runs/{id}/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    @RequirePermission(value = PermissionCodes.EXECUTION_READ, scope = ExecutionPermissionScopes.RUN)
+    public ResponseEntity<SseEmitter> streamRun(@PathVariable UUID id) {
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CACHE_CONTROL, "no-cache")
+                .header("X-Accel-Buffering", "no")
+                .contentType(new MediaType(MediaType.TEXT_EVENT_STREAM, StandardCharsets.UTF_8))
+                .body(service.streamRun(id));
     }
 
     @GetMapping("/runs/{id}/export")

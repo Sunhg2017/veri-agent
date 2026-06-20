@@ -51,6 +51,7 @@ class ExecutionRunServiceTest {
     private final ApiAutomationService apiAutomationService = mock(ApiAutomationService.class);
     private final UiE2eRunService uiE2eRunService = mock(UiE2eRunService.class);
     private final AsyncTaskNotificationService notificationService = mock(AsyncTaskNotificationService.class);
+    private final ExecutionRunStreamService runStreamService = mock(ExecutionRunStreamService.class);
     private final ExecutionRunService service = new ExecutionRunService(
             repository,
             dagValidator,
@@ -78,7 +79,8 @@ class ExecutionRunServiceTest {
                     50
             ),
             notificationService,
-            EmptyObjectProvider.of()
+            EmptyObjectProvider.of(),
+            SingleObjectProvider.of(runStreamService)
     );
 
     @Test
@@ -180,7 +182,8 @@ class ExecutionRunServiceTest {
                         50
                 ),
                 notificationService,
-                EmptyObjectProvider.of()
+                EmptyObjectProvider.of(),
+                SingleObjectProvider.of(runStreamService)
         ));
         ExecutionRunDetailResponse expected = mock(ExecutionRunDetailResponse.class);
         doReturn(expected).when(routingService).dispatchClaimedUiTestNodeRun(command);
@@ -231,7 +234,8 @@ class ExecutionRunServiceTest {
                         50
                 ),
                 notificationService,
-                EmptyObjectProvider.of()
+                EmptyObjectProvider.of(),
+                SingleObjectProvider.of(runStreamService)
         ));
         ExecutionRunDetailResponse expected = mock(ExecutionRunDetailResponse.class);
         doReturn(expected).when(routingService).dispatchClaimedApiTestNodeRun(command);

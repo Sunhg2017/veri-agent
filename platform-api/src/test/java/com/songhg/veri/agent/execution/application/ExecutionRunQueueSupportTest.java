@@ -37,6 +37,7 @@ class ExecutionRunQueueSupportTest {
             jsonSupport
     );
     private final AsyncTaskNotificationService notificationService = mock(AsyncTaskNotificationService.class);
+    private final ExecutionRunEventPublisher eventPublisher = mock(ExecutionRunEventPublisher.class);
     private final ExecutionRunQueueSupport support = new ExecutionRunQueueSupport(
             repository,
             contextClient,
@@ -44,7 +45,8 @@ class ExecutionRunQueueSupportTest {
             jsonSupport,
             new ExecutionRunResponseMapper(objectMapper),
             accountLeaseSupport,
-            notificationService
+            notificationService,
+            eventPublisher
     );
 
     @Test

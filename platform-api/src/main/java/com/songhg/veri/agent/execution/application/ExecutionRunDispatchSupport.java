@@ -60,6 +60,7 @@ final class ExecutionRunDispatchSupport {
     private final ExecutionRunQueueSupport queueSupport;
     private final ExecutionRunResponseMapper responseMapper;
     private final TransactionBridge transactionBridge;
+    private final ExecutionRunDispatchEventSupport eventSupport;
 
     ExecutionRunDispatchSupport(
             ExecutionRepository repository,
@@ -71,7 +72,8 @@ final class ExecutionRunDispatchSupport {
             ExecutionAccountLeaseSupport accountLeaseSupport,
             ExecutionRunQueueSupport queueSupport,
             ExecutionRunResponseMapper responseMapper,
-            TransactionBridge transactionBridge
+            TransactionBridge transactionBridge,
+            ExecutionRunEventPublisher eventPublisher
     ) {
         this.repository = repository;
         this.apiAutomationService = apiAutomationService;
@@ -83,6 +85,7 @@ final class ExecutionRunDispatchSupport {
         this.queueSupport = queueSupport;
         this.responseMapper = responseMapper;
         this.transactionBridge = transactionBridge;
+        this.eventSupport = new ExecutionRunDispatchEventSupport(repository, responseMapper, eventPublisher);
     }
     ExecutionRunDetailResponse dispatchClaimedApiTestNodeRun(DispatchExecutionNodeRunCommand command) {
         if (command == null || command.nodeRunId() == null || !StringUtils.hasText(command.claimToken())) {
@@ -108,6 +111,7 @@ final class ExecutionRunDispatchSupport {
             transactionBridge.inExecutionTransaction(() -> failPreparedDispatch(preparation, exception));
             throw exception;
         }
+        eventSupport.publishWp6DispatchStarted(preparation);
         return transactionBridge.inExecutionTransaction(
                 () -> completeDispatchedApiTestNodeRun(preparation, wp6Run)
         );
@@ -138,6 +142,7 @@ final class ExecutionRunDispatchSupport {
             transactionBridge.inExecutionTransaction(() -> failPreparedUiTestDispatch(preparation, exception));
             throw exception;
         }
+        eventSupport.publishWp7DispatchStarted(preparation);
         return transactionBridge.inExecutionTransaction(
                 () -> completeDispatchedUiTestNodeRun(preparation, wp7Run)
         );
@@ -153,6 +158,7 @@ final class ExecutionRunDispatchSupport {
             return preparation.replayResponse();
         }
         UiE2eRunDetailResponse wp7Run = uiE2eRunService.run(preparation.wp7RunId());
+        eventSupport.publishWp7FollowUpPoll(preparation);
         return transactionBridge.inExecutionTransaction(
                 () -> completeUiTestFollowUp(preparation, wp7Run)
         );
@@ -333,7 +339,9 @@ final class ExecutionRunDispatchSupport {
                 claim.createdAt(),
                 completedAt
         ));
-        return queueSupport.aggregateRunAfterNodeCompletion(completed.runId(), completedAt);
+        ExecutionRunDetailResponse detail = queueSupport.aggregateRunAfterNodeCompletion(completed.runId(), completedAt);
+        eventSupport.publishWp6DispatchCompleted(completed, targetStatus, wp6Run);
+        return detail;
     }
 
     private ExecutionRunDetailResponse completeDispatchedUiTestNodeRun(
@@ -372,7 +380,9 @@ final class ExecutionRunDispatchSupport {
                     claim.createdAt(),
                     completedAt
             ));
-            return detail(requireRun(waiting.runId()), false);
+            ExecutionRunDetailResponse detail = detail(requireRun(waiting.runId()), false);
+            eventSupport.publishWp7FollowUpRequired(waiting, wp7Run);
+            return detail;
         }
         String targetStatus = wp9StatusFromWp7(wp7Run.status());
         ExecutionNodeRun completed = new ExecutionNodeRun(
@@ -406,7 +416,9 @@ final class ExecutionRunDispatchSupport {
                 claim.createdAt(),
                 completedAt
         ));
-        return queueSupport.aggregateRunAfterNodeCompletion(completed.runId(), completedAt);
+        ExecutionRunDetailResponse detail = queueSupport.aggregateRunAfterNodeCompletion(completed.runId(), completedAt);
+        eventSupport.publishWp7DispatchCompleted(completed, targetStatus, wp7Run);
+        return detail;
     }
 
     private ExecutionRunDetailResponse completeUiTestFollowUp(
@@ -422,7 +434,9 @@ final class ExecutionRunDispatchSupport {
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "执行节点运行不存在"));
         Instant completedAt = Instant.now();
         if ("COMPLETED".equals(claim.status()) && COMPLETABLE_NODE_STATUSES.contains(nodeRun.status())) {
-            return detail(requireRun(nodeRun.runId()), false);
+            ExecutionRunDetailResponse detail = detail(requireRun(nodeRun.runId()), false);
+            eventSupport.publishWp7FollowUpStillActive(nodeRun, wp7Run);
+            return detail;
         }
         if (!"CLAIMED".equals(claim.status())
                 || !claim.expiresAt().isAfter(completedAt)
@@ -502,10 +516,13 @@ final class ExecutionRunDispatchSupport {
                 claim.createdAt(),
                 completedAt
         ));
-        return queueSupport.aggregateRunAfterNodeCompletion(completed.runId(), completedAt);
+        ExecutionRunDetailResponse detail = queueSupport.aggregateRunAfterNodeCompletion(completed.runId(), completedAt);
+        eventSupport.publishWp7FollowUpCompleted(completed, targetStatus, wp7Run);
+        return detail;
     }
 
     private ExecutionRunDetailResponse failPreparedDispatch(ApiTestDispatchPreparation preparation, RuntimeException exception) {
+        eventSupport.publishWp6DispatchFailed(preparation, sourceErrorCode(exception));
         return queueSupport.completeClaimedNodeRun(new CompleteExecutionNodeRunCommand(
                 preparation.nodeRunId(),
                 preparation.claimToken(),
@@ -528,6 +545,7 @@ final class ExecutionRunDispatchSupport {
             UiTestDispatchPreparation preparation,
             RuntimeException exception
     ) {
+        eventSupport.publishWp7DispatchFailed(preparation, sourceErrorCode(exception));
         return queueSupport.completeClaimedNodeRun(new CompleteExecutionNodeRunCommand(
                 preparation.nodeRunId(),
                 preparation.claimToken(),
@@ -1122,78 +1140,8 @@ final class ExecutionRunDispatchSupport {
         return repository.run(id)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "执行运行不存在"));
     }
+
     interface TransactionBridge {
         <T> T inExecutionTransaction(Supplier<T> action);
     }
-    private record ApiTestDispatchPreparation(
-            UUID nodeRunId,
-            String claimToken,
-            UUID bundleId,
-            String environmentId,
-            String baseUrl,
-            String baseUrlSource,
-            String baseUrlRef,
-            List<UUID> caseIds,
-            int timeoutSeconds,
-            List<String> secretRefs,
-            boolean runtimeCaseIdsProvided,
-            boolean runtimeSecretRefsProvided,
-            ExecutionRunDetailResponse replayResponse
-    ) {
-        private static ApiTestDispatchPreparation replay(ExecutionRunDetailResponse replayResponse) {
-            return new ApiTestDispatchPreparation(
-                    null,
-                    null,
-                    null,
-                    null,
-                    null,
-                    null,
-                    null,
-                    List.of(),
-                    0,
-                    List.of(),
-                    false,
-                    false,
-                replayResponse
-            );
-        }
-    }
-    private record UiTestDispatchPreparation(
-            UUID nodeRunId,
-            String claimToken,
-            String projectId,
-            UUID sceneId,
-            UUID bundleId,
-            String environmentId,
-            String baseUrlRef,
-            UUID accountLeaseRef,
-            String requestKey,
-            String reason,
-            ExecutionRunDetailResponse replayResponse
-    ) {
-        private static UiTestDispatchPreparation replay(ExecutionRunDetailResponse replayResponse) {
-            return new UiTestDispatchPreparation(
-                    null,
-                    null,
-                    null,
-                    null,
-                    null,
-                    null,
-                    null,
-                    null,
-                    null,
-                    null,
-                replayResponse
-            );
-        }
-    }
-    private record UiTestFollowUpPreparation(
-            UUID nodeRunId,
-            String claimToken,
-            UUID wp7RunId,
-            ExecutionRunDetailResponse replayResponse
-    ) {
-        private static UiTestFollowUpPreparation replay(ExecutionRunDetailResponse replayResponse) { return new UiTestFollowUpPreparation(null, null, null, replayResponse); }
-    }
-    private record ResolvedDispatchTarget(String baseUrl, String baseUrlSource, String baseUrlRef, String environmentKey) {}
 }

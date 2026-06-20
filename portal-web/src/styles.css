@@ -2007,6 +2007,69 @@ tbody tr:hover td {
   gap: var(--space-sm);
 }
 
+.execution-run-log-panel {
+  display: grid;
+  gap: var(--space-sm);
+  margin-top: var(--space-md);
+}
+
+.execution-run-log-list {
+  display: grid;
+  gap: var(--space-sm);
+}
+
+.execution-run-log-item {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, auto)) minmax(0, 1fr);
+  gap: 4px var(--space-sm);
+  padding: 10px 12px;
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  overflow-wrap: anywhere;
+}
+
+.execution-run-log-item strong,
+.execution-run-log-item span,
+.execution-run-log-item em,
+.execution-run-log-item small {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.execution-run-log-item strong {
+  color: var(--text-primary);
+  font-size: var(--font-size-sm);
+}
+
+.execution-run-log-item span,
+.execution-run-log-item em,
+.execution-run-log-item small {
+  color: var(--text-secondary);
+  font-size: var(--font-size-xs);
+  font-style: normal;
+}
+
+.execution-run-log-item small {
+  grid-column: 1 / -1;
+}
+
+.execution-run-log-item.tone-success {
+  border-color: rgba(22, 163, 74, 0.32);
+}
+
+.execution-run-log-item.tone-warning {
+  border-color: rgba(217, 119, 6, 0.35);
+}
+
+.execution-run-log-item.tone-danger {
+  border-color: rgba(220, 38, 38, 0.28);
+}
+
+.execution-run-log-item.tone-info {
+  border-color: rgba(37, 99, 235, 0.2);
+}
+
 .execution-node-card,
 .execution-trigger-item,
 .execution-event-item {

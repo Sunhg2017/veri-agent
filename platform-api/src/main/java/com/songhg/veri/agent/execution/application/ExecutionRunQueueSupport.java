@@ -59,6 +59,7 @@ final class ExecutionRunQueueSupport {
     private final ExecutionRunResponseMapper responseMapper;
     private final ExecutionAccountLeaseSupport accountLeaseSupport;
     private final AsyncTaskNotificationService notificationService;
+    private final ExecutionRunEventPublisher eventPublisher;
 
     ExecutionRunQueueSupport(
             ExecutionRepository repository,
@@ -67,7 +68,8 @@ final class ExecutionRunQueueSupport {
             ExecutionRunJsonSupport jsonSupport,
             ExecutionRunResponseMapper responseMapper,
             ExecutionAccountLeaseSupport accountLeaseSupport,
-            AsyncTaskNotificationService notificationService
+            AsyncTaskNotificationService notificationService,
+            ExecutionRunEventPublisher eventPublisher
     ) {
         this.repository = repository;
         this.contextClient = contextClient;
@@ -76,6 +78,7 @@ final class ExecutionRunQueueSupport {
         this.responseMapper = responseMapper;
         this.accountLeaseSupport = accountLeaseSupport;
         this.notificationService = notificationService;
+        this.eventPublisher = eventPublisher;
     }
 
     Optional<ExecutionQueueClaimResponse> claimNextQueuedNode(String workerId) {
@@ -274,7 +277,18 @@ final class ExecutionRunQueueSupport {
                     "summary", jsonSupport.readMap(aggregated.resultSummaryJson())
             ));
         }
-        return detail(requireRun(runId), false);
+        ExecutionRunDetailResponse detail = detail(requireRun(runId), false);
+        publishRunEvent(detail, terminalEventLevel(detail.status()), "run.aggregate", aggregateMessage(detail), null, Map.of(
+                "status", detail.status(),
+                "succeededNodeCount", detail.resultSummary().getOrDefault("succeededNodeCount", 0),
+                "failedNodeCount", detail.resultSummary().getOrDefault("failedNodeCount", 0),
+                "timeoutNodeCount", detail.resultSummary().getOrDefault("timeoutNodeCount", 0),
+                "blockedNodeCount", detail.resultSummary().getOrDefault("blockedNodeCount", 0),
+                "runningNodeCount", detail.resultSummary().getOrDefault("runningNodeCount", 0),
+                "queuedNodeCount", detail.resultSummary().getOrDefault("queuedNodeCount", 0),
+                "pendingNodeCount", detail.resultSummary().getOrDefault("pendingNodeCount", 0)
+        ));
+        return detail;
     }
 
     List<ExecutionNodeRun> latestNodeRuns(List<ExecutionNodeRun> nodeRuns) {
@@ -406,7 +420,13 @@ final class ExecutionRunQueueSupport {
                 .filter(node -> node.id().equals(candidate.planNodeId()))
                 .findFirst()
                 .orElse(null);
-        return Optional.of(toQueueClaimResponse(claim, runningNode, runningRun, planNode));
+        ExecutionQueueClaimResponse response = toQueueClaimResponse(claim, runningNode, runningRun, planNode);
+        publishRunEvent(detail(requireRun(runningRun.id()), false), "INFO", "queue.claimed", "Execution node claimed by scheduler", runningNode.id(), Map.of(
+                "workerId", response.workerId(),
+                "runnerType", response.runnerType(),
+                "nodeKey", response.nodeKey()
+        ));
+        return Optional.of(response);
     }
 
     /**
@@ -467,7 +487,47 @@ final class ExecutionRunQueueSupport {
                 .filter(node -> node.id().equals(candidate.planNodeId()))
                 .findFirst()
                 .orElse(null);
-        return Optional.of(toQueueClaimResponse(claim, followUpNode, run, planNode));
+        ExecutionQueueClaimResponse response = toQueueClaimResponse(claim, followUpNode, run, planNode);
+        publishRunEvent(detail(requireRun(run.id()), false), "INFO", "queue.follow-up-claimed", "Execution node follow-up claimed", followUpNode.id(), Map.of(
+                "workerId", response.workerId(),
+                "runnerType", response.runnerType(),
+                "nodeKey", response.nodeKey()
+        ));
+        return Optional.of(response);
+    }
+
+    private void publishRunEvent(
+            ExecutionRunDetailResponse run,
+            String level,
+            String stage,
+            String message,
+            UUID nodeRunId,
+            Map<String, Object> metadata
+    ) {
+        if (eventPublisher == null || run == null) {
+            return;
+        }
+        eventPublisher.publish(run, level, stage, message, nodeRunId, metadata);
+    }
+
+    private String aggregateMessage(ExecutionRunDetailResponse run) {
+        return switch (run.status()) {
+            case "SUCCEEDED" -> "Execution run finished successfully";
+            case "PARTIAL_SUCCESS" -> "Execution run finished with partial success";
+            case "FAILED" -> "Execution run finished with failed nodes";
+            case "TIMEOUT" -> "Execution run finished due to timeout";
+            case "CANCELED" -> "Execution run was canceled";
+            default -> "Execution run snapshot updated";
+        };
+    }
+
+    private String terminalEventLevel(String status) {
+        return switch (status) {
+            case "SUCCEEDED" -> "SUCCESS";
+            case "RUNNING", "QUEUED" -> "INFO";
+            case "PARTIAL_SUCCESS", "CANCELED" -> "WARN";
+            default -> "ERROR";
+        };
     }
 
     private void releaseClaim(ExecutionQueueClaim claim, Instant now) {

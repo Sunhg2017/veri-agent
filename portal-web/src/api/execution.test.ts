@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { requestJson } from './client';
+import { refreshToken } from './auth';
+import { getAuthToken, requestJson } from './client';
 import {
   archiveExecutionPlan,
   cancelExecutionRun,
@@ -22,24 +23,49 @@ import {
   normalizeExecutionRunDetail,
   normalizeExecutionRunExport,
   normalizeExecutionRunList,
+  parseExecutionRunStreamEvents,
   normalizeExecutionTrigger,
   normalizeExecutionTriggerEventList,
   normalizeExecutionTriggerList,
   retryExecutionRun,
+  subscribeExecutionRunStream,
   triggerExecutionRun,
   updateExecutionPlan,
   updateExecutionTrigger
 } from './execution';
 
 vi.mock('./client', () => ({
+  ApiError: class ApiError extends Error {
+    readonly code: string;
+    readonly traceId: string;
+    readonly status: number;
+
+    constructor(message: string, code: string, traceId: string, status: number) {
+      super(message);
+      this.name = 'ApiError';
+      this.code = code;
+      this.traceId = traceId;
+      this.status = status;
+    }
+  },
+  getAuthToken: vi.fn(),
   requestJson: vi.fn()
 }));
 
+vi.mock('./auth', () => ({
+  refreshToken: vi.fn()
+}));
+
 const requestJsonMock = vi.mocked(requestJson);
+const getAuthTokenMock = vi.mocked(getAuthToken);
+const refreshTokenMock = vi.mocked(refreshToken);
 
 describe('WP9 execution API helpers', () => {
   beforeEach(() => {
     requestJsonMock.mockReset();
+    getAuthTokenMock.mockReset();
+    refreshTokenMock.mockReset();
+    vi.unstubAllGlobals();
   });
 
   it('normalizes health, plans, dry-run, runs and trigger evidence', () => {
@@ -294,5 +320,96 @@ describe('WP9 execution API helpers', () => {
     expect(requestJsonMock).toHaveBeenNthCalledWith(14, '/api/v1/execution/triggers/trigger-1/dry-run', {
       method: 'POST'
     });
+  });
+
+  it('parses execution SSE events', () => {
+    expect(parseExecutionRunStreamEvents(`
+event: connected
+data: {"runId":"run-1","status":"RUNNING","timestamp":"2026-06-21T01:00:00Z"}
+
+event: snapshot
+data: {"run":{"id":"run-1","plan_id":"plan-1","project_id":"project-alpha","status":"RUNNING","trigger_type":"MANUAL","node_count":1,"nodes":[],"idempotent_replay":false}}
+
+event: log
+data: {"runId":"run-1","status":"RUNNING","level":"INFO","stage":"queue.claimed","message":"Execution node claimed","nodeRunId":"node-run-1","nodeKey":"api-smoke","metadata":{"workerId":"worker-1"}}
+
+event: heartbeat
+data: {"timestamp":"2026-06-21T01:00:05Z"}
+`)).toEqual([
+      {
+        type: 'connected',
+        runId: 'run-1',
+        status: 'RUNNING',
+        timestamp: '2026-06-21T01:00:00Z'
+      },
+      {
+        type: 'snapshot',
+        run: expect.objectContaining({
+          id: 'run-1',
+          status: 'RUNNING',
+          triggerType: 'MANUAL'
+        })
+      },
+      {
+        type: 'log',
+        runId: 'run-1',
+        status: 'RUNNING',
+        level: 'INFO',
+        stage: 'queue.claimed',
+        message: 'Execution node claimed',
+        nodeRunId: 'node-run-1',
+        nodeKey: 'api-smoke',
+        timestamp: undefined,
+        metadata: { workerId: 'worker-1' }
+      },
+      {
+        type: 'heartbeat',
+        timestamp: '2026-06-21T01:00:05Z'
+      }
+    ]);
+  });
+
+  it('subscribes execution stream with bearer auth and retries once on 401', async () => {
+    getAuthTokenMock.mockReturnValue('run-stream-token');
+    refreshTokenMock.mockResolvedValueOnce(true);
+    const encoder = new TextEncoder();
+    const stream = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(encoder.encode('event: log\ndata: {"runId":"run-1","status":"RUNNING","level":"INFO",'));
+        controller.enqueue(encoder.encode('"stage":"run.created","message":"Execution run created","metadata":{}}\n\n'));
+        controller.close();
+      }
+    });
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response('', { status: 401 }))
+      .mockResolvedValueOnce(new Response(stream, {
+        status: 200,
+        headers: { 'Content-Type': 'text/event-stream' }
+      }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const events: Array<ReturnType<typeof parseExecutionRunStreamEvents>[number]> = [];
+    await subscribeExecutionRunStream('run-1', (event) => events.push(event));
+
+    expect(refreshTokenMock).toHaveBeenCalledTimes(1);
+    const [path, init] = fetchMock.mock.calls[1] as [string, RequestInit];
+    const headers = init.headers as Headers;
+    expect(path).toBe('/api/v1/execution/runs/run-1/stream');
+    expect(headers.get('Accept')).toBe('text/event-stream');
+    expect(headers.get('Authorization')).toBe('Bearer run-stream-token');
+    expect(events).toEqual([
+      {
+        type: 'log',
+        runId: 'run-1',
+        status: 'RUNNING',
+        level: 'INFO',
+        stage: 'run.created',
+        message: 'Execution run created',
+        nodeRunId: undefined,
+        nodeKey: undefined,
+        timestamp: undefined,
+        metadata: {}
+      }
+    ]);
   });
 });

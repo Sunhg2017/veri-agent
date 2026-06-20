@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react';
 import type { CurrentUser } from '../api/auth';
+import { ApiError } from '../api/client';
 import {
   archiveExecutionPlan,
   cancelExecutionRun,
@@ -31,6 +32,7 @@ import {
   fetchExecutionTriggerEvents,
   fetchExecutionTriggers,
   retryExecutionRun,
+  subscribeExecutionRunStream,
   triggerExecutionRun,
   updateExecutionPlan,
   updateExecutionTrigger,
@@ -40,6 +42,7 @@ import {
   type ExecutionPlanSummary,
   type ExecutionRunDetail,
   type ExecutionRunExport,
+  type ExecutionRunStreamEvent,
   type ExecutionRunSummary,
   type ExecutionTrigger,
   type ExecutionTriggerDryRun,
@@ -62,6 +65,16 @@ type WorkState = {
   loading: boolean;
   error?: string;
   success?: string;
+};
+
+type ExecutionLogEntry = {
+  key: string;
+  level: 'INFO' | 'WARN' | 'ERROR' | 'SUCCESS';
+  stage?: string;
+  message: string;
+  nodeKey?: string;
+  timestamp?: string;
+  metadata: Record<string, unknown>;
 };
 
 type TriggerDraft = {
@@ -111,6 +124,8 @@ export function ExecutionWorkbench(props: { signedIn: boolean; currentUser: Curr
   const [lastDryRun, setLastDryRun] = useState<ExecutionDryRun | null>(null);
   const [lastRunExport, setLastRunExport] = useState<ExecutionRunExport | null>(null);
   const [lastTriggerDryRun, setLastTriggerDryRun] = useState<ExecutionTriggerDryRun | null>(null);
+  const [runLogs, setRunLogs] = useState<ExecutionLogEntry[]>([]);
+  const [runStreamState, setRunStreamState] = useState<WorkState>({ loading: false });
 
   const summary = useMemo(() => {
     const ready = plans.filter((plan) => plan.status === 'READY').length;
@@ -128,6 +143,8 @@ export function ExecutionWorkbench(props: { signedIn: boolean; currentUser: Curr
       setPlanDetail(null);
       setRunDetail(null);
       setLastRunExport(null);
+      setRunLogs([]);
+      setRunStreamState({ loading: false });
       setTriggers([]);
       setTriggerEvents([]);
       setSelectedTriggerId('');
@@ -186,12 +203,16 @@ export function ExecutionWorkbench(props: { signedIn: boolean; currentUser: Curr
     if (!runId || !canRead) {
       setRunDetail(null);
       setLastRunExport(null);
+      setRunLogs([]);
+      setRunStreamState({ loading: false });
       return;
     }
     try {
       const result = await fetchExecutionRun(runId);
       setRunDetail(result.data);
       setLastRunExport(null);
+      setRunLogs([]);
+      setRunStreamState({ loading: false });
     } catch (error: unknown) {
       setRunActionState({ loading: false, error: error instanceof Error ? error.message : '加载运行详情失败' });
     }
@@ -208,6 +229,60 @@ export function ExecutionWorkbench(props: { signedIn: boolean; currentUser: Curr
   useEffect(() => {
     void refreshRunDetail(selectedRunId);
   }, [refreshRunDetail, selectedRunId]);
+
+  useEffect(() => {
+    if (!selectedRunId || !canRead) {
+      setRunStreamState({ loading: false });
+      return undefined;
+    }
+    let disposed = false;
+    let controller: AbortController | null = null;
+    let retryTimer: number | null = null;
+
+    const connect = () => {
+      if (disposed) {
+        return;
+      }
+      controller = new AbortController();
+      setRunStreamState({ loading: true });
+      void subscribeExecutionRunStream(
+        selectedRunId,
+        (event) => {
+          if (!disposed) {
+            applyRunStreamEvent(event);
+          }
+        },
+        controller.signal
+      )
+        .then(() => {
+          if (disposed || controller?.signal.aborted) {
+            return;
+          }
+          setRunStreamState({ loading: false });
+          retryTimer = window.setTimeout(connect, 1000);
+        })
+        .catch((error: unknown) => {
+          if (disposed || controller?.signal.aborted) {
+            return;
+          }
+          if (error instanceof ApiError && error.code === 'SESSION_EXPIRED') {
+            setRunStreamState({ loading: false, error: error.message });
+            return;
+          }
+          setRunStreamState({ loading: false, error: error instanceof Error ? error.message : '实时日志连接失败' });
+          retryTimer = window.setTimeout(connect, 3000);
+        });
+    };
+
+    connect();
+    return () => {
+      disposed = true;
+      controller?.abort();
+      if (retryTimer !== null) {
+        window.clearTimeout(retryTimer);
+      }
+    };
+  }, [canRead, selectedRunId]);
 
   useEffect(() => {
     if (selectedTriggerId) {
@@ -407,6 +482,36 @@ export function ExecutionWorkbench(props: { signedIn: boolean; currentUser: Curr
 
   function mergeRun(run: ExecutionRunDetail) {
     setRuns((current) => current.map((item) => item.id === run.id ? run : item));
+  }
+
+  function applyRunStreamEvent(event: ExecutionRunStreamEvent) {
+    if (event.type === 'snapshot') {
+      setRunDetail((current) => current && current.id === event.run.id ? event.run : current);
+      setRuns((current) => current.map((item) => item.id === event.run.id ? event.run : item));
+      setRunStreamState({ loading: false });
+      return;
+    }
+    if (event.type === 'log') {
+      setRunLogs((current) => [
+        {
+          key: `${event.timestamp ?? ''}:${event.stage ?? ''}:${event.message}:${current.length}`,
+          level: event.level,
+          stage: event.stage,
+          message: event.message,
+          nodeKey: event.nodeKey,
+          timestamp: event.timestamp,
+          metadata: event.metadata
+        },
+        ...current
+      ].slice(0, 50));
+      setRunStreamState({ loading: false });
+      return;
+    }
+    if (event.type === 'connected') {
+      setRunStreamState({ loading: false, success: `已接入 ${event.status} 实时流` });
+      return;
+    }
+    setRunStreamState((current) => ({ ...current, loading: false }));
   }
 
   return (
@@ -736,6 +841,8 @@ export function ExecutionWorkbench(props: { signedIn: boolean; currentUser: Curr
                 {runDetail.errorCode}{runDetail.errorSummary ? ` · ${runDetail.errorSummary}` : ''}
               </div>
             )}
+            {runStreamState.error && <div className="document-state-line error">{runStreamState.error}</div>}
+            {runStreamState.success && <div className="document-state-line success">{runStreamState.success}</div>}
             <div className="execution-run-list">
               {runs.length ? runs.map((run) => (
                 <button
@@ -769,6 +876,27 @@ export function ExecutionWorkbench(props: { signedIn: boolean; currentUser: Curr
                   {node.errorCode && <div className="execution-digest-line error">{node.errorCode} · {node.errorSummary ?? ''}</div>}
                 </div>
               )) : null}
+            </div>
+            <div className="execution-run-log-panel">
+              <div className="execution-subheader">
+                <strong>实时事件</strong>
+                <span>{runStreamState.loading ? '连接中' : 'SSE'}</span>
+              </div>
+              {runLogs.length ? (
+                <div className="execution-run-log-list">
+                  {runLogs.map((entry) => (
+                    <div className={`execution-run-log-item tone-${logTone(entry.level)}`} key={entry.key}>
+                      <strong>{entry.stage ?? entry.level}</strong>
+                      <span>{entry.timestamp ? formatDateTime(entry.timestamp) : '-'}</span>
+                      <em>{entry.nodeKey ?? 'run'}</em>
+                      <span>{entry.message}</span>
+                      {Object.keys(entry.metadata).length ? <small>{summaryText(entry.metadata)}</small> : null}
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="table-empty">等待运行事件</div>
+              )}
             </div>
           </div>
         </section>
@@ -986,6 +1114,13 @@ function activeRunStatus(status: string) {
 
 function retryableRunStatus(status: string) {
   return status === 'FAILED' || status === 'TIMEOUT' || status === 'PARTIAL_SUCCESS';
+}
+
+function logTone(level: ExecutionLogEntry['level']) {
+  if (level === 'ERROR') return 'danger';
+  if (level === 'WARN') return 'warning';
+  if (level === 'SUCCESS') return 'success';
+  return 'info';
 }
 
 function shortId(value?: string) {

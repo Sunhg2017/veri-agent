@@ -73,6 +73,7 @@ class ExecutionRunDispatchSupportTest {
             jsonSupport
     );
     private final AsyncTaskNotificationService notificationService = mock(AsyncTaskNotificationService.class);
+    private final ExecutionRunEventPublisher eventPublisher = mock(ExecutionRunEventPublisher.class);
     private final ExecutionRunQueueSupport queueSupport = new ExecutionRunQueueSupport(
             repository,
             contextClient,
@@ -80,7 +81,8 @@ class ExecutionRunDispatchSupportTest {
             jsonSupport,
             responseMapper,
             accountLeaseSupport,
-            notificationService
+            notificationService,
+            eventPublisher
     );
     private final ExecutionRunDispatchSupport support = new ExecutionRunDispatchSupport(
             repository,
@@ -92,7 +94,8 @@ class ExecutionRunDispatchSupportTest {
             accountLeaseSupport,
             queueSupport,
             responseMapper,
-            new DirectTransactionBridge()
+            new DirectTransactionBridge(),
+            eventPublisher
     );
 
     @Test
