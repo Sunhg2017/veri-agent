@@ -60,6 +60,7 @@ public class ModelAccessService {
     private final PromptTemplateManagementService promptTemplateManagementService;
     private final ModelInvocationService invocationService;
     private final ModelCostAnalysisService costAnalysisService;
+    private final ModelQualityEvaluationService qualityEvaluationService;
 
     public ModelAccessService(
             ModelAccessRepository repository,
@@ -69,7 +70,8 @@ public class ModelAccessService {
             PromptRenderer promptRenderer,
             ModelAccessProperties properties,
             ModelAccessMetrics metrics,
-            ProviderResilienceManager providerResilienceManager
+            ProviderResilienceManager providerResilienceManager,
+            ModelQualityEvaluationService qualityEvaluationService
     ) {
         this(
                 repository,
@@ -93,7 +95,8 @@ public class ModelAccessService {
                         metrics,
                         providerResilienceManager
                 ),
-                new PromptTemplateManagementService(repository)
+                new PromptTemplateManagementService(repository),
+                qualityEvaluationService
         );
     }
 
@@ -104,7 +107,8 @@ public class ModelAccessService {
             ModelInvocationService invocationService,
             ModelCostAnalysisService costAnalysisService,
             ModelProviderManagementService providerManagementService,
-            PromptTemplateManagementService promptTemplateManagementService
+            PromptTemplateManagementService promptTemplateManagementService,
+            ModelQualityEvaluationService qualityEvaluationService
     ) {
         this.repository = repository;
         this.properties = properties;
@@ -112,6 +116,7 @@ public class ModelAccessService {
         this.promptTemplateManagementService = promptTemplateManagementService;
         this.invocationService = invocationService;
         this.costAnalysisService = costAnalysisService;
+        this.qualityEvaluationService = qualityEvaluationService;
     }
 
     public List<ModelProviderConfig> providers() {
@@ -195,6 +200,12 @@ public class ModelAccessService {
 
     public CostReportResult costReport(LocalDate startDate, LocalDate endDate, String projectId) {
         return costAnalysisService.costReport(startDate, endDate, projectId);
+    }
+
+    public com.songhg.veri.agent.modelaccess.application.view.ModelQualityEvaluationSummaryResult qualityEvaluationSummary(
+            String taskType
+    ) {
+        return qualityEvaluationService.evaluationSummary(taskType);
     }
 
     public void writeInvocationsCsv(InvocationQuery query, OutputStream outputStream) throws IOException {

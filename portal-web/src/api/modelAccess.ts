@@ -280,6 +280,38 @@ export interface ModelInvocationJob {
   response?: InvokeModelResponse;
 }
 
+export interface ModelQualityThresholds {
+  minScenarioPassRate: number;
+  minRequiredTermRecall: number;
+  minForbiddenTermCleanRate: number;
+}
+
+export interface ModelQualityTaskStats {
+  taskType: string;
+  scenarioCount: number;
+  passedScenarios: number;
+  requiredTermCount: number;
+  requiredTermMatches: number;
+  forbiddenTermCount: number;
+  forbiddenTermMatches: number;
+  scenarioPassRate: number;
+  requiredTermRecall: number;
+  forbiddenTermCleanRate: number;
+  passed: boolean;
+  failures: string[];
+}
+
+export interface ModelQualityEvaluationSummary {
+  corpusVersion: string;
+  taskTypeFilter: string;
+  scenarioCount: number;
+  thresholds: ModelQualityThresholds;
+  taskStats: ModelQualityTaskStats[];
+  totalStats: ModelQualityTaskStats;
+  promptBindings: string[];
+  providerGroups: string[];
+}
+
 export type ModelStreamEvent =
   | {
       type: 'metadata';
@@ -567,6 +599,42 @@ export function normalizeModelInvocationJob(raw: unknown): ModelInvocationJob {
   };
 }
 
+export function normalizeModelQualityTaskStats(raw: unknown): ModelQualityTaskStats {
+  const value = record(raw);
+  return {
+    taskType: stringValue(value.taskType ?? value.task_type, 'ALL'),
+    scenarioCount: numberValue(value.scenarioCount ?? value.scenario_count),
+    passedScenarios: numberValue(value.passedScenarios ?? value.passed_scenarios),
+    requiredTermCount: numberValue(value.requiredTermCount ?? value.required_term_count),
+    requiredTermMatches: numberValue(value.requiredTermMatches ?? value.required_term_matches),
+    forbiddenTermCount: numberValue(value.forbiddenTermCount ?? value.forbidden_term_count),
+    forbiddenTermMatches: numberValue(value.forbiddenTermMatches ?? value.forbidden_term_matches),
+    scenarioPassRate: numberValue(value.scenarioPassRate ?? value.scenario_pass_rate),
+    requiredTermRecall: numberValue(value.requiredTermRecall ?? value.required_term_recall),
+    forbiddenTermCleanRate: numberValue(value.forbiddenTermCleanRate ?? value.forbidden_term_clean_rate),
+    passed: booleanValue(value.passed),
+    failures: listItems(value.failures).map((item) => stringValue(item)).filter(Boolean)
+  };
+}
+
+export function normalizeModelQualityEvaluationSummary(raw: unknown): ModelQualityEvaluationSummary {
+  const value = record(raw);
+  return {
+    corpusVersion: stringValue(value.corpusVersion ?? value.corpus_version),
+    taskTypeFilter: stringValue(value.taskTypeFilter ?? value.task_type_filter, 'ALL'),
+    scenarioCount: numberValue(value.scenarioCount ?? value.scenario_count),
+    thresholds: {
+      minScenarioPassRate: numberValue(record(value.thresholds).minScenarioPassRate ?? record(value.thresholds).min_scenario_pass_rate),
+      minRequiredTermRecall: numberValue(record(value.thresholds).minRequiredTermRecall ?? record(value.thresholds).min_required_term_recall),
+      minForbiddenTermCleanRate: numberValue(record(value.thresholds).minForbiddenTermCleanRate ?? record(value.thresholds).min_forbidden_term_clean_rate)
+    },
+    taskStats: listItems(value.taskStats ?? value.task_stats).map(normalizeModelQualityTaskStats),
+    totalStats: normalizeModelQualityTaskStats(value.totalStats ?? value.total_stats),
+    promptBindings: listItems(value.promptBindings ?? value.prompt_bindings).map((item) => stringValue(item)).filter(Boolean),
+    providerGroups: listItems(value.providerGroups ?? value.provider_groups).map((item) => stringValue(item)).filter(Boolean)
+  };
+}
+
 export function normalizeCostAlert(raw: unknown): CostAlert {
   const value = record(raw);
   return {
@@ -762,6 +830,14 @@ export async function fetchInvocationSummary(filters: InvocationFilters = {}): P
   return { ...response, data: normalizeInvocationSummary(response.data) };
 }
 
+export async function invokeModel(payload: InvokeModelPayload): Promise<ApiResponse<InvokeModelResponse>> {
+  const response = await requestJson<unknown>('/api/v1/model-access/invocations', {
+    method: 'POST',
+    body: JSON.stringify(compactPayload(payload))
+  });
+  return { ...response, data: normalizeInvokeModelResponse(response.data) };
+}
+
 export function invocationExportPath(filters: InvocationFilters = {}) {
   return modelAccessQueryPath('/api/v1/model-access/invocations/export', { ...filters, index: undefined, size: undefined });
 }
@@ -799,6 +875,13 @@ export async function cancelModelInvocationJob(jobId: string): Promise<ApiRespon
     method: 'POST'
   });
   return { ...response, data: normalizeModelInvocationJob(response.data) };
+}
+
+export async function fetchModelQualityEvaluationSummary(
+  taskType?: string
+): Promise<ApiResponse<ModelQualityEvaluationSummary>> {
+  const response = await requestJson<unknown>(modelAccessQueryPath('/api/v1/model-access/quality/evaluation-summary', { taskType }));
+  return { ...response, data: normalizeModelQualityEvaluationSummary(response.data) };
 }
 
 export function parseModelStreamEvents(text: string): ModelStreamEvent[] {

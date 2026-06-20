@@ -26,9 +26,9 @@ import {
   INVOCATION_STATUSES,
   MODEL_POLICY_SCOPE_TYPES,
   MODEL_PROVIDER_TYPES,
-  PROMPT_STATUSES,
   activatePromptVersion,
   approvePromptVersion,
+  cancelModelInvocationJob,
   checkModelProvider,
   createModelProvider,
   createPromptVersion,
@@ -36,6 +36,8 @@ import {
   enableModelProvider,
   exportInvocationsCsv,
   fetchEffectiveModelAccessPolicy,
+  fetchModelInvocationJob,
+  fetchModelQualityEvaluationSummary,
   fetchCostAlerts,
   fetchCostReport,
   fetchInvocationSummary,
@@ -45,9 +47,12 @@ import {
   fetchModelProviders,
   fetchPrompts,
   fetchProviderResilience,
+  invokeModel,
+  invokeModelStream,
   invocationExportPath,
   rejectPromptVersion,
   resetProviderCircuit,
+  submitModelInvocationJob,
   upsertModelAccessPolicy,
   updateModelProvider,
   type CostAlert,
@@ -59,11 +64,15 @@ import {
   type ModelAccessHealth,
   type ModelAccessPolicy,
   type ModelAccessPolicyPayload,
+  type ModelInvocationJob,
+  type ModelQualityEvaluationSummary,
   type ModelProviderConfig,
   type ModelProviderPayload,
+  type ModelStreamEvent,
   type PromptTemplate,
   type ProviderCheckResponse,
-  type ProviderResilienceResponse
+  type ProviderResilienceResponse,
+  type InvokeModelResponse
 } from '../api/modelAccess';
 import { canUseButton, hasPermission } from '../permissions';
 
@@ -74,7 +83,7 @@ type WorkState = {
   traceId?: string;
 };
 
-type TabKey = 'providers' | 'prompts' | 'policies' | 'logs';
+type TabKey = 'providers' | 'prompts' | 'playground' | 'quality' | 'policies' | 'logs';
 
 type ProviderDraft = {
   name: string;
@@ -135,6 +144,36 @@ type PolicyPreviewDraft = {
   projectId: string;
   environmentId: string;
   roles: string;
+};
+
+type PlaygroundMessageDraft = {
+  id: string;
+  role: string;
+  content: string;
+};
+
+type PlaygroundDraft = {
+  projectId: string;
+  applicationId: string;
+  environmentId: string;
+  promptKey: string;
+  promptVariablesText: string;
+  providerId: string;
+  modelName: string;
+  allowPublicModel: boolean;
+  sensitivityLevel: string;
+  capability: string;
+  messages: PlaygroundMessageDraft[];
+};
+
+type PlaygroundRunMode = 'sync' | 'stream' | 'async';
+
+type PlaygroundResult = {
+  mode?: PlaygroundRunMode;
+  response?: InvokeModelResponse;
+  streamEvents: ModelStreamEvent[];
+  streamContent: string;
+  job?: ModelInvocationJob | null;
 };
 
 type DiffRow = {
@@ -205,15 +244,40 @@ const initialPolicyPreviewDraft: PolicyPreviewDraft = {
   roles: ''
 };
 
+const initialPlaygroundDraft: PlaygroundDraft = {
+  projectId: '',
+  applicationId: '',
+  environmentId: '',
+  promptKey: '',
+  promptVariablesText: '{\n  "context": ""\n}',
+  providerId: '',
+  modelName: '',
+  allowPublicModel: false,
+  sensitivityLevel: 'INTERNAL',
+  capability: 'CHAT',
+  messages: [createPlaygroundMessage('user', '')]
+};
+
+const initialPlaygroundResult: PlaygroundResult = {
+  streamEvents: [],
+  streamContent: '',
+  job: null
+};
+
+const qualityTaskTypeOptions = ['ALL', 'case-design', 'defect-triage', 'requirement-summary'] as const;
+
 const tabs: Array<{ key: TabKey; label: string; icon: LucideIcon }> = [
   { key: 'providers', label: '供应商', icon: ServerCog },
   { key: 'prompts', label: 'Prompt', icon: FileDiff },
+  { key: 'playground', label: 'Playground', icon: PlayCircle },
+  { key: 'quality', label: '质量评估', icon: Eye },
   { key: 'policies', label: '策略', icon: SlidersHorizontal },
   { key: 'logs', label: '日志与成本', icon: Activity }
 ];
 
 export function ModelAccessConsole(props: { signedIn: boolean; currentUser: CurrentUser | null }) {
   const canRead = hasPermission(props.currentUser, 'modelAccess:read');
+  const canManageInvocations = hasPermission(props.currentUser, 'modelAccess:manage');
   const canManageProviders = canUseButton(props.currentUser, 'modelAccess:provider_manage');
   const canManagePrompts = canUseButton(props.currentUser, 'modelAccess:prompt_manage');
   const canManagePolicies = canUseButton(props.currentUser, 'modelAccess:policy_manage');
@@ -227,14 +291,18 @@ export function ModelAccessConsole(props: { signedIn: boolean; currentUser: Curr
   const [effectivePolicy, setEffectivePolicy] = useState<ModelAccessEffectivePolicy | null>(null);
   const [invocations, setInvocations] = useState<InvocationList>({ items: [], total: 0 });
   const [summary, setSummary] = useState<InvocationSummary | null>(null);
+  const [qualitySummary, setQualitySummary] = useState<ModelQualityEvaluationSummary | null>(null);
   const [costReport, setCostReport] = useState<CostReport>({ rows: [] });
   const [alerts, setAlerts] = useState<CostAlert[]>([]);
   const [providerDraft, setProviderDraft] = useState<ProviderDraft>(initialProviderDraft);
   const [editingProviderId, setEditingProviderId] = useState<string | null>(null);
   const [promptDraft, setPromptDraft] = useState<PromptDraft>(initialPromptDraft);
+  const [playgroundDraft, setPlaygroundDraft] = useState<PlaygroundDraft>(initialPlaygroundDraft);
+  const [playgroundResult, setPlaygroundResult] = useState<PlaygroundResult>(initialPlaygroundResult);
   const [policyDraft, setPolicyDraft] = useState<PolicyDraft>(initialPolicyDraft);
   const [policyPreviewDraft, setPolicyPreviewDraft] = useState<PolicyPreviewDraft>(initialPolicyPreviewDraft);
   const [promptFilter, setPromptFilter] = useState('');
+  const [qualityTaskType, setQualityTaskType] = useState<(typeof qualityTaskTypeOptions)[number]>('ALL');
   const [leftPromptId, setLeftPromptId] = useState('');
   const [rightPromptId, setRightPromptId] = useState('');
   const [logFilters, setLogFilters] = useState<LogFilterDraft>(initialLogFilters);
@@ -244,6 +312,8 @@ export function ModelAccessConsole(props: { signedIn: boolean; currentUser: Curr
   const [loadState, setLoadState] = useState<WorkState>({ loading: false });
   const [providerState, setProviderState] = useState<WorkState>({ loading: false });
   const [promptState, setPromptState] = useState<WorkState>({ loading: false });
+  const [playgroundState, setPlaygroundState] = useState<WorkState>({ loading: false });
+  const [qualityState, setQualityState] = useState<WorkState>({ loading: false });
   const [policyState, setPolicyState] = useState<WorkState>({ loading: false });
   const [logState, setLogState] = useState<WorkState>({ loading: false });
   const [exportState, setExportState] = useState<WorkState>({ loading: false });
@@ -280,6 +350,12 @@ export function ModelAccessConsole(props: { signedIn: boolean; currentUser: Curr
     return invocationResponse.trace_id || summaryResponse.trace_id || reportResponse.trace_id || alertResponse.trace_id;
   }, [costFilters, invocationFilters]);
 
+  const refreshQualitySummary = useCallback(async (taskType = qualityTaskType) => {
+    const response = await fetchModelQualityEvaluationSummary(taskType === 'ALL' ? undefined : taskType);
+    setQualitySummary(response.data);
+    return response.trace_id;
+  }, [qualityTaskType]);
+
   const refreshAll = useCallback(async () => {
     if (!props.signedIn || !canRead) {
       setHealth(null);
@@ -289,6 +365,7 @@ export function ModelAccessConsole(props: { signedIn: boolean; currentUser: Curr
       setEffectivePolicy(null);
       setInvocations({ items: [], total: 0 });
       setSummary(null);
+      setQualitySummary(null);
       setCostReport({ rows: [] });
       setAlerts([]);
       setLoadState({ loading: false });
@@ -349,6 +426,13 @@ export function ModelAccessConsole(props: { signedIn: boolean; currentUser: Curr
     void refreshAll();
   }, [refreshAll]);
 
+  useEffect(() => {
+    if (!props.signedIn || !canRead) {
+      return;
+    }
+    void refreshQualitySummary();
+  }, [canRead, props.signedIn, refreshQualitySummary]);
+
   const promptKeys = useMemo(() => {
     return Array.from(new Set(prompts.map((prompt) => prompt.promptKey).filter(Boolean))).sort();
   }, [prompts]);
@@ -365,6 +449,12 @@ export function ModelAccessConsole(props: { signedIn: boolean; currentUser: Curr
     const right = prompts.find((prompt) => prompt.id === rightPromptId) ?? selectedPromptVersions[0];
     return { left, right, rows: buildDiffRows(left?.content ?? '', right?.content ?? '') };
   }, [leftPromptId, prompts, rightPromptId, selectedPromptVersions]);
+
+  useEffect(() => {
+    if (!playgroundDraft.promptKey && selectedPromptKey) {
+      setPlaygroundDraft((current) => ({ ...current, promptKey: selectedPromptKey }));
+    }
+  }, [playgroundDraft.promptKey, selectedPromptKey]);
 
   async function onSubmitProvider(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -526,6 +616,137 @@ export function ModelAccessConsole(props: { signedIn: boolean; currentUser: Curr
       setPolicyState({ loading: false, success: `${response.data.scopeType}:${response.data.scopeKey} 已保存`, traceId: traceId || response.trace_id });
     } catch (error: unknown) {
       setPolicyState({ loading: false, error: errorMessage(error, '策略保存失败'), traceId: traceId(error) });
+    }
+  }
+
+  async function onRunPlayground(mode: PlaygroundRunMode) {
+    if (!canManageInvocations) {
+      setPlaygroundState({ loading: false, error: '当前账号无模型调用管理权限' });
+      return;
+    }
+    const payload = buildPlaygroundPayload(playgroundDraft);
+    if ('error' in payload) {
+      setPlaygroundState({ loading: false, error: payload.error });
+      return;
+    }
+
+    setPlaygroundState({ loading: true });
+    setPlaygroundResult(initialPlaygroundResult);
+    try {
+      if (mode === 'sync') {
+        const response = await invokeModel(payload.value);
+        setPlaygroundResult({
+          mode,
+          response: response.data,
+          streamEvents: [],
+          streamContent: response.data.content,
+          job: null
+        });
+        setPlaygroundState({ loading: false, success: '同步调用完成', traceId: response.trace_id });
+        return;
+      }
+      if (mode === 'stream') {
+        const streamEvents: ModelStreamEvent[] = [];
+        const events = await invokeModelStream(payload.value, (event) => {
+          streamEvents.push(event);
+          setPlaygroundResult((current) => ({
+            ...current,
+            mode,
+            streamEvents: [...streamEvents],
+            streamContent: streamEvents
+              .filter((item) => item.type === 'delta')
+              .map((item) => item.content)
+              .join('')
+          }));
+        });
+        const metadata = events.find((event) => event.type === 'metadata');
+        setPlaygroundResult((current) => ({
+          ...current,
+          mode,
+          streamEvents: events,
+          streamContent: events.filter((event) => event.type === 'delta').map((event) => event.content).join(''),
+          response: metadata ? {
+            invocationId: metadata.invocationId,
+            providerId: metadata.providerId,
+            providerName: metadata.providerName,
+            modelName: metadata.modelName,
+            fallbackUsed: metadata.fallbackUsed,
+            content: events.filter((event) => event.type === 'delta').map((event) => event.content).join(''),
+            inputTokens: metadata.inputTokens,
+            outputTokens: metadata.outputTokens,
+            totalCost: metadata.totalCost
+          } : undefined
+        }));
+        setPlaygroundState({
+          loading: false,
+          success: '流式调用完成',
+          traceId: metadata?.traceId
+        });
+        return;
+      }
+
+      const response = await submitModelInvocationJob(payload.value);
+      setPlaygroundResult({
+        mode,
+        streamEvents: [],
+        streamContent: '',
+        job: response.data
+      });
+      setPlaygroundState({ loading: false, success: '异步任务已提交', traceId: response.trace_id || response.data.traceId });
+    } catch (error: unknown) {
+      setPlaygroundState({ loading: false, error: errorMessage(error, 'Playground 调用失败'), traceId: traceId(error) });
+    }
+  }
+
+  async function onRefreshPlaygroundJob() {
+    const jobId = playgroundResult.job?.jobId;
+    if (!jobId) {
+      setPlaygroundState({ loading: false, error: '当前没有异步任务可查询' });
+      return;
+    }
+    setPlaygroundState({ loading: true });
+    try {
+      const response = await fetchModelInvocationJob(jobId);
+      setPlaygroundResult((current) => ({
+        ...current,
+        mode: 'async',
+        job: response.data,
+        response: response.data.response ?? current.response
+      }));
+      setPlaygroundState({ loading: false, success: '异步任务状态已刷新', traceId: response.trace_id || response.data.traceId });
+    } catch (error: unknown) {
+      setPlaygroundState({ loading: false, error: errorMessage(error, '异步任务查询失败'), traceId: traceId(error) });
+    }
+  }
+
+  async function onCancelPlaygroundJob() {
+    const jobId = playgroundResult.job?.jobId;
+    if (!jobId) {
+      setPlaygroundState({ loading: false, error: '当前没有异步任务可取消' });
+      return;
+    }
+    setPlaygroundState({ loading: true });
+    try {
+      const response = await cancelModelInvocationJob(jobId);
+      setPlaygroundResult((current) => ({
+        ...current,
+        mode: 'async',
+        job: response.data,
+        response: response.data.response ?? current.response
+      }));
+      setPlaygroundState({ loading: false, success: '异步任务已取消', traceId: response.trace_id || response.data.traceId });
+    } catch (error: unknown) {
+      setPlaygroundState({ loading: false, error: errorMessage(error, '异步任务取消失败'), traceId: traceId(error) });
+    }
+  }
+
+  async function onRefreshQuality(taskType = qualityTaskType) {
+    setQualityState({ loading: true });
+    try {
+      const traceId = await refreshQualitySummary(taskType);
+      setQualityState({ loading: false, success: '质量评估已刷新', traceId });
+    } catch (error: unknown) {
+      setQualityState({ loading: false, error: errorMessage(error, '质量评估加载失败'), traceId: traceId(error) });
     }
   }
 
@@ -715,6 +936,67 @@ export function ModelAccessConsole(props: { signedIn: boolean; currentUser: Curr
               onReject={onRejectPrompt}
               onRightPromptChange={setRightPromptId}
               onSubmit={onSubmitPrompt}
+            />
+          )}
+
+          {activeTab === 'playground' && (
+            <PlaygroundTab
+              canManage={canManageInvocations}
+              draft={playgroundDraft}
+              prompts={selectedPromptVersions.length ? selectedPromptVersions : prompts}
+              providers={providers}
+              result={playgroundResult}
+              state={playgroundState}
+              onAddMessage={() => {
+                setPlaygroundDraft((current) => ({
+                  ...current,
+                  messages: [...current.messages, createPlaygroundMessage('user', '')]
+                }));
+                setPlaygroundState({ loading: false });
+              }}
+              onChangeDraft={(key, value) => {
+                setPlaygroundDraft((current) => ({ ...current, [key]: value }));
+                setPlaygroundState({ loading: false });
+              }}
+              onChangeMessage={(id, key, value) => {
+                setPlaygroundDraft((current) => ({
+                  ...current,
+                  messages: current.messages.map((item) => item.id === id ? { ...item, [key]: value } : item)
+                }));
+                setPlaygroundState({ loading: false });
+              }}
+              onRemoveMessage={(id) => {
+                setPlaygroundDraft((current) => {
+                  const nextMessages = current.messages.filter((item) => item.id !== id);
+                  return { ...current, messages: nextMessages.length ? nextMessages : [createPlaygroundMessage('user', '')] };
+                });
+                setPlaygroundState({ loading: false });
+              }}
+              onReset={() => {
+                setPlaygroundDraft({
+                  ...initialPlaygroundDraft,
+                  projectId: playgroundDraft.projectId,
+                  promptKey: selectedPromptKey || initialPlaygroundDraft.promptKey
+                });
+                setPlaygroundResult(initialPlaygroundResult);
+                setPlaygroundState({ loading: false });
+              }}
+              onRun={onRunPlayground}
+              onRefreshJob={onRefreshPlaygroundJob}
+              onCancelJob={onCancelPlaygroundJob}
+            />
+          )}
+
+          {activeTab === 'quality' && (
+            <QualityTab
+              selectedTaskType={qualityTaskType}
+              summary={qualitySummary}
+              state={qualityState}
+              onChangeTaskType={(value) => {
+                setQualityTaskType(value);
+                setQualityState({ loading: false });
+              }}
+              onRefresh={() => void onRefreshQuality()}
             />
           )}
 
@@ -1290,6 +1572,305 @@ function PromptTab(props: {
   );
 }
 
+function PlaygroundTab(props: {
+  canManage: boolean;
+  draft: PlaygroundDraft;
+  prompts: PromptTemplate[];
+  providers: ModelProviderConfig[];
+  result: PlaygroundResult;
+  state: WorkState;
+  onAddMessage: () => void;
+  onChangeDraft: (key: keyof PlaygroundDraft, value: string | boolean | PlaygroundMessageDraft[]) => void;
+  onChangeMessage: (id: string, key: 'role' | 'content', value: string) => void;
+  onRemoveMessage: (id: string) => void;
+  onReset: () => void;
+  onRun: (mode: PlaygroundRunMode) => Promise<void>;
+  onRefreshJob: () => Promise<void>;
+  onCancelJob: () => Promise<void>;
+}) {
+  const metadataEvent = props.result.streamEvents.find((event): event is Extract<ModelStreamEvent, { type: 'metadata' }> => event.type === 'metadata');
+  const latestTraceId = metadataEvent?.traceId ?? props.result.job?.traceId;
+
+  return (
+    <div className="model-access-section">
+      <div className="model-access-playground-grid">
+        <form className="model-access-form" onSubmit={(event) => event.preventDefault()}>
+          <div className="document-form-grid model-access-playground-form-grid">
+            <label className="field">
+              <span>Project ID<b>*</b></span>
+              <input value={props.draft.projectId} disabled={!props.canManage} onChange={(event) => props.onChangeDraft('projectId', event.target.value)} />
+            </label>
+            <label className="field">
+              <span>Application ID</span>
+              <input value={props.draft.applicationId} disabled={!props.canManage} onChange={(event) => props.onChangeDraft('applicationId', event.target.value)} />
+            </label>
+            <label className="field">
+              <span>Environment ID</span>
+              <input value={props.draft.environmentId} disabled={!props.canManage} onChange={(event) => props.onChangeDraft('environmentId', event.target.value)} />
+            </label>
+            <label className="field">
+              <span>Prompt key</span>
+              <input value={props.draft.promptKey} list="model-access-playground-prompt-keys" disabled={!props.canManage} onChange={(event) => props.onChangeDraft('promptKey', event.target.value)} />
+              <datalist id="model-access-playground-prompt-keys">
+                {Array.from(new Set(props.prompts.map((item) => item.promptKey))).map((key) => <option key={key} value={key} />)}
+              </datalist>
+            </label>
+            <label className="field">
+              <span>Provider</span>
+              <select value={props.draft.providerId} disabled={!props.canManage} onChange={(event) => props.onChangeDraft('providerId', event.target.value)}>
+                <option value="">自动路由</option>
+                {props.providers.map((provider) => <option key={provider.id} value={provider.id}>{provider.name}</option>)}
+              </select>
+            </label>
+            <label className="field">
+              <span>Model Name</span>
+              <input value={props.draft.modelName} disabled={!props.canManage} onChange={(event) => props.onChangeDraft('modelName', event.target.value)} />
+            </label>
+            <label className="field">
+              <span>敏感级别</span>
+              <select value={props.draft.sensitivityLevel} disabled={!props.canManage} onChange={(event) => props.onChangeDraft('sensitivityLevel', event.target.value)}>
+                <option value="PUBLIC">PUBLIC</option>
+                <option value="INTERNAL">INTERNAL</option>
+                <option value="CONFIDENTIAL">CONFIDENTIAL</option>
+                <option value="RESTRICTED">RESTRICTED</option>
+              </select>
+            </label>
+            <label className="field">
+              <span>能力</span>
+              <input value={props.draft.capability} disabled={!props.canManage} onChange={(event) => props.onChangeDraft('capability', event.target.value)} />
+            </label>
+            <label className="field model-access-checkbox-field">
+              <span>允许公开模型</span>
+              <input type="checkbox" checked={props.draft.allowPublicModel} disabled={!props.canManage} onChange={(event) => props.onChangeDraft('allowPublicModel', event.target.checked)} />
+            </label>
+          </div>
+          <label className="field document-content-field">
+            <span>Prompt Variables JSON</span>
+            <textarea value={props.draft.promptVariablesText} disabled={!props.canManage} onChange={(event) => props.onChangeDraft('promptVariablesText', event.target.value)} />
+          </label>
+
+          <div className="model-access-message-editor">
+            <div className="panel-title-row">
+              <h2>Messages</h2>
+              <button className="mini-button" type="button" disabled={!props.canManage} onClick={props.onAddMessage}>
+                <Plus size={14} /> 添加消息
+              </button>
+            </div>
+            {props.draft.messages.map((message, index) => (
+              <div className="model-access-message-row" key={message.id}>
+                <label className="field">
+                  <span>角色 {index + 1}</span>
+                  <select value={message.role} disabled={!props.canManage} onChange={(event) => props.onChangeMessage(message.id, 'role', event.target.value)}>
+                    <option value="system">system</option>
+                    <option value="user">user</option>
+                    <option value="assistant">assistant</option>
+                  </select>
+                </label>
+                <label className="field document-content-field">
+                  <span>内容</span>
+                  <textarea value={message.content} disabled={!props.canManage} onChange={(event) => props.onChangeMessage(message.id, 'content', event.target.value)} />
+                </label>
+                <button className="mini-button icon-only" type="button" title="删除消息" disabled={!props.canManage || props.draft.messages.length === 1} onClick={() => props.onRemoveMessage(message.id)}>
+                  <XCircle size={14} />
+                </button>
+              </div>
+            ))}
+          </div>
+
+          <div className="document-actions">
+            <button className="primary-button" type="button" disabled={!props.canManage || props.state.loading} onClick={() => void props.onRun('sync')}>
+              <PlayCircle size={16} /> 同步调用
+            </button>
+            <button className="secondary-button" type="button" disabled={!props.canManage || props.state.loading} onClick={() => void props.onRun('stream')}>
+              <Activity size={16} /> 流式调用
+            </button>
+            <button className="secondary-button" type="button" disabled={!props.canManage || props.state.loading} onClick={() => void props.onRun('async')}>
+              <RefreshCw size={16} /> 异步任务
+            </button>
+            <button className="secondary-button" type="button" onClick={props.onReset}>重置</button>
+            <StateLine state={props.state} />
+          </div>
+        </form>
+
+        <div className="model-access-playground-result">
+          <div className="panel-title-row">
+            <h2>运行结果</h2>
+            <span className="table-secondary">{props.result.mode ? `模式：${props.result.mode}` : '尚未执行'}</span>
+          </div>
+          <div className="model-access-summary-grid">
+            <StatusMetric label="Invocation" value={props.result.response?.invocationId ?? props.result.job?.invocationId ?? '-'} />
+            <StatusMetric label="Provider" value={props.result.response?.providerName ?? '-'} />
+            <StatusMetric label="Model" value={props.result.response?.modelName ?? '-'} />
+            <StatusMetric label="Fallback" value={props.result.response?.fallbackUsed ? 'YES' : 'NO'} tone={props.result.response?.fallbackUsed ? 'pending' : 'neutral'} />
+            <StatusMetric label="Tokens" value={props.result.response ? `${props.result.response.inputTokens}/${props.result.response.outputTokens}` : '-'} />
+            <StatusMetric label="成本" value={props.result.response ? formatMoney(props.result.response.totalCost) : '-'} />
+          </div>
+
+          {props.result.job && (
+            <div className="model-access-async-job">
+              <div className="panel-title-row">
+                <h2>异步任务</h2>
+                <StatusPill value={props.result.job.status} />
+              </div>
+              <div className="document-actions">
+                <button className="secondary-button" type="button" disabled={props.state.loading} onClick={() => void props.onRefreshJob()}>
+                  <RefreshCw size={15} /> 刷新状态
+                </button>
+                <button
+                  className="secondary-button"
+                  type="button"
+                  disabled={props.state.loading || !['QUEUED', 'RUNNING'].includes(String(props.result.job.status))}
+                  onClick={() => void props.onCancelJob()}
+                >
+                  <XCircle size={15} /> 取消任务
+                </button>
+              </div>
+              <div className="model-access-job-meta">
+                <span>jobId: {props.result.job.jobId}</span>
+                <span>traceId: {props.result.job.traceId ?? '-'}</span>
+                <span>finishedAt: {formatDateTime(props.result.job.finishedAt)}</span>
+              </div>
+              {props.result.job.errorCode && (
+                <div className="document-state-line error">{props.result.job.errorCode}: {props.result.job.errorMessage ?? '-'}</div>
+              )}
+            </div>
+          )}
+
+          <label className="field document-content-field">
+            <span>内容</span>
+            <textarea value={props.result.streamContent || props.result.response?.content || ''} readOnly />
+          </label>
+
+          <div className="model-access-stream-events">
+            <div className="panel-title-row">
+              <h2>事件流 / 元数据</h2>
+              <span className="table-secondary">{latestTraceId ? `Trace ID：${latestTraceId}` : '-'}</span>
+            </div>
+            <div className="table-wrap model-access-table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>事件</th>
+                    <th>内容</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {props.result.streamEvents.length ? props.result.streamEvents.map((event, index) => (
+                    <tr key={`${event.type}-${index}`}>
+                      <td><StatusPill value={event.type.toUpperCase()} /></td>
+                      <td><code className="inline-code-block">{JSON.stringify(event)}</code></td>
+                    </tr>
+                  )) : (
+                    <tr><td className="table-empty" colSpan={2}>暂无流式事件</td></tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function QualityTab(props: {
+  selectedTaskType: (typeof qualityTaskTypeOptions)[number];
+  summary: ModelQualityEvaluationSummary | null;
+  state: WorkState;
+  onChangeTaskType: (value: (typeof qualityTaskTypeOptions)[number]) => void;
+  onRefresh: () => void;
+}) {
+  return (
+    <div className="model-access-section">
+      <form className="asset-filter-bar model-access-quality-filter" onSubmit={(event) => {
+        event.preventDefault();
+        props.onRefresh();
+      }}>
+        <label className="field">
+          <span>任务类型</span>
+          <select value={props.selectedTaskType} onChange={(event) => props.onChangeTaskType(event.target.value as (typeof qualityTaskTypeOptions)[number])}>
+            {qualityTaskTypeOptions.map((item) => <option key={item} value={item}>{item}</option>)}
+          </select>
+        </label>
+        <div className="asset-filter-actions">
+          <button className="secondary-button" type="submit"><RefreshCw size={15} /> 刷新</button>
+        </div>
+      </form>
+
+      <div className="model-access-summary-grid">
+        <StatusMetric label="语料版本" value={props.summary?.corpusVersion ?? '-'} />
+        <StatusMetric label="场景数" value={props.summary?.scenarioCount ?? 0} />
+        <StatusMetric label="总通过率" value={formatPercent(props.summary?.totalStats.scenarioPassRate)} tone={props.summary?.totalStats.passed ? 'positive' : 'negative'} />
+        <StatusMetric label="Recall" value={formatPercent(props.summary?.totalStats.requiredTermRecall)} tone={props.summary?.totalStats.passed ? 'positive' : 'pending'} />
+        <StatusMetric label="Clean Rate" value={formatPercent(props.summary?.totalStats.forbiddenTermCleanRate)} tone={props.summary?.totalStats.passed ? 'positive' : 'negative'} />
+        <StatusMetric label="总门禁" value={props.summary?.totalStats.passed ? 'PASS' : 'FAIL'} tone={props.summary?.totalStats.passed ? 'positive' : 'negative'} />
+      </div>
+
+      <StateLine state={props.state} />
+
+      <div className="model-access-quality-meta">
+        <div className="model-access-quality-chip-list">
+          <strong>Prompt 绑定</strong>
+          {(props.summary?.promptBindings ?? []).map((item) => <span className="status-pill neutral" key={item}>{item}</span>)}
+        </div>
+        <div className="model-access-quality-chip-list">
+          <strong>Provider Group</strong>
+          {(props.summary?.providerGroups ?? []).map((item) => <span className="status-pill neutral" key={item}>{item}</span>)}
+        </div>
+      </div>
+
+      <div className="model-access-quality-card-grid">
+        {(props.summary?.taskStats ?? []).map((task) => (
+          <div className="model-access-quality-card" key={task.taskType}>
+            <div className="panel-title-row">
+              <h2>{task.taskType}</h2>
+              <StatusPill value={task.passed ? 'PASS' : 'FAIL'} />
+            </div>
+            <div className="model-access-summary-grid">
+              <StatusMetric label="场景" value={`${task.passedScenarios}/${task.scenarioCount}`} tone={task.passed ? 'positive' : 'pending'} />
+              <StatusMetric label="通过率" value={formatPercent(task.scenarioPassRate)} />
+              <StatusMetric label="Recall" value={formatPercent(task.requiredTermRecall)} />
+              <StatusMetric label="Clean" value={formatPercent(task.forbiddenTermCleanRate)} />
+              <StatusMetric label="Required" value={`${task.requiredTermMatches}/${task.requiredTermCount}`} />
+              <StatusMetric label="Forbidden" value={`${task.forbiddenTermMatches}/${task.forbiddenTermCount}`} />
+            </div>
+            {task.failures.length > 0 && (
+              <div className="model-access-failure-list">
+                {task.failures.slice(0, 6).map((failure) => <div className="model-access-failure-item" key={failure}>{failure}</div>)}
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+
+      <div className="table-wrap model-access-table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>门槛</th>
+              <th>数值</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>场景通过率</td>
+              <td>{formatPercent(props.summary?.thresholds.minScenarioPassRate)}</td>
+            </tr>
+            <tr>
+              <td>Required term recall</td>
+              <td>{formatPercent(props.summary?.thresholds.minRequiredTermRecall)}</td>
+            </tr>
+            <tr>
+              <td>Forbidden term clean rate</td>
+              <td>{formatPercent(props.summary?.thresholds.minForbiddenTermCleanRate)}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
 function LogsTab(props: {
   alerts: CostAlert[];
   canExport: boolean;
@@ -1612,6 +2193,57 @@ function triStateFromBoolean(value?: boolean): PolicyDraft['modelInvocationEnabl
   return 'INHERIT';
 }
 
+function buildPlaygroundPayload(draft: PlaygroundDraft): { value: Parameters<typeof invokeModel>[0] } | { error: string } {
+  if (!draft.projectId.trim()) {
+    return { error: 'Project ID 必填' };
+  }
+  const messages = draft.messages
+    .map((message) => ({ role: message.role.trim(), content: message.content.trim() }))
+    .filter((message) => message.role && message.content);
+  if (!messages.length) {
+    return { error: '至少需要一条消息' };
+  }
+
+  let promptVariables: Record<string, string> | undefined;
+  if (draft.promptVariablesText.trim()) {
+    try {
+      const raw = JSON.parse(draft.promptVariablesText);
+      if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+        return { error: 'Prompt Variables 必须是 JSON 对象' };
+      }
+      promptVariables = Object.fromEntries(
+        Object.entries(raw as Record<string, unknown>).map(([key, value]) => [key, value == null ? '' : String(value)])
+      );
+    } catch {
+      return { error: 'Prompt Variables JSON 解析失败' };
+    }
+  }
+
+  return {
+    value: {
+      projectId: draft.projectId.trim(),
+      applicationId: draft.applicationId.trim() || undefined,
+      environmentId: draft.environmentId.trim() || undefined,
+      promptKey: draft.promptKey.trim() || undefined,
+      promptVariables,
+      messages,
+      providerId: draft.providerId || undefined,
+      modelName: draft.modelName.trim() || undefined,
+      allowPublicModel: draft.allowPublicModel,
+      sensitivityLevel: draft.sensitivityLevel.trim() || undefined,
+      capability: draft.capability.trim() || undefined
+    }
+  };
+}
+
+function createPlaygroundMessage(role = 'user', content = ''): PlaygroundMessageDraft {
+  return {
+    id: `msg-${Math.random().toString(36).slice(2, 10)}`,
+    role,
+    content
+  };
+}
+
 function numberOrUndefined(value: string) {
   if (!value.trim()) {
     return undefined;
@@ -1714,6 +2346,10 @@ function formatMoney(value: number) {
     minimumFractionDigits: 4,
     maximumFractionDigits: 4
   });
+}
+
+function formatPercent(value?: number) {
+  return `${((value ?? 0) * 100).toFixed(1)}%`;
 }
 
 function formatOptionalBoolean(value?: boolean) {

@@ -17,6 +17,7 @@ import java.util.List;
 import java.util.UUID;
 import java.util.stream.IntStream;
 import org.junit.jupiter.api.Test;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
@@ -98,7 +99,8 @@ class ModelAccessServiceTest {
                 mock(PromptRenderer.class),
                 properties(),
                 mock(ModelAccessMetrics.class),
-                mock(ProviderResilienceManager.class)
+                mock(ProviderResilienceManager.class),
+                new ModelQualityEvaluationService(new ObjectMapper())
         );
     }
 

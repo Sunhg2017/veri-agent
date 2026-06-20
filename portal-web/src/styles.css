@@ -2754,9 +2754,122 @@ tbody tr:hover td {
   align-items: center;
 }
 
+.model-access-playground-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(320px, 0.85fr);
+  gap: var(--space-lg);
+  align-items: start;
+}
+
+.model-access-playground-form-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.model-access-message-editor,
+.model-access-playground-result,
+.model-access-quality-card,
+.model-access-stream-events {
+  display: grid;
+  gap: var(--space-md);
+}
+
+.model-access-message-row {
+  display: grid;
+  grid-template-columns: 160px minmax(0, 1fr) auto;
+  gap: var(--space-sm);
+  align-items: start;
+  padding: var(--space-md);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+}
+
+.model-access-message-row textarea,
+.model-access-playground-result textarea {
+  min-height: 140px;
+}
+
+.model-access-async-job {
+  display: grid;
+  gap: var(--space-sm);
+  padding: var(--space-md);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-sm);
+  background: var(--bg-alt);
+}
+
+.model-access-job-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+}
+
+.inline-code-block {
+  display: inline-block;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-family: var(--font-mono);
+  font-size: var(--font-size-xs);
+}
+
+.model-access-quality-filter {
+  grid-template-columns: minmax(220px, 320px) auto;
+}
+
+.model-access-quality-meta {
+  display: grid;
+  gap: var(--space-sm);
+}
+
+.model-access-quality-chip-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.model-access-quality-card-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-md);
+}
+
+.model-access-quality-card {
+  padding: var(--space-lg);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+}
+
+.model-access-failure-list {
+  display: grid;
+  gap: 8px;
+}
+
+.model-access-failure-item {
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--danger-soft) 55%, white);
+  color: var(--text-primary);
+  font-size: var(--font-size-sm);
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
 @media (max-width: 1100px) {
   .model-access-policy-grid {
     grid-template-columns: 1fr;
+  }
+
+  .model-access-playground-grid,
+  .model-access-quality-card-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .model-access-playground-form-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .model-access-log-filter {
@@ -2766,6 +2879,14 @@ tbody tr:hover td {
   .model-access-policy-entry {
     align-items: flex-start;
     flex-direction: column;
+  }
+
+  .model-access-message-row {
+    grid-template-columns: 1fr;
+  }
+
+  .model-access-quality-filter {
+    grid-template-columns: 1fr;
   }
 }
 

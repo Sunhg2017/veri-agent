@@ -70,6 +70,24 @@ class ModelAccessControllerTest {
     }
 
     @Test
+    void exposesQualityEvaluationSummaryForAuthorizedUsers() throws Exception {
+        String token = superAdminToken();
+
+        mockMvc.perform(get("/api/v1/model-access/quality/evaluation-summary")
+                        .header("Authorization", "Bearer " + token)
+                        .param("taskType", "case-design"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.corpusVersion").value("wp2-d1-2026-05-22"))
+                .andExpect(jsonPath("$.data.taskTypeFilter").value("case-design"))
+                .andExpect(jsonPath("$.data.scenarioCount").value(2))
+                .andExpect(jsonPath("$.data.thresholds.minScenarioPassRate").value(1.0))
+                .andExpect(jsonPath("$.data.totalStats.taskType").value("ALL"))
+                .andExpect(jsonPath("$.data.totalStats.passed").value(true))
+                .andExpect(jsonPath("$.data.taskStats[0].taskType").value("case-design"))
+                .andExpect(jsonPath("$.data.promptBindings[0]").exists());
+    }
+
+    @Test
     void rejectsCallsWithoutServiceToken() throws Exception {
         mockMvc.perform(get("/api/v1/model-access/providers"))
                 .andExpect(status().isForbidden());

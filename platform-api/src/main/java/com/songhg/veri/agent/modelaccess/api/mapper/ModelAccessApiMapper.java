@@ -11,6 +11,7 @@ import com.songhg.veri.agent.modelaccess.api.response.CostReportResponse;
 import com.songhg.veri.agent.modelaccess.api.response.InvocationSummaryResponse;
 import com.songhg.veri.agent.modelaccess.api.response.InvokeModelResponse;
 import com.songhg.veri.agent.modelaccess.api.response.ModelInvocationJobResponse;
+import com.songhg.veri.agent.modelaccess.api.response.ModelQualityEvaluationSummaryResponse;
 import com.songhg.veri.agent.modelaccess.api.response.ProviderCheckResponse;
 import com.songhg.veri.agent.modelaccess.api.response.ProviderResilienceResponse;
 import com.songhg.veri.agent.modelaccess.application.view.CostAlertResult;
@@ -22,6 +23,7 @@ import com.songhg.veri.agent.modelaccess.application.view.InvocationSummaryResul
 import com.songhg.veri.agent.modelaccess.application.command.ModelInvocationCommand;
 import com.songhg.veri.agent.modelaccess.application.view.ModelInvocationJobResult;
 import com.songhg.veri.agent.modelaccess.application.view.ModelInvocationResult;
+import com.songhg.veri.agent.modelaccess.application.view.ModelQualityEvaluationSummaryResult;
 import com.songhg.veri.agent.modelaccess.application.view.ProviderCheckResult;
 import com.songhg.veri.agent.modelaccess.application.view.ProviderResilienceResult;
 import com.songhg.veri.agent.modelaccess.application.command.UpdateProviderCommand;
@@ -48,6 +50,8 @@ public interface ModelAccessApiMapper {
     ModelInvocationJobResponse toResponse(ModelInvocationJobResult result);
 
     InvocationSummaryResponse toResponse(InvocationSummaryResult result);
+
+    ModelQualityEvaluationSummaryResponse toResponse(ModelQualityEvaluationSummaryResult result);
 
     ProviderCheckResponse toResponse(ProviderCheckResult result);
 

@@ -12,11 +12,13 @@ import {
   fetchCostReport,
   fetchEffectiveModelAccessPolicy,
   fetchModelInvocationJob,
+  fetchModelQualityEvaluationSummary,
   fetchInvocationSummary,
   fetchInvocations,
   fetchModelAccessPolicies,
   fetchModelProviders,
   fetchPrompts,
+  invokeModel,
   invokeModelStream,
   invocationExportPath,
   invocationJobPath,
@@ -27,6 +29,7 @@ import {
   normalizeModelAccessEffectivePolicy,
   normalizeModelAccessPolicy,
   normalizeModelInvocationJob,
+  normalizeModelQualityEvaluationSummary,
   normalizeModelProvider,
   normalizePromptTemplate,
   parseModelStreamEvents,
@@ -233,6 +236,58 @@ describe('model access API helpers', () => {
         totalCost: 0.0001
       }
     });
+
+    expect(normalizeModelQualityEvaluationSummary({
+      corpus_version: 'wp2-d1-2026-05-22',
+      task_type_filter: 'case-design',
+      scenario_count: 2,
+      thresholds: {
+        min_scenario_pass_rate: 1,
+        min_required_term_recall: 0.9,
+        min_forbidden_term_clean_rate: 1
+      },
+      task_stats: [{
+        task_type: 'case-design',
+        scenario_count: 2,
+        passed_scenarios: 2,
+        required_term_count: 11,
+        required_term_matches: 11,
+        forbidden_term_count: 5,
+        forbidden_term_matches: 0,
+        scenario_pass_rate: 1,
+        required_term_recall: 1,
+        forbidden_term_clean_rate: 1,
+        passed: true,
+        failures: []
+      }],
+      total_stats: {
+        task_type: 'ALL',
+        scenario_count: 2,
+        passed_scenarios: 2,
+        required_term_count: 11,
+        required_term_matches: 11,
+        forbidden_term_count: 5,
+        forbidden_term_matches: 0,
+        scenario_pass_rate: 1,
+        required_term_recall: 1,
+        forbidden_term_clean_rate: 1,
+        passed: true,
+        failures: []
+      },
+      prompt_bindings: ['case-design:v1'],
+      provider_groups: ['local-echo']
+    })).toMatchObject({
+      corpusVersion: 'wp2-d1-2026-05-22',
+      taskTypeFilter: 'case-design',
+      scenarioCount: 2,
+      thresholds: {
+        minScenarioPassRate: 1,
+        minRequiredTermRecall: 0.9,
+        minForbiddenTermCleanRate: 1
+      },
+      promptBindings: ['case-design:v1'],
+      providerGroups: ['local-echo']
+    });
   });
 
   it('builds encoded filter paths for logs, summary, cost, and CSV export', async () => {
@@ -252,6 +307,9 @@ describe('model access API helpers', () => {
 
     await fetchInvocationSummary({ providerId: 'provider 1' });
     expect(requestJsonMock).toHaveBeenLastCalledWith('/api/v1/model-access/invocations/summary?providerId=provider+1');
+
+    await fetchModelQualityEvaluationSummary('case-design');
+    expect(requestJsonMock).toHaveBeenLastCalledWith('/api/v1/model-access/quality/evaluation-summary?taskType=case-design');
 
     await fetchCostReport({ startDate: '2026-05-20', endDate: '2026-05-21', projectId: 'project pay' });
     expect(requestJsonMock).toHaveBeenLastCalledWith('/api/v1/model-access/cost/report?startDate=2026-05-20&endDate=2026-05-21&projectId=project+pay');
@@ -373,6 +431,46 @@ describe('model access API helpers', () => {
       jobId: 'job 1',
       status: 'CANCELLED',
       errorCode: 'CANCELLED'
+    });
+  });
+
+  it('posts sync invocation payloads without blank fields', async () => {
+    requestJsonMock.mockResolvedValue({
+      code: 'OK',
+      message: 'ok',
+      trace_id: 'trace-invoke',
+      data: {
+        invocationId: 'inv-1',
+        providerName: 'local-echo-primary',
+        fallbackUsed: false,
+        content: 'sync result',
+        inputTokens: 1,
+        outputTokens: 2,
+        totalCost: 0
+      }
+    });
+
+    const response = await invokeModel({
+      projectId: 'project-sync',
+      promptKey: '',
+      promptVariables: { scene: 'smoke' },
+      messages: [{ role: 'user', content: 'hello' }],
+      allowPublicModel: false
+    });
+
+    expect(requestJsonMock).toHaveBeenLastCalledWith('/api/v1/model-access/invocations', {
+      method: 'POST',
+      body: JSON.stringify({
+        projectId: 'project-sync',
+        promptVariables: { scene: 'smoke' },
+        messages: [{ role: 'user', content: 'hello' }],
+        allowPublicModel: false
+      })
+    });
+    expect(response.data).toMatchObject({
+      invocationId: 'inv-1',
+      providerName: 'local-echo-primary',
+      content: 'sync result'
     });
   });
 

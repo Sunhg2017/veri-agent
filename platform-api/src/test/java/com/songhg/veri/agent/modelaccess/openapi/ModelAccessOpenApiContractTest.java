@@ -51,6 +51,7 @@ class ModelAccessOpenApiContractTest {
                 .andExpect(jsonPath("$.paths['/api/v1/model-access/invocations'].get").exists())
                 .andExpect(jsonPath("$.paths['/api/v1/model-access/invocations/export'].get").exists())
                 .andExpect(jsonPath("$.paths['/api/v1/model-access/invocations/summary'].get").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/model-access/quality/evaluation-summary'].get").exists())
                 .andExpect(jsonPath("$.paths['/api/v1/model-access/cost/alerts'].get").exists())
                 .andExpect(jsonPath("$.paths['/api/v1/model-access/cost/report'].get").exists());
     }
@@ -107,6 +108,9 @@ class ModelAccessOpenApiContractTest {
         MatcherAssert.assertThat(openApi, containsString("错误响应仍使用标准 JSON error envelope"));
         MatcherAssert.assertThat(openApi, containsString("/api/v1/model-access/cost/alerts"));
         MatcherAssert.assertThat(openApi, containsString("/api/v1/model-access/cost/report"));
+        MatcherAssert.assertThat(openApi, containsString("/api/v1/model-access/quality/evaluation-summary"));
+        MatcherAssert.assertThat(openApi, containsString("requiredTermRecall"));
+        MatcherAssert.assertThat(openApi, containsString("forbiddenTermCleanRate"));
         MatcherAssert.assertThat(openApi, containsString("ProviderResilienceResponse"));
         MatcherAssert.assertThat(openApi, containsString("text/csv"));
         MatcherAssert.assertThat(openApi, containsString("text/event-stream"));
