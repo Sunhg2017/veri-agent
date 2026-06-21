@@ -1012,6 +1012,26 @@ export async function fetchAssetApi(apiId: string): Promise<ApiResponse<AssetApi
   return { ...response, data: normalizeAssetApiView(response.data) };
 }
 
+export async function fetchAssetApiVersions(apiId: string): Promise<ApiResponse<AssetVersionHistoryView[]>> {
+  const response = await requestJson<unknown>(`/api/v1/asset/apis/${encodeURIComponent(apiId)}/versions`);
+  return { ...response, data: assetVersionHistoryItems(response.data) };
+}
+
+export async function rollbackAssetApiVersion(
+  apiId: string,
+  version: number,
+  reason?: string
+): Promise<ApiResponse<AssetApiView>> {
+  const response = await requestJson<unknown>(
+    `/api/v1/asset/apis/${encodeURIComponent(apiId)}/versions/${version}/rollback`,
+    {
+      method: 'POST',
+      body: JSON.stringify(compactAssetPayload({ reason }))
+    }
+  );
+  return { ...response, data: normalizeAssetApiView(response.data) };
+}
+
 export async function createAssetApi(payload: AssetApiPayload): Promise<ApiResponse<AssetApiView>> {
   const response = await requestJson<unknown>('/api/v1/asset/apis', {
     method: 'POST',
@@ -1035,6 +1055,26 @@ export async function fetchAssetPages(filters: AssetPageFilters = {}): Promise<A
 
 export async function fetchAssetPage(pageId: string): Promise<ApiResponse<AssetPageView>> {
   const response = await requestJson<unknown>(`/api/v1/asset/pages/${encodeURIComponent(pageId)}`);
+  return { ...response, data: normalizeAssetPageView(response.data) };
+}
+
+export async function fetchAssetPageVersions(pageId: string): Promise<ApiResponse<AssetVersionHistoryView[]>> {
+  const response = await requestJson<unknown>(`/api/v1/asset/pages/${encodeURIComponent(pageId)}/versions`);
+  return { ...response, data: assetVersionHistoryItems(response.data) };
+}
+
+export async function rollbackAssetPageVersion(
+  pageId: string,
+  version: number,
+  reason?: string
+): Promise<ApiResponse<AssetPageView>> {
+  const response = await requestJson<unknown>(
+    `/api/v1/asset/pages/${encodeURIComponent(pageId)}/versions/${version}/rollback`,
+    {
+      method: 'POST',
+      body: JSON.stringify(compactAssetPayload({ reason }))
+    }
+  );
   return { ...response, data: normalizeAssetPageView(response.data) };
 }
 
@@ -1063,6 +1103,28 @@ export async function fetchAssetBusinessFlows(
 
 export async function fetchAssetBusinessFlow(flowId: string): Promise<ApiResponse<AssetBusinessFlowView>> {
   const response = await requestJson<unknown>(`/api/v1/asset/business-flows/${encodeURIComponent(flowId)}`);
+  return { ...response, data: normalizeAssetBusinessFlowView(response.data) };
+}
+
+export async function fetchAssetBusinessFlowVersions(
+  flowId: string
+): Promise<ApiResponse<AssetVersionHistoryView[]>> {
+  const response = await requestJson<unknown>(`/api/v1/asset/business-flows/${encodeURIComponent(flowId)}/versions`);
+  return { ...response, data: assetVersionHistoryItems(response.data) };
+}
+
+export async function rollbackAssetBusinessFlowVersion(
+  flowId: string,
+  version: number,
+  reason?: string
+): Promise<ApiResponse<AssetBusinessFlowView>> {
+  const response = await requestJson<unknown>(
+    `/api/v1/asset/business-flows/${encodeURIComponent(flowId)}/versions/${version}/rollback`,
+    {
+      method: 'POST',
+      body: JSON.stringify(compactAssetPayload({ reason }))
+    }
+  );
   return { ...response, data: normalizeAssetBusinessFlowView(response.data) };
 }
 

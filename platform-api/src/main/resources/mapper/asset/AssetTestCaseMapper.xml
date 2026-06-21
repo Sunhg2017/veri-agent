@@ -252,7 +252,6 @@
             deleted_at = #{deletedAt},
             updated_at = #{updatedAt}
         where id = #{id}
-          and deleted_at is null
     </update>
 
     <update id="updateTestCaseLifecycle">

@@ -3,6 +3,7 @@ package com.songhg.veri.agent.asset.application;
 import static com.songhg.veri.agent.asset.application.AssetCodeGenerator.assetCode;
 
 import com.songhg.veri.agent.asset.application.command.CreateApiRequest;
+import com.songhg.veri.agent.asset.application.command.RollbackAssetVersionRequest;
 import com.songhg.veri.agent.asset.application.command.SyncOpenApiRequest;
 import com.songhg.veri.agent.asset.application.command.UpdateApiRequest;
 import com.songhg.veri.agent.asset.application.command.UpdateAssetLifecycleRequest;
@@ -10,6 +11,7 @@ import com.songhg.veri.agent.asset.application.port.AssetRepository;
 import com.songhg.veri.agent.asset.application.query.AssetListQuery;
 import com.songhg.veri.agent.asset.application.query.AssetListRequest;
 import com.songhg.veri.agent.asset.application.view.ApiResponseDTO;
+import com.songhg.veri.agent.asset.application.view.AssetVersionHistoryResponse;
 import com.songhg.veri.agent.asset.domain.AssetApi;
 import com.songhg.veri.agent.asset.domain.AssetLifecycleStatus;
 import com.songhg.veri.agent.common.error.BusinessException;
@@ -47,15 +49,21 @@ public class AssetApiService {
 
     private final AssetRepository repository;
     private final AssetProjectAuditService projectAuditService;
+    private final AssetVersionHistoryService versionHistoryService;
+    private final AssetVersionRollbackService versionRollbackService;
     private final AssetLifecycleService lifecycleService;
 
     public AssetApiService(
             AssetRepository repository,
             AssetProjectAuditService projectAuditService,
+            AssetVersionHistoryService versionHistoryService,
+            AssetVersionRollbackService versionRollbackService,
             AssetLifecycleService lifecycleService
     ) {
         this.repository = repository;
         this.projectAuditService = projectAuditService;
+        this.versionHistoryService = versionHistoryService;
+        this.versionRollbackService = versionRollbackService;
         this.lifecycleService = lifecycleService;
     }
 
@@ -131,9 +139,10 @@ public class AssetApiService {
                 now
         );
         projectAuditService.writeProjectAudit("CREATE", "API", id, scopeId);
-        repository.saveApi(api);
+        AssetApi stored = repository.saveApi(api);
+        versionHistoryService.recordApiCreated(stored);
         log.info("Created api id={}, summary={}, trace_id={}", id, request.summary(), TraceContext.getTraceId());
-        return AssetResponseMapper.toApiResponse(api);
+        return AssetResponseMapper.toApiResponse(stored);
     }
 
     /**
@@ -178,6 +187,7 @@ public class AssetApiService {
         );
         projectAuditService.writeProjectAudit("UPDATE", "API", id, existing.projectId());
         AssetApi stored = repository.saveApi(updated);
+        versionHistoryService.recordApiChange(existing, stored, "UPDATE");
         return AssetResponseMapper.toApiResponse(stored);
     }
 
@@ -214,6 +224,7 @@ public class AssetApiService {
         );
         projectAuditService.writeProjectAudit("CREATE", "API", id, scopeId);
         AssetApi stored = repository.saveApi(api);
+        versionHistoryService.recordApiCreated(stored);
         log.info("Created OpenAPI synced api id={}, path={}, method={}, trace_id={}",
                 id, stored.path(), stored.httpMethod(), TraceContext.getTraceId());
         return AssetResponseMapper.toApiResponse(stored);
@@ -261,9 +272,26 @@ public class AssetApiService {
         );
         projectAuditService.writeProjectAudit("UPDATE", "API", id, existing.projectId());
         AssetApi stored = repository.saveApi(updated);
+        versionHistoryService.recordApiChange(existing, stored, "UPSERT");
         log.info("Updated OpenAPI synced api id={}, path={}, method={}, trace_id={}",
                 id, stored.path(), stored.httpMethod(), TraceContext.getTraceId());
         return AssetResponseMapper.toApiResponse(stored);
+    }
+
+    /**
+     * Returns immutable version history for active or inactive APIs.
+     */
+    public List<AssetVersionHistoryResponse> apiVersions(UUID id) {
+        AssetApi api = repository.apiIncludingInactive(id)
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "API不存在: " + id));
+        return versionHistoryService.responses("API", api.id());
+    }
+
+    /**
+     * Delegates rollback to the shared rollback service so snapshot restore rules stay consistent.
+     */
+    public ApiResponseDTO rollbackApiVersion(UUID id, int version, RollbackAssetVersionRequest request) {
+        return versionRollbackService.rollbackApiVersion(id, version, request);
     }
 
     /**

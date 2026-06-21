@@ -40,7 +40,8 @@ class AssetServiceCoreTest {
                 repository,
                 new AssetProjectAuditService(contextClient),
                 new ObjectMapper().findAndRegisterModules(),
-                service
+                service,
+                new AssetVersionHistoryService(repository, new ObjectMapper().findAndRegisterModules())
         );
     }
 

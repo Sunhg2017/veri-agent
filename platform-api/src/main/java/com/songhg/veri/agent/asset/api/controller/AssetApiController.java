@@ -2,15 +2,18 @@ package com.songhg.veri.agent.asset.api.controller;
 
 import com.songhg.veri.agent.asset.application.AssetService;
 import com.songhg.veri.agent.asset.application.command.CreateApiRequest;
+import com.songhg.veri.agent.asset.application.command.RollbackAssetVersionRequest;
 import com.songhg.veri.agent.asset.application.command.UpdateApiRequest;
 import com.songhg.veri.agent.asset.application.command.UpdateAssetLifecycleRequest;
 import com.songhg.veri.agent.asset.application.query.AssetListRequest;
 import com.songhg.veri.agent.asset.application.view.ApiResponseDTO;
+import com.songhg.veri.agent.asset.application.view.AssetVersionHistoryResponse;
 import com.songhg.veri.agent.authorization.application.PermissionCodes;
 import com.songhg.veri.agent.authorization.application.RequirePermission;
 import com.songhg.veri.agent.common.api.PageResponse;
 import com.songhg.veri.agent.common.openapi.ApiVersion;
 import jakarta.validation.Valid;
+import java.util.List;
 import java.util.UUID;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -63,6 +66,22 @@ public class AssetApiController {
     @RequirePermission(value = PermissionCodes.ASSET_MANAGE, scope = AssetPermissionScopes.API)
     public ApiResponseDTO updateApi(@PathVariable UUID id, @Valid @RequestBody UpdateApiRequest request) {
         return service.updateApi(id, request);
+    }
+
+    @GetMapping("/{id}/versions")
+    @RequirePermission(value = PermissionCodes.ASSET_READ, scope = AssetPermissionScopes.API)
+    public List<AssetVersionHistoryResponse> apiVersions(@PathVariable UUID id) {
+        return service.apiVersions(id);
+    }
+
+    @PostMapping("/{id}/versions/{version}/rollback")
+    @RequirePermission(value = PermissionCodes.ASSET_MANAGE, scope = AssetPermissionScopes.API)
+    public ApiResponseDTO rollbackApiVersion(
+            @PathVariable UUID id,
+            @PathVariable int version,
+            @Valid @RequestBody(required = false) RollbackAssetVersionRequest request
+    ) {
+        return service.rollbackApiVersion(id, version, request);
     }
 
     @PatchMapping("/{id}/lifecycle")

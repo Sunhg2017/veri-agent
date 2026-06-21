@@ -33,7 +33,8 @@ class AssetPrototypeSyncServiceTest {
         service = new AssetPrototypeSyncService(
                 repository,
                 new AssetProjectAuditService(contextClient),
-                new ObjectMapper().findAndRegisterModules()
+                new ObjectMapper().findAndRegisterModules(),
+                new AssetVersionHistoryService(repository, new ObjectMapper().findAndRegisterModules())
         );
     }
 

@@ -5,7 +5,10 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.songhg.veri.agent.asset.application.port.AssetRepository;
 import com.songhg.veri.agent.asset.application.view.AssetVersionHistoryResponse;
+import com.songhg.veri.agent.asset.domain.AssetApi;
+import com.songhg.veri.agent.asset.domain.AssetBusinessFlow;
 import com.songhg.veri.agent.asset.domain.AssetLifecycleStatus;
+import com.songhg.veri.agent.asset.domain.AssetPage;
 import com.songhg.veri.agent.asset.domain.AssetRequirement;
 import com.songhg.veri.agent.asset.domain.AssetVersion;
 import com.songhg.veri.agent.asset.domain.AssetVersionHistory;
@@ -68,6 +71,16 @@ public class AssetVersionHistoryService {
                 ));
     }
 
+    /**
+     * Computes the next immutable revision number from the append-only history ledger.
+     */
+    public int nextVersion(String assetType, UUID assetId) {
+        return repository.assetVersionHistory(assetType, assetId).stream()
+                .mapToInt(AssetVersionHistory::version)
+                .max()
+                .orElse(0) + 1;
+    }
+
     public void recordRequirementCreated(AssetRequirement requirement) {
         saveRequirementHistory(requirement, "CREATE", VersionDiff.empty());
     }
@@ -82,6 +95,30 @@ public class AssetVersionHistoryService {
 
     public void recordTestCaseChange(TestCaseRecord before, TestCaseRecord after, String changeType) {
         saveTestCaseHistory(after, changeType, testCaseDiff(before, after));
+    }
+
+    public void recordApiCreated(AssetApi api) {
+        saveApiHistory(api, nextVersion("API", api.id()), "CREATE", VersionDiff.empty());
+    }
+
+    public void recordApiChange(AssetApi before, AssetApi after, String changeType) {
+        saveApiHistory(after, nextVersion("API", after.id()), changeType, apiDiff(before, after));
+    }
+
+    public void recordPageCreated(AssetPage page) {
+        savePageHistory(page, nextVersion("PAGE", page.id()), "CREATE", VersionDiff.empty());
+    }
+
+    public void recordPageChange(AssetPage before, AssetPage after, String changeType) {
+        savePageHistory(after, nextVersion("PAGE", after.id()), changeType, pageDiff(before, after));
+    }
+
+    public void recordBusinessFlowCreated(AssetBusinessFlow flow) {
+        saveBusinessFlowHistory(flow, nextVersion("BUSINESS_FLOW", flow.id()), "CREATE", VersionDiff.empty());
+    }
+
+    public void recordBusinessFlowChange(AssetBusinessFlow before, AssetBusinessFlow after, String changeType) {
+        saveBusinessFlowHistory(after, nextVersion("BUSINESS_FLOW", after.id()), changeType, businessFlowDiff(before, after));
     }
 
     private AssetVersionHistoryResponse toResponse(AssetVersionHistory history) {
@@ -135,6 +172,57 @@ public class AssetVersionHistoryService {
         ));
     }
 
+    private void saveApiHistory(AssetApi api, int version, String changeType, VersionDiff diff) {
+        repository.saveVersionHistory(new AssetVersionHistory(
+                UUID.randomUUID(),
+                "API",
+                api.id(),
+                api.projectId(),
+                version,
+                changeType,
+                currentActor(),
+                String.join(",", diff.changedFields()),
+                diff.diffJson(),
+                jsonString(apiSnapshot(api, version)),
+                TraceContext.getTraceId(),
+                Instant.now()
+        ));
+    }
+
+    private void savePageHistory(AssetPage page, int version, String changeType, VersionDiff diff) {
+        repository.saveVersionHistory(new AssetVersionHistory(
+                UUID.randomUUID(),
+                "PAGE",
+                page.id(),
+                page.projectId(),
+                version,
+                changeType,
+                currentActor(),
+                String.join(",", diff.changedFields()),
+                diff.diffJson(),
+                jsonString(pageSnapshot(page, version)),
+                TraceContext.getTraceId(),
+                Instant.now()
+        ));
+    }
+
+    private void saveBusinessFlowHistory(AssetBusinessFlow flow, int version, String changeType, VersionDiff diff) {
+        repository.saveVersionHistory(new AssetVersionHistory(
+                UUID.randomUUID(),
+                "BUSINESS_FLOW",
+                flow.id(),
+                flow.projectId(),
+                version,
+                changeType,
+                currentActor(),
+                String.join(",", diff.changedFields()),
+                diff.diffJson(),
+                jsonString(businessFlowSnapshot(flow, version)),
+                TraceContext.getTraceId(),
+                Instant.now()
+        ));
+    }
+
     private VersionDiff requirementDiff(AssetRequirement before, AssetRequirement after) {
         LinkedHashMap<String, Object> diff = new LinkedHashMap<>();
         addDiff(diff, "title", before.title(), after.title());
@@ -144,6 +232,56 @@ public class AssetVersionHistoryService {
         addDiff(diff, "status", before.status(), after.status());
         addDiff(diff, "priority", before.priority(), after.priority());
         addDiff(diff, "tags", normalizedTags(before.tags()), normalizedTags(after.tags()));
+        addDiff(diff, "lifecycleStatus", lifecycleStatus(before.lifecycleStatus(), before.deletedAt()),
+                lifecycleStatus(after.lifecycleStatus(), after.deletedAt()));
+        addDiff(diff, "archivedAt", before.archivedAt(), after.archivedAt());
+        addDiff(diff, "deletedAt", before.deletedAt(), after.deletedAt());
+        return versionDiff(diff);
+    }
+
+    private VersionDiff apiDiff(AssetApi before, AssetApi after) {
+        LinkedHashMap<String, Object> diff = new LinkedHashMap<>();
+        addDiff(diff, "summary", before.summary(), after.summary());
+        addDiff(diff, "description", before.description(), after.description());
+        addDiff(diff, "httpMethod", before.httpMethod(), after.httpMethod());
+        addDiff(diff, "path", before.path(), after.path());
+        addDiff(diff, "source", before.source(), after.source());
+        addDiff(diff, "sourceRef", before.sourceRef(), after.sourceRef());
+        addDiff(diff, "version", before.version(), after.version());
+        addDiff(diff, "requestSchema", jsonValue(before.requestSchema()), jsonValue(after.requestSchema()));
+        addDiff(diff, "responseSchema", jsonValue(before.responseSchema()), jsonValue(after.responseSchema()));
+        addDiff(diff, "status", before.status(), after.status());
+        addDiff(diff, "lifecycleStatus", lifecycleStatus(before.lifecycleStatus(), before.deletedAt()),
+                lifecycleStatus(after.lifecycleStatus(), after.deletedAt()));
+        addDiff(diff, "archivedAt", before.archivedAt(), after.archivedAt());
+        addDiff(diff, "deletedAt", before.deletedAt(), after.deletedAt());
+        return versionDiff(diff);
+    }
+
+    private VersionDiff pageDiff(AssetPage before, AssetPage after) {
+        LinkedHashMap<String, Object> diff = new LinkedHashMap<>();
+        addDiff(diff, "name", before.name(), after.name());
+        addDiff(diff, "urlPattern", before.urlPattern(), after.urlPattern());
+        addDiff(diff, "source", before.source(), after.source());
+        addDiff(diff, "sourceRef", before.sourceRef(), after.sourceRef());
+        addDiff(diff, "sourceVersion", before.sourceVersion(), after.sourceVersion());
+        addDiff(diff, "componentTree", jsonValue(before.componentTree()), jsonValue(after.componentTree()));
+        addDiff(diff, "screenshotUrl", before.screenshotUrl(), after.screenshotUrl());
+        addDiff(diff, "status", before.status(), after.status());
+        addDiff(diff, "lifecycleStatus", lifecycleStatus(before.lifecycleStatus(), before.deletedAt()),
+                lifecycleStatus(after.lifecycleStatus(), after.deletedAt()));
+        addDiff(diff, "archivedAt", before.archivedAt(), after.archivedAt());
+        addDiff(diff, "deletedAt", before.deletedAt(), after.deletedAt());
+        return versionDiff(diff);
+    }
+
+    private VersionDiff businessFlowDiff(AssetBusinessFlow before, AssetBusinessFlow after) {
+        LinkedHashMap<String, Object> diff = new LinkedHashMap<>();
+        addDiff(diff, "name", before.name(), after.name());
+        addDiff(diff, "description", before.description(), after.description());
+        addDiff(diff, "flowJson", jsonValue(before.flowJson()), jsonValue(after.flowJson()));
+        addDiff(diff, "priority", before.priority(), after.priority());
+        addDiff(diff, "status", before.status(), after.status());
         addDiff(diff, "lifecycleStatus", lifecycleStatus(before.lifecycleStatus(), before.deletedAt()),
                 lifecycleStatus(after.lifecycleStatus(), after.deletedAt()));
         addDiff(diff, "archivedAt", before.archivedAt(), after.archivedAt());
@@ -205,6 +343,71 @@ public class AssetVersionHistoryService {
         snapshot.put("deletedAt", requirement.deletedAt());
         snapshot.put("createdAt", requirement.createdAt());
         snapshot.put("updatedAt", requirement.updatedAt());
+        return snapshot;
+    }
+
+    private LinkedHashMap<String, Object> apiSnapshot(AssetApi api, int version) {
+        LinkedHashMap<String, Object> snapshot = new LinkedHashMap<>();
+        snapshot.put("id", api.id());
+        snapshot.put("code", api.code());
+        snapshot.put("summary", api.summary());
+        snapshot.put("description", api.description());
+        snapshot.put("httpMethod", api.httpMethod());
+        snapshot.put("path", api.path());
+        snapshot.put("source", api.source());
+        snapshot.put("sourceRef", api.sourceRef());
+        snapshot.put("version", api.version());
+        snapshot.put("requestSchema", jsonValue(api.requestSchema()));
+        snapshot.put("responseSchema", jsonValue(api.responseSchema()));
+        snapshot.put("projectId", api.projectId());
+        snapshot.put("status", api.status());
+        snapshot.put("revision", version);
+        snapshot.put("lifecycleStatus", lifecycleStatus(api.lifecycleStatus(), api.deletedAt()));
+        snapshot.put("archivedAt", api.archivedAt());
+        snapshot.put("deletedAt", api.deletedAt());
+        snapshot.put("createdAt", api.createdAt());
+        snapshot.put("updatedAt", api.updatedAt());
+        return snapshot;
+    }
+
+    private LinkedHashMap<String, Object> pageSnapshot(AssetPage page, int version) {
+        LinkedHashMap<String, Object> snapshot = new LinkedHashMap<>();
+        snapshot.put("id", page.id());
+        snapshot.put("code", page.code());
+        snapshot.put("name", page.name());
+        snapshot.put("urlPattern", page.urlPattern());
+        snapshot.put("source", page.source());
+        snapshot.put("sourceRef", page.sourceRef());
+        snapshot.put("sourceVersion", page.sourceVersion());
+        snapshot.put("componentTree", jsonValue(page.componentTree()));
+        snapshot.put("screenshotUrl", page.screenshotUrl());
+        snapshot.put("projectId", page.projectId());
+        snapshot.put("status", page.status());
+        snapshot.put("revision", version);
+        snapshot.put("lifecycleStatus", lifecycleStatus(page.lifecycleStatus(), page.deletedAt()));
+        snapshot.put("archivedAt", page.archivedAt());
+        snapshot.put("deletedAt", page.deletedAt());
+        snapshot.put("createdAt", page.createdAt());
+        snapshot.put("updatedAt", page.updatedAt());
+        return snapshot;
+    }
+
+    private LinkedHashMap<String, Object> businessFlowSnapshot(AssetBusinessFlow flow, int version) {
+        LinkedHashMap<String, Object> snapshot = new LinkedHashMap<>();
+        snapshot.put("id", flow.id());
+        snapshot.put("code", flow.code());
+        snapshot.put("name", flow.name());
+        snapshot.put("description", flow.description());
+        snapshot.put("flowJson", jsonValue(flow.flowJson()));
+        snapshot.put("priority", flow.priority());
+        snapshot.put("projectId", flow.projectId());
+        snapshot.put("status", flow.status());
+        snapshot.put("revision", version);
+        snapshot.put("lifecycleStatus", lifecycleStatus(flow.lifecycleStatus(), flow.deletedAt()));
+        snapshot.put("archivedAt", flow.archivedAt());
+        snapshot.put("deletedAt", flow.deletedAt());
+        snapshot.put("createdAt", flow.createdAt());
+        snapshot.put("updatedAt", flow.updatedAt());
         return snapshot;
     }
 
@@ -307,6 +510,17 @@ public class AssetVersionHistoryService {
             return objectMapper.readTree(json);
         } catch (JsonProcessingException e) {
             return objectMapper.createObjectNode();
+        }
+    }
+
+    private Object jsonValue(String rawJson) {
+        if (!StringUtils.hasText(rawJson)) {
+            return null;
+        }
+        try {
+            return objectMapper.readTree(rawJson);
+        } catch (JsonProcessingException e) {
+            return rawJson;
         }
     }
 

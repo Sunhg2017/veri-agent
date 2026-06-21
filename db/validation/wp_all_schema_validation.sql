@@ -207,6 +207,30 @@ select
     coalesce(string_agg(change_type, ', ' order by change_type), 'asset_version_history allows lifecycle change types') as details
 from missing;
 
+with expected(asset_type) as (
+    values ('API'), ('PAGE'), ('BUSINESS_FLOW')
+),
+constraint_def as (
+    select pg_get_constraintdef(oid) as definition
+    from pg_constraint
+    where conrelid = 'asset_version_history'::regclass
+      and conname = 'ck_asset_version_history_asset_type'
+),
+missing as (
+    select asset_type
+    from expected e
+    where not exists (
+        select 1
+        from constraint_def c
+        where c.definition like '%' || e.asset_type || '%'
+    )
+)
+select
+    'schema.wp3_version_history_asset_types' as check_name,
+    case when count(*) = 0 then 'PASS' else 'FAIL' end as status,
+    coalesce(string_agg(asset_type, ', ' order by asset_type), 'asset_version_history allows API/PAGE/BUSINESS_FLOW asset types') as details
+from missing;
+
 with forbidden(table_name) as (
     values
         ('base_tenant'),

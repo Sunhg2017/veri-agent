@@ -5,10 +5,15 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.songhg.veri.agent.asset.application.command.RollbackAssetVersionRequest;
 import com.songhg.veri.agent.asset.application.port.AssetRepository;
+import com.songhg.veri.agent.asset.application.view.ApiResponseDTO;
+import com.songhg.veri.agent.asset.application.view.BusinessFlowResponse;
+import com.songhg.veri.agent.asset.application.view.PageResponse;
 import com.songhg.veri.agent.asset.application.view.RequirementResponse;
 import com.songhg.veri.agent.asset.application.view.TestCaseResponse;
 import com.songhg.veri.agent.asset.domain.AssetApi;
+import com.songhg.veri.agent.asset.domain.AssetBusinessFlow;
 import com.songhg.veri.agent.asset.domain.AssetLifecycleStatus;
+import com.songhg.veri.agent.asset.domain.AssetPage;
 import com.songhg.veri.agent.asset.domain.AssetRequirement;
 import com.songhg.veri.agent.asset.domain.AssetReviewStatus;
 import com.songhg.veri.agent.asset.domain.AssetVersionHistory;
@@ -35,6 +40,12 @@ public class AssetVersionRollbackService {
     private static final Logger log = LoggerFactory.getLogger(AssetVersionRollbackService.class);
     private static final Set<String> REVIEW_STATUSES = AssetReviewStatus.codes();
     private static final Set<String> PRIORITIES = Set.of("CRITICAL", "HIGH", "MEDIUM", "LOW");
+    private static final Set<String> API_STATUSES = Set.of("ACTIVE", "DEPRECATED", "REMOVED");
+    private static final Set<String> API_HTTP_METHODS = Set.of("GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS");
+    private static final Set<String> API_SOURCES = Set.of("OPENAPI", "MANUAL", "IMPORT");
+    private static final Set<String> PAGE_STATUSES = Set.of("ACTIVE", "DEPRECATED");
+    private static final Set<String> PAGE_SOURCES = Set.of("MANUAL", "FIGMA", "LANHU", "AXURE");
+    private static final Set<String> FLOW_STATUSES = Set.of("DRAFT", "ACTIVE", "ARCHIVED");
 
     private final AssetRepository repository;
     private final ObjectMapper objectMapper;
@@ -138,6 +149,122 @@ public class AssetVersionRollbackService {
         return AssetResponseMapper.toTestCaseResponse(stored, stored.steps());
     }
 
+    public ApiResponseDTO rollbackApiVersion(
+            UUID id,
+            int version,
+            RollbackAssetVersionRequest request
+    ) {
+        AssetApi existing = repository.apiIncludingInactive(id)
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "API不存在: " + id));
+        AssetVersionHistory history = versionHistoryService.historyOrThrow("API", id, version);
+        JsonNode snapshot = jsonNode(history.snapshotJson());
+        Instant now = Instant.now();
+        AssetApi rollback = new AssetApi(
+                existing.id(),
+                existing.code(),
+                requiredSnapshotText(snapshot, "summary"),
+                snapshotText(snapshot, "description"),
+                valueIn(requiredSnapshotText(snapshot, "httpMethod"), existing.httpMethod(), API_HTTP_METHODS, "httpMethod"),
+                requiredSnapshotText(snapshot, "path"),
+                valueIn(snapshotText(snapshot, "source"), existing.source(), API_SOURCES, "source"),
+                snapshotText(snapshot, "sourceRef"),
+                snapshotText(snapshot, "version"),
+                snapshotJsonText(snapshot, "requestSchema"),
+                snapshotJsonText(snapshot, "responseSchema"),
+                existing.projectId(),
+                valueIn(snapshotText(snapshot, "status"), existing.status(), API_STATUSES, "status"),
+                lifecycleStatus(snapshotText(snapshot, "lifecycleStatus"), snapshotInstant(snapshot, "deletedAt")),
+                snapshotInstant(snapshot, "archivedAt"),
+                snapshotInstant(snapshot, "deletedAt"),
+                existing.createdAt(),
+                now
+        );
+        if ("ACTIVE".equals(lifecycleStatus(rollback.lifecycleStatus(), rollback.deletedAt()))) {
+            ensureApiRestoreHasNoConflict(rollback);
+        }
+        projectAuditService.writeProjectAudit("ROLLBACK", "API", id, existing.projectId());
+        AssetApi stored = repository.saveApi(rollback);
+        versionHistoryService.recordApiChange(existing, stored, "ROLLBACK");
+        log.info("Rolled back api id={} to version={}, reason={}, trace_id={}",
+                id, version, trimToNull(request == null ? null : request.reason()), TraceContext.getTraceId());
+        return AssetResponseMapper.toApiResponse(stored);
+    }
+
+    public PageResponse rollbackPageVersion(
+            UUID id,
+            int version,
+            RollbackAssetVersionRequest request
+    ) {
+        AssetPage existing = repository.pageIncludingInactive(id)
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "页面资产不存在: " + id));
+        AssetVersionHistory history = versionHistoryService.historyOrThrow("PAGE", id, version);
+        JsonNode snapshot = jsonNode(history.snapshotJson());
+        Instant now = Instant.now();
+        AssetPage rollback = new AssetPage(
+                existing.id(),
+                existing.code(),
+                requiredSnapshotText(snapshot, "name"),
+                snapshotText(snapshot, "urlPattern"),
+                valueIn(snapshotText(snapshot, "source"), existing.source(), PAGE_SOURCES, "source"),
+                snapshotText(snapshot, "sourceRef"),
+                snapshotText(snapshot, "sourceVersion"),
+                snapshotJsonText(snapshot, "componentTree"),
+                snapshotText(snapshot, "screenshotUrl"),
+                existing.projectId(),
+                valueIn(snapshotText(snapshot, "status"), existing.status(), PAGE_STATUSES, "status"),
+                lifecycleStatus(snapshotText(snapshot, "lifecycleStatus"), snapshotInstant(snapshot, "deletedAt")),
+                snapshotInstant(snapshot, "archivedAt"),
+                snapshotInstant(snapshot, "deletedAt"),
+                existing.createdAt(),
+                now
+        );
+        if ("ACTIVE".equals(lifecycleStatus(rollback.lifecycleStatus(), rollback.deletedAt()))) {
+            ensurePageRestoreHasNoConflict(rollback);
+        }
+        projectAuditService.writeProjectAudit("ROLLBACK", "PAGE", id, existing.projectId());
+        AssetPage stored = repository.savePage(rollback);
+        versionHistoryService.recordPageChange(existing, stored, "ROLLBACK");
+        log.info("Rolled back page id={} to version={}, reason={}, trace_id={}",
+                id, version, trimToNull(request == null ? null : request.reason()), TraceContext.getTraceId());
+        return AssetResponseMapper.toPageResponse(stored);
+    }
+
+    public BusinessFlowResponse rollbackBusinessFlowVersion(
+            UUID id,
+            int version,
+            RollbackAssetVersionRequest request
+    ) {
+        AssetBusinessFlow existing = repository.businessFlowIncludingInactive(id)
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "业务流资产不存在: " + id));
+        AssetVersionHistory history = versionHistoryService.historyOrThrow("BUSINESS_FLOW", id, version);
+        JsonNode snapshot = jsonNode(history.snapshotJson());
+        Instant now = Instant.now();
+        AssetBusinessFlow rollback = new AssetBusinessFlow(
+                existing.id(),
+                existing.code(),
+                requiredSnapshotText(snapshot, "name"),
+                snapshotText(snapshot, "description"),
+                snapshotJsonText(snapshot, "flowJson"),
+                valueIn(snapshotText(snapshot, "priority"), existing.priority(), PRIORITIES, "priority"),
+                existing.projectId(),
+                valueIn(snapshotText(snapshot, "status"), existing.status(), FLOW_STATUSES, "status"),
+                lifecycleStatus(snapshotText(snapshot, "lifecycleStatus"), snapshotInstant(snapshot, "deletedAt")),
+                snapshotInstant(snapshot, "archivedAt"),
+                snapshotInstant(snapshot, "deletedAt"),
+                existing.createdAt(),
+                now
+        );
+        if ("ACTIVE".equals(lifecycleStatus(rollback.lifecycleStatus(), rollback.deletedAt()))) {
+            ensureBusinessFlowRestoreHasNoConflict(rollback);
+        }
+        projectAuditService.writeProjectAudit("ROLLBACK", "BUSINESS_FLOW", id, existing.projectId());
+        AssetBusinessFlow stored = repository.saveBusinessFlow(rollback);
+        versionHistoryService.recordBusinessFlowChange(existing, stored, "ROLLBACK");
+        log.info("Rolled back business flow id={} to version={}, reason={}, trace_id={}",
+                id, version, trimToNull(request == null ? null : request.reason()), TraceContext.getTraceId());
+        return AssetResponseMapper.toBusinessFlowResponse(stored);
+    }
+
     private JsonNode jsonNode(String json) {
         if (!StringUtils.hasText(json)) {
             return objectMapper.createObjectNode();
@@ -165,6 +292,17 @@ public class AssetVersionRollbackService {
             throw new BusinessException(ErrorCode.INVALID_STATE, "版本快照缺少字段: " + field);
         }
         return value;
+    }
+
+    private static String snapshotJsonText(JsonNode snapshot, String field) {
+        JsonNode node = snapshot.path(field);
+        if (node.isMissingNode() || node.isNull()) {
+            return null;
+        }
+        if (node.isTextual()) {
+            return textOrDefault(node, null);
+        }
+        return node.toString();
     }
 
     private static Instant snapshotInstant(JsonNode snapshot, String field) {
@@ -248,6 +386,24 @@ public class AssetVersionRollbackService {
                         requirement.id()
                 )) {
             throw new BusinessException(ErrorCode.CONFLICT, "同项目下导入来源已被其他需求占用，无法恢复: " + requirement.sourceRef());
+        }
+    }
+
+    private void ensureApiRestoreHasNoConflict(AssetApi api) {
+        if (repository.hasActiveApiPathConflict(api.projectId(), api.path(), api.httpMethod(), api.id())) {
+            throw new BusinessException(ErrorCode.CONFLICT, "同项目下 API 路径和方法已被其他资产占用，无法恢复");
+        }
+    }
+
+    private void ensurePageRestoreHasNoConflict(AssetPage page) {
+        if (repository.hasActivePageCodeConflict(page.projectId(), page.code(), page.id())) {
+            throw new BusinessException(ErrorCode.CONFLICT, "同项目下页面编码已被其他资产占用，无法恢复: " + page.code());
+        }
+    }
+
+    private void ensureBusinessFlowRestoreHasNoConflict(AssetBusinessFlow flow) {
+        if (repository.hasActiveBusinessFlowCodeConflict(flow.projectId(), flow.code(), flow.id())) {
+            throw new BusinessException(ErrorCode.CONFLICT, "同项目下业务流编码已被其他资产占用，无法恢复: " + flow.code());
         }
     }
 

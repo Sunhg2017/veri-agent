@@ -118,6 +118,7 @@ public class AssetLifecycleService {
         );
         projectAuditService.writeProjectAudit(lifecycleAction(nextLifecycle), "API", id, existing.projectId());
         AssetApi stored = repository.saveApi(updated);
+        versionHistoryService.recordApiChange(existing, stored, lifecycleAction(nextLifecycle));
         return AssetResponseMapper.toApiResponse(stored);
     }
 
@@ -154,6 +155,7 @@ public class AssetLifecycleService {
         );
         projectAuditService.writeProjectAudit(lifecycleAction(nextLifecycle), "PAGE", id, existing.projectId());
         AssetPage stored = repository.savePage(updated);
+        versionHistoryService.recordPageChange(existing, stored, lifecycleAction(nextLifecycle));
         return AssetResponseMapper.toPageResponse(stored);
     }
 
@@ -187,6 +189,7 @@ public class AssetLifecycleService {
         );
         projectAuditService.writeProjectAudit(lifecycleAction(nextLifecycle), "BUSINESS_FLOW", id, existing.projectId());
         AssetBusinessFlow stored = repository.saveBusinessFlow(updated);
+        versionHistoryService.recordBusinessFlowChange(existing, stored, lifecycleAction(nextLifecycle));
         return AssetResponseMapper.toBusinessFlowResponse(stored);
     }
 

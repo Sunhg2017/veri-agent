@@ -27,12 +27,14 @@ import {
   createAssetApi,
   createAssetRequirement,
   fetchAssetApi,
+  fetchAssetApiVersions,
   fetchAssetApis,
   fetchAssetHealth,
   fetchAssetRequirement,
   fetchAssetRequirements,
   fetchAssetRequirementVersions,
   fetchRequirementTraceLinks,
+  rollbackAssetApiVersion,
   rollbackAssetRequirementVersion,
   updateAssetApi,
   updateAssetRequirement,
@@ -203,6 +205,8 @@ export function AssetWorkbench(props: { signedIn: boolean; currentUser: CurrentU
   const [apiDetailState, setApiDetailState] = useState<WorkState>({ loading: false });
   const [apiCreateState, setApiCreateState] = useState<WorkState>({ loading: false });
   const [apiMutationState, setApiMutationState] = useState<WorkState>({ loading: false });
+  const [apiVersions, setApiVersions] = useState<AssetVersionHistoryView[]>([]);
+  const [apiVersionState, setApiVersionState] = useState<WorkState>({ loading: false });
 
   const refreshRequirements = useCallback(async () => {
     if (!props.signedIn || !canReadAssets) {
@@ -447,6 +451,31 @@ export function AssetWorkbench(props: { signedIn: boolean; currentUser: CurrentU
     void reloadApiDetail();
   }, [reloadApiDetail]);
 
+  const reloadApiVersions = useCallback(
+    async (targetId = selectedApiId) => {
+      if (activeTab !== 'apis' || !props.signedIn || !canReadAssets || !targetId) {
+        setApiVersions([]);
+        setApiVersionState({ loading: false });
+        return;
+      }
+
+      setApiVersionState({ loading: true });
+      try {
+        const response = await fetchAssetApiVersions(targetId);
+        setApiVersions(response.data);
+        setApiVersionState({ loading: false, traceId: response.trace_id });
+      } catch (error: unknown) {
+        setApiVersions([]);
+        setApiVersionState({ loading: false, error: errorMessage(error, '版本历史加载失败') });
+      }
+    },
+    [activeTab, canReadAssets, props.signedIn, selectedApiId]
+  );
+
+  useEffect(() => {
+    void reloadApiVersions();
+  }, [reloadApiVersions]);
+
   const visibleRequirements = useMemo(() => filterRequirements(requirements, filters), [filters, requirements]);
   const statusCounts = useMemo(() => countRequirementsByStatus(requirements), [requirements]);
   const visibleApis = useMemo(() => filterApis(apis, apiFilters), [apiFilters, apis]);
@@ -650,6 +679,7 @@ export function AssetWorkbench(props: { signedIn: boolean; currentUser: CurrentU
       setApiEditDraft(apiDraftFromView(response.data));
       upsertApi(setApis, response.data);
       setApiCreateState({ loading: false, success: 'API 资产已创建', traceId: response.trace_id });
+      void reloadApiVersions(response.data.id);
       if (response.data.id) {
         selectApi(response.data.id);
       }
@@ -683,8 +713,34 @@ export function AssetWorkbench(props: { signedIn: boolean; currentUser: CurrentU
       setApiEditDraft(apiDraftFromView(response.data));
       upsertApi(setApis, response.data);
       setApiMutationState({ loading: false, success: 'API 资产已保存', traceId: response.trace_id });
+      void reloadApiVersions(response.data.id);
     } catch (error: unknown) {
       setApiMutationState({ loading: false, error: errorMessage(error, 'API 资产保存失败') });
+    }
+  }
+
+  async function rollbackApi(version: number) {
+    if (!selectedApi) {
+      return;
+    }
+    if (!props.signedIn) {
+      setApiVersionState({ loading: false, error: '请先登录后再回滚版本' });
+      return;
+    }
+    if (!canManageAssets) {
+      setApiVersionState({ loading: false, error: '缺少 asset:manage 权限' });
+      return;
+    }
+    setApiVersionState({ loading: true });
+    try {
+      const response = await rollbackAssetApiVersion(selectedApi.id, version, `回滚到 v${version}`);
+      setSelectedApi(response.data);
+      setApiEditDraft(apiDraftFromView(response.data));
+      upsertApi(setApis, response.data);
+      setApiVersionState({ loading: false, traceId: response.trace_id });
+      void reloadApiVersions(response.data.id);
+    } catch (error: unknown) {
+      setApiVersionState({ loading: false, error: errorMessage(error, 'API 版本回滚失败') });
     }
   }
 
@@ -1653,6 +1709,15 @@ export function AssetWorkbench(props: { signedIn: boolean; currentUser: CurrentU
                       </button>
                     )}
                   </form>
+
+                  <AssetVersionHistoryPanel
+                    currentVersion={apiVersions[0]?.version}
+                    disabled={apiDisabled}
+                    items={apiVersions}
+                    onRollback={(version) => void rollbackApi(version)}
+                    onRefresh={() => void reloadApiVersions(selectedApi.id)}
+                    state={apiVersionState}
+                  />
 
                   <StateLine state={apiMutationState} />
                   <StateLine state={apiDetailState} />

@@ -3,10 +3,15 @@ package com.songhg.veri.agent.asset.application;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.songhg.veri.agent.asset.application.command.RollbackAssetVersionRequest;
 import com.songhg.veri.agent.asset.application.port.PlatformContextClient;
+import com.songhg.veri.agent.asset.application.view.ApiResponseDTO;
 import com.songhg.veri.agent.asset.application.view.AssetVersionHistoryResponse;
+import com.songhg.veri.agent.asset.application.view.BusinessFlowResponse;
+import com.songhg.veri.agent.asset.application.view.PageResponse;
 import com.songhg.veri.agent.asset.application.view.RequirementResponse;
 import com.songhg.veri.agent.asset.application.view.TestCaseResponse;
 import com.songhg.veri.agent.asset.domain.AssetApi;
+import com.songhg.veri.agent.asset.domain.AssetBusinessFlow;
+import com.songhg.veri.agent.asset.domain.AssetPage;
 import com.songhg.veri.agent.asset.domain.AssetRequirement;
 import com.songhg.veri.agent.asset.domain.AssetVersionHistory;
 import com.songhg.veri.agent.asset.domain.TestCaseRecord;
@@ -32,6 +37,8 @@ class AssetVersionRollbackServiceTest {
     private static final UUID REQUIREMENT_ID = UUID.fromString("00000000-0000-0000-0000-000000000401");
     private static final UUID CONFLICT_ID = UUID.fromString("00000000-0000-0000-0000-000000000402");
     private static final UUID API_ID = UUID.fromString("00000000-0000-0000-0000-000000000501");
+    private static final UUID PAGE_ID = UUID.fromString("00000000-0000-0000-0000-000000000551");
+    private static final UUID FLOW_ID = UUID.fromString("00000000-0000-0000-0000-000000000571");
     private static final UUID CASE_ID = UUID.fromString("00000000-0000-0000-0000-000000000601");
 
     private InMemoryAssetRepository repository;
@@ -269,6 +276,161 @@ class AssetVersionRollbackServiceTest {
     }
 
     @Test
+    void rollbacksApiSnapshotAndRecordsAuditAndHistory() {
+        AssetApi created = api(
+                API_ID,
+                "API-RB-1",
+                "创建订单",
+                "/api/orders",
+                "1.0.0",
+                "{\"type\":\"object\"}",
+                null,
+                "ACTIVE",
+                "ACTIVE"
+        );
+        versionHistoryService.recordApiCreated(created);
+        repository.saveApi(api(
+                API_ID,
+                "API-RB-1",
+                "创建订单V2",
+                "/api/v2/orders",
+                "2.0.0",
+                "{\"type\":\"object\",\"required\":[\"id\"]}",
+                "{\"type\":\"object\",\"properties\":{\"id\":{\"type\":\"string\"}}}",
+                "DEPRECATED",
+                "ACTIVE"
+        ));
+
+        ApiResponseDTO response = service.rollbackApiVersion(
+                API_ID,
+                1,
+                new RollbackAssetVersionRequest("restore api baseline")
+        );
+
+        AssetApi stored = repository.apiIncludingInactive(API_ID).orElseThrow();
+        assertThat(response.summary()).isEqualTo("创建订单");
+        assertThat(response.path()).isEqualTo("/api/orders");
+        assertThat(response.version()).isEqualTo("1.0.0");
+        assertThat(response.status()).isEqualTo("ACTIVE");
+        assertThat(stored.requestSchema()).isEqualTo("{\"type\":\"object\"}");
+        assertThat(contextClient.auditEvents)
+                .singleElement()
+                .satisfies(event -> {
+                    assertThat(event.action()).isEqualTo("ROLLBACK");
+                    assertThat(event.resourceType()).isEqualTo("API");
+                    assertThat(event.scopeId()).isEqualTo(PROJECT_ID);
+                });
+        AssetVersionHistoryResponse history = versionHistoryService.responses("API", API_ID).getFirst();
+        assertThat(history.changeType()).isEqualTo("ROLLBACK");
+        assertThat(history.changedFields()).contains("summary", "path", "version", "requestSchema", "status");
+        assertThat(history.snapshot().path("revision").asInt()).isEqualTo(2);
+    }
+
+    @Test
+    void rollbacksPageSnapshotAndRecordsAuditAndHistory() {
+        AssetPage created = page(
+                PAGE_ID,
+                "PAGE-RB-1",
+                "结算页",
+                "/checkout",
+                "MANUAL",
+                null,
+                null,
+                "{\"type\":\"page\"}",
+                null,
+                "ACTIVE",
+                "ACTIVE"
+        );
+        versionHistoryService.recordPageCreated(created);
+        repository.savePage(page(
+                PAGE_ID,
+                "PAGE-RB-1",
+                "结算页V2",
+                "/checkout/v2",
+                "FIGMA",
+                "figma-node-1",
+                "figma-v42",
+                "{\"type\":\"page\",\"children\":[\"submit\"]}",
+                "https://cdn.example.test/page.png",
+                "DEPRECATED",
+                "ACTIVE"
+        ));
+
+        PageResponse response = service.rollbackPageVersion(
+                PAGE_ID,
+                1,
+                new RollbackAssetVersionRequest("restore page baseline")
+        );
+
+        AssetPage stored = repository.pageIncludingInactive(PAGE_ID).orElseThrow();
+        assertThat(response.name()).isEqualTo("结算页");
+        assertThat(response.urlPattern()).isEqualTo("/checkout");
+        assertThat(response.source()).isEqualTo("MANUAL");
+        assertThat(response.status()).isEqualTo("ACTIVE");
+        assertThat(stored.componentTree()).isEqualTo("{\"type\":\"page\"}");
+        assertThat(contextClient.auditEvents)
+                .singleElement()
+                .satisfies(event -> {
+                    assertThat(event.action()).isEqualTo("ROLLBACK");
+                    assertThat(event.resourceType()).isEqualTo("PAGE");
+                    assertThat(event.scopeId()).isEqualTo(PROJECT_ID);
+                });
+        AssetVersionHistoryResponse history = versionHistoryService.responses("PAGE", PAGE_ID).getFirst();
+        assertThat(history.changeType()).isEqualTo("ROLLBACK");
+        assertThat(history.changedFields()).contains("name", "urlPattern", "source", "componentTree", "status");
+        assertThat(history.snapshot().path("revision").asInt()).isEqualTo(2);
+    }
+
+    @Test
+    void rollbacksBusinessFlowSnapshotAndRecordsAuditAndHistory() {
+        AssetBusinessFlow created = businessFlow(
+                FLOW_ID,
+                "FLOW-RB-1",
+                "下单主流程",
+                "购物车到支付",
+                "{\"nodes\":[\"cart\",\"pay\"]}",
+                "HIGH",
+                "DRAFT",
+                "ACTIVE"
+        );
+        versionHistoryService.recordBusinessFlowCreated(created);
+        repository.saveBusinessFlow(businessFlow(
+                FLOW_ID,
+                "FLOW-RB-1",
+                "下单主流程V2",
+                "覆盖优惠券",
+                "{\"nodes\":[\"cart\",\"coupon\",\"pay\"]}",
+                "CRITICAL",
+                "ACTIVE",
+                "ACTIVE"
+        ));
+
+        BusinessFlowResponse response = service.rollbackBusinessFlowVersion(
+                FLOW_ID,
+                1,
+                new RollbackAssetVersionRequest("restore flow baseline")
+        );
+
+        AssetBusinessFlow stored = repository.businessFlowIncludingInactive(FLOW_ID).orElseThrow();
+        assertThat(response.name()).isEqualTo("下单主流程");
+        assertThat(response.description()).isEqualTo("购物车到支付");
+        assertThat(response.priority()).isEqualTo("HIGH");
+        assertThat(response.status()).isEqualTo("DRAFT");
+        assertThat(stored.flowJson()).isEqualTo("{\"nodes\":[\"cart\",\"pay\"]}");
+        assertThat(contextClient.auditEvents)
+                .singleElement()
+                .satisfies(event -> {
+                    assertThat(event.action()).isEqualTo("ROLLBACK");
+                    assertThat(event.resourceType()).isEqualTo("BUSINESS_FLOW");
+                    assertThat(event.scopeId()).isEqualTo(PROJECT_ID);
+                });
+        AssetVersionHistoryResponse history = versionHistoryService.responses("BUSINESS_FLOW", FLOW_ID).getFirst();
+        assertThat(history.changeType()).isEqualTo("ROLLBACK");
+        assertThat(history.changedFields()).contains("name", "description", "flowJson", "priority", "status");
+        assertThat(history.snapshot().path("revision").asInt()).isEqualTo(2);
+    }
+
+    @Test
     void rejectsTestCaseRollbackWhenRequirementBelongsToOtherProject() {
         repository.saveRequirement(requirement(
                 REQUIREMENT_ID,
@@ -414,21 +576,110 @@ class AssetVersionRollbackServiceTest {
     }
 
     private static AssetApi api(UUID id, String projectId) {
+        return api(id, "API-RB-1", "Rollback API", "/api/rollback", "v1", null, null, "DRAFT", "ACTIVE", projectId);
+    }
+
+    private static AssetApi api(
+            UUID id,
+            String code,
+            String summary,
+            String path,
+            String version,
+            String requestSchema,
+            String responseSchema,
+            String status,
+            String lifecycleStatus
+    ) {
+        return api(id, code, summary, path, version, requestSchema, responseSchema, status, lifecycleStatus, PROJECT_ID);
+    }
+
+    private static AssetApi api(
+            UUID id,
+            String code,
+            String summary,
+            String path,
+            String version,
+            String requestSchema,
+            String responseSchema,
+            String status,
+            String lifecycleStatus,
+            String projectId
+    ) {
         return new AssetApi(
                 id,
-                "API-RB-1",
-                "Rollback API",
+                code,
+                summary,
                 "Rollback test api",
                 "GET",
-                "/api/rollback",
+                path,
                 "MANUAL",
                 null,
-                "v1",
-                null,
-                null,
+                version,
+                requestSchema,
+                responseSchema,
                 projectId,
-                "DRAFT",
-                "ACTIVE",
+                status,
+                lifecycleStatus,
+                null,
+                null,
+                Instant.EPOCH,
+                Instant.EPOCH
+        );
+    }
+
+    private static AssetPage page(
+            UUID id,
+            String code,
+            String name,
+            String urlPattern,
+            String source,
+            String sourceRef,
+            String sourceVersion,
+            String componentTree,
+            String screenshotUrl,
+            String status,
+            String lifecycleStatus
+    ) {
+        return new AssetPage(
+                id,
+                code,
+                name,
+                urlPattern,
+                source,
+                sourceRef,
+                sourceVersion,
+                componentTree,
+                screenshotUrl,
+                PROJECT_ID,
+                status,
+                lifecycleStatus,
+                null,
+                null,
+                Instant.EPOCH,
+                Instant.EPOCH
+        );
+    }
+
+    private static AssetBusinessFlow businessFlow(
+            UUID id,
+            String code,
+            String name,
+            String description,
+            String flowJson,
+            String priority,
+            String status,
+            String lifecycleStatus
+    ) {
+        return new AssetBusinessFlow(
+                id,
+                code,
+                name,
+                description,
+                flowJson,
+                priority,
+                PROJECT_ID,
+                status,
+                lifecycleStatus,
                 null,
                 null,
                 Instant.EPOCH,

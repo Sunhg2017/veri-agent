@@ -2,14 +2,17 @@ package com.songhg.veri.agent.asset.api.controller;
 
 import com.songhg.veri.agent.asset.application.AssetService;
 import com.songhg.veri.agent.asset.application.command.CreatePageRequest;
+import com.songhg.veri.agent.asset.application.command.RollbackAssetVersionRequest;
 import com.songhg.veri.agent.asset.application.command.UpdateAssetLifecycleRequest;
 import com.songhg.veri.agent.asset.application.command.UpdatePageRequest;
 import com.songhg.veri.agent.asset.application.query.AssetListRequest;
+import com.songhg.veri.agent.asset.application.view.AssetVersionHistoryResponse;
 import com.songhg.veri.agent.asset.application.view.PageResponse;
 import com.songhg.veri.agent.authorization.application.PermissionCodes;
 import com.songhg.veri.agent.authorization.application.RequirePermission;
 import com.songhg.veri.agent.common.openapi.ApiVersion;
 import jakarta.validation.Valid;
+import java.util.List;
 import java.util.UUID;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -62,6 +65,22 @@ public class AssetPageController {
     @RequirePermission(value = PermissionCodes.ASSET_MANAGE, scope = AssetPermissionScopes.PAGE)
     public PageResponse updatePage(@PathVariable UUID id, @Valid @RequestBody UpdatePageRequest request) {
         return service.updatePage(id, request);
+    }
+
+    @GetMapping("/{id}/versions")
+    @RequirePermission(value = PermissionCodes.ASSET_READ, scope = AssetPermissionScopes.PAGE)
+    public List<AssetVersionHistoryResponse> pageVersions(@PathVariable UUID id) {
+        return service.pageVersions(id);
+    }
+
+    @PostMapping("/{id}/versions/{version}/rollback")
+    @RequirePermission(value = PermissionCodes.ASSET_MANAGE, scope = AssetPermissionScopes.PAGE)
+    public PageResponse rollbackPageVersion(
+            @PathVariable UUID id,
+            @PathVariable int version,
+            @Valid @RequestBody(required = false) RollbackAssetVersionRequest request
+    ) {
+        return service.rollbackPageVersion(id, version, request);
     }
 
     @PatchMapping("/{id}/lifecycle")

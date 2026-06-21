@@ -44,14 +44,17 @@ import org.slf4j.LoggerFactory;
 final class ApiImportExportHandler extends AbstractAssetImportExportHandler {
 
     private static final Logger log = LoggerFactory.getLogger(ApiImportExportHandler.class);
+    private final AssetVersionHistoryService versionHistoryService;
 
     ApiImportExportHandler(
             AssetRepository repository,
             AssetProjectAuditService projectAuditService,
             AssetService assetService,
-            AssetImportExportSupport support
+            AssetImportExportSupport support,
+            AssetVersionHistoryService versionHistoryService
     ) {
         super(repository, projectAuditService, assetService, support);
+        this.versionHistoryService = versionHistoryService;
     }
 
     @Override
@@ -158,6 +161,7 @@ final class ApiImportExportHandler extends AbstractAssetImportExportHandler {
         );
         projectAuditService.writeProjectAudit("CREATE", "API", id, scopeId);
         AssetApi stored = repository.saveApi(api);
+        versionHistoryService.recordApiCreated(stored);
         log.info("Created imported api id={}, path={}, method={}, trace_id={}",
                 id, api.path(), api.httpMethod(), TraceContext.getTraceId());
         return stored;
@@ -169,6 +173,7 @@ final class ApiImportExportHandler extends AbstractAssetImportExportHandler {
         AssetApi merged = mergeImportedApi(existing, row, Instant.now());
         projectAuditService.writeProjectAudit("UPDATE", "API", id, existing.projectId());
         AssetApi stored = repository.saveApi(merged);
+        versionHistoryService.recordApiChange(existing, stored, "UPSERT");
         log.info("Updated imported api id={}, path={}, method={}, trace_id={}",
                 id, stored.path(), stored.httpMethod(), TraceContext.getTraceId());
         return stored;

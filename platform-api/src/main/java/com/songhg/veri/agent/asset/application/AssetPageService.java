@@ -5,11 +5,13 @@ import static com.songhg.veri.agent.asset.application.AssetCodeGenerator.assetCo
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.songhg.veri.agent.asset.application.command.CreatePageRequest;
+import com.songhg.veri.agent.asset.application.command.RollbackAssetVersionRequest;
 import com.songhg.veri.agent.asset.application.command.UpdateAssetLifecycleRequest;
 import com.songhg.veri.agent.asset.application.command.UpdatePageRequest;
 import com.songhg.veri.agent.asset.application.port.AssetRepository;
 import com.songhg.veri.agent.asset.application.query.AssetListQuery;
 import com.songhg.veri.agent.asset.application.query.AssetListRequest;
+import com.songhg.veri.agent.asset.application.view.AssetVersionHistoryResponse;
 import com.songhg.veri.agent.asset.application.view.PageResponse;
 import com.songhg.veri.agent.asset.domain.AssetLifecycleStatus;
 import com.songhg.veri.agent.asset.domain.AssetPage;
@@ -48,17 +50,23 @@ public class AssetPageService {
 
     private final AssetRepository repository;
     private final AssetProjectAuditService projectAuditService;
+    private final AssetVersionHistoryService versionHistoryService;
+    private final AssetVersionRollbackService versionRollbackService;
     private final AssetLifecycleService lifecycleService;
     private final ObjectMapper objectMapper;
 
     public AssetPageService(
             AssetRepository repository,
             AssetProjectAuditService projectAuditService,
+            AssetVersionHistoryService versionHistoryService,
+            AssetVersionRollbackService versionRollbackService,
             AssetLifecycleService lifecycleService,
             ObjectMapper objectMapper
     ) {
         this.repository = repository;
         this.projectAuditService = projectAuditService;
+        this.versionHistoryService = versionHistoryService;
+        this.versionRollbackService = versionRollbackService;
         this.lifecycleService = lifecycleService;
         this.objectMapper = objectMapper;
     }
@@ -129,9 +137,10 @@ public class AssetPageService {
                 now
         );
         projectAuditService.writeProjectAudit("CREATE", "PAGE", id, scopeId);
-        repository.savePage(page);
+        AssetPage stored = repository.savePage(page);
+        versionHistoryService.recordPageCreated(stored);
         log.info("Created page id={}, name={}, trace_id={}", id, request.name(), TraceContext.getTraceId());
-        return AssetResponseMapper.toPageResponse(page);
+        return AssetResponseMapper.toPageResponse(stored);
     }
 
     /**
@@ -168,7 +177,24 @@ public class AssetPageService {
         );
         projectAuditService.writeProjectAudit("UPDATE", "PAGE", id, existing.projectId());
         AssetPage stored = repository.savePage(updated);
+        versionHistoryService.recordPageChange(existing, stored, "UPDATE");
         return AssetResponseMapper.toPageResponse(stored);
+    }
+
+    /**
+     * Returns immutable version history for active or inactive pages.
+     */
+    public List<AssetVersionHistoryResponse> pageVersions(UUID id) {
+        AssetPage page = repository.pageIncludingInactive(id)
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "页面资产不存在: " + id));
+        return versionHistoryService.responses("PAGE", page.id());
+    }
+
+    /**
+     * Delegates rollback to the shared rollback service so snapshot restore rules stay consistent.
+     */
+    public PageResponse rollbackPageVersion(UUID id, int version, RollbackAssetVersionRequest request) {
+        return versionRollbackService.rollbackPageVersion(id, version, request);
     }
 
     /**

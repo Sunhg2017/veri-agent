@@ -36,7 +36,8 @@ public class AssetImportExportService {
             AssetRepository repository,
             AssetProjectAuditService projectAuditService,
             ObjectMapper objectMapper,
-            AssetService assetService
+            AssetService assetService,
+            AssetVersionHistoryService versionHistoryService
     ) {
         this.projectAuditService = projectAuditService;
         this.support = new AssetImportExportSupport(objectMapper);
@@ -44,7 +45,7 @@ public class AssetImportExportService {
                 AssetFormatValidator.ASSET_REQUIREMENT,
                 new RequirementImportExportHandler(repository, projectAuditService, assetService, support),
                 AssetFormatValidator.ASSET_API,
-                new ApiImportExportHandler(repository, projectAuditService, assetService, support),
+                new ApiImportExportHandler(repository, projectAuditService, assetService, support, versionHistoryService),
                 AssetFormatValidator.ASSET_PAGE,
                 new PageImportExportHandler(repository, projectAuditService, assetService, support),
                 AssetFormatValidator.ASSET_BUSINESS_FLOW,

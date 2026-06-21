@@ -5,11 +5,13 @@ import static com.songhg.veri.agent.asset.application.AssetCodeGenerator.assetCo
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.songhg.veri.agent.asset.application.command.CreateBusinessFlowRequest;
+import com.songhg.veri.agent.asset.application.command.RollbackAssetVersionRequest;
 import com.songhg.veri.agent.asset.application.command.UpdateAssetLifecycleRequest;
 import com.songhg.veri.agent.asset.application.command.UpdateBusinessFlowRequest;
 import com.songhg.veri.agent.asset.application.port.AssetRepository;
 import com.songhg.veri.agent.asset.application.query.AssetListQuery;
 import com.songhg.veri.agent.asset.application.query.AssetListRequest;
+import com.songhg.veri.agent.asset.application.view.AssetVersionHistoryResponse;
 import com.songhg.veri.agent.asset.application.view.BusinessFlowResponse;
 import com.songhg.veri.agent.asset.domain.AssetBusinessFlow;
 import com.songhg.veri.agent.asset.domain.AssetLifecycleStatus;
@@ -49,17 +51,23 @@ public class AssetBusinessFlowService {
 
     private final AssetRepository repository;
     private final AssetProjectAuditService projectAuditService;
+    private final AssetVersionHistoryService versionHistoryService;
+    private final AssetVersionRollbackService versionRollbackService;
     private final AssetLifecycleService lifecycleService;
     private final ObjectMapper objectMapper;
 
     public AssetBusinessFlowService(
             AssetRepository repository,
             AssetProjectAuditService projectAuditService,
+            AssetVersionHistoryService versionHistoryService,
+            AssetVersionRollbackService versionRollbackService,
             AssetLifecycleService lifecycleService,
             ObjectMapper objectMapper
     ) {
         this.repository = repository;
         this.projectAuditService = projectAuditService;
+        this.versionHistoryService = versionHistoryService;
+        this.versionRollbackService = versionRollbackService;
         this.lifecycleService = lifecycleService;
         this.objectMapper = objectMapper;
     }
@@ -127,9 +135,10 @@ public class AssetBusinessFlowService {
                 now
         );
         projectAuditService.writeProjectAudit("CREATE", "BUSINESS_FLOW", id, scopeId);
-        repository.saveBusinessFlow(flow);
+        AssetBusinessFlow stored = repository.saveBusinessFlow(flow);
+        versionHistoryService.recordBusinessFlowCreated(stored);
         log.info("Created business flow id={}, name={}, trace_id={}", id, request.name(), TraceContext.getTraceId());
-        return AssetResponseMapper.toBusinessFlowResponse(flow);
+        return AssetResponseMapper.toBusinessFlowResponse(stored);
     }
 
     /**
@@ -163,7 +172,24 @@ public class AssetBusinessFlowService {
         );
         projectAuditService.writeProjectAudit("UPDATE", "BUSINESS_FLOW", id, existing.projectId());
         AssetBusinessFlow stored = repository.saveBusinessFlow(updated);
+        versionHistoryService.recordBusinessFlowChange(existing, stored, "UPDATE");
         return AssetResponseMapper.toBusinessFlowResponse(stored);
+    }
+
+    /**
+     * Returns immutable version history for active or inactive business flows.
+     */
+    public List<AssetVersionHistoryResponse> businessFlowVersions(UUID id) {
+        AssetBusinessFlow flow = repository.businessFlowIncludingInactive(id)
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "业务流资产不存在: " + id));
+        return versionHistoryService.responses("BUSINESS_FLOW", flow.id());
+    }
+
+    /**
+     * Delegates rollback to the shared rollback service so snapshot restore rules stay consistent.
+     */
+    public BusinessFlowResponse rollbackBusinessFlowVersion(UUID id, int version, RollbackAssetVersionRequest request) {
+        return versionRollbackService.rollbackBusinessFlowVersion(id, version, request);
     }
 
     /**

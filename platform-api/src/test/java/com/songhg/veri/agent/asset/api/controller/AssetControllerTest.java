@@ -417,6 +417,19 @@ class AssetControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.total").value(1))
                 .andExpect(jsonPath("$.data.items", hasSize(1)));
+
+        mockMvc.perform(get("/api/v1/asset/apis/{id}/versions", apiId)
+                        .headers(authHeaders()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data", hasSize(2)))
+                .andExpect(jsonPath("$.data[0].version").value(2))
+                .andExpect(jsonPath("$.data[0].changeType").value("UPDATE"))
+                .andExpect(jsonPath("$.data[0].changedFields",
+                        contains("summary", "description", "path", "version")))
+                .andExpect(jsonPath("$.data[0].snapshot.revision").value(2))
+                .andExpect(jsonPath("$.data[0].snapshot.version").value("2.0.0"))
+                .andExpect(jsonPath("$.data[1].version").value(1))
+                .andExpect(jsonPath("$.data[1].changeType").value("CREATE"));
     }
 
     @Test
@@ -476,6 +489,19 @@ class AssetControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.total").value(1))
                 .andExpect(jsonPath("$.data.items", hasSize(1)));
+
+        mockMvc.perform(get("/api/v1/asset/pages/{id}/versions", pageId)
+                        .headers(authHeaders()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data", hasSize(2)))
+                .andExpect(jsonPath("$.data[0].version").value(2))
+                .andExpect(jsonPath("$.data[0].changeType").value("UPDATE"))
+                .andExpect(jsonPath("$.data[0].changedFields",
+                        contains("name", "urlPattern", "source", "sourceRef", "sourceVersion", "componentTree", "screenshotUrl", "status")))
+                .andExpect(jsonPath("$.data[0].snapshot.revision").value(2))
+                .andExpect(jsonPath("$.data[0].snapshot.componentTree.form").value("login"))
+                .andExpect(jsonPath("$.data[1].version").value(1))
+                .andExpect(jsonPath("$.data[1].changeType").value("CREATE"));
     }
 
     @Test
@@ -511,6 +537,131 @@ class AssetControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.total").value(1))
                 .andExpect(jsonPath("$.data.items", hasSize(1)));
+
+        mockMvc.perform(get("/api/v1/asset/business-flows/{id}/versions", flowId)
+                        .headers(authHeaders()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data", hasSize(2)))
+                .andExpect(jsonPath("$.data[0].version").value(2))
+                .andExpect(jsonPath("$.data[0].changeType").value("UPDATE"))
+                .andExpect(jsonPath("$.data[0].changedFields",
+                        contains("name", "description", "flowJson", "priority", "status")))
+                .andExpect(jsonPath("$.data[0].snapshot.revision").value(2))
+                .andExpect(jsonPath("$.data[0].snapshot.flowJson.nodes", hasSize(2)))
+                .andExpect(jsonPath("$.data[1].version").value(1))
+                .andExpect(jsonPath("$.data[1].changeType").value("CREATE"));
+    }
+
+    @Test
+    void rollsBackApiToHistoricalSnapshot() throws Exception {
+        String apiId = createApi("回滚 API V1", "POST", "/api/rollback");
+
+        mockMvc.perform(put("/api/v1/asset/apis/{id}", apiId)
+                        .headers(authHeaders())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "summary": "回滚 API V2",
+                                  "description": "更新版本",
+                                  "httpMethod": "POST",
+                                  "path": "/api/rollback/v2",
+                                  "version": "2.0.0",
+                                  "status": "DEPRECATED"
+                                }
+                                """))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(post("/api/v1/asset/apis/{id}/versions/1/rollback", apiId)
+                        .headers(authHeaders())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"reason\":\"restore api\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.summary").value("回滚 API V1"))
+                .andExpect(jsonPath("$.data.path").value("/api/rollback"))
+                .andExpect(jsonPath("$.data.version").doesNotExist())
+                .andExpect(jsonPath("$.data.status").value("ACTIVE"));
+
+        mockMvc.perform(get("/api/v1/asset/apis/{id}/versions", apiId)
+                        .headers(authHeaders()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[0].changeType").value("ROLLBACK"))
+                .andExpect(jsonPath("$.data[0].changedFields",
+                        contains("summary", "description", "path", "version", "status")));
+    }
+
+    @Test
+    void rollsBackPageToHistoricalSnapshot() throws Exception {
+        String pageId = createPage("回滚页面V1", "/rollback/page");
+
+        mockMvc.perform(put("/api/v1/asset/pages/{id}", pageId)
+                        .headers(authHeaders())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "name": "回滚页面V2",
+                                  "urlPattern": "/rollback/page/v2",
+                                  "source": "FIGMA",
+                                  "sourceRef": "figma-node-rollback",
+                                  "sourceVersion": "figma-v42",
+                                  "componentTree": {"sections": ["form"]},
+                                  "screenshotUrl": "https://example.test/rollback-page.png",
+                                  "status": "DEPRECATED"
+                                }
+                                """))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(post("/api/v1/asset/pages/{id}/versions/1/rollback", pageId)
+                        .headers(authHeaders())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"reason\":\"restore page\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.name").value("回滚页面V1"))
+                .andExpect(jsonPath("$.data.urlPattern").value("/rollback/page"))
+                .andExpect(jsonPath("$.data.source").value("MANUAL"))
+                .andExpect(jsonPath("$.data.status").value("ACTIVE"));
+
+        mockMvc.perform(get("/api/v1/asset/pages/{id}/versions", pageId)
+                        .headers(authHeaders()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[0].changeType").value("ROLLBACK"))
+                .andExpect(jsonPath("$.data[0].changedFields",
+                        contains("name", "urlPattern", "source", "sourceRef", "sourceVersion", "componentTree", "screenshotUrl", "status")));
+    }
+
+    @Test
+    void rollsBackBusinessFlowToHistoricalSnapshot() throws Exception {
+        String flowId = createBusinessFlow("回滚流程V1");
+
+        mockMvc.perform(put("/api/v1/asset/business-flows/{id}", flowId)
+                        .headers(authHeaders())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "name": "回滚流程V2",
+                                  "description": "覆盖更多分支",
+                                  "flowJson": {"nodes": ["open", "submit", "done"]},
+                                  "priority": "CRITICAL",
+                                  "status": "ACTIVE"
+                                }
+                                """))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(post("/api/v1/asset/business-flows/{id}/versions/1/rollback", flowId)
+                        .headers(authHeaders())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"reason\":\"restore flow\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.name").value("回滚流程V1"))
+                .andExpect(jsonPath("$.data.description").value("登录链路"))
+                .andExpect(jsonPath("$.data.priority").value("HIGH"))
+                .andExpect(jsonPath("$.data.status").value("DRAFT"));
+
+        mockMvc.perform(get("/api/v1/asset/business-flows/{id}/versions", flowId)
+                        .headers(authHeaders()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[0].changeType").value("ROLLBACK"))
+                .andExpect(jsonPath("$.data[0].changedFields",
+                        contains("name", "description", "flowJson", "priority", "status")));
     }
 
     @Test

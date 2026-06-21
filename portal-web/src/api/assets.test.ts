@@ -26,10 +26,13 @@ import {
   exportAssetsText,
   fetchAssetImpactAnalysis,
   fetchAssetApi,
+  fetchAssetApiVersions,
   fetchAssetApis,
   fetchAssetBusinessFlow,
+  fetchAssetBusinessFlowVersions,
   fetchAssetBusinessFlows,
   fetchAssetPage,
+  fetchAssetPageVersions,
   fetchAssetPages,
   fetchAssetRequirement,
   fetchAssetRequirements,
@@ -55,6 +58,9 @@ import {
   normalizeAssetTestCaseView,
   normalizeAssetVersionHistoryView,
   normalizeTraceLinkList,
+  rollbackAssetApiVersion,
+  rollbackAssetBusinessFlowVersion,
+  rollbackAssetPageVersion,
   rollbackAssetRequirementVersion,
   rollbackAssetTestCaseVersion,
   syncPrototypePages,
@@ -439,6 +445,57 @@ describe('asset API helpers', () => {
     });
   });
 
+  it('calls API versions and rollback endpoints', async () => {
+    requestJsonMock.mockResolvedValueOnce({
+      code: 'OK',
+      message: 'ok',
+      trace_id: 'trace-api-versions',
+      data: [
+        {
+          history_id: 'hist-api-1',
+          asset_type: 'API',
+          asset_id: 'api-1',
+          project_id: 'proj-payments',
+          version: '2',
+          change_type: 'UPSERT',
+          changed_fields: 'summary, requestSchema',
+          diff_json: '{"summary":{"before":"旧接口","after":"新接口"}}',
+          snapshot_json: '{"summary":"新接口","requestSchema":{"type":"object"},"revision":2}',
+          trace_id: 'trace-api-history'
+        }
+      ]
+    });
+
+    const versions = await fetchAssetApiVersions('api 1');
+    expect(requestJsonMock).toHaveBeenLastCalledWith('/api/v1/asset/apis/api%201/versions');
+    expect(versions.data[0]).toMatchObject({
+      id: 'hist-api-1',
+      assetType: 'API',
+      assetId: 'api-1',
+      projectId: 'proj-payments',
+      version: 2,
+      changeType: 'UPSERT',
+      changedFields: ['summary', 'requestSchema'],
+      diff: { summary: { before: '旧接口', after: '新接口' } },
+      snapshot: { summary: '新接口', requestSchema: { type: 'object' }, revision: 2 },
+      traceId: 'trace-api-history'
+    });
+
+    requestJsonMock.mockResolvedValueOnce({
+      code: 'OK',
+      message: 'ok',
+      trace_id: 'trace-api-rollback',
+      data: { id: 'api-1', summary: '旧接口', httpMethod: 'GET', path: '/api/orders' }
+    });
+
+    const rolledBack = await rollbackAssetApiVersion('api 1', 1, 'restore api');
+    expect(requestJsonMock).toHaveBeenLastCalledWith('/api/v1/asset/apis/api%201/versions/1/rollback', {
+      method: 'POST',
+      body: JSON.stringify({ reason: 'restore api' })
+    });
+    expect(rolledBack.data.summary).toBe('旧接口');
+  });
+
   it('normalizes page assets with JSON fields and paged responses', () => {
     const page = normalizeAssetPageView({
       page_id: 'page-1',
@@ -546,6 +603,52 @@ describe('asset API helpers', () => {
     });
   });
 
+  it('calls page versions and rollback endpoints', async () => {
+    requestJsonMock.mockResolvedValueOnce({
+      code: 'OK',
+      message: 'ok',
+      trace_id: 'trace-page-versions',
+      data: [
+        {
+          id: 'hist-page-1',
+          assetType: 'PAGE',
+          assetId: 'page-1',
+          version: 3,
+          changeType: 'ROLLBACK',
+          changedFields: ['name', 'componentTree'],
+          diff: { name: { before: '结算页V2', after: '结算页' } },
+          snapshot: { name: '结算页', componentTree: { type: 'page' }, revision: 3 }
+        }
+      ]
+    });
+
+    const versions = await fetchAssetPageVersions('page 1');
+    expect(requestJsonMock).toHaveBeenLastCalledWith('/api/v1/asset/pages/page%201/versions');
+    expect(versions.data[0]).toMatchObject({
+      id: 'hist-page-1',
+      assetType: 'PAGE',
+      assetId: 'page-1',
+      version: 3,
+      changeType: 'ROLLBACK',
+      changedFields: ['name', 'componentTree'],
+      snapshot: { name: '结算页', componentTree: { type: 'page' }, revision: 3 }
+    });
+
+    requestJsonMock.mockResolvedValueOnce({
+      code: 'OK',
+      message: 'ok',
+      trace_id: 'trace-page-rollback',
+      data: { id: 'page-1', name: '结算页', urlPattern: '/checkout/**' }
+    });
+
+    const rolledBack = await rollbackAssetPageVersion('page 1', 2);
+    expect(requestJsonMock).toHaveBeenLastCalledWith('/api/v1/asset/pages/page%201/versions/2/rollback', {
+      method: 'POST',
+      body: JSON.stringify({})
+    });
+    expect(rolledBack.data.name).toBe('结算页');
+  });
+
   it('normalizes business flow assets with JSON fields and paged responses', () => {
     const flow = normalizeAssetBusinessFlowView({
       flow_id: 'flow-1',
@@ -640,6 +743,59 @@ describe('asset API helpers', () => {
         status: 'ACTIVE'
       })
     });
+  });
+
+  it('calls business flow versions and rollback endpoints', async () => {
+    requestJsonMock.mockResolvedValueOnce({
+      code: 'OK',
+      message: 'ok',
+      trace_id: 'trace-flow-versions',
+      data: {
+        items: [
+          {
+            history_id: 'hist-flow-1',
+            asset_type: 'BUSINESS_FLOW',
+            asset_id: 'flow-1',
+            project_id: 'proj-payments',
+            version: '4',
+            change_type: 'UPDATE',
+            changed_fields: ['priority', 'flowJson'],
+            diff_json: '{"priority":{"before":"MEDIUM","after":"HIGH"}}',
+            snapshot_json: '{"name":"下单主流程","priority":"HIGH","flowJson":{"nodes":["cart","pay"]},"revision":4}',
+            trace_id: 'trace-flow-history'
+          }
+        ]
+      }
+    });
+
+    const versions = await fetchAssetBusinessFlowVersions('flow 1');
+    expect(requestJsonMock).toHaveBeenLastCalledWith('/api/v1/asset/business-flows/flow%201/versions');
+    expect(versions.data[0]).toMatchObject({
+      id: 'hist-flow-1',
+      assetType: 'BUSINESS_FLOW',
+      assetId: 'flow-1',
+      projectId: 'proj-payments',
+      version: 4,
+      changeType: 'UPDATE',
+      changedFields: ['priority', 'flowJson'],
+      diff: { priority: { before: 'MEDIUM', after: 'HIGH' } },
+      snapshot: { name: '下单主流程', priority: 'HIGH', flowJson: { nodes: ['cart', 'pay'] }, revision: 4 },
+      traceId: 'trace-flow-history'
+    });
+
+    requestJsonMock.mockResolvedValueOnce({
+      code: 'OK',
+      message: 'ok',
+      trace_id: 'trace-flow-rollback',
+      data: { id: 'flow-1', name: '下单主流程', priority: 'HIGH' }
+    });
+
+    const rolledBack = await rollbackAssetBusinessFlowVersion('flow 1', 3, 'restore flow');
+    expect(requestJsonMock).toHaveBeenLastCalledWith('/api/v1/asset/business-flows/flow%201/versions/3/rollback', {
+      method: 'POST',
+      body: JSON.stringify({ reason: 'restore flow' })
+    });
+    expect(rolledBack.data.name).toBe('下单主流程');
   });
 
   it('normalizes test case assets with ordered steps and paged responses', () => {

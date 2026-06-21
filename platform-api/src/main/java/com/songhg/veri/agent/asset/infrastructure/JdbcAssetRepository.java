@@ -68,7 +68,7 @@ public class JdbcAssetRepository implements AssetRepository {
                 if (mapper.getRequirementIncludingInactive(stored.id()) == null) {
                     mapper.insertRequirement(stored);
                 } else {
-                    mapper.updateRequirementLifecycle(stored);
+                    mapper.updateRequirement(stored);
                 }
             } else {
                 mapper.updateRequirement(stored);
@@ -148,12 +148,12 @@ public class JdbcAssetRepository implements AssetRepository {
             if (mapper.getApiIncludingInactive(stored.id()) == null) {
                 mapper.insertApi(stored);
             } else {
-                mapper.updateApiLifecycle(stored);
+                mapper.updateApi(stored);
             }
         } else {
             mapper.updateApi(stored);
         }
-        return api;
+        return stored;
     }
 
     @Override
@@ -203,12 +203,12 @@ public class JdbcAssetRepository implements AssetRepository {
             if (mapper.getPageIncludingInactive(stored.id()) == null) {
                 mapper.insertPage(stored);
             } else {
-                mapper.updatePageLifecycle(stored);
+                mapper.updatePage(stored);
             }
         } else {
             mapper.updatePage(stored);
         }
-        return page;
+        return stored;
     }
 
     @Override
@@ -248,12 +248,12 @@ public class JdbcAssetRepository implements AssetRepository {
             if (mapper.getBusinessFlowIncludingInactive(stored.id()) == null) {
                 mapper.insertBusinessFlow(stored);
             } else {
-                mapper.updateBusinessFlowLifecycle(stored);
+                mapper.updateBusinessFlow(stored);
             }
         } else {
             mapper.updateBusinessFlow(stored);
         }
-        return flow;
+        return stored;
     }
 
     @Override
@@ -332,7 +332,7 @@ public class JdbcAssetRepository implements AssetRepository {
             if (mapper.getTestCaseIncludingInactive(stored.id()) == null) {
                 mapper.insertTestCase(stored);
             } else {
-                mapper.updateTestCaseLifecycle(stored);
+                mapper.updateTestCase(stored);
             }
         } else {
             mapper.updateTestCase(stored);
@@ -340,7 +340,7 @@ public class JdbcAssetRepository implements AssetRepository {
         if (!"DELETED".equals(stored.lifecycleStatus())) {
             replaceTestCaseSteps(stored.id(), stored.steps());
         }
-        return testCase;
+        return stored;
     }
 
     @Override

@@ -34,15 +34,18 @@ public class AssetPrototypeSyncService {
     private final AssetRepository repository;
     private final AssetProjectAuditService projectAuditService;
     private final ObjectMapper objectMapper;
+    private final AssetVersionHistoryService versionHistoryService;
 
     public AssetPrototypeSyncService(
             AssetRepository repository,
             AssetProjectAuditService projectAuditService,
-            ObjectMapper objectMapper
+            ObjectMapper objectMapper,
+            AssetVersionHistoryService versionHistoryService
     ) {
         this.repository = repository;
         this.projectAuditService = projectAuditService;
         this.objectMapper = objectMapper;
+        this.versionHistoryService = versionHistoryService;
     }
 
     @Transactional
@@ -93,7 +96,8 @@ public class AssetPrototypeSyncService {
                 }
                 if (!dryRun) {
                     projectAuditService.writeProjectAudit("PROTOTYPE_SYNC_UPDATE", "PAGE", existing.get().id(), projectId);
-                    repository.savePage(merged);
+                    AssetPage stored = repository.savePage(merged);
+                    versionHistoryService.recordPageChange(existing.get(), stored, "UPSERT");
                 }
                 return new AssetImportItemResponse(row, "UPDATE", existing.get().id(), existing.get().code(), dryRun ? "PLANNED" : "SUCCEEDED", "同步更新页面", List.of());
             }
@@ -119,7 +123,8 @@ public class AssetPrototypeSyncService {
             );
             if (!dryRun) {
                 projectAuditService.writeProjectAudit("PROTOTYPE_SYNC_CREATE", "PAGE", id, projectId);
-                repository.savePage(created);
+                AssetPage stored = repository.savePage(created);
+                versionHistoryService.recordPageCreated(stored);
             }
             return new AssetImportItemResponse(row, "CREATE", id, created.code(), dryRun ? "PLANNED" : "SUCCEEDED", "同步创建页面", List.of());
         } catch (BusinessException e) {

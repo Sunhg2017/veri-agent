@@ -50,6 +50,7 @@ public class AssetService {
     private final AssetRepository repository;
     private final ObjectMapper objectMapper;
     private final AssetProjectAuditService projectAuditService;
+    private final AssetVersionHistoryService versionHistoryService;
     private final AssetImpactAnalysisService impactAnalysisService;
     private final AssetPrototypeSyncService prototypeSyncService;
     private final AssetTraceLinkService traceLinkService;
@@ -76,9 +77,14 @@ public class AssetService {
         this.repository = repository;
         this.objectMapper = objectMapper;
         this.projectAuditService = projectAuditService;
-        AssetVersionHistoryService versionHistoryService = new AssetVersionHistoryService(repository, objectMapper);
+        this.versionHistoryService = new AssetVersionHistoryService(repository, objectMapper);
         this.impactAnalysisService = new AssetImpactAnalysisService(repository, projectAuditService);
-        this.prototypeSyncService = new AssetPrototypeSyncService(repository, projectAuditService, objectMapper);
+        this.prototypeSyncService = new AssetPrototypeSyncService(
+                repository,
+                projectAuditService,
+                objectMapper,
+                versionHistoryService
+        );
         this.traceLinkService = new AssetTraceLinkService(repository, projectAuditService);
         this.testCaseStepService = new AssetTestCaseStepService(
                 repository,
@@ -106,17 +112,23 @@ public class AssetService {
         this.apiService = new AssetApiService(
                 repository,
                 projectAuditService,
+                versionHistoryService,
+                versionRollbackService,
                 lifecycleService
         );
         this.pageService = new AssetPageService(
                 repository,
                 projectAuditService,
+                versionHistoryService,
+                versionRollbackService,
                 lifecycleService,
                 objectMapper
         );
         this.businessFlowService = new AssetBusinessFlowService(
                 repository,
                 projectAuditService,
+                versionHistoryService,
+                versionRollbackService,
                 lifecycleService,
                 objectMapper
         );
@@ -150,6 +162,7 @@ public class AssetService {
         this.repository = repository;
         this.objectMapper = objectMapper;
         this.projectAuditService = projectAuditService;
+        this.versionHistoryService = versionHistoryService;
         this.impactAnalysisService = impactAnalysisService;
         this.prototypeSyncService = prototypeSyncService;
         this.traceLinkService = traceLinkService;
@@ -251,6 +264,15 @@ public class AssetService {
         return apiService.updateApi(id, request);
     }
 
+    public List<AssetVersionHistoryResponse> apiVersions(UUID id) {
+        return apiService.apiVersions(id);
+    }
+
+    @Transactional
+    public ApiResponseDTO rollbackApiVersion(UUID id, int version, RollbackAssetVersionRequest request) {
+        return apiService.rollbackApiVersion(id, version, request);
+    }
+
     public ApiResponseDTO updateApiLifecycle(UUID id, UpdateAssetLifecycleRequest request) {
         return apiService.updateApiLifecycle(id, request);
     }
@@ -275,6 +297,15 @@ public class AssetService {
 
     public PageResponse updatePage(UUID id, UpdatePageRequest request) {
         return pageService.updatePage(id, request);
+    }
+
+    public List<AssetVersionHistoryResponse> pageVersions(UUID id) {
+        return pageService.pageVersions(id);
+    }
+
+    @Transactional
+    public PageResponse rollbackPageVersion(UUID id, int version, RollbackAssetVersionRequest request) {
+        return pageService.rollbackPageVersion(id, version, request);
     }
 
     public PageResponse updatePageLifecycle(UUID id, UpdateAssetLifecycleRequest request) {
@@ -303,6 +334,15 @@ public class AssetService {
 
     public BusinessFlowResponse updateBusinessFlow(UUID id, UpdateBusinessFlowRequest request) {
         return businessFlowService.updateBusinessFlow(id, request);
+    }
+
+    public List<AssetVersionHistoryResponse> businessFlowVersions(UUID id) {
+        return businessFlowService.businessFlowVersions(id);
+    }
+
+    @Transactional
+    public BusinessFlowResponse rollbackBusinessFlowVersion(UUID id, int version, RollbackAssetVersionRequest request) {
+        return businessFlowService.rollbackBusinessFlowVersion(id, version, request);
     }
 
     public BusinessFlowResponse updateBusinessFlowLifecycle(UUID id, UpdateAssetLifecycleRequest request) {
@@ -391,7 +431,7 @@ public class AssetService {
     }
 
     private AssetImportExportService importExportService() {
-        return new AssetImportExportService(repository, projectAuditService, objectMapper, this);
+        return new AssetImportExportService(repository, projectAuditService, objectMapper, this, versionHistoryService);
     }
 
     // ---- Prototype sync / impact analysis ----

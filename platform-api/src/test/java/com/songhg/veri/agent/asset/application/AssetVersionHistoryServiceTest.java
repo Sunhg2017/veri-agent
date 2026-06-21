@@ -1,6 +1,9 @@
 package com.songhg.veri.agent.asset.application;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.songhg.veri.agent.asset.domain.AssetApi;
+import com.songhg.veri.agent.asset.domain.AssetBusinessFlow;
+import com.songhg.veri.agent.asset.domain.AssetPage;
 import com.songhg.veri.agent.asset.application.view.AssetVersionHistoryResponse;
 import com.songhg.veri.agent.asset.domain.AssetRequirement;
 import com.songhg.veri.agent.asset.domain.TestCaseRecord;
@@ -27,6 +30,9 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 class AssetVersionHistoryServiceTest {
 
     private static final UUID REQUIREMENT_ID = UUID.fromString("00000000-0000-0000-0000-000000000101");
+    private static final UUID API_ID = UUID.fromString("00000000-0000-0000-0000-000000000111");
+    private static final UUID PAGE_ID = UUID.fromString("00000000-0000-0000-0000-000000000121");
+    private static final UUID FLOW_ID = UUID.fromString("00000000-0000-0000-0000-000000000131");
     private static final UUID CASE_ID = UUID.fromString("00000000-0000-0000-0000-000000000201");
     private static final String PROJECT_ID = "project-history";
 
@@ -81,6 +87,70 @@ class AssetVersionHistoryServiceTest {
         assertThat(response.snapshot().path("steps").get(0).path("order").asInt()).isZero();
         assertThat(response.snapshot().path("steps").get(0).path("action").asText()).isEqualTo("前置操作");
         assertThat(response.snapshot().path("steps").get(1).path("action").asText()).isEqualTo("执行操作");
+    }
+
+    @Test
+    void recordsApiDiffSnapshotAndRevisionChain() {
+        AssetApi created = api("创建订单", "/api/orders", null, "{\"type\":\"object\"}", null, "ACTIVE");
+        AssetApi updated = api("创建订单V2", "/api/v2/orders", "2.0.0", "{\"type\":\"object\",\"required\":[\"id\"]}",
+                "{\"type\":\"object\",\"properties\":{\"id\":{\"type\":\"string\"}}}", "DEPRECATED");
+
+        service.recordApiCreated(created);
+        service.recordApiChange(created, updated, "UPSERT");
+
+        List<AssetVersionHistoryResponse> history = service.responses("API", API_ID);
+        assertThat(history).hasSize(2);
+        assertThat(history.getFirst().version()).isEqualTo(2);
+        assertThat(history.getFirst().changeType()).isEqualTo("UPSERT");
+        assertThat(history.getFirst().changedFields())
+                .containsExactly("summary", "path", "version", "requestSchema", "responseSchema", "status");
+        assertThat(history.getFirst().diff().path("path").path("after").asText()).isEqualTo("/api/v2/orders");
+        assertThat(history.getFirst().snapshot().path("revision").asInt()).isEqualTo(2);
+        assertThat(history.getFirst().snapshot().path("version").asText()).isEqualTo("2.0.0");
+        assertThat(history.getFirst().snapshot().path("requestSchema").path("required").get(0).asText()).isEqualTo("id");
+        assertThat(history.get(1).version()).isEqualTo(1);
+        assertThat(service.nextVersion("API", API_ID)).isEqualTo(3);
+    }
+
+    @Test
+    void recordsPageDiffSnapshotAndRevisionChain() {
+        AssetPage created = page("结算页", "/checkout", "MANUAL", null, null, "{\"type\":\"page\"}", null, "ACTIVE");
+        AssetPage updated = page("结算页V2", "/checkout/v2", "FIGMA", "figma-node-1", "figma-v42",
+                "{\"type\":\"page\",\"children\":[{\"role\":\"button\",\"text\":\"提交\"}]}",
+                "https://cdn.example.test/page.png", "DEPRECATED");
+
+        service.recordPageCreated(created);
+        service.recordPageChange(created, updated, "UPSERT");
+
+        List<AssetVersionHistoryResponse> history = service.responses("PAGE", PAGE_ID);
+        assertThat(history).hasSize(2);
+        assertThat(history.getFirst().version()).isEqualTo(2);
+        assertThat(history.getFirst().changedFields())
+                .containsExactly("name", "urlPattern", "source", "sourceRef", "sourceVersion", "componentTree", "screenshotUrl", "status");
+        assertThat(history.getFirst().diff().path("source").path("after").asText()).isEqualTo("FIGMA");
+        assertThat(history.getFirst().snapshot().path("revision").asInt()).isEqualTo(2);
+        assertThat(history.getFirst().snapshot().path("componentTree").path("children").get(0).path("text").asText())
+                .isEqualTo("提交");
+        assertThat(service.nextVersion("PAGE", PAGE_ID)).isEqualTo(3);
+    }
+
+    @Test
+    void recordsBusinessFlowDiffSnapshotAndRevisionChain() {
+        AssetBusinessFlow created = businessFlow("下单主流程", "购物车到支付", "{\"nodes\":[\"cart\"]}", "HIGH", "DRAFT");
+        AssetBusinessFlow updated = businessFlow("下单主流程V2", "覆盖优惠券", "{\"nodes\":[\"cart\",\"coupon\",\"pay\"]}", "CRITICAL", "ACTIVE");
+
+        service.recordBusinessFlowCreated(created);
+        service.recordBusinessFlowChange(created, updated, "UPDATE");
+
+        List<AssetVersionHistoryResponse> history = service.responses("BUSINESS_FLOW", FLOW_ID);
+        assertThat(history).hasSize(2);
+        assertThat(history.getFirst().version()).isEqualTo(2);
+        assertThat(history.getFirst().changedFields())
+                .containsExactly("name", "description", "flowJson", "priority", "status");
+        assertThat(history.getFirst().diff().path("priority").path("after").asText()).isEqualTo("CRITICAL");
+        assertThat(history.getFirst().snapshot().path("revision").asInt()).isEqualTo(2);
+        assertThat(history.getFirst().snapshot().path("flowJson").path("nodes")).hasSize(3);
+        assertThat(service.nextVersion("BUSINESS_FLOW", FLOW_ID)).isEqualTo(3);
     }
 
     @Test
@@ -193,6 +263,90 @@ class AssetVersionHistoryServiceTest {
                 null,
                 steps,
                 version,
+                "ACTIVE",
+                null,
+                null,
+                Instant.EPOCH,
+                Instant.EPOCH
+        );
+    }
+
+    private static AssetApi api(
+            String summary,
+            String path,
+            String version,
+            String requestSchema,
+            String responseSchema,
+            String status
+    ) {
+        return new AssetApi(
+                API_ID,
+                "API-1",
+                summary,
+                "API description",
+                "POST",
+                path,
+                "MANUAL",
+                "MANUAL-API-1",
+                version,
+                requestSchema,
+                responseSchema,
+                PROJECT_ID,
+                status,
+                "ACTIVE",
+                null,
+                null,
+                Instant.EPOCH,
+                Instant.EPOCH
+        );
+    }
+
+    private static AssetPage page(
+            String name,
+            String urlPattern,
+            String source,
+            String sourceRef,
+            String sourceVersion,
+            String componentTree,
+            String screenshotUrl,
+            String status
+    ) {
+        return new AssetPage(
+                PAGE_ID,
+                "PAGE-1",
+                name,
+                urlPattern,
+                source,
+                sourceRef,
+                sourceVersion,
+                componentTree,
+                screenshotUrl,
+                PROJECT_ID,
+                status,
+                "ACTIVE",
+                null,
+                null,
+                Instant.EPOCH,
+                Instant.EPOCH
+        );
+    }
+
+    private static AssetBusinessFlow businessFlow(
+            String name,
+            String description,
+            String flowJson,
+            String priority,
+            String status
+    ) {
+        return new AssetBusinessFlow(
+                FLOW_ID,
+                "FLOW-1",
+                name,
+                description,
+                flowJson,
+                priority,
+                PROJECT_ID,
+                status,
                 "ACTIVE",
                 null,
                 null,

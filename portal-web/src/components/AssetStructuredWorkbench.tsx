@@ -21,10 +21,14 @@ import {
   createAssetBusinessFlow,
   createAssetPage,
   fetchAssetBusinessFlow,
+  fetchAssetBusinessFlowVersions,
   fetchAssetBusinessFlows,
   fetchAssetHealth,
   fetchAssetPage,
+  fetchAssetPageVersions,
   fetchAssetPages,
+  rollbackAssetBusinessFlowVersion,
+  rollbackAssetPageVersion,
   syncPrototypePages,
   updateAssetBusinessFlow,
   updateAssetPage,
@@ -36,10 +40,12 @@ import {
   type AssetPagePayload,
   type AssetPageView,
   type AssetPrototypeSyncPagePayload,
-  type AssetPrototypeSyncResult
+  type AssetPrototypeSyncResult,
+  type AssetVersionHistoryView
 } from '../api/assets';
 import { hasPermission } from '../permissions';
 import { AssetImportExportPanel } from './AssetImportExportPanel';
+import { AssetVersionHistoryPanel } from './AssetVersionHistoryPanel';
 
 export type AssetNavigationKey = 'requirements' | 'apis' | 'pages' | 'flows' | 'cases' | 'trace';
 
@@ -154,6 +160,8 @@ export function AssetStructuredWorkbench(props: {
   const [detailState, setDetailState] = useState<WorkState>({ loading: false });
   const [createState, setCreateState] = useState<WorkState>({ loading: false });
   const [mutationState, setMutationState] = useState<WorkState>({ loading: false });
+  const [versions, setVersions] = useState<AssetVersionHistoryView[]>([]);
+  const [versionState, setVersionState] = useState<WorkState>({ loading: false });
   const [prototypeSyncDraft, setPrototypeSyncDraft] = useState<PrototypeSyncDraft>(initialPrototypeSyncDraft);
   const [prototypeSyncState, setPrototypeSyncState] = useState<WorkState>({ loading: false });
   const [prototypeSyncResult, setPrototypeSyncResult] = useState<AssetPrototypeSyncResult | null>(null);
@@ -171,6 +179,8 @@ export function AssetStructuredWorkbench(props: {
     setDetailState({ loading: false });
     setCreateState({ loading: false });
     setMutationState({ loading: false });
+    setVersions([]);
+    setVersionState({ loading: false });
     setPrototypeSyncDraft(initialPrototypeSyncDraft);
     setPrototypeSyncState({ loading: false });
     setPrototypeSyncResult(null);
@@ -269,6 +279,30 @@ export function AssetStructuredWorkbench(props: {
     void reloadDetail();
   }, [reloadDetail]);
 
+  const reloadVersions = useCallback(async (targetId = selectedId) => {
+    if (!props.signedIn || !canReadAssets || !targetId) {
+      setVersions([]);
+      setVersionState({ loading: false });
+      return;
+    }
+
+    setVersionState({ loading: true });
+    try {
+      const response = props.activeTab === 'pages'
+        ? await fetchAssetPageVersions(targetId)
+        : await fetchAssetBusinessFlowVersions(targetId);
+      setVersions(response.data);
+      setVersionState({ loading: false, traceId: response.trace_id });
+    } catch (error: unknown) {
+      setVersions([]);
+      setVersionState({ loading: false, error: errorMessage(error, '版本历史加载失败') });
+    }
+  }, [canReadAssets, props.activeTab, props.signedIn, selectedId]);
+
+  useEffect(() => {
+    void reloadVersions();
+  }, [reloadVersions]);
+
   const visibleItems = useMemo(() => filterItems(items, filters, props.activeTab), [filters, items, props.activeTab]);
   const statusCounts = useMemo(() => countByStatus(items), [items]);
   const disabled = !props.signedIn || !canReadAssets || loadState.loading;
@@ -320,6 +354,7 @@ export function AssetStructuredWorkbench(props: {
       setEditDraft(draftFromView(props.activeTab, nextItem));
       upsertItem(setItems, nextItem);
       setCreateState({ loading: false, success: `${meta.name}已创建`, traceId: response.trace_id });
+      void reloadVersions(nextItem.id);
       selectItem(nextItem.id);
     } catch (error: unknown) {
       setCreateState({ loading: false, error: errorMessage(error, `${meta.name}创建失败`) });
@@ -361,8 +396,38 @@ export function AssetStructuredWorkbench(props: {
       setEditDraft(draftFromView(props.activeTab, nextItem));
       upsertItem(setItems, nextItem);
       setMutationState({ loading: false, success: `${meta.name}已保存`, traceId: response.trace_id });
+      void reloadVersions(nextItem.id);
     } catch (error: unknown) {
       setMutationState({ loading: false, error: errorMessage(error, `${meta.name}保存失败`) });
+    }
+  }
+
+  async function rollbackVersion(version: number) {
+    if (!selected) {
+      return;
+    }
+    if (!props.signedIn) {
+      setVersionState({ loading: false, error: `请先登录后再回滚${meta.shortName}` });
+      return;
+    }
+    if (!canManageAssets) {
+      setVersionState({ loading: false, error: '缺少 asset:manage 权限' });
+      return;
+    }
+
+    setVersionState({ loading: true });
+    try {
+      const response = props.activeTab === 'pages'
+        ? await rollbackAssetPageVersion(selected.id, version, `回滚到 v${version}`)
+        : await rollbackAssetBusinessFlowVersion(selected.id, version, `回滚到 v${version}`);
+      const nextItem = responseToView(props.activeTab, response.data);
+      setSelected(nextItem);
+      setEditDraft(draftFromView(props.activeTab, nextItem));
+      upsertItem(setItems, nextItem);
+      setVersionState({ loading: false, traceId: response.trace_id });
+      void reloadVersions(nextItem.id);
+    } catch (error: unknown) {
+      setVersionState({ loading: false, error: errorMessage(error, `${meta.name}版本回滚失败`) });
     }
   }
 
@@ -785,6 +850,14 @@ export function AssetStructuredWorkbench(props: {
                 submitLabel={`保存${meta.shortName}`}
                 compact
                 selectedStatus={selected.status}
+              />
+              <AssetVersionHistoryPanel
+                currentVersion={versions[0]?.version}
+                disabled={disabled}
+                items={versions}
+                onRollback={(version) => void rollbackVersion(version)}
+                onRefresh={() => void reloadVersions(selected.id)}
+                state={versionState}
               />
               <StateLine state={mutationState} />
               <StateLine state={detailState} />

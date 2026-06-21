@@ -2,15 +2,18 @@ package com.songhg.veri.agent.asset.api.controller;
 
 import com.songhg.veri.agent.asset.application.AssetService;
 import com.songhg.veri.agent.asset.application.command.CreateBusinessFlowRequest;
+import com.songhg.veri.agent.asset.application.command.RollbackAssetVersionRequest;
 import com.songhg.veri.agent.asset.application.command.UpdateAssetLifecycleRequest;
 import com.songhg.veri.agent.asset.application.command.UpdateBusinessFlowRequest;
 import com.songhg.veri.agent.asset.application.query.AssetListRequest;
+import com.songhg.veri.agent.asset.application.view.AssetVersionHistoryResponse;
 import com.songhg.veri.agent.asset.application.view.BusinessFlowResponse;
 import com.songhg.veri.agent.authorization.application.PermissionCodes;
 import com.songhg.veri.agent.authorization.application.RequirePermission;
 import com.songhg.veri.agent.common.api.PageResponse;
 import com.songhg.veri.agent.common.openapi.ApiVersion;
 import jakarta.validation.Valid;
+import java.util.List;
 import java.util.UUID;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -66,6 +69,22 @@ public class AssetBusinessFlowController {
             @Valid @RequestBody UpdateBusinessFlowRequest request
     ) {
         return service.updateBusinessFlow(id, request);
+    }
+
+    @GetMapping("/{id}/versions")
+    @RequirePermission(value = PermissionCodes.ASSET_READ, scope = AssetPermissionScopes.BUSINESS_FLOW)
+    public List<AssetVersionHistoryResponse> businessFlowVersions(@PathVariable UUID id) {
+        return service.businessFlowVersions(id);
+    }
+
+    @PostMapping("/{id}/versions/{version}/rollback")
+    @RequirePermission(value = PermissionCodes.ASSET_MANAGE, scope = AssetPermissionScopes.BUSINESS_FLOW)
+    public BusinessFlowResponse rollbackBusinessFlowVersion(
+            @PathVariable UUID id,
+            @PathVariable int version,
+            @Valid @RequestBody(required = false) RollbackAssetVersionRequest request
+    ) {
+        return service.rollbackBusinessFlowVersion(id, version, request);
     }
 
     @PatchMapping("/{id}/lifecycle")
