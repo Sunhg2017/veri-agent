@@ -5,6 +5,7 @@ import com.songhg.veri.agent.uie2e.application.port.UiE2eArtifactStorage;
 import com.songhg.veri.agent.uie2e.application.port.UiE2eRepository;
 import com.songhg.veri.agent.uie2e.application.port.UiE2eRunnerPort;
 import com.songhg.veri.agent.uie2e.infrastructure.DisabledUiE2eRunnerAdapter;
+import com.songhg.veri.agent.uie2e.infrastructure.HttpWorkerUiE2eRunnerAdapter;
 import com.songhg.veri.agent.uie2e.infrastructure.LocalUiE2eArtifactStorage;
 import com.songhg.veri.agent.uie2e.infrastructure.ManagedPreviewUiE2eRunnerAdapter;
 import com.songhg.veri.agent.uie2e.infrastructure.PlaywrightSubprocessUiE2eRunnerAdapter;
@@ -55,6 +56,21 @@ class UiE2eRunnerConfigurationTest {
                     assertThat(context).hasSingleBean(UiE2eRunnerPort.class);
                     assertThat(context.getBean(UiE2eRunnerPort.class))
                             .isInstanceOf(PlaywrightSubprocessUiE2eRunnerAdapter.class);
+                });
+    }
+
+    @Test
+    void createsHttpWorkerRunnerWhenHttpAdapterModeIsEnabled() {
+        contextRunner
+                .withPropertyValues(
+                        "veri-agent.ui-e2e.runner-enabled=true",
+                        "veri-agent.ui-e2e.runner-mode=http-adapter",
+                        "veri-agent.ui-e2e.runner-worker-url=http://127.0.0.1:18080/ui-e2e/run"
+                )
+                .run(context -> {
+                    assertThat(context).hasSingleBean(UiE2eRunnerPort.class);
+                    assertThat(context.getBean(UiE2eRunnerPort.class))
+                            .isInstanceOf(HttpWorkerUiE2eRunnerAdapter.class);
                 });
     }
 }

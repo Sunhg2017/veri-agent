@@ -5,6 +5,7 @@ import com.songhg.veri.agent.uie2e.application.port.UiE2eRepository;
 import com.songhg.veri.agent.uie2e.application.port.UiE2eArtifactStorage;
 import com.songhg.veri.agent.uie2e.application.port.UiE2eRunnerPort;
 import com.songhg.veri.agent.uie2e.infrastructure.DisabledUiE2eRunnerAdapter;
+import com.songhg.veri.agent.uie2e.infrastructure.HttpWorkerUiE2eRunnerAdapter;
 import com.songhg.veri.agent.uie2e.infrastructure.LocalUiE2eArtifactStorage;
 import com.songhg.veri.agent.uie2e.infrastructure.ManagedPreviewUiE2eRunnerAdapter;
 import com.songhg.veri.agent.uie2e.infrastructure.PlaywrightSubprocessUiE2eRunnerAdapter;
@@ -47,6 +48,14 @@ public class UiE2eRunnerConfiguration {
     ) {
         if (Set.of("playwright-subprocess", "real-browser").contains(properties.effectiveRunnerMode())) {
             return new PlaywrightSubprocessUiE2eRunnerAdapter(
+                    repository,
+                    properties,
+                    testDataCrossWpReferenceService,
+                    artifactStorage
+            );
+        }
+        if ("http-adapter".equals(properties.effectiveRunnerMode())) {
+            return new HttpWorkerUiE2eRunnerAdapter(
                     repository,
                     properties,
                     testDataCrossWpReferenceService,

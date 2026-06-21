@@ -6,7 +6,10 @@ import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMock
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.web.servlet.MockMvc;
 
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.startsWith;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -23,6 +26,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         "veri-agent.ui-e2e.max-concurrency=4",
         "veri-agent.ui-e2e.allowlist-base-urls[0]=https://portal.example.test",
         "veri-agent.ui-e2e.allowlist-base-urls[1]=https://admin.example.test",
+        "veri-agent.ui-e2e.runner-worker-url=http://worker.example.internal/ui-e2e/run",
+        "veri-agent.ui-e2e.runner-worker-cancel-url=http://worker.example.internal/ui-e2e/cancel",
+        "veri-agent.ui-e2e.runner-worker-token=worker-token-for-health",
         "veri-agent.ui-e2e.capture-video-enabled=true",
         "veri-agent.ui-e2e.capture-har-enabled=true",
         "veri-agent.ui-e2e.capture-junit-xml-enabled=true"
@@ -95,6 +101,10 @@ class UiE2eHealthControllerTest {
                 .andExpect(jsonPath("$.data.policy.batchRunReady").value(true))
                 .andExpect(jsonPath("$.data.policy.summaryBackfillReady").value(true))
                 .andExpect(jsonPath("$.data.policy.artifactCleanupReady").value(true))
+                .andExpect(jsonPath("$.data.policy.externalWorkerConfigured").value(true))
+                .andExpect(jsonPath("$.data.policy.externalWorkerTokenConfigured").value(true))
+                .andExpect(jsonPath("$.data.policy.externalWorkerCancelConfigured").value(true))
+                .andExpect(jsonPath("$.data.policy.httpWorkerRunnerReady").value(false))
                 .andExpect(jsonPath("$.data.policy.managedPreviewRunnerReady").value(false))
                 .andExpect(jsonPath("$.data.policy.realBrowserRunnerReady").value(false))
                 .andExpect(jsonPath("$.data.policy.runnerDefaultDisabled").value(true))
@@ -103,6 +113,8 @@ class UiE2eHealthControllerTest {
                 .andExpect(jsonPath("$.data.policy.supportedSceneStatuses[2]").value("APPROVED"))
                 .andExpect(jsonPath("$.data.policy.supportedBundleStatuses[1]").value("STATIC_CHECK_FAILED"))
                 .andExpect(jsonPath("$.data.policy.supportedRunStatuses[3]").value("FAILED"))
-                .andExpect(jsonPath("$.data.policy.supportedFlakyStatuses[1]").value("FLAKY_CANDIDATE"));
+                .andExpect(jsonPath("$.data.policy.supportedFlakyStatuses[1]").value("FLAKY_CANDIDATE"))
+                .andExpect(content().string(not(containsString("worker.example.internal"))))
+                .andExpect(content().string(not(containsString("worker-token-for-health"))));
     }
 }

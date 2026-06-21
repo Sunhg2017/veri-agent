@@ -48,6 +48,14 @@ public record UiE2eProperties(
         @DefaultValue("node") String runnerNodeCommand,
         /** Node modules directory that provides the Playwright runtime. */
         @DefaultValue("../portal-web/node_modules") String runnerNodeModulesDir,
+        /** External HTTP worker run endpoint used by isolated UI/E2E execution. */
+        @DefaultValue("") String runnerWorkerUrl,
+        /** Optional external HTTP worker cancel endpoint used for best-effort run cancellation. */
+        @DefaultValue("") String runnerWorkerCancelUrl,
+        /** Optional bearer token used when calling the external HTTP worker. */
+        @DefaultValue("") String runnerWorkerToken,
+        /** Connect timeout used when establishing a remote worker HTTP session. */
+        @DefaultValue("10") int runnerWorkerConnectTimeoutSeconds,
         /** Controlled local root used to persist downloadable raw artifacts. */
         @DefaultValue("") String artifactStorageDir,
         /** Enables destructive cleanup for unreferenced local artifacts. */
@@ -67,6 +75,8 @@ public record UiE2eProperties(
     private static final int MAX_MAX_ARTIFACT_COUNT = 500;
     private static final int DEFAULT_MAX_CONCURRENCY = 2;
     private static final int MAX_MAX_CONCURRENCY = 100;
+    private static final int DEFAULT_RUNNER_WORKER_CONNECT_TIMEOUT_SECONDS = 10;
+    private static final int MAX_RUNNER_WORKER_CONNECT_TIMEOUT_SECONDS = 300;
     private static final int DEFAULT_ARTIFACT_CLEANUP_RETENTION_HOURS = 168;
     private static final int MAX_ARTIFACT_CLEANUP_RETENTION_HOURS = 24 * 365;
     private static final int DEFAULT_ARTIFACT_CLEANUP_BATCH_SIZE = 100;
@@ -117,6 +127,65 @@ public record UiE2eProperties(
                 exportEnabled,
                 runnerNodeCommand,
                 runnerNodeModulesDir,
+                "",
+                "",
+                "",
+                DEFAULT_RUNNER_WORKER_CONNECT_TIMEOUT_SECONDS,
+                artifactStorageDir,
+                false,
+                DEFAULT_ARTIFACT_CLEANUP_RETENTION_HOURS,
+                DEFAULT_ARTIFACT_CLEANUP_BATCH_SIZE
+        );
+    }
+
+    public UiE2eProperties(
+            boolean enabled,
+            boolean runnerEnabled,
+            String runnerMode,
+            int defaultTimeoutSeconds,
+            int maxTimeoutSeconds,
+            int maxScenesPerRun,
+            long maxArtifactSizeBytes,
+            int maxArtifactCount,
+            int maxConcurrency,
+            List<String> allowlistBaseUrls,
+            boolean captureScreenshotEnabled,
+            boolean captureVideoEnabled,
+            boolean captureHarEnabled,
+            boolean captureTraceEnabled,
+            boolean captureJunitXmlEnabled,
+            boolean exportEnabled,
+            String runnerNodeCommand,
+            String runnerNodeModulesDir,
+            String runnerWorkerUrl,
+            String runnerWorkerCancelUrl,
+            String runnerWorkerToken,
+            int runnerWorkerConnectTimeoutSeconds,
+            String artifactStorageDir
+    ) {
+        this(
+                enabled,
+                runnerEnabled,
+                runnerMode,
+                defaultTimeoutSeconds,
+                maxTimeoutSeconds,
+                maxScenesPerRun,
+                maxArtifactSizeBytes,
+                maxArtifactCount,
+                maxConcurrency,
+                allowlistBaseUrls,
+                captureScreenshotEnabled,
+                captureVideoEnabled,
+                captureHarEnabled,
+                captureTraceEnabled,
+                captureJunitXmlEnabled,
+                exportEnabled,
+                runnerNodeCommand,
+                runnerNodeModulesDir,
+                runnerWorkerUrl,
+                runnerWorkerCancelUrl,
+                runnerWorkerToken,
+                runnerWorkerConnectTimeoutSeconds,
                 artifactStorageDir,
                 false,
                 DEFAULT_ARTIFACT_CLEANUP_RETENTION_HOURS,
@@ -141,6 +210,38 @@ public record UiE2eProperties(
 
     public String effectiveRunnerNodeModulesDir() {
         return StringUtils.hasText(runnerNodeModulesDir) ? runnerNodeModulesDir.trim() : "../portal-web/node_modules";
+    }
+
+    public String effectiveRunnerWorkerUrl() {
+        return sanitizedRunnerWorkerValue(runnerWorkerUrl);
+    }
+
+    public String effectiveRunnerWorkerCancelUrl() {
+        return sanitizedRunnerWorkerValue(runnerWorkerCancelUrl);
+    }
+
+    public String effectiveRunnerWorkerToken() {
+        return sanitizedRunnerWorkerValue(runnerWorkerToken);
+    }
+
+    public boolean runnerWorkerConfigured() {
+        return StringUtils.hasText(effectiveRunnerWorkerUrl());
+    }
+
+    public boolean runnerWorkerCancelConfigured() {
+        return StringUtils.hasText(effectiveRunnerWorkerCancelUrl());
+    }
+
+    public boolean runnerWorkerTokenConfigured() {
+        return StringUtils.hasText(effectiveRunnerWorkerToken());
+    }
+
+    public int effectiveRunnerWorkerConnectTimeoutSeconds() {
+        return boundedPositive(
+                runnerWorkerConnectTimeoutSeconds,
+                DEFAULT_RUNNER_WORKER_CONNECT_TIMEOUT_SECONDS,
+                MAX_RUNNER_WORKER_CONNECT_TIMEOUT_SECONDS
+        );
     }
 
     public String effectiveArtifactStorageDir() {
@@ -217,5 +318,16 @@ public record UiE2eProperties(
             return defaultValue;
         }
         return Math.min(value, maxValue);
+    }
+
+    private static String sanitizedRunnerWorkerValue(String value) {
+        if (!StringUtils.hasText(value)) {
+            return "";
+        }
+        String sanitized = value.trim();
+        if (sanitized.contains("\r") || sanitized.contains("\n")) {
+            return "";
+        }
+        return sanitized;
     }
 }

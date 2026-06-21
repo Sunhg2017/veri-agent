@@ -57,6 +57,7 @@ public class UiE2eHealthService {
         boolean credentialInjectionReady = testDataCrossWpReferenceService != null
                 && testDataCrossWpReferenceService.runnerCredentialInjectionReady();
         boolean previewRunner = properties.runnerEnabled() && "managed".equals(properties.effectiveRunnerMode());
+        boolean httpWorkerRunner = properties.runnerEnabled() && "http-adapter".equals(properties.effectiveRunnerMode());
         boolean realBrowserRunner = properties.runnerEnabled()
                 && Set.of("playwright-subprocess", "real-browser").contains(properties.effectiveRunnerMode());
         boolean cleanupSupported = artifactStorage != null && artifactStorage.supportsDestructiveCleanup();
@@ -124,6 +125,10 @@ public class UiE2eHealthService {
                         Map.entry("batchRunReady", true),
                         Map.entry("summaryBackfillReady", true),
                         Map.entry("artifactCleanupReady", cleanupSupported),
+                        Map.entry("externalWorkerConfigured", properties.runnerWorkerConfigured()),
+                        Map.entry("externalWorkerTokenConfigured", properties.runnerWorkerTokenConfigured()),
+                        Map.entry("externalWorkerCancelConfigured", properties.runnerWorkerCancelConfigured()),
+                        Map.entry("httpWorkerRunnerReady", httpWorkerRunner && properties.runnerWorkerConfigured()),
                         Map.entry("managedPreviewRunnerReady", previewRunner),
                         Map.entry("realBrowserRunnerReady", realBrowserRunner),
                         Map.entry("runnerDefaultDisabled", !properties.runnerEnabled()),
