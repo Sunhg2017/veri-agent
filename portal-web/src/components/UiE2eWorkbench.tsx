@@ -32,6 +32,7 @@ import {
   fetchUiE2eRuns,
   fetchUiE2eScene,
   fetchUiE2eScenes,
+  importUiE2eScene,
   downloadUiE2eArtifact,
   rejectUiE2eBundle,
   submitUiE2eBundleReview,
@@ -48,6 +49,7 @@ import {
   type UiE2eRunSummary,
   type UiE2eRunStepResult,
   type UiE2eSceneDetail,
+  type UiE2eSceneImportSourceType,
   type UiE2eSceneSummary
 } from '../api/uiE2e';
 import { canUseButton, hasPermission } from '../permissions';
@@ -91,6 +93,8 @@ import {
   labelUiE2eSceneFocusMode,
   prettyJson,
   sceneDraftFromDetail,
+  sceneDraftFromImport,
+  splitTags,
   type UiE2eBundleFocusMode,
   type UiE2eFlakyDraft,
   type UiE2eFlakyFocusMode,
@@ -121,6 +125,14 @@ type SceneFilters = SimpleFilters & {
   tag: string;
 };
 
+type UiE2eSceneImportDraft = {
+  sourceType: UiE2eSceneImportSourceType;
+  codeHint: string;
+  nameHint: string;
+  tagsText: string;
+  content: string;
+};
+
 const initialFilters: SimpleFilters = { projectId: '', status: '', keyword: '' };
 const initialSceneFilters: SceneFilters = {
   ...initialFilters,
@@ -128,6 +140,14 @@ const initialSceneFilters: SceneFilters = {
   environmentId: '',
   riskLevel: '',
   tag: ''
+};
+
+const initialSceneImportDraft: UiE2eSceneImportDraft = {
+  sourceType: 'PLAYWRIGHT_CODEGEN',
+  codeHint: '',
+  nameHint: '',
+  tagsText: '',
+  content: ''
 };
 
 export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentUser | null }) {
@@ -167,6 +187,7 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
   const [flakyDetail, setFlakyDetail] = useState<UiE2eFlakyMark | null>(null);
 
   const [sceneDraft, setSceneDraft] = useState<UiE2eSceneDraft>(initialUiE2eSceneDraft);
+  const [sceneImportDraft, setSceneImportDraft] = useState<UiE2eSceneImportDraft>(initialSceneImportDraft);
   const [bundleSceneId, setBundleSceneId] = useState('');
   const [reviewNote, setReviewNote] = useState('');
   const [runDraft, setRunDraft] = useState<UiE2eRunDraft>(initialUiE2eRunDraft);
@@ -477,6 +498,47 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
       setSceneActionState({ loading: false, success: '场景已创建', traceId: result.trace_id });
     } catch (error: unknown) {
       setSceneActionState({ loading: false, error: error instanceof Error ? error.message : '创建场景失败' });
+    }
+  }
+
+  async function onImportScene() {
+    if (!canManage) return;
+    if (!sceneDraft.projectId.trim()) {
+      setSceneActionState({ loading: false, error: '请先填写 scene projectId，再导入外部脚本。' });
+      return;
+    }
+    if (!sceneImportDraft.content.trim()) {
+      setSceneActionState({ loading: false, error: '请粘贴 Selenium IDE JSON 或 Playwright codegen 内容。' });
+      return;
+    }
+    setSceneActionState({ loading: true });
+    try {
+      const result = await importUiE2eScene({
+        projectId: sceneDraft.projectId.trim(),
+        applicationId: sceneDraft.applicationId.trim() || undefined,
+        environmentId: sceneDraft.environmentId.trim() || undefined,
+        sourceType: sceneImportDraft.sourceType,
+        content: sceneImportDraft.content,
+        codeHint: sceneImportDraft.codeHint.trim() || undefined,
+        nameHint: sceneImportDraft.nameHint.trim() || undefined,
+        tags: splitTags(sceneImportDraft.tagsText)
+      });
+      setEditingSceneId('');
+      setSceneDraft(sceneDraftFromImport(result.data));
+      setSceneImportDraft((current) => ({
+        ...current,
+        codeHint: result.data.code,
+        nameHint: result.data.name
+      }));
+      setSceneActionState({
+        loading: false,
+        success: result.data.warnings.length
+          ? `导入完成，已生成 ${result.data.steps.length} 个步骤，另有 ${result.data.warnings.length} 条提醒。`
+          : `导入完成，已生成 ${result.data.steps.length} 个步骤。`,
+        traceId: result.traceId
+      });
+    } catch (error: unknown) {
+      setSceneActionState({ loading: false, error: error instanceof Error ? error.message : '导入场景失败' });
     }
   }
 
@@ -862,6 +924,63 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
               <Field label="sourceSummary">
                 <textarea value={sceneDraft.sourceSummaryText} onChange={(event) => setSceneDraftValue('sourceSummaryText', event.target.value)} disabled={!canManage || sceneActionState.loading} />
               </Field>
+              <div className="report-card-list">
+                <div className="report-mini-card report-mini-card-muted">
+                  <div className="report-card-heading">
+                    <strong>外部脚本导入</strong>
+                    <span className="badge badge-neutral">draft only</span>
+                  </div>
+                  <div className="form-grid">
+                    <Field label="sourceType">
+                      <select
+                        value={sceneImportDraft.sourceType}
+                        onChange={(event) => setSceneImportDraft((current) => ({ ...current, sourceType: event.target.value as UiE2eSceneImportSourceType }))}
+                        disabled={!canManage || sceneActionState.loading}
+                      >
+                        <option value="PLAYWRIGHT_CODEGEN">PLAYWRIGHT_CODEGEN</option>
+                        <option value="SELENIUM_IDE">SELENIUM_IDE</option>
+                      </select>
+                    </Field>
+                    <Field label="codeHint">
+                      <input
+                        value={sceneImportDraft.codeHint}
+                        onChange={(event) => setSceneImportDraft((current) => ({ ...current, codeHint: event.target.value }))}
+                        placeholder="portal-login-import"
+                        disabled={!canManage || sceneActionState.loading}
+                      />
+                    </Field>
+                    <Field label="nameHint">
+                      <input
+                        value={sceneImportDraft.nameHint}
+                        onChange={(event) => setSceneImportDraft((current) => ({ ...current, nameHint: event.target.value }))}
+                        placeholder="导入后的场景名称"
+                        disabled={!canManage || sceneActionState.loading}
+                      />
+                    </Field>
+                    <Field label="importTags">
+                      <input
+                        value={sceneImportDraft.tagsText}
+                        onChange={(event) => setSceneImportDraft((current) => ({ ...current, tagsText: event.target.value }))}
+                        placeholder="import smoke"
+                        disabled={!canManage || sceneActionState.loading}
+                      />
+                    </Field>
+                  </div>
+                  <Field label="content">
+                    <textarea
+                      value={sceneImportDraft.content}
+                      onChange={(event) => setSceneImportDraft((current) => ({ ...current, content: event.target.value }))}
+                      placeholder="粘贴 Selenium IDE JSON 或 Playwright codegen 片段"
+                      disabled={!canManage || sceneActionState.loading}
+                    />
+                  </Field>
+                  <div className="report-actions-row">
+                    <button className="btn btn-secondary" type="button" onClick={() => void onImportScene()} disabled={!canManage || sceneActionState.loading}>
+                      <RefreshCw size={16} />导入为草稿
+                    </button>
+                  </div>
+                </div>
+              </div>
               {editingSceneId && (
                 <div className="notice info">当前正在编辑所选场景；`projectId` 和 `code` 为后端只读键，前端不会允许改写。</div>
               )}

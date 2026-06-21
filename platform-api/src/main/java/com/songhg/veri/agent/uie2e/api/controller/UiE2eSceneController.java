@@ -4,11 +4,14 @@ import com.songhg.veri.agent.authorization.application.PermissionCodes;
 import com.songhg.veri.agent.authorization.application.RequirePermission;
 import com.songhg.veri.agent.common.api.PageResponse;
 import com.songhg.veri.agent.common.openapi.ApiVersion;
+import com.songhg.veri.agent.uie2e.application.UiE2eSceneImportService;
 import com.songhg.veri.agent.uie2e.application.UiE2eSceneService;
 import com.songhg.veri.agent.uie2e.application.command.CreateUiE2eSceneCommand;
+import com.songhg.veri.agent.uie2e.application.command.ImportUiE2eSceneCommand;
 import com.songhg.veri.agent.uie2e.application.command.UpdateUiE2eSceneCommand;
 import com.songhg.veri.agent.uie2e.application.query.UiE2eScenePageRequest;
 import com.songhg.veri.agent.uie2e.application.view.UiE2eSceneDetailResponse;
+import com.songhg.veri.agent.uie2e.application.view.UiE2eSceneImportResponse;
 import com.songhg.veri.agent.uie2e.application.view.UiE2eSceneSummaryResponse;
 import jakarta.validation.Valid;
 import java.util.UUID;
@@ -28,9 +31,11 @@ import org.springframework.web.bind.annotation.RestController;
 public class UiE2eSceneController {
 
     private final UiE2eSceneService service;
+    private final UiE2eSceneImportService importService;
 
-    public UiE2eSceneController(UiE2eSceneService service) {
+    public UiE2eSceneController(UiE2eSceneService service, UiE2eSceneImportService importService) {
         this.service = service;
+        this.importService = importService;
     }
 
     @PostMapping
@@ -38,6 +43,12 @@ public class UiE2eSceneController {
     @RequirePermission(value = PermissionCodes.UI_E2E_MANAGE, scope = UiE2ePermissionScopes.SCENE_REQUEST)
     public UiE2eSceneDetailResponse createScene(@Valid @RequestBody CreateUiE2eSceneCommand command) {
         return service.createScene(command);
+    }
+
+    @PostMapping("/import")
+    @RequirePermission(value = PermissionCodes.UI_E2E_MANAGE, scope = UiE2ePermissionScopes.SCENE_IMPORT_REQUEST)
+    public UiE2eSceneImportResponse importScene(@Valid @RequestBody ImportUiE2eSceneCommand command) {
+        return importService.importScene(command);
     }
 
     @GetMapping

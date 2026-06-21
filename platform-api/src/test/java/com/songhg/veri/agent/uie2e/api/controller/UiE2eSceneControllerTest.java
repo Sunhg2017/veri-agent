@@ -134,6 +134,39 @@ class UiE2eSceneControllerTest {
     }
 
     @Test
+    void importsSceneDraftFromExternalArtifacts() throws Exception {
+        String token = userAccessToken(List.of("ProjectOwner@PROJECT:project-alpha"));
+
+        mockMvc.perform(post("/api/v1/ui-e2e/scenes/import")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "projectId", "project-alpha",
+                                "applicationId", "app-alpha",
+                                "environmentId", "env-staging",
+                                "sourceType", "PLAYWRIGHT_CODEGEN",
+                                "content", """
+                                        test('Portal smoke', async ({ page }) => {
+                                          await page.goto('https://example.test/login');
+                                          await page.getByLabel('Email').fill('admin@example.com');
+                                          await page.getByLabel('Password').fill(process.env.LOGIN_PASSWORD);
+                                          await page.getByRole('button', { name: 'Sign in' }).click();
+                                          await expect(page).toHaveURL(/dashboard/);
+                                        });
+                                        """
+                        ))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value("OK"))
+                .andExpect(jsonPath("$.data.projectId").value("project-alpha"))
+                .andExpect(jsonPath("$.data.status").value("DRAFT"))
+                .andExpect(jsonPath("$.data.tags", hasSize(2)))
+                .andExpect(jsonPath("$.data.steps[0].stepType").value("NAVIGATE"))
+                .andExpect(jsonPath("$.data.steps[1].stepType").value("LOGIN"))
+                .andExpect(jsonPath("$.data.importSummary.editableDraft").value(true))
+                .andExpect(jsonPath("$.data.sourceSummary.sourceType").value("PLAYWRIGHT_CODEGEN"));
+    }
+
+    @Test
     void rejectsInvalidStatusAndDuplicateCode() throws Exception {
         String token = userAccessToken(List.of("ProjectOwner@PROJECT:project-alpha"));
 

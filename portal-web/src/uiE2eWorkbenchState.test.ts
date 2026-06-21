@@ -36,6 +36,7 @@ import {
   labelUiE2eSceneFocusMode,
   prettyJson,
   sceneDraftFromDetail,
+  sceneDraftFromImport,
   splitTags
 } from './uiE2eWorkbenchState';
 
@@ -1445,6 +1446,36 @@ describe('ui e2e workbench state helpers', () => {
       steps: [{
         stepType: 'LOGIN',
         actionSummaryText: '{\n  "submitAction": "click"\n}'
+      }]
+    });
+
+    expect(sceneDraftFromImport({
+      projectId: 'project-alpha',
+      applicationId: 'app-alpha',
+      environmentId: 'staging',
+      code: 'portal-import',
+      name: 'Portal import',
+      status: 'DRAFT',
+      riskLevel: 'MEDIUM',
+      tags: ['imported', 'smoke'],
+      sourceSummary: { sourceType: 'PLAYWRIGHT_CODEGEN', importedFrom: 'Playwright codegen' },
+      steps: [{
+        stepOrder: 1,
+        stepType: 'NAVIGATE',
+        actionSummary: { targetPath: '/login' },
+        locatorStrategy: { preferred: 'path' },
+        assertionSummary: {},
+        waitPolicy: { timeoutSeconds: 5 }
+      }]
+    })).toMatchObject({
+      projectId: 'project-alpha',
+      code: 'portal-import',
+      name: 'Portal import',
+      tagsText: 'imported smoke',
+      sourceSummaryText: '{\n  "sourceType": "PLAYWRIGHT_CODEGEN",\n  "importedFrom": "Playwright codegen"\n}',
+      steps: [{
+        stepType: 'NAVIGATE',
+        actionSummaryText: '{\n  "targetPath": "/login"\n}'
       }]
     });
   });

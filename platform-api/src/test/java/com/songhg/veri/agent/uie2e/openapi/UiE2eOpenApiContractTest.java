@@ -25,6 +25,7 @@ class UiE2eOpenApiContractTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.paths['/api/v1/ui-e2e/health'].get").exists())
                 .andExpect(jsonPath("$.paths['/api/v1/ui-e2e/scenes'].post").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/ui-e2e/scenes/import'].post").exists())
                 .andExpect(jsonPath("$.paths['/api/v1/ui-e2e/scenes'].get").exists())
                 .andExpect(jsonPath("$.paths['/api/v1/ui-e2e/scenes/{id}'].get").exists())
                 .andExpect(jsonPath("$.paths['/api/v1/ui-e2e/scenes/{id}'].patch").exists())

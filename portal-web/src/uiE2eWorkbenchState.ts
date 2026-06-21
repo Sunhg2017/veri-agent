@@ -5,6 +5,7 @@ import type {
   UiE2eBundleSummary,
   UiE2eFlakyMark,
   UiE2eHealth,
+  UiE2eSceneImport,
   UiE2eRunDetail,
   UiE2eRunSummary,
   UiE2eRunStepResult,
@@ -1586,6 +1587,32 @@ export function buildUiE2eSceneUpdatePayload(draft: UiE2eSceneDraft): { payload?
 
 export function sceneDraftFromDetail(detail: Pick<
   UiE2eSceneDetail,
+  'projectId' | 'applicationId' | 'environmentId' | 'code' | 'name' | 'status' | 'riskLevel' | 'tags' | 'sourceSummary' | 'steps'
+>): UiE2eSceneDraft {
+  return {
+    projectId: detail.projectId,
+    applicationId: detail.applicationId || '',
+    environmentId: detail.environmentId || '',
+    code: detail.code,
+    name: detail.name,
+    status: detail.status,
+    riskLevel: detail.riskLevel,
+    tagsText: detail.tags.join(' '),
+    sourceSummaryText: prettyJson(detail.sourceSummary),
+    steps: detail.steps.length
+      ? detail.steps.map((step) => ({
+          stepType: step.stepType,
+          actionSummaryText: prettyJson(step.actionSummary),
+          locatorStrategyText: prettyJson(step.locatorStrategy),
+          assertionSummaryText: prettyJson(step.assertionSummary),
+          waitPolicyText: prettyJson(step.waitPolicy)
+        }))
+      : [{ ...initialUiE2eSceneStepDraft }]
+  };
+}
+
+export function sceneDraftFromImport(detail: Pick<
+  UiE2eSceneImport,
   'projectId' | 'applicationId' | 'environmentId' | 'code' | 'name' | 'status' | 'riskLevel' | 'tags' | 'sourceSummary' | 'steps'
 >): UiE2eSceneDraft {
   return {

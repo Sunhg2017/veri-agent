@@ -55,6 +55,30 @@ export interface UiE2eSceneDetail extends UiE2eSceneSummary {
   policy: Record<string, unknown>;
 }
 
+export interface UiE2eSceneImportStep {
+  stepOrder: number;
+  stepType: string;
+  actionSummary: Record<string, unknown>;
+  locatorStrategy: Record<string, unknown>;
+  assertionSummary: Record<string, unknown>;
+  waitPolicy: Record<string, unknown>;
+}
+
+export interface UiE2eSceneImport {
+  projectId: string;
+  applicationId?: string;
+  environmentId?: string;
+  code: string;
+  name: string;
+  status: string;
+  riskLevel: string;
+  tags: string[];
+  sourceSummary: Record<string, unknown>;
+  steps: UiE2eSceneImportStep[];
+  warnings: string[];
+  importSummary: Record<string, unknown>;
+}
+
 export interface UiE2eBundleReview {
   id: string;
   reviewStatus: string;
@@ -301,6 +325,19 @@ export interface UpdateUiE2eScenePayload {
   steps?: UiE2eSceneStepPayload[];
 }
 
+export type UiE2eSceneImportSourceType = 'SELENIUM_IDE' | 'PLAYWRIGHT_CODEGEN';
+
+export interface ImportUiE2eScenePayload {
+  projectId: string;
+  applicationId?: string;
+  environmentId?: string;
+  sourceType: UiE2eSceneImportSourceType;
+  content: string;
+  codeHint?: string;
+  nameHint?: string;
+  tags?: string[];
+}
+
 export interface CreateUiE2eBundlePayload {
   sceneId: string;
 }
@@ -358,6 +395,14 @@ export async function createUiE2eScene(payload: CreateUiE2eScenePayload): Promis
     body: JSON.stringify(payload)
   });
   return { ...response, data: normalizeUiE2eSceneDetail(response.data) };
+}
+
+export async function importUiE2eScene(payload: ImportUiE2eScenePayload): Promise<ApiResponse<UiE2eSceneImport>> {
+  const response = await requestJson<unknown>(`${UI_E2E_BASE}/scenes/import`, {
+    method: 'POST',
+    body: JSON.stringify(payload)
+  });
+  return { ...response, data: normalizeUiE2eSceneImport(response.data) };
 }
 
 export async function updateUiE2eScene(id: string, payload: UpdateUiE2eScenePayload): Promise<ApiResponse<UiE2eSceneDetail>> {
@@ -533,6 +578,24 @@ export function normalizeUiE2eSceneDetail(input: unknown): UiE2eSceneDetail {
   };
 }
 
+export function normalizeUiE2eSceneImport(input: unknown): UiE2eSceneImport {
+  const value = objectValue(input);
+  return {
+    projectId: stringValue(read(value, 'projectId', 'project_id')),
+    applicationId: optionalString(read(value, 'applicationId', 'application_id')),
+    environmentId: optionalString(read(value, 'environmentId', 'environment_id')),
+    code: stringValue(read(value, 'code')),
+    name: stringValue(read(value, 'name')),
+    status: stringValue(read(value, 'status'), 'DRAFT'),
+    riskLevel: stringValue(read(value, 'riskLevel', 'risk_level'), 'MEDIUM'),
+    tags: stringArray(read(value, 'tags')),
+    sourceSummary: objectValue(read(value, 'sourceSummary', 'source_summary')),
+    steps: arrayValue(read(value, 'steps')).map(normalizeUiE2eSceneImportStep),
+    warnings: stringArray(read(value, 'warnings')),
+    importSummary: objectValue(read(value, 'importSummary', 'import_summary'))
+  };
+}
+
 export function normalizeUiE2eSceneStep(input: unknown): UiE2eSceneStep {
   const value = objectValue(input);
   return {
@@ -545,6 +608,18 @@ export function normalizeUiE2eSceneStep(input: unknown): UiE2eSceneStep {
     waitPolicy: objectValue(read(value, 'waitPolicy', 'wait_policy')),
     createdAt: optionalString(read(value, 'createdAt', 'created_at')),
     updatedAt: optionalString(read(value, 'updatedAt', 'updated_at'))
+  };
+}
+
+export function normalizeUiE2eSceneImportStep(input: unknown): UiE2eSceneImportStep {
+  const value = objectValue(input);
+  return {
+    stepOrder: numberValue(read(value, 'stepOrder', 'step_order'), 0),
+    stepType: stringValue(read(value, 'stepType', 'step_type')),
+    actionSummary: objectValue(read(value, 'actionSummary', 'action_summary')),
+    locatorStrategy: objectValue(read(value, 'locatorStrategy', 'locator_strategy')),
+    assertionSummary: objectValue(read(value, 'assertionSummary', 'assertion_summary')),
+    waitPolicy: objectValue(read(value, 'waitPolicy', 'wait_policy'))
   };
 }
 

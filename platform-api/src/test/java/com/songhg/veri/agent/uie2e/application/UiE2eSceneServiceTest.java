@@ -15,6 +15,7 @@ import com.songhg.veri.agent.testdesign.application.TestDesignCrossWpReportEvide
 import com.songhg.veri.agent.testdesign.application.TestDesignPlatformContextClient;
 import com.songhg.veri.agent.testdesign.infrastructure.InMemoryTestDesignRepository;
 import com.songhg.veri.agent.uie2e.application.command.CreateUiE2eSceneCommand;
+import com.songhg.veri.agent.uie2e.application.command.ImportUiE2eSceneCommand;
 import com.songhg.veri.agent.uie2e.application.command.UpdateUiE2eSceneCommand;
 import com.songhg.veri.agent.uie2e.config.UiE2eProperties;
 import com.songhg.veri.agent.uie2e.infrastructure.InMemoryUiE2eRepository;
@@ -143,8 +144,104 @@ class UiE2eSceneServiceTest {
                 assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.INVALID_STATE));
     }
 
+    @Test
+    void importsSeleniumIdeIntoEditableSceneDraft() {
+        Fixture fixture = fixture(true);
+        UiE2eSceneImportService importService = importService(fixture);
+
+        var imported = importService.importScene(new ImportUiE2eSceneCommand(
+                "project-alpha",
+                "app-alpha",
+                "env-staging",
+                "SELENIUM_IDE",
+                """
+                        {
+                          "id": "project-1",
+                          "name": "Portal Login",
+                          "tests": [
+                            {
+                              "id": "test-1",
+                              "name": "Portal admin login",
+                              "commands": [
+                                { "command": "open", "target": "/login", "value": "" },
+                                { "command": "type", "target": "id=username", "value": "admin@example.com" },
+                                { "command": "type", "target": "id=password", "value": "${PASSWORD}" },
+                                { "command": "click", "target": "css=button[type='submit']", "value": "" },
+                                { "command": "assertText", "target": "css=h1", "value": "Dashboard" },
+                                { "command": "pause", "target": "", "value": "1500" }
+                              ]
+                            }
+                          ]
+                        }
+                        """,
+                "",
+                "",
+                List.of("smoke")
+        ));
+
+        assertThat(imported.projectId()).isEqualTo("project-alpha");
+        assertThat(imported.code()).isEqualTo("portal-admin-login");
+        assertThat(imported.name()).isEqualTo("Portal admin login");
+        assertThat(imported.tags()).contains("smoke", "imported", "selenium-ide");
+        assertThat(imported.steps()).extracting(item -> item.stepType())
+                .containsExactly("NAVIGATE", "LOGIN", "ASSERT", "WAIT");
+        assertThat(imported.steps().get(1).actionSummary()).containsEntry("principalField", "#username");
+        assertThat(imported.steps().get(1).actionSummary()).containsEntry("credentialField", "#password");
+        assertThat(imported.steps().get(3).waitPolicy()).containsEntry("timeoutSeconds", 2);
+        assertThat(imported.sourceSummary()).containsEntry("sourceType", "SELENIUM_IDE");
+        assertThat(imported.importSummary()).containsEntry("editableDraft", true);
+    }
+
+    @Test
+    void importsPlaywrightCodegenIntoEditableSceneDraft() {
+        Fixture fixture = fixture(true);
+        UiE2eSceneImportService importService = importService(fixture);
+
+        var imported = importService.importScene(new ImportUiE2eSceneCommand(
+                "project-alpha",
+                null,
+                null,
+                "PLAYWRIGHT_CODEGEN",
+                """
+                        import { test, expect } from '@playwright/test';
+
+                        test('Portal smoke', async ({ page }) => {
+                          await page.goto('https://example.test/login');
+                          await page.getByLabel('Email').fill('admin@example.com');
+                          await page.getByLabel('Password').fill(process.env.LOGIN_PASSWORD);
+                          await page.getByRole('button', { name: 'Sign in' }).click();
+                          await expect(page).toHaveURL(/dashboard/);
+                          await expect(page.getByText('Dashboard')).toHaveText('Dashboard');
+                        });
+                        """,
+                "portal-smoke-import",
+                "Portal smoke import",
+                List.of()
+        ));
+
+        assertThat(imported.code()).isEqualTo("portal-smoke-import");
+        assertThat(imported.name()).isEqualTo("Portal smoke import");
+        assertThat(imported.tags()).contains("imported", "playwright-codegen");
+        assertThat(imported.steps()).extracting(item -> item.stepType())
+                .containsExactly("NAVIGATE", "LOGIN", "ASSERT", "ASSERT");
+        assertThat(imported.steps().get(0).actionSummary()).containsEntry("targetPath", "/login");
+        assertThat(imported.steps().get(1).locatorStrategy()).containsEntry("usernameSelector", "label=Email");
+        assertThat(imported.steps().get(1).locatorStrategy()).containsEntry("passwordSelector", "label=Password");
+        assertThat(imported.steps().get(2).assertionSummary()).containsEntry("urlContains", "dashboard");
+        assertThat(imported.steps().get(3).assertionSummary()).containsEntry("expectedText", "Dashboard");
+        assertThat(imported.warnings()).isEmpty();
+    }
+
     private UiE2eSceneService service(boolean enabled) {
         return fixture(enabled).service();
+    }
+
+    private UiE2eSceneImportService importService(Fixture fixture) {
+        return new UiE2eSceneImportService(
+                fixture.contextClient(),
+                fixture.properties(),
+                fixture.objectMapper()
+        );
     }
 
     static Fixture fixture(boolean enabled) {

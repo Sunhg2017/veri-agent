@@ -5,6 +5,7 @@ import com.songhg.veri.agent.uie2e.application.command.CreateUiE2eRunCommand;
 import com.songhg.veri.agent.uie2e.application.command.UpsertUiE2eFlakyMarkCommand;
 import com.songhg.veri.agent.authorization.application.ResourceScope;
 import com.songhg.veri.agent.uie2e.application.command.CreateUiE2eSceneCommand;
+import com.songhg.veri.agent.uie2e.application.command.ImportUiE2eSceneCommand;
 import com.songhg.veri.agent.uie2e.application.query.UiE2eBundlePageRequest;
 import com.songhg.veri.agent.uie2e.application.query.UiE2eFlakyMarkPageRequest;
 import com.songhg.veri.agent.uie2e.application.query.UiE2eRunPageRequest;
@@ -37,6 +38,13 @@ public class UiE2ePermissionScopeResolver {
     }
 
     public ResourceScope sceneRequest(CreateUiE2eSceneCommand command) {
+        if (command != null && StringUtils.hasText(command.projectId())) {
+            return project(command.projectId());
+        }
+        return ResourceScope.platform();
+    }
+
+    public ResourceScope sceneImportRequest(ImportUiE2eSceneCommand command) {
         if (command != null && StringUtils.hasText(command.projectId())) {
             return project(command.projectId());
         }
