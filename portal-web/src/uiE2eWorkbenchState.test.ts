@@ -257,6 +257,7 @@ describe('ui e2e workbench state helpers', () => {
         supportedNodeTypes: ['UI_TEST'],
         credentialPolicy: {},
         artifactPolicy: {},
+        runnerCapacity: {},
         policy: {}
       },
       [
@@ -429,6 +430,7 @@ describe('ui e2e workbench state helpers', () => {
         supportedNodeTypes: ['UI_TEST'],
         credentialPolicy: {},
         artifactPolicy: {},
+        runnerCapacity: {},
         policy: {}
       },
       draft: {
@@ -474,6 +476,7 @@ describe('ui e2e workbench state helpers', () => {
         supportedNodeTypes: ['UI_TEST'],
         credentialPolicy: {},
         artifactPolicy: {},
+        runnerCapacity: {},
         policy: {}
       },
       draft: {
@@ -518,6 +521,7 @@ describe('ui e2e workbench state helpers', () => {
         supportedNodeTypes: ['UI_TEST'],
         credentialPolicy: {},
         artifactPolicy: {},
+        runnerCapacity: {},
         policy: {}
       },
       draft: {

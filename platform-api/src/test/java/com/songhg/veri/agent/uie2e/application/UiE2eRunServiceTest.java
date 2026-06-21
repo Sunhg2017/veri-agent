@@ -997,7 +997,8 @@ class UiE2eRunServiceTest {
                         testDataFixture.referenceService(),
                         artifactStorage,
                         objectMapper,
-                        notificationService
+                        notificationService,
+                        new UiE2eRunnerExecutionPool(properties)
                 )
         );
     }

@@ -35,6 +35,8 @@ public record UiE2eHealthResponse(
         Map<String, Object> credentialPolicy,
         @Schema(description = "证据与 artifact 策略摘要")
         Map<String, Object> artifactPolicy,
+        @Schema(description = "共享浏览器执行池与批量运行容量摘要")
+        Map<String, Object> runnerCapacity,
         @Schema(description = "当前 WP7 功能边界")
         Map<String, Object> policy
 ) {

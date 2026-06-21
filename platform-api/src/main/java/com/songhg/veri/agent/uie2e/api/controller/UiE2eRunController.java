@@ -4,12 +4,18 @@ import com.songhg.veri.agent.authorization.application.PermissionCodes;
 import com.songhg.veri.agent.authorization.application.RequirePermission;
 import com.songhg.veri.agent.common.api.PageResponse;
 import com.songhg.veri.agent.common.openapi.ApiVersion;
+import com.songhg.veri.agent.uie2e.application.UiE2eBatchRunService;
+import com.songhg.veri.agent.uie2e.application.UiE2eRunSummaryBackfillService;
 import com.songhg.veri.agent.uie2e.application.UiE2eRunService;
+import com.songhg.veri.agent.uie2e.application.command.BackfillUiE2eRunSummaryCommand;
+import com.songhg.veri.agent.uie2e.application.command.BatchCreateUiE2eRunCommand;
 import com.songhg.veri.agent.uie2e.application.command.CancelUiE2eRunCommand;
 import com.songhg.veri.agent.uie2e.application.command.CreateUiE2eRunCommand;
 import com.songhg.veri.agent.uie2e.application.query.UiE2eRunPageRequest;
+import com.songhg.veri.agent.uie2e.application.view.UiE2eBatchRunResponse;
 import com.songhg.veri.agent.uie2e.application.view.UiE2eRunDetailResponse;
 import com.songhg.veri.agent.uie2e.application.view.UiE2eRunExportResponse;
+import com.songhg.veri.agent.uie2e.application.view.UiE2eRunSummaryBackfillResponse;
 import com.songhg.veri.agent.uie2e.application.view.UiE2eRunSummaryResponse;
 import jakarta.validation.Valid;
 import java.nio.charset.StandardCharsets;
@@ -32,9 +38,17 @@ import org.springframework.web.bind.annotation.RestController;
 public class UiE2eRunController {
 
     private final UiE2eRunService service;
+    private final UiE2eBatchRunService batchRunService;
+    private final UiE2eRunSummaryBackfillService backfillService;
 
-    public UiE2eRunController(UiE2eRunService service) {
+    public UiE2eRunController(
+            UiE2eRunService service,
+            UiE2eBatchRunService batchRunService,
+            UiE2eRunSummaryBackfillService backfillService
+    ) {
         this.service = service;
+        this.batchRunService = batchRunService;
+        this.backfillService = backfillService;
     }
 
     @PostMapping
@@ -42,6 +56,18 @@ public class UiE2eRunController {
     public ResponseEntity<UiE2eRunDetailResponse> createRun(@Valid @RequestBody CreateUiE2eRunCommand command) {
         UiE2eRunDetailResponse response = service.createRun(command);
         return ResponseEntity.status(response.idempotentReplay() ? HttpStatus.OK : HttpStatus.CREATED).body(response);
+    }
+
+    @PostMapping("/batch")
+    @RequirePermission(value = PermissionCodes.UI_E2E_EXECUTE, scope = UiE2ePermissionScopes.RUN_BATCH_REQUEST)
+    public UiE2eBatchRunResponse createBatchRun(@Valid @RequestBody BatchCreateUiE2eRunCommand command) {
+        return batchRunService.createRuns(command);
+    }
+
+    @PostMapping("/backfill")
+    @RequirePermission(value = PermissionCodes.UI_E2E_MANAGE, scope = UiE2ePermissionScopes.RUN_BACKFILL_REQUEST)
+    public UiE2eRunSummaryBackfillResponse backfillRunSummary(@Valid @RequestBody BackfillUiE2eRunSummaryCommand command) {
+        return backfillService.backfill(command);
     }
 
     @GetMapping

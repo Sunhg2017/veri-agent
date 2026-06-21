@@ -6,6 +6,7 @@ import com.songhg.veri.agent.document.application.DocumentInputEventRecoveryServ
 import com.songhg.veri.agent.document.application.DocumentInputRetentionCleanupService;
 import com.songhg.veri.agent.document.application.DocumentWebhookAutoRetryService;
 import com.songhg.veri.agent.notification.application.NotificationStreamService;
+import com.songhg.veri.agent.uie2e.application.UiE2eArtifactCleanupService;
 import com.xxl.job.core.context.XxlJobContext;
 import com.xxl.job.core.log.XxlJobFileAppender;
 import java.nio.file.Files;
@@ -33,7 +34,8 @@ class CoreMaintenanceJobHandlerTest {
                 mock(DocumentInputEventRecoveryService.class),
                 mock(DocumentWebhookAutoRetryService.class),
                 mock(DocumentInputRetentionCleanupService.class),
-                notificationStreamService
+                notificationStreamService,
+                mock(UiE2eArtifactCleanupService.class)
         );
         XxlJobContext context = new XxlJobContext(2001L, "", logFileName("heartbeat"), 0, 2);
         XxlJobContext.setXxlJobContext(context);
@@ -41,6 +43,27 @@ class CoreMaintenanceJobHandlerTest {
         handler.notificationStreamHeartbeatJob();
 
         verify(notificationStreamService).heartbeat();
+        assertThat(context.getHandleCode()).isEqualTo(XxlJobContext.HANDLE_CODE_SUCCESS);
+    }
+
+    @Test
+    void uiE2eArtifactCleanupJobDelegatesToCleanupService() throws Exception {
+        UiE2eArtifactCleanupService artifactCleanupService = mock(UiE2eArtifactCleanupService.class);
+        CoreMaintenanceJobHandler handler = new CoreMaintenanceJobHandler(
+                mock(AuthSessionCleanupService.class),
+                mock(AuditRetentionCleanupService.class),
+                mock(DocumentInputEventRecoveryService.class),
+                mock(DocumentWebhookAutoRetryService.class),
+                mock(DocumentInputRetentionCleanupService.class),
+                mock(NotificationStreamService.class),
+                artifactCleanupService
+        );
+        XxlJobContext context = new XxlJobContext(2002L, "", logFileName("ui-e2e-artifact-cleanup"), 0, 2);
+        XxlJobContext.setXxlJobContext(context);
+
+        handler.uiE2eArtifactCleanupJob();
+
+        verify(artifactCleanupService).cleanupByRetentionPolicy();
         assertThat(context.getHandleCode()).isEqualTo(XxlJobContext.HANDLE_CODE_SUCCESS);
     }
 

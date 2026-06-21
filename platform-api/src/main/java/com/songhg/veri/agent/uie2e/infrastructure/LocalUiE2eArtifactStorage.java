@@ -7,8 +7,13 @@ import java.nio.file.Files;
 import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.nio.file.attribute.FileTime;
+import java.time.Instant;
+import java.util.Comparator;
 import java.util.Locale;
+import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Stream;
 import org.springframework.http.MediaType;
 import org.springframework.util.StringUtils;
 
@@ -82,6 +87,50 @@ public class LocalUiE2eArtifactStorage implements UiE2eArtifactStorage {
         }
     }
 
+    @Override
+    public boolean supportsDestructiveCleanup() {
+        return true;
+    }
+
+    @Override
+    public CleanupResult cleanupUnreferenced(Set<String> referencedStorageRefs, Instant cutoff, int batchSize) throws IOException {
+        if (batchSize <= 0 || !Files.exists(rootDir)) {
+            return new CleanupResult(true, 0, 0, 0, 0);
+        }
+        Set<String> referenced = referencedStorageRefs == null ? Set.of() : Set.copyOf(referencedStorageRefs);
+        Instant effectiveCutoff = cutoff == null ? Instant.EPOCH : cutoff;
+        int scannedFileCount = 0;
+        int deletedFileCount = 0;
+        int skippedReferencedCount = 0;
+        int skippedFreshCount = 0;
+        // Cleanup only scans files physically located under the controlled root; it does not follow links into
+        // arbitrary host paths because this worker is allowed to delete files.
+        try (Stream<Path> files = Files.walk(rootDir)
+                .filter(Files::isRegularFile)
+                .sorted(Comparator.naturalOrder())) {
+            for (Path candidate : files.toList()) {
+                scannedFileCount++;
+                String storageRef = storageRef(candidate);
+                if (referenced.contains(storageRef)) {
+                    skippedReferencedCount++;
+                    continue;
+                }
+                FileTime lastModifiedTime = Files.getLastModifiedTime(candidate);
+                if (lastModifiedTime.toInstant().isAfter(effectiveCutoff) || lastModifiedTime.toInstant().equals(effectiveCutoff)) {
+                    skippedFreshCount++;
+                    continue;
+                }
+                Files.deleteIfExists(candidate);
+                deletedFileCount++;
+                pruneEmptyParents(candidate.getParent());
+                if (deletedFileCount >= batchSize) {
+                    break;
+                }
+            }
+        }
+        return new CleanupResult(true, scannedFileCount, deletedFileCount, skippedReferencedCount, skippedFreshCount);
+    }
+
     private Path resolve(String storageRef) throws IOException {
         if (!StringUtils.hasText(storageRef) || !storageRef.startsWith(STORAGE_SCHEME)) {
             throw new IOException("ui-e2e artifact storage ref is invalid");
@@ -149,5 +198,23 @@ public class LocalUiE2eArtifactStorage implements UiE2eArtifactStorage {
             return MediaType.APPLICATION_JSON_VALUE;
         }
         return MediaType.APPLICATION_OCTET_STREAM_VALUE;
+    }
+
+    private String storageRef(Path candidate) {
+        String relative = rootDir.relativize(candidate.toAbsolutePath().normalize()).toString().replace('\\', '/');
+        return STORAGE_SCHEME + relative;
+    }
+
+    private void pruneEmptyParents(Path directory) throws IOException {
+        Path current = directory;
+        while (current != null && !current.equals(rootDir) && current.startsWith(rootDir)) {
+            try (Stream<Path> children = Files.list(current)) {
+                if (children.findAny().isPresent()) {
+                    return;
+                }
+            }
+            Files.deleteIfExists(current);
+            current = current.getParent();
+        }
     }
 }

@@ -18,6 +18,7 @@ export interface UiE2eHealth {
   supportedNodeTypes: string[];
   credentialPolicy: Record<string, unknown>;
   artifactPolicy: Record<string, unknown>;
+  runnerCapacity: Record<string, unknown>;
   policy: Record<string, unknown>;
 }
 
@@ -545,6 +546,7 @@ export function normalizeUiE2eHealth(input: unknown): UiE2eHealth {
     supportedNodeTypes: stringArray(read(value, 'supportedNodeTypes', 'supported_node_types')),
     credentialPolicy: objectValue(read(value, 'credentialPolicy', 'credential_policy')),
     artifactPolicy: objectValue(read(value, 'artifactPolicy', 'artifact_policy')),
+    runnerCapacity: objectValue(read(value, 'runnerCapacity', 'runner_capacity')),
     policy: objectValue(read(value, 'policy'))
   };
 }

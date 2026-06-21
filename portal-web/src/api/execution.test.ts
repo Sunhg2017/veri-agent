@@ -1,11 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { refreshToken } from './auth';
-import { getAuthToken, requestJson } from './client';
+import { getAuthToken, requestBinary, requestJson } from './client';
 import {
   archiveExecutionPlan,
   cancelExecutionRun,
   createExecutionPlan,
   createExecutionTrigger,
+  downloadExecutionArtifact,
   dryRunExecutionPlan,
   dryRunExecutionTrigger,
   exportExecutionRun,
@@ -49,6 +50,7 @@ vi.mock('./client', () => ({
     }
   },
   getAuthToken: vi.fn(),
+  requestBinary: vi.fn(),
   requestJson: vi.fn()
 }));
 
@@ -57,15 +59,23 @@ vi.mock('./auth', () => ({
 }));
 
 const requestJsonMock = vi.mocked(requestJson);
+const requestBinaryMock = vi.mocked(requestBinary);
 const getAuthTokenMock = vi.mocked(getAuthToken);
 const refreshTokenMock = vi.mocked(refreshToken);
 
 describe('WP9 execution API helpers', () => {
   beforeEach(() => {
     requestJsonMock.mockReset();
+    requestBinaryMock.mockReset();
     getAuthTokenMock.mockReset();
     refreshTokenMock.mockReset();
     vi.unstubAllGlobals();
+    requestBinaryMock.mockResolvedValue({
+      blob: new Blob(['artifact-bytes'], { type: 'application/zip' }),
+      traceId: 'trc-artifact',
+      contentType: 'application/zip',
+      filename: 'trace.zip'
+    });
   });
 
   it('normalizes health, plans, dry-run, runs and trigger evidence', () => {
@@ -156,6 +166,21 @@ describe('WP9 execution API helpers', () => {
       result_summary: { rawOutputStored: false },
       node_count: '2',
       idempotent_replay: true,
+      artifacts: [{
+        id: 'artifact-1',
+        node_run_id: 'node-run-1',
+        plan_node_id: 'node-1',
+        node_key: 'api-smoke',
+        node_type: 'UI_TEST',
+        runner_type: 'WP7_UI',
+        source_type: 'WP7_UI_E2E',
+        artifact_type: 'LOG',
+        artifact_digest: 'sha256:artifact',
+        size_bytes: '256',
+        capture_status: 'CAPTURED',
+        download_ready: true,
+        redaction_flags: { aggregateOnly: true }
+      }],
       nodes: [{
         id: 'node-run-1',
         plan_node_id: 'node-1',
@@ -169,6 +194,7 @@ describe('WP9 execution API helpers', () => {
       triggerType: 'WEBHOOK',
       sourceEventId: 'evt-1',
       idempotentReplay: true,
+      artifacts: [{ artifactType: 'LOG', downloadReady: true, sourceType: 'WP7_UI_E2E' }],
       nodes: [{ nodeKey: 'api-smoke', runnerType: 'WP6_API' }]
     });
 
@@ -278,6 +304,7 @@ describe('WP9 execution API helpers', () => {
     await triggerExecutionRun('plan-1', { requestKey: 'rk-1', reason: 'manual' });
     await fetchExecutionRun('run-1');
     await exportExecutionRun('run-1');
+    await downloadExecutionArtifact('run-1', 'artifact-1');
     await cancelExecutionRun('run-1');
     await retryExecutionRun('run-1');
     await createExecutionTrigger('plan-1', {
@@ -307,6 +334,7 @@ describe('WP9 execution API helpers', () => {
     });
     expect(requestJsonMock).toHaveBeenNthCalledWith(8, '/api/v1/execution/runs/run-1');
     expect(requestJsonMock).toHaveBeenNthCalledWith(9, '/api/v1/execution/runs/run-1/export');
+    expect(requestBinaryMock).toHaveBeenNthCalledWith(1, '/api/v1/execution/runs/run-1/artifacts/artifact-1/download');
     expect(requestJsonMock).toHaveBeenNthCalledWith(10, '/api/v1/execution/runs/run-1/cancel', { method: 'POST' });
     expect(requestJsonMock).toHaveBeenNthCalledWith(11, '/api/v1/execution/runs/run-1/retry', { method: 'POST' });
     expect(requestJsonMock).toHaveBeenNthCalledWith(12, '/api/v1/execution/plans/plan-1/triggers', {

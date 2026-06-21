@@ -7,8 +7,6 @@ import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 
 /**
@@ -18,11 +16,14 @@ import java.util.concurrent.Future;
 final class UiE2eRunAttemptExecutor {
 
     private final UiE2eRunnerPort runnerPort;
-    private final UiE2eProperties properties;
+    private final UiE2eRunnerExecutionPool executionPool;
 
-    UiE2eRunAttemptExecutor(UiE2eRunnerPort runnerPort, UiE2eProperties properties) {
+    UiE2eRunAttemptExecutor(
+            UiE2eRunnerPort runnerPort,
+            UiE2eRunnerExecutionPool executionPool
+    ) {
         this.runnerPort = runnerPort;
-        this.properties = properties;
+        this.executionPool = executionPool;
     }
 
     List<UiE2eRunAttemptAggregator.BrowserAttempt> execute(
@@ -37,8 +38,6 @@ final class UiE2eRunAttemptExecutor {
             UUID baselineRunId
     ) {
         List<String> browsers = options == null ? List.of("CHROMIUM") : options.browserTypes();
-        int parallelism = Math.max(1, Math.min(properties.effectiveMaxConcurrency(), browsers.size()));
-        ExecutorService executor = Executors.newFixedThreadPool(parallelism);
         try {
             List<Callable<UiE2eRunAttemptAggregator.BrowserAttempt>> tasks = browsers.stream()
                     .map(browserType -> (Callable<UiE2eRunAttemptAggregator.BrowserAttempt>) () ->
@@ -59,7 +58,7 @@ final class UiE2eRunAttemptExecutor {
                                     ))
                             ))
                     .toList();
-            List<Future<UiE2eRunAttemptAggregator.BrowserAttempt>> futures = executor.invokeAll(tasks);
+            List<Future<UiE2eRunAttemptAggregator.BrowserAttempt>> futures = executionPool.invokeAll(tasks);
             List<UiE2eRunAttemptAggregator.BrowserAttempt> attempts = new ArrayList<>(futures.size());
             for (Future<UiE2eRunAttemptAggregator.BrowserAttempt> future : futures) {
                 attempts.add(future.get());
@@ -74,8 +73,6 @@ final class UiE2eRunAttemptExecutor {
                 throw runtimeException;
             }
             throw new IllegalStateException("ui-e2e browser attempt failed", cause);
-        } finally {
-            executor.shutdownNow();
         }
     }
 }

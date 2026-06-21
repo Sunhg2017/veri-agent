@@ -92,6 +92,8 @@ public interface UiE2eMapper {
 
     List<UiE2eArtifactManifest> artifacts(@Param("runId") UUID runId);
 
+    List<String> artifactStorageRefs();
+
     void insertFlakyMark(UiE2eFlakyMark flakyMark);
 
     void updateFlakyMarkByScene(UiE2eFlakyMark flakyMark);

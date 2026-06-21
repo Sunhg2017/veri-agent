@@ -48,6 +48,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         "veri-agent.auth.token-secret=test-auth-secret-32-byte-minimum!",
         "veri-agent.ui-e2e.runner-enabled=false",
         "veri-agent.ui-e2e.runner-mode=managed",
+        "veri-agent.ui-e2e.max-scenes-per-run=5",
         "veri-agent.ui-e2e.allowlist-base-urls[0]=https://portal.example.test"
 })
 @AutoConfigureMockMvc
@@ -278,6 +279,87 @@ class UiE2eRunControllerTest {
                 .andExpect(content().contentType(MediaType.APPLICATION_OCTET_STREAM))
                 .andExpect(header().string(HttpHeaders.CONTENT_DISPOSITION, containsString(artifactId.toString())))
                 .andExpect(content().string("wp7 artifact body"));
+    }
+
+    @Test
+    void createsBatchRunsWithPerSceneOutcomes() throws Exception {
+        stubManagementStore("https://portal.example.test");
+        String ownerToken = userAccessToken(List.of("ProjectOwner@PROJECT:" + PROJECT_ID));
+        UUID sceneIdOne = createApprovedScene(ownerToken);
+        UUID sceneIdTwo = createApprovedScene(ownerToken);
+        createApprovedBundle(ownerToken, sceneIdOne);
+        createApprovedBundle(ownerToken, sceneIdTwo);
+        UUID leaseRef = createLease(ownerToken);
+
+        mockMvc.perform(post("/api/v1/ui-e2e/runs/batch")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + ownerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "projectId", PROJECT_ID,
+                                "sceneIds", List.of(sceneIdOne.toString(), sceneIdTwo.toString(), UUID.randomUUID().toString()),
+                                "environmentId", ENVIRONMENT_KEY,
+                                "baseUrlRef", "env:" + ENVIRONMENT_KEY,
+                                "accountLeaseRef", leaseRef.toString(),
+                                "requestKeyPrefix", "run-batch-ctrl-001",
+                                "reason", "batch smoke",
+                                "browsers", List.of("CHROMIUM", "FIREFOX"),
+                                "visualRegressionEnabled", true,
+                                "visualMismatchThreshold", 0.02D
+                        ))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.projectId").value(PROJECT_ID))
+                .andExpect(jsonPath("$.data.requestedCount").value(3))
+                .andExpect(jsonPath("$.data.createdCount").value(2))
+                .andExpect(jsonPath("$.data.replayedCount").value(0))
+                .andExpect(jsonPath("$.data.failedCount").value(1))
+                .andExpect(jsonPath("$.data.items.length()").value(3))
+                .andExpect(jsonPath("$.data.items[0].outcome").value("CREATED"))
+                .andExpect(jsonPath("$.data.items[1].outcome").value("CREATED"))
+                .andExpect(jsonPath("$.data.items[2].outcome").value("FAILED"))
+                .andExpect(jsonPath("$.data.items[2].errorCode").value("UI_E2E_SCENE_NOT_FOUND"));
+    }
+
+    @Test
+    void backfillsRunSummaryWithoutMutatingMatchingRun() throws Exception {
+        stubManagementStore("https://portal.example.test");
+        String ownerToken = userAccessToken(List.of("ProjectOwner@PROJECT:" + PROJECT_ID));
+        UUID sceneId = createApprovedScene(ownerToken);
+        UUID bundleId = createApprovedBundle(ownerToken, sceneId);
+        UUID leaseRef = createLease(ownerToken);
+
+        MvcResult created = mockMvc.perform(post("/api/v1/ui-e2e/runs")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + ownerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "projectId", PROJECT_ID,
+                                "sceneId", sceneId.toString(),
+                                "bundleId", bundleId.toString(),
+                                "environmentId", ENVIRONMENT_KEY,
+                                "baseUrlRef", "env:" + ENVIRONMENT_KEY,
+                                "accountLeaseRef", leaseRef.toString(),
+                                "requestKey", "run-request-backfill-001"
+                        ))))
+                .andExpect(status().isCreated())
+                .andReturn();
+        UUID runId = UUID.fromString(JsonPath.read(created.getResponse().getContentAsString(), "$.data.id"));
+
+        mockMvc.perform(post("/api/v1/ui-e2e/runs/backfill")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + ownerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "projectId", PROJECT_ID,
+                                "runIds", List.of(runId.toString())
+                        ))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.projectId").value(PROJECT_ID))
+                .andExpect(jsonPath("$.data.requestedCount").value(1))
+                .andExpect(jsonPath("$.data.updatedCount").value(1))
+                .andExpect(jsonPath("$.data.unchangedCount").value(0))
+                .andExpect(jsonPath("$.data.failedCount").value(0))
+                .andExpect(jsonPath("$.data.items[0].runId").value(runId.toString()))
+                .andExpect(jsonPath("$.data.items[0].updated").value(true))
+                .andExpect(jsonPath("$.data.items[0].stepResultCount").value(0))
+                .andExpect(jsonPath("$.data.items[0].artifactCount").value(0));
     }
 
     private UUID createApprovedScene(String token) throws Exception {

@@ -2,6 +2,8 @@ package com.songhg.veri.agent.uie2e.application;
 
 import com.songhg.veri.agent.uie2e.application.command.CreateUiE2eBundleCommand;
 import com.songhg.veri.agent.uie2e.application.command.CreateUiE2eRunCommand;
+import com.songhg.veri.agent.uie2e.application.command.BatchCreateUiE2eRunCommand;
+import com.songhg.veri.agent.uie2e.application.command.BackfillUiE2eRunSummaryCommand;
 import com.songhg.veri.agent.uie2e.application.command.UpsertUiE2eFlakyMarkCommand;
 import com.songhg.veri.agent.authorization.application.ResourceScope;
 import com.songhg.veri.agent.uie2e.application.command.CreateUiE2eSceneCommand;
@@ -81,6 +83,20 @@ public class UiE2ePermissionScopeResolver {
     }
 
     public ResourceScope runRequest(CreateUiE2eRunCommand command) {
+        if (command != null && StringUtils.hasText(command.projectId())) {
+            return project(command.projectId());
+        }
+        return ResourceScope.platform();
+    }
+
+    public ResourceScope runBatchRequest(BatchCreateUiE2eRunCommand command) {
+        if (command != null && StringUtils.hasText(command.projectId())) {
+            return project(command.projectId());
+        }
+        return ResourceScope.platform();
+    }
+
+    public ResourceScope runBackfillRequest(BackfillUiE2eRunSummaryCommand command) {
         if (command != null && StringUtils.hasText(command.projectId())) {
             return project(command.projectId());
         }

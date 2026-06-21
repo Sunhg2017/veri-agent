@@ -10,6 +10,8 @@ final class UiE2ePermissionScopes {
     static final String BUNDLE_LIST = "@uiE2ePermissionScopeResolver.bundleList(#request)";
     static final String BUNDLE = "@uiE2ePermissionScopeResolver.bundle(#id)";
     static final String RUN_REQUEST = "@uiE2ePermissionScopeResolver.runRequest(#command)";
+    static final String RUN_BATCH_REQUEST = "@uiE2ePermissionScopeResolver.runBatchRequest(#command)";
+    static final String RUN_BACKFILL_REQUEST = "@uiE2ePermissionScopeResolver.runBackfillRequest(#command)";
     static final String RUN_LIST = "@uiE2ePermissionScopeResolver.runList(#request)";
     static final String RUN = "@uiE2ePermissionScopeResolver.run(#id)";
     static final String FLAKY_REQUEST = "@uiE2ePermissionScopeResolver.flakyRequest(#command)";

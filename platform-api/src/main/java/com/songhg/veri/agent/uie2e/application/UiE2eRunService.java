@@ -104,6 +104,7 @@ public class UiE2eRunService {
     private final UiE2eArtifactStorage artifactStorage;
     private final ObjectMapper objectMapper;
     private final AsyncTaskNotificationService notificationService;
+    private final UiE2eRunnerExecutionPool executionPool;
     private final UiE2eRunAttemptAggregator attemptAggregator;
     private final UiE2eRunAttemptExecutor attemptExecutor;
 
@@ -117,7 +118,8 @@ public class UiE2eRunService {
             TestDataCrossWpReferenceService testDataCrossWpReferenceService,
             UiE2eArtifactStorage artifactStorage,
             ObjectMapper objectMapper,
-            AsyncTaskNotificationService notificationService
+            AsyncTaskNotificationService notificationService,
+            UiE2eRunnerExecutionPool executionPool
     ) {
         this.repository = repository;
         this.actorResolver = actorResolver;
@@ -129,8 +131,13 @@ public class UiE2eRunService {
         this.artifactStorage = artifactStorage;
         this.objectMapper = objectMapper;
         this.notificationService = notificationService;
+        this.executionPool = executionPool;
         this.attemptAggregator = new UiE2eRunAttemptAggregator(repository, artifactStorage, properties, objectMapper);
-        this.attemptExecutor = new UiE2eRunAttemptExecutor(runnerPort, properties);
+        this.attemptExecutor = new UiE2eRunAttemptExecutor(runnerPort, executionPool);
+    }
+
+    public UiE2eRunnerExecutionPool.CapacitySnapshot runnerCapacity() {
+        return executionPool.snapshot();
     }
 
     /**

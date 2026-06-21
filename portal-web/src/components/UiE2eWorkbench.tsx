@@ -752,6 +752,16 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
     await persistFlakyDraft(nextDraft);
   }
 
+  const runnerCapacity = health?.runnerCapacity ?? {};
+  const runnerActiveWorkers = recordNumber(runnerCapacity.activeWorkers);
+  const runnerAvailableWorkers = recordNumber(runnerCapacity.availableWorkers, health?.maxConcurrency ?? 0);
+  const runnerQueuedTasks = recordNumber(runnerCapacity.queuedTasks);
+  const runnerCompletedTasks = recordNumber(runnerCapacity.completedTaskCount);
+  const runnerPoolReady = recordBoolean(runnerCapacity.sharedBrowserPoolReady);
+  const batchRunReady = recordBoolean(runnerCapacity.batchRunReady);
+  const summaryBackfillReady = recordBoolean(runnerCapacity.summaryBackfillReady);
+  const runnerSaturated = recordBoolean(runnerCapacity.saturated);
+
   return (
     <div className="ui-e2e-workbench" data-testid="ui-e2e-workbench">
       <section className="metrics-grid">
@@ -781,10 +791,18 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
                   <SummaryTile label="runnerEnabled" value={health.runnerEnabled ? 'ON' : 'OFF'} tone={health.runnerEnabled ? 'success' : 'warning'} />
                   <SummaryTile label="allowlist" value={health.allowlistEnabled ? `ON (${health.allowlistHostCount})` : 'OFF'} />
                   <SummaryTile label="export" value={health.exportEnabled ? 'ON' : 'OFF'} />
+                  <SummaryTile label="browserPool" value={runnerPoolReady ? 'READY' : 'PENDING'} tone={runnerPoolReady ? 'success' : 'warning'} />
+                  <SummaryTile label="batchRun" value={batchRunReady ? 'READY' : 'PENDING'} tone={batchRunReady ? 'success' : 'warning'} />
+                  <SummaryTile label="backfill" value={summaryBackfillReady ? 'READY' : 'PENDING'} tone={summaryBackfillReady ? 'success' : 'warning'} />
+                  <SummaryTile label="saturated" value={runnerSaturated ? 'YES' : 'NO'} tone={runnerSaturated ? 'warning' : 'success'} />
                 </div>
                 <div className="report-section-grid">
                   <InfoBlock title="supportedNodeTypes" value={health.supportedNodeTypes.join(', ') || '-'} />
                   <InfoBlock title="maxConcurrency" value={String(health.maxConcurrency)} />
+                  <InfoBlock title="activeWorkers" value={String(runnerActiveWorkers)} />
+                  <InfoBlock title="availableWorkers" value={String(runnerAvailableWorkers)} />
+                  <InfoBlock title="queuedTasks" value={String(runnerQueuedTasks)} />
+                  <InfoBlock title="completedTasks" value={String(runnerCompletedTasks)} />
                   <InfoBlock title="defaultTimeout" value={`${health.defaultTimeoutSeconds}s`} />
                   <InfoBlock title="maxScenesPerRun" value={String(health.maxScenesPerRun)} />
                   <InfoBlock title="recentFailures" value={String(overview.recentFailures)} />

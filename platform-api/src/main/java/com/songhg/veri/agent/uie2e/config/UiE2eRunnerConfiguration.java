@@ -1,5 +1,6 @@
 package com.songhg.veri.agent.uie2e.config;
 
+import com.songhg.veri.agent.uie2e.application.UiE2eRunnerExecutionPool;
 import com.songhg.veri.agent.uie2e.application.port.UiE2eRepository;
 import com.songhg.veri.agent.uie2e.application.port.UiE2eArtifactStorage;
 import com.songhg.veri.agent.uie2e.application.port.UiE2eRunnerPort;
@@ -18,6 +19,12 @@ import org.springframework.context.annotation.Configuration;
 @Configuration
 @EnableConfigurationProperties(UiE2eProperties.class)
 public class UiE2eRunnerConfiguration {
+
+    @Bean
+    @ConditionalOnMissingBean(UiE2eRunnerExecutionPool.class)
+    public UiE2eRunnerExecutionPool uiE2eRunnerExecutionPool(UiE2eProperties properties) {
+        return new UiE2eRunnerExecutionPool(properties);
+    }
 
     @Bean
     @ConditionalOnMissingBean(UiE2eArtifactStorage.class)

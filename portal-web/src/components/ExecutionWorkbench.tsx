@@ -21,6 +21,7 @@ import {
   cancelExecutionRun,
   createExecutionPlan,
   createExecutionTrigger,
+  downloadExecutionArtifact,
   dryRunExecutionPlan,
   dryRunExecutionTrigger,
   exportExecutionRun,
@@ -418,6 +419,26 @@ export function ExecutionWorkbench(props: { signedIn: boolean; currentUser: Curr
       setRunActionState({ loading: false, success: '脱敏摘要已导出' });
     } catch (error: unknown) {
       setRunActionState({ loading: false, error: error instanceof Error ? error.message : '导出失败' });
+    }
+  }
+
+  async function onDownloadArtifact(artifact: ExecutionRunDetail['artifacts'][number]) {
+    if (!runDetail || !canExport || !artifact.downloadReady) return;
+    setRunActionState({ loading: true });
+    try {
+      const response = await downloadExecutionArtifact(runDetail.id, artifact.id);
+      const blob = response.blob.type
+        ? response.blob
+        : new Blob([response.blob], { type: response.contentType || 'application/octet-stream' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = response.filename ?? `${artifact.artifactType.toLowerCase()}-${artifact.id}`;
+      link.click();
+      URL.revokeObjectURL(url);
+      setRunActionState({ loading: false, success: `${artifact.artifactType} 已下载` });
+    } catch (error: unknown) {
+      setRunActionState({ loading: false, error: error instanceof Error ? error.message : '下载运行产物失败' });
     }
   }
 
@@ -876,6 +897,42 @@ export function ExecutionWorkbench(props: { signedIn: boolean; currentUser: Curr
                   {node.errorCode && <div className="execution-digest-line error">{node.errorCode} · {node.errorSummary ?? ''}</div>}
                 </div>
               )) : null}
+            </div>
+            <div className="execution-run-log-panel">
+              <div className="execution-subheader">
+                <strong>运行产物</strong>
+                <span>{runDetail?.artifacts.length ?? 0}</span>
+              </div>
+              {runDetail?.artifacts.length ? (
+                <div className="execution-node-grid">
+                  {runDetail.artifacts.map((artifact) => (
+                    <div className="execution-node-card" key={artifact.id}>
+                      <div className="execution-node-card-head">
+                        <strong>{artifact.artifactType}</strong>
+                        <StatusBadge status={artifact.captureStatus} />
+                      </div>
+                      <div className="execution-node-meta">
+                        <span>{artifact.sourceType}</span>
+                        <span>{artifact.nodeKey || 'run'}</span>
+                        <span>{artifact.sizeBytes} B</span>
+                      </div>
+                      <div className="execution-panel-actions">
+                        <button
+                          className="btn btn-ghost btn-sm"
+                          type="button"
+                          onClick={() => void onDownloadArtifact(artifact)}
+                          disabled={!canExport || !artifact.downloadReady || runActionState.loading}
+                        >
+                          <Download size={15} />
+                          下载
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="table-empty">暂无运行产物</div>
+              )}
             </div>
             <div className="execution-run-log-panel">
               <div className="execution-subheader">

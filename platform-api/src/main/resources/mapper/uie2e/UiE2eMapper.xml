@@ -588,6 +588,14 @@
         order by created_at asc, id asc
     </select>
 
+    <select id="artifactStorageRefs" resultType="string">
+        select distinct storage_ref
+        from ui_e2e_artifact_manifest
+        where storage_ref is not null
+          and storage_ref &lt;&gt; ''
+        order by storage_ref asc
+    </select>
+
     <insert id="insertFlakyMark">
         insert into ui_e2e_flaky_mark (
             id, project_id, scene_id, run_id, status, reason_code, reason_summary,

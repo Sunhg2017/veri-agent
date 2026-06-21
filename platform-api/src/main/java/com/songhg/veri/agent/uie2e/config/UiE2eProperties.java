@@ -49,7 +49,13 @@ public record UiE2eProperties(
         /** Node modules directory that provides the Playwright runtime. */
         @DefaultValue("../portal-web/node_modules") String runnerNodeModulesDir,
         /** Controlled local root used to persist downloadable raw artifacts. */
-        @DefaultValue("") String artifactStorageDir
+        @DefaultValue("") String artifactStorageDir,
+        /** Enables destructive cleanup for unreferenced local artifacts. */
+        @DefaultValue("false") boolean artifactCleanupEnabled,
+        /** Retention window in hours before unreferenced artifacts can be deleted. */
+        @DefaultValue("168") int artifactCleanupRetentionHours,
+        /** Maximum file deletions performed by one cleanup tick. */
+        @DefaultValue("100") int artifactCleanupBatchSize
 ) {
     private static final int DEFAULT_TIMEOUT_SECONDS = 300;
     private static final int MAX_TIMEOUT_SECONDS = 86_400;
@@ -61,10 +67,61 @@ public record UiE2eProperties(
     private static final int MAX_MAX_ARTIFACT_COUNT = 500;
     private static final int DEFAULT_MAX_CONCURRENCY = 2;
     private static final int MAX_MAX_CONCURRENCY = 100;
+    private static final int DEFAULT_ARTIFACT_CLEANUP_RETENTION_HOURS = 168;
+    private static final int MAX_ARTIFACT_CLEANUP_RETENTION_HOURS = 24 * 365;
+    private static final int DEFAULT_ARTIFACT_CLEANUP_BATCH_SIZE = 100;
+    private static final int MAX_ARTIFACT_CLEANUP_BATCH_SIZE = 5000;
 
     @ConstructorBinding
     public UiE2eProperties {
         allowlistBaseUrls = allowlistBaseUrls == null ? List.of() : List.copyOf(allowlistBaseUrls);
+    }
+
+    public UiE2eProperties(
+            boolean enabled,
+            boolean runnerEnabled,
+            String runnerMode,
+            int defaultTimeoutSeconds,
+            int maxTimeoutSeconds,
+            int maxScenesPerRun,
+            long maxArtifactSizeBytes,
+            int maxArtifactCount,
+            int maxConcurrency,
+            List<String> allowlistBaseUrls,
+            boolean captureScreenshotEnabled,
+            boolean captureVideoEnabled,
+            boolean captureHarEnabled,
+            boolean captureTraceEnabled,
+            boolean captureJunitXmlEnabled,
+            boolean exportEnabled,
+            String runnerNodeCommand,
+            String runnerNodeModulesDir,
+            String artifactStorageDir
+    ) {
+        this(
+                enabled,
+                runnerEnabled,
+                runnerMode,
+                defaultTimeoutSeconds,
+                maxTimeoutSeconds,
+                maxScenesPerRun,
+                maxArtifactSizeBytes,
+                maxArtifactCount,
+                maxConcurrency,
+                allowlistBaseUrls,
+                captureScreenshotEnabled,
+                captureVideoEnabled,
+                captureHarEnabled,
+                captureTraceEnabled,
+                captureJunitXmlEnabled,
+                exportEnabled,
+                runnerNodeCommand,
+                runnerNodeModulesDir,
+                artifactStorageDir,
+                false,
+                DEFAULT_ARTIFACT_CLEANUP_RETENTION_HOURS,
+                DEFAULT_ARTIFACT_CLEANUP_BATCH_SIZE
+        );
     }
 
     public String effectiveRunnerMode() {
@@ -130,6 +187,22 @@ public record UiE2eProperties(
                 .map(String::trim)
                 .distinct()
                 .count();
+    }
+
+    public int effectiveArtifactCleanupRetentionHours() {
+        return boundedPositive(
+                artifactCleanupRetentionHours,
+                DEFAULT_ARTIFACT_CLEANUP_RETENTION_HOURS,
+                MAX_ARTIFACT_CLEANUP_RETENTION_HOURS
+        );
+    }
+
+    public int effectiveArtifactCleanupBatchSize() {
+        return boundedPositive(
+                artifactCleanupBatchSize,
+                DEFAULT_ARTIFACT_CLEANUP_BATCH_SIZE,
+                MAX_ARTIFACT_CLEANUP_BATCH_SIZE
+        );
     }
 
     private static int boundedPositive(int value, int defaultValue, int maxValue) {

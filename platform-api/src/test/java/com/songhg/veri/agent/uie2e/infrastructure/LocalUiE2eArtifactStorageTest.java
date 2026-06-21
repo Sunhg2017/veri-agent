@@ -5,7 +5,10 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.attribute.FileTime;
+import java.time.Instant;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -57,6 +60,41 @@ class LocalUiE2eArtifactStorageTest {
         assertThatThrownBy(() -> storage.store(UUID.randomUUID(), UUID.randomUUID(), "TRACE", source))
                 .isInstanceOf(IOException.class)
                 .hasMessageContaining("size limit");
+    }
+
+    @Test
+    void cleanupDeletesOnlyOldUnreferencedArtifacts() throws Exception {
+        LocalUiE2eArtifactStorage storage = new LocalUiE2eArtifactStorage(properties(tempDir.resolve("artifacts"), 1024));
+        UUID runId = UUID.randomUUID();
+        UUID referencedArtifactId = UUID.randomUUID();
+        UUID staleArtifactId = UUID.randomUUID();
+        UUID freshArtifactId = UUID.randomUUID();
+
+        Path source = Files.writeString(tempDir.resolve("runner.log"), "wp7 artifact body", StandardCharsets.UTF_8);
+        var referenced = storage.store(runId, referencedArtifactId, "LOG", source);
+        var stale = storage.store(runId, staleArtifactId, "LOG", source);
+        var fresh = storage.store(runId, freshArtifactId, "LOG", source);
+
+        Files.setLastModifiedTime(resolveArtifactPath(tempDir.resolve("artifacts"), stale.storageRef()), FileTime.from(Instant.parse("2026-06-01T00:00:00Z")));
+        Files.setLastModifiedTime(resolveArtifactPath(tempDir.resolve("artifacts"), fresh.storageRef()), FileTime.from(Instant.parse("2026-06-21T00:00:00Z")));
+
+        var result = storage.cleanupUnreferenced(
+                Set.of(referenced.storageRef()),
+                Instant.parse("2026-06-10T00:00:00Z"),
+                10
+        );
+
+        assertThat(result.supported()).isTrue();
+        assertThat(result.deletedFileCount()).isEqualTo(1);
+        assertThat(result.skippedReferencedCount()).isEqualTo(1);
+        assertThat(result.skippedFreshCount()).isEqualTo(1);
+        assertThat(storage.isDownloadReady(referenced.storageRef())).isTrue();
+        assertThat(storage.isDownloadReady(stale.storageRef())).isFalse();
+        assertThat(storage.isDownloadReady(fresh.storageRef())).isTrue();
+    }
+
+    private Path resolveArtifactPath(Path artifactRoot, String storageRef) {
+        return artifactRoot.resolve(storageRef.substring("artifact://ui-e2e/".length())).normalize();
     }
 
     private UiE2eProperties properties(Path artifactRoot, long maxArtifactSizeBytes) {

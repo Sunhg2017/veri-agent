@@ -80,6 +80,8 @@ public interface UiE2eRepository {
 
     List<UiE2eArtifactManifest> artifacts(UUID runId);
 
+    List<String> artifactStorageRefs();
+
     void upsertFlakyMark(UiE2eFlakyMark flakyMark);
 
     Optional<UiE2eFlakyMark> flakyMark(UUID id);

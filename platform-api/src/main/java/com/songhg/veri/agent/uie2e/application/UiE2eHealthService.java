@@ -5,6 +5,7 @@ import com.songhg.veri.agent.uie2e.application.port.UiE2eArtifactStorage;
 import com.songhg.veri.agent.uie2e.config.UiE2eProperties;
 import com.songhg.veri.agent.testdata.application.TestDataCrossWpReferenceService;
 import java.util.List;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Set;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -16,24 +17,35 @@ public class UiE2eHealthService {
     private final UiE2eProperties properties;
     private final TestDataCrossWpReferenceService testDataCrossWpReferenceService;
     private final UiE2eArtifactStorage artifactStorage;
+    private final UiE2eRunnerExecutionPool executionPool;
 
     @Autowired
     public UiE2eHealthService(
             UiE2eProperties properties,
             TestDataCrossWpReferenceService testDataCrossWpReferenceService,
-            UiE2eArtifactStorage artifactStorage
+            UiE2eArtifactStorage artifactStorage,
+            UiE2eRunnerExecutionPool executionPool
     ) {
         this.properties = properties;
         this.testDataCrossWpReferenceService = testDataCrossWpReferenceService;
         this.artifactStorage = artifactStorage;
+        this.executionPool = executionPool;
     }
 
     UiE2eHealthService(UiE2eProperties properties) {
-        this(properties, null, null);
+        this(properties, null, null, null);
     }
 
     UiE2eHealthService(UiE2eProperties properties, TestDataCrossWpReferenceService testDataCrossWpReferenceService) {
-        this(properties, testDataCrossWpReferenceService, null);
+        this(properties, testDataCrossWpReferenceService, null, null);
+    }
+
+    UiE2eHealthService(
+            UiE2eProperties properties,
+            TestDataCrossWpReferenceService testDataCrossWpReferenceService,
+            UiE2eArtifactStorage artifactStorage
+    ) {
+        this(properties, testDataCrossWpReferenceService, artifactStorage, null);
     }
 
     /**
@@ -47,6 +59,7 @@ public class UiE2eHealthService {
         boolean previewRunner = properties.runnerEnabled() && "managed".equals(properties.effectiveRunnerMode());
         boolean realBrowserRunner = properties.runnerEnabled()
                 && Set.of("playwright-subprocess", "real-browser").contains(properties.effectiveRunnerMode());
+        boolean cleanupSupported = artifactStorage != null && artifactStorage.supportsDestructiveCleanup();
         return new UiE2eHealthResponse(
                 "ui-e2e",
                 "UP",
@@ -82,8 +95,13 @@ public class UiE2eHealthService {
                         Map.entry("maxArtifactSizeBytes", properties.effectiveMaxArtifactSizeBytes()),
                         Map.entry("redactionScanRequired", true),
                         Map.entry("rawArtifactDownloadReady", artifactStorage != null),
+                        Map.entry("artifactCleanupEnabled", properties.artifactCleanupEnabled()),
+                        Map.entry("artifactCleanupSupported", cleanupSupported),
+                        Map.entry("artifactCleanupRetentionHours", properties.effectiveArtifactCleanupRetentionHours()),
+                        Map.entry("artifactCleanupBatchSize", properties.effectiveArtifactCleanupBatchSize()),
                         Map.entry("rawDomSnapshotStored", false)
                 ),
+                runnerCapacity(),
                 Map.ofEntries(
                         Map.entry("foundationReady", true),
                         Map.entry("moduleSkeletonReady", true),
@@ -102,6 +120,10 @@ public class UiE2eHealthService {
                         Map.entry("wp8RunnerAccountContractReady", true),
                         Map.entry("wp9UiTestContractPlanned", true),
                         Map.entry("wp10EvidenceContractPlanned", true),
+                        Map.entry("sharedBrowserPoolReady", true),
+                        Map.entry("batchRunReady", true),
+                        Map.entry("summaryBackfillReady", true),
+                        Map.entry("artifactCleanupReady", cleanupSupported),
                         Map.entry("managedPreviewRunnerReady", previewRunner),
                         Map.entry("realBrowserRunnerReady", realBrowserRunner),
                         Map.entry("runnerDefaultDisabled", !properties.runnerEnabled()),
@@ -139,5 +161,30 @@ public class UiE2eHealthService {
                         ))
                 )
         );
+    }
+
+    private Map<String, Object> runnerCapacity() {
+        UiE2eRunnerExecutionPool.CapacitySnapshot snapshot = executionPool == null
+                ? new UiE2eRunnerExecutionPool.CapacitySnapshot(
+                properties.effectiveMaxConcurrency(),
+                0,
+                0,
+                0,
+                0L,
+                false
+        )
+                : executionPool.snapshot();
+        Map<String, Object> summary = new LinkedHashMap<>();
+        summary.put("maxConcurrency", snapshot.maxConcurrency());
+        summary.put("activeWorkers", snapshot.activeWorkers());
+        summary.put("availableWorkers", snapshot.availableWorkers());
+        summary.put("queuedTasks", snapshot.queuedTasks());
+        summary.put("poolSize", snapshot.poolSize());
+        summary.put("completedTaskCount", snapshot.completedTaskCount());
+        summary.put("saturated", snapshot.saturated());
+        summary.put("sharedBrowserPoolReady", true);
+        summary.put("batchRunReady", true);
+        summary.put("summaryBackfillReady", true);
+        return Map.copyOf(summary);
     }
 }

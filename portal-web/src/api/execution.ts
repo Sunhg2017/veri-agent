@@ -1,5 +1,5 @@
 import { refreshToken } from './auth';
-import { ApiError, getAuthToken, requestJson, type ApiResponse } from './client';
+import { ApiError, getAuthToken, requestBinary, requestJson, type ApiResponse, type BinaryResponse } from './client';
 
 const EXECUTION_BASE = '/api/v1/execution';
 
@@ -158,10 +158,29 @@ export interface ExecutionNodeRun {
   updatedAt?: string;
 }
 
+export interface ExecutionRunArtifact {
+  id: string;
+  nodeRunId?: string;
+  planNodeId?: string;
+  nodeKey?: string;
+  nodeType?: string;
+  runnerType?: string;
+  sourceType: string;
+  artifactType: string;
+  artifactDigest?: string;
+  sizeBytes: number;
+  captureStatus: string;
+  downloadReady: boolean;
+  redactionFlags: Record<string, unknown>;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
 export interface ExecutionRunDetail extends ExecutionRunSummary {
   errorCode?: string;
   errorSummary?: string;
   nodes: ExecutionNodeRun[];
+  artifacts: ExecutionRunArtifact[];
   idempotentReplay: boolean;
 }
 
@@ -399,6 +418,10 @@ export async function exportExecutionRun(id: string): Promise<ApiResponse<Execut
   return { ...response, data: normalizeExecutionRunExport(response.data) };
 }
 
+export async function downloadExecutionArtifact(id: string, artifactId: string): Promise<BinaryResponse> {
+  return requestBinary(`${EXECUTION_BASE}/runs/${encodeURIComponent(id)}/artifacts/${encodeURIComponent(artifactId)}/download`);
+}
+
 export async function cancelExecutionRun(id: string): Promise<ApiResponse<ExecutionRunDetail>> {
   const response = await requestJson<unknown>(`${EXECUTION_BASE}/runs/${encodeURIComponent(id)}/cancel`, {
     method: 'POST'
@@ -612,6 +635,7 @@ export function normalizeExecutionRunDetail(input: unknown): ExecutionRunDetail 
     errorCode: optionalString(read(value, 'errorCode', 'error_code')),
     errorSummary: optionalString(read(value, 'errorSummary', 'error_summary')),
     nodes: arrayValue(read(value, 'nodes')).map(normalizeExecutionNodeRun),
+    artifacts: arrayValue(read(value, 'artifacts')).map(normalizeExecutionRunArtifact),
     idempotentReplay: booleanValue(read(value, 'idempotentReplay', 'idempotent_replay'), false)
   };
 }
@@ -654,6 +678,27 @@ export function normalizeExecutionNodeRun(input: unknown): ExecutionNodeRun {
     queuedAt: optionalString(read(value, 'queuedAt', 'queued_at')),
     startedAt: optionalString(read(value, 'startedAt', 'started_at')),
     finishedAt: optionalString(read(value, 'finishedAt', 'finished_at')),
+    createdAt: optionalString(read(value, 'createdAt', 'created_at')),
+    updatedAt: optionalString(read(value, 'updatedAt', 'updated_at'))
+  };
+}
+
+export function normalizeExecutionRunArtifact(input: unknown): ExecutionRunArtifact {
+  const value = objectValue(input);
+  return {
+    id: stringValue(read(value, 'id')),
+    nodeRunId: optionalString(read(value, 'nodeRunId', 'node_run_id')),
+    planNodeId: optionalString(read(value, 'planNodeId', 'plan_node_id')),
+    nodeKey: optionalString(read(value, 'nodeKey', 'node_key')),
+    nodeType: optionalString(read(value, 'nodeType', 'node_type')),
+    runnerType: optionalString(read(value, 'runnerType', 'runner_type')),
+    sourceType: stringValue(read(value, 'sourceType', 'source_type')),
+    artifactType: stringValue(read(value, 'artifactType', 'artifact_type')),
+    artifactDigest: optionalString(read(value, 'artifactDigest', 'artifact_digest')),
+    sizeBytes: numberValue(read(value, 'sizeBytes', 'size_bytes'), 0),
+    captureStatus: stringValue(read(value, 'captureStatus', 'capture_status'), 'UNKNOWN'),
+    downloadReady: booleanValue(read(value, 'downloadReady', 'download_ready'), false),
+    redactionFlags: objectValue(read(value, 'redactionFlags', 'redaction_flags')),
     createdAt: optionalString(read(value, 'createdAt', 'created_at')),
     updatedAt: optionalString(read(value, 'updatedAt', 'updated_at'))
   };

@@ -202,6 +202,11 @@ public class JdbcUiE2eRepository implements UiE2eRepository {
     }
 
     @Override
+    public List<String> artifactStorageRefs() {
+        return mapper.artifactStorageRefs();
+    }
+
+    @Override
     public void upsertFlakyMark(UiE2eFlakyMark flakyMark) {
         if (flakyMark.runId() != null && mapper.flakyMarkByRun(flakyMark.runId()) != null) {
             mapper.updateFlakyMarkByRun(flakyMark);

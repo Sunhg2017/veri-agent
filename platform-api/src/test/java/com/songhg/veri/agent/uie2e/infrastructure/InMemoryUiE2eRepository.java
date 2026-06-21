@@ -268,6 +268,16 @@ public class InMemoryUiE2eRepository implements UiE2eRepository {
     }
 
     @Override
+    public List<String> artifactStorageRefs() {
+        return artifacts.values().stream()
+                .map(UiE2eArtifactManifest::storageRef)
+                .filter(StringUtils::hasText)
+                .distinct()
+                .sorted()
+                .toList();
+    }
+
+    @Override
     public void upsertFlakyMark(UiE2eFlakyMark flakyMark) {
         if (flakyMark.runId() != null) {
             flakyMarkByRun(flakyMark.runId()).ifPresent(existing -> flakyMarks.remove(existing.id()));

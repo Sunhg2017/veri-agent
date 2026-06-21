@@ -75,13 +75,15 @@ describe('WP7 ui e2e API helpers', () => {
       supported_node_types: ['UI_TEST'],
       credential_policy: { secretPlaintextReturned: false },
       artifact_policy: { aggregateOnly: true },
+      runner_capacity: { active_workers: '1', available_workers: '3', queued_tasks: '0', saturated: false },
       policy: { supportedFlakyStatuses: ['NONE', 'CONFIRMED_FLAKY'] }
     })).toMatchObject({
       runnerEnabled: false,
       runnerMode: 'DISABLED',
       maxConcurrency: 2,
       supportedNodeTypes: ['UI_TEST'],
-      credentialPolicy: { secretPlaintextReturned: false }
+      credentialPolicy: { secretPlaintextReturned: false },
+      runnerCapacity: { active_workers: '1', available_workers: '3', queued_tasks: '0', saturated: false }
     });
 
     expect(normalizeUiE2eSceneSummary({

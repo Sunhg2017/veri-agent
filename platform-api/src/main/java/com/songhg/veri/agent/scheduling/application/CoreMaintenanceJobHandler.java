@@ -6,6 +6,7 @@ import com.songhg.veri.agent.document.application.DocumentInputEventRecoveryServ
 import com.songhg.veri.agent.document.application.DocumentInputRetentionCleanupService;
 import com.songhg.veri.agent.document.application.DocumentWebhookAutoRetryService;
 import com.songhg.veri.agent.notification.application.NotificationStreamService;
+import com.songhg.veri.agent.uie2e.application.UiE2eArtifactCleanupService;
 import com.xxl.job.core.handler.annotation.XxlJob;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
@@ -23,6 +24,7 @@ public class CoreMaintenanceJobHandler {
     private final DocumentWebhookAutoRetryService documentWebhookAutoRetryService;
     private final DocumentInputRetentionCleanupService documentInputRetentionCleanupService;
     private final NotificationStreamService notificationStreamService;
+    private final UiE2eArtifactCleanupService uiE2eArtifactCleanupService;
 
     public CoreMaintenanceJobHandler(
             AuthSessionCleanupService authSessionCleanupService,
@@ -30,7 +32,8 @@ public class CoreMaintenanceJobHandler {
             DocumentInputEventRecoveryService documentInputEventRecoveryService,
             DocumentWebhookAutoRetryService documentWebhookAutoRetryService,
             DocumentInputRetentionCleanupService documentInputRetentionCleanupService,
-            NotificationStreamService notificationStreamService
+            NotificationStreamService notificationStreamService,
+            UiE2eArtifactCleanupService uiE2eArtifactCleanupService
     ) {
         this.authSessionCleanupService = authSessionCleanupService;
         this.auditRetentionCleanupService = auditRetentionCleanupService;
@@ -38,6 +41,7 @@ public class CoreMaintenanceJobHandler {
         this.documentWebhookAutoRetryService = documentWebhookAutoRetryService;
         this.documentInputRetentionCleanupService = documentInputRetentionCleanupService;
         this.notificationStreamService = notificationStreamService;
+        this.uiE2eArtifactCleanupService = uiE2eArtifactCleanupService;
     }
 
     @XxlJob("authSessionCleanupJob")
@@ -88,6 +92,14 @@ public class CoreMaintenanceJobHandler {
     public void notificationStreamHeartbeatJob() throws Exception {
         XxlJobTraceSupport.execute("notificationStreamHeartbeatJob", () -> {
             notificationStreamService.heartbeat();
+            return null;
+        });
+    }
+
+    @XxlJob("uiE2eArtifactCleanupJob")
+    public void uiE2eArtifactCleanupJob() throws Exception {
+        XxlJobTraceSupport.execute("uiE2eArtifactCleanupJob", () -> {
+            uiE2eArtifactCleanupService.cleanupByRetentionPolicy();
             return null;
         });
     }
