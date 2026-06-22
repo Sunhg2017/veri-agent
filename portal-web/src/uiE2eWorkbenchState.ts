@@ -1,10 +1,12 @@
 import type {
+  BackfillUiE2eRunSummaryPayload,
   CreateUiE2eRunPayload,
   CreateUiE2eScenePayload,
   UiE2eArtifactManifest,
   UiE2eBundleSummary,
   UiE2eFlakyMark,
   UiE2eHealth,
+  UiE2eRunSummaryBackfill,
   UiE2eSceneImport,
   UiE2eRunDetail,
   UiE2eRunSummary,
@@ -59,6 +61,12 @@ export type UiE2eFlakyDraft = {
   status: string;
   reasonCode: string;
   reasonSummary: string;
+};
+
+export type UiE2eRunBackfillDraft = {
+  projectId: string;
+  runIdsText: string;
+  limit: string;
 };
 
 export type UiE2eWorkbenchTone = 'success' | 'info' | 'warning' | 'danger';
@@ -190,6 +198,22 @@ export type UiE2eRunCreationReadiness = {
   checks: string[];
 };
 
+export type UiE2eRunBackfillReadiness = {
+  ready: boolean;
+  tone: UiE2eWorkbenchNoticeTone;
+  label: string;
+  summary: string;
+  checks: string[];
+};
+
+export type UiE2eRunBackfillSummary = {
+  tone: UiE2eWorkbenchNoticeTone;
+  label: string;
+  summary: string;
+  signals: string[];
+  failedItems: string[];
+};
+
 export type UiE2eRunFlakyPreset = {
   status: 'FLAKY_CANDIDATE' | 'CONFIRMED_FLAKY' | 'WAIVED';
   label: string;
@@ -282,6 +306,12 @@ export const initialUiE2eFlakyDraft: UiE2eFlakyDraft = {
   reasonSummary: ''
 };
 
+export const initialUiE2eRunBackfillDraft: UiE2eRunBackfillDraft = {
+  projectId: '',
+  runIdsText: '',
+  limit: '20'
+};
+
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const requestKeyPattern = /^[A-Za-z0-9_.:-]{1,128}$/;
 
@@ -312,6 +342,20 @@ export function buildUiE2eWorkbenchOverview(
   }
   if (health && !health.allowlistEnabled) {
     notices.push({ tone: 'warning', message: 'baseUrl allowlist 当前关闭，发布前应确认受控目标范围已经收口。' });
+  }
+  if (health) {
+    const queuedTasks = numberFromUnknown(health.runnerCapacity?.queuedTasks);
+    const saturated = booleanFromUnknown(health.runnerCapacity?.saturated);
+    const backfillReady = booleanFromUnknown(health.runnerCapacity?.summaryBackfillReady, true);
+    if (saturated) {
+      notices.push({ tone: 'warning', message: '共享浏览器池当前已饱和，新的浏览器尝试可能进入排队。' });
+    }
+    if (queuedTasks > 0) {
+      notices.push({ tone: 'info', message: `当前 runner 队列中仍有 ${queuedTasks} 个待处理任务，批量运行可能需要等待空闲槽位。` });
+    }
+    if (!backfillReady) {
+      notices.push({ tone: 'info', message: '运行摘要 backfill 当前未就绪，执行前请先确认控制面版本和健康状态。' });
+    }
   }
   if (recentFailures > 0) {
     notices.push({ tone: 'warning', message: `最近列表中有 ${recentFailures} 条 FAILED/TIMEOUT 运行，建议优先查看 failureCode 和 traceId。` });
@@ -870,6 +914,146 @@ export function buildUiE2eRunCreationReadiness(input: {
     label: 'Ready To Run',
     summary: '当前参数已满足前端已知准入条件；提交后仍会由后端继续校验 allowlist、账号租借和幂等约束。',
     checks
+  };
+}
+
+export function buildUiE2eRunBackfillPayload(draft: UiE2eRunBackfillDraft): { payload?: BackfillUiE2eRunSummaryPayload; issues: string[] } {
+  const issues: string[] = [];
+  const projectId = draft.projectId.trim();
+  const runIds = uniqueOrderedRunIds(draft.runIdsText);
+  const limit = optionalPositiveInteger(draft.limit);
+
+  if (!projectId) {
+    issues.push('请填写 backfill projectId');
+  }
+  if (!runIds.length && limit == null) {
+    issues.push('请填写 runIds 或 limit');
+  }
+  if (runIds.length > 200) {
+    issues.push('runIds 最多支持 200 个');
+  }
+  if (draft.limit.trim() && limit == null) {
+    issues.push('limit 需要是 1 到 200 的整数');
+  }
+  if (runIds.length) {
+    const invalidRunId = runIds.find((runId) => !uuidPattern.test(runId));
+    if (invalidRunId) {
+      issues.push(`runId 需要是 UUID：${invalidRunId}`);
+    }
+  }
+
+  if (issues.length) {
+    return { issues };
+  }
+
+  return {
+    issues,
+    payload: {
+      projectId,
+      runIds: runIds.length ? runIds : undefined,
+      limit: runIds.length ? undefined : limit ?? undefined
+    }
+  };
+}
+
+export function buildUiE2eRunBackfillReadiness(input: {
+  health: UiE2eHealth | null;
+  draft: UiE2eRunBackfillDraft;
+}): UiE2eRunBackfillReadiness {
+  const { health, draft } = input;
+  const { payload, issues } = buildUiE2eRunBackfillPayload(draft);
+  const checks: string[] = [];
+  if (health) {
+    pushUnique(checks, `backfill=${booleanFromUnknown(health.runnerCapacity?.summaryBackfillReady) ? 'READY' : 'PENDING'}`);
+  } else {
+    pushUnique(checks, 'health=pending');
+  }
+  const runIdCount = uniqueOrderedRunIds(draft.runIdsText).length;
+  if (runIdCount) {
+    pushUnique(checks, `runIds=${runIdCount}`);
+  }
+  if (draft.limit.trim()) {
+    pushUnique(checks, `limit=${draft.limit.trim()}`);
+  }
+
+  if (issues.length || !payload) {
+    return {
+      ready: false,
+      tone: 'info',
+      label: '填写 Backfill 参数',
+      summary: issues[0] || '请先填写 runIds 或 limit，再执行运行摘要回填。',
+      checks
+    };
+  }
+
+  if (health && !booleanFromUnknown(health.runnerCapacity?.summaryBackfillReady)) {
+    return {
+      ready: false,
+      tone: 'warning',
+      label: 'Backfill Pending',
+      summary: '当前控制面尚未声明 backfill ready，建议先确认健康状态和部署版本。',
+      checks
+    };
+  }
+
+  return {
+    ready: true,
+    tone: 'success',
+    label: 'Backfill Ready',
+    summary: payload.runIds?.length
+      ? `将按指定的 ${payload.runIds.length} 个 runId 重算聚合摘要。`
+      : `将按项目最近 ${payload.limit || 0} 条运行重算聚合摘要。`,
+    checks
+  };
+}
+
+export function buildUiE2eRunBackfillSummary(result: UiE2eRunSummaryBackfill): UiE2eRunBackfillSummary {
+  const failedItems = result.items
+    .filter((item) => item.errorCode)
+    .map((item) => `${compactUiE2eFailureCode(item.errorCode)} · ${item.runId}${item.errorMessage ? ` · ${compactUiE2eText(item.errorMessage, 48)}` : ''}`);
+  const updatedItems = result.items.filter((item) => item.updated).length;
+  const unchangedItems = result.items.filter((item) => !item.updated && !item.errorCode).length;
+  const signals: string[] = [
+    `requested=${result.requestedCount}`,
+    `updated=${result.updatedCount}`,
+    `unchanged=${result.unchangedCount}`,
+    `failed=${result.failedCount}`
+  ];
+  if (updatedItems !== result.updatedCount) {
+    pushUnique(signals, `updatedItems=${updatedItems}`);
+  }
+  if (unchangedItems !== result.unchangedCount) {
+    pushUnique(signals, `unchangedItems=${unchangedItems}`);
+  }
+
+  if (result.failedCount > 0) {
+    return {
+      tone: result.updatedCount > 0 ? 'warning' : 'error',
+      label: result.updatedCount > 0 ? 'Backfill Partially Failed' : 'Backfill Failed',
+      summary: result.updatedCount > 0
+        ? `本次回填已更新 ${result.updatedCount} 条运行摘要，但仍有 ${result.failedCount} 条失败。`
+        : `本次回填失败 ${result.failedCount} 条，请优先排查错误项。`,
+      signals,
+      failedItems
+    };
+  }
+
+  if (result.updatedCount > 0) {
+    return {
+      tone: 'success',
+      label: 'Backfill Updated',
+      summary: `本次回填已更新 ${result.updatedCount} 条运行摘要，其余 ${result.unchangedCount} 条保持不变。`,
+      signals,
+      failedItems
+    };
+  }
+
+  return {
+    tone: 'info',
+    label: 'Backfill Unchanged',
+    summary: `本次回填未发现需要重写的摘要，共检查 ${result.requestedCount} 条运行。`,
+    signals,
+    failedItems
   };
 }
 
@@ -1757,6 +1941,26 @@ export function splitTags(input: string) {
 
 export function prettyJson(value: unknown) {
   return JSON.stringify(value ?? {}, null, 2);
+}
+
+function uniqueOrderedRunIds(input: string) {
+  const values = input
+    .split(/[\s,，;；]+/)
+    .map((item) => item.trim())
+    .filter(Boolean);
+  return values.filter((item, index) => values.indexOf(item) === index);
+}
+
+function optionalPositiveInteger(value: string) {
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return undefined;
+  }
+  const parsed = Number(trimmed);
+  if (!Number.isInteger(parsed) || parsed < 1 || parsed > 200) {
+    return undefined;
+  }
+  return parsed;
 }
 
 function buildUiE2eSceneStepPayload(

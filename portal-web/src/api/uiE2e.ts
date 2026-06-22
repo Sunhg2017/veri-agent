@@ -246,6 +246,32 @@ export interface UiE2eRunExport {
   redactionPolicy: Record<string, unknown>;
 }
 
+export interface BackfillUiE2eRunSummaryPayload {
+  projectId: string;
+  runIds?: string[];
+  limit?: number;
+}
+
+export interface UiE2eRunSummaryBackfillItem {
+  runId: string;
+  sceneId?: string;
+  status?: string;
+  updated: boolean;
+  stepResultCount: number;
+  artifactCount: number;
+  errorCode?: string;
+  errorMessage?: string;
+}
+
+export interface UiE2eRunSummaryBackfill {
+  projectId: string;
+  requestedCount: number;
+  updatedCount: number;
+  unchangedCount: number;
+  failedCount: number;
+  items: UiE2eRunSummaryBackfillItem[];
+}
+
 export interface UiE2eList<T> {
   items: T[];
   index: number;
@@ -504,6 +530,14 @@ export async function cancelUiE2eRun(id: string, payload: CancelUiE2eRunPayload 
 export async function exportUiE2eRun(id: string): Promise<ApiResponse<UiE2eRunExport>> {
   const response = await requestJson<unknown>(`${UI_E2E_BASE}/runs/${encodeURIComponent(id)}/export`);
   return { ...response, data: normalizeUiE2eRunExport(response.data) };
+}
+
+export async function backfillUiE2eRunSummary(payload: BackfillUiE2eRunSummaryPayload): Promise<ApiResponse<UiE2eRunSummaryBackfill>> {
+  const response = await requestJson<unknown>(`${UI_E2E_BASE}/runs/backfill`, {
+    method: 'POST',
+    body: JSON.stringify(payload)
+  });
+  return { ...response, data: normalizeUiE2eRunSummaryBackfill(response.data) };
 }
 
 export async function downloadUiE2eArtifact(runId: string, artifactId: string): Promise<BinaryResponse> {
@@ -826,6 +860,32 @@ export function normalizeUiE2eRunExport(input: unknown): UiE2eRunExport {
     exportedAt: optionalString(read(value, 'exportedAt', 'exported_at')),
     run: normalizeUiE2eRunDetail(read(value, 'run')),
     redactionPolicy: objectValue(read(value, 'redactionPolicy', 'redaction_policy'))
+  };
+}
+
+export function normalizeUiE2eRunSummaryBackfill(input: unknown): UiE2eRunSummaryBackfill {
+  const value = objectValue(input);
+  return {
+    projectId: stringValue(read(value, 'projectId', 'project_id')),
+    requestedCount: numberValue(read(value, 'requestedCount', 'requested_count'), 0),
+    updatedCount: numberValue(read(value, 'updatedCount', 'updated_count'), 0),
+    unchangedCount: numberValue(read(value, 'unchangedCount', 'unchanged_count'), 0),
+    failedCount: numberValue(read(value, 'failedCount', 'failed_count'), 0),
+    items: arrayValue(read(value, 'items')).map(normalizeUiE2eRunSummaryBackfillItem)
+  };
+}
+
+export function normalizeUiE2eRunSummaryBackfillItem(input: unknown): UiE2eRunSummaryBackfillItem {
+  const value = objectValue(input);
+  return {
+    runId: stringValue(read(value, 'runId', 'run_id')),
+    sceneId: optionalString(read(value, 'sceneId', 'scene_id')),
+    status: optionalString(read(value, 'status')),
+    updated: booleanValue(read(value, 'updated'), false),
+    stepResultCount: numberValue(read(value, 'stepResultCount', 'step_result_count'), 0),
+    artifactCount: numberValue(read(value, 'artifactCount', 'artifact_count'), 0),
+    errorCode: optionalString(read(value, 'errorCode', 'error_code')),
+    errorMessage: optionalString(read(value, 'errorMessage', 'error_message'))
   };
 }
 

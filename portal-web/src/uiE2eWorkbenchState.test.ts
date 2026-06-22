@@ -7,6 +7,9 @@ import {
   buildUiE2eBundleQueueOverview,
   buildUiE2eFlakyListSummary,
   buildUiE2eFlakyQueueOverview,
+  buildUiE2eRunBackfillPayload,
+  buildUiE2eRunBackfillReadiness,
+  buildUiE2eRunBackfillSummary,
   buildUiE2eRunCreationReadiness,
   buildUiE2eRunDiagnosis,
   buildUiE2eRunFlakyGuidance,
@@ -257,7 +260,11 @@ describe('ui e2e workbench state helpers', () => {
         supportedNodeTypes: ['UI_TEST'],
         credentialPolicy: {},
         artifactPolicy: {},
-        runnerCapacity: {},
+        runnerCapacity: {
+          queuedTasks: 2,
+          saturated: true,
+          summaryBackfillReady: false
+        },
         policy: {}
       },
       [
@@ -347,10 +354,145 @@ describe('ui e2e workbench state helpers', () => {
     expect(overview.notices.map((item) => item.message)).toEqual(expect.arrayContaining([
       '当前 runner 默认关闭，手动创建运行会返回 BLOCKED 摘要，用于验证控制面与权限链路。',
       'baseUrl allowlist 当前关闭，发布前应确认受控目标范围已经收口。',
+      '共享浏览器池当前已饱和，新的浏览器尝试可能进入排队。',
+      '当前 runner 队列中仍有 2 个待处理任务，批量运行可能需要等待空闲槽位。',
+      '运行摘要 backfill 当前未就绪，执行前请先确认控制面版本和健康状态。',
       '最近列表中有 1 条 FAILED/TIMEOUT 运行，建议优先查看 failureCode 和 traceId。',
       '最近列表中有 1 条 BLOCKED 运行，通常需要复核 runner、租借或审批状态。',
       '当前共有 1 条 CONFIRMED_FLAKY 标记，可作为后续诊断和治理输入。'
     ]));
+  });
+
+  it('builds backfill payloads, readiness, and summaries', () => {
+    expect(buildUiE2eRunBackfillPayload({
+      projectId: 'project-alpha',
+      runIdsText: '11111111-1111-4111-8111-111111111111, 22222222-2222-4222-8222-222222222222 11111111-1111-4111-8111-111111111111',
+      limit: ''
+    })).toMatchObject({
+      issues: [],
+      payload: {
+        projectId: 'project-alpha',
+        runIds: [
+          '11111111-1111-4111-8111-111111111111',
+          '22222222-2222-4222-8222-222222222222'
+        ]
+      }
+    });
+
+    const invalid = buildUiE2eRunBackfillPayload({
+      projectId: '',
+      runIdsText: 'bad-run-id',
+      limit: '300'
+    });
+    expect(invalid.payload).toBeUndefined();
+    expect(invalid.issues).toContain('请填写 backfill projectId');
+    expect(invalid.issues).toContain('limit 需要是 1 到 200 的整数');
+    expect(invalid.issues).toContain('runId 需要是 UUID：bad-run-id');
+
+    expect(buildUiE2eRunBackfillReadiness({
+      health: {
+        service: 'ui-e2e',
+        status: 'UP',
+        enabled: true,
+        runnerEnabled: true,
+        runnerMode: 'MANAGED',
+        defaultTimeoutSeconds: 60,
+        maxTimeoutSeconds: 300,
+        maxScenesPerRun: 5,
+        maxConcurrency: 2,
+        allowlistEnabled: true,
+        allowlistHostCount: 1,
+        exportEnabled: true,
+        supportedNodeTypes: ['UI_TEST'],
+        credentialPolicy: {},
+        artifactPolicy: {},
+        runnerCapacity: { summaryBackfillReady: false },
+        policy: {}
+      },
+      draft: {
+        projectId: 'project-alpha',
+        runIdsText: '',
+        limit: '10'
+      }
+    })).toMatchObject({
+      ready: false,
+      tone: 'warning',
+      label: 'Backfill Pending',
+      checks: expect.arrayContaining(['backfill=PENDING', 'limit=10'])
+    });
+
+    expect(buildUiE2eRunBackfillReadiness({
+      health: {
+        service: 'ui-e2e',
+        status: 'UP',
+        enabled: true,
+        runnerEnabled: true,
+        runnerMode: 'MANAGED',
+        defaultTimeoutSeconds: 60,
+        maxTimeoutSeconds: 300,
+        maxScenesPerRun: 5,
+        maxConcurrency: 2,
+        allowlistEnabled: true,
+        allowlistHostCount: 1,
+        exportEnabled: true,
+        supportedNodeTypes: ['UI_TEST'],
+        credentialPolicy: {},
+        artifactPolicy: {},
+        runnerCapacity: { summaryBackfillReady: true },
+        policy: {}
+      },
+      draft: {
+        projectId: 'project-alpha',
+        runIdsText: '11111111-1111-4111-8111-111111111111',
+        limit: '10'
+      }
+    })).toMatchObject({
+      ready: true,
+      tone: 'success',
+      label: 'Backfill Ready',
+      checks: expect.arrayContaining(['backfill=READY', 'runIds=1', 'limit=10'])
+    });
+
+    expect(buildUiE2eRunBackfillSummary({
+      projectId: 'project-alpha',
+      requestedCount: 3,
+      updatedCount: 1,
+      unchangedCount: 1,
+      failedCount: 1,
+      items: [
+        {
+          runId: 'run-1',
+          sceneId: 'scene-1',
+          status: 'SUCCEEDED',
+          updated: true,
+          stepResultCount: 2,
+          artifactCount: 2
+        },
+        {
+          runId: 'run-2',
+          sceneId: 'scene-2',
+          status: 'SUCCEEDED',
+          updated: false,
+          stepResultCount: 1,
+          artifactCount: 1
+        },
+        {
+          runId: 'run-3',
+          sceneId: 'scene-3',
+          status: 'FAILED',
+          updated: false,
+          stepResultCount: 0,
+          artifactCount: 0,
+          errorCode: 'UI_E2E_RUN_NOT_FOUND',
+          errorMessage: 'run missing from repository snapshot'
+        }
+      ]
+    })).toMatchObject({
+      tone: 'warning',
+      label: 'Backfill Partially Failed',
+      signals: expect.arrayContaining(['requested=3', 'updated=1', 'unchanged=1', 'failed=1']),
+      failedItems: ['RUN_NOT_FOUND · run-3 · run missing from repository snapshot']
+    });
   });
 
   it('builds run diagnosis for runner-disabled blocked runs', () => {

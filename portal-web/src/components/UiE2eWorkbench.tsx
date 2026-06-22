@@ -17,6 +17,7 @@ import {
   archiveUiE2eScene,
   approveUiE2eBundle,
   archiveUiE2eBundle,
+  backfillUiE2eRunSummary,
   cancelUiE2eRun,
   createUiE2eBundle,
   createUiE2eRun,
@@ -46,6 +47,7 @@ import {
   type UiE2eHealth,
   type UiE2eRunDetail,
   type UiE2eRunExport,
+  type UiE2eRunSummaryBackfill,
   type UiE2eRunSummary,
   type UiE2eRunStepResult,
   type UiE2eSceneDetail,
@@ -62,6 +64,9 @@ import {
   buildUiE2eFlakyListSummary,
   buildUiE2eRunFlakyGuidance,
   buildUiE2eFlakyQueueOverview,
+  buildUiE2eRunBackfillPayload,
+  buildUiE2eRunBackfillReadiness,
+  buildUiE2eRunBackfillSummary,
   buildUiE2eRunCreationReadiness,
   buildUiE2eRunDiagnosis,
   buildUiE2eRunListSummary,
@@ -83,6 +88,7 @@ import {
   filterUiE2eRunsByFocusMode,
   filterUiE2eScenesByFocusMode,
   initialUiE2eFlakyDraft,
+  initialUiE2eRunBackfillDraft,
   initialUiE2eRunDraft,
   initialUiE2eSceneDraft,
   initialUiE2eSceneStepDraft,
@@ -98,6 +104,7 @@ import {
   type UiE2eBundleFocusMode,
   type UiE2eFlakyDraft,
   type UiE2eFlakyFocusMode,
+  type UiE2eRunBackfillDraft,
   type UiE2eRunFocusMode,
   type UiE2eRunDraft,
   type UiE2eSceneDraft,
@@ -191,6 +198,8 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
   const [bundleSceneId, setBundleSceneId] = useState('');
   const [reviewNote, setReviewNote] = useState('');
   const [runDraft, setRunDraft] = useState<UiE2eRunDraft>(initialUiE2eRunDraft);
+  const [runBackfillDraft, setRunBackfillDraft] = useState<UiE2eRunBackfillDraft>(initialUiE2eRunBackfillDraft);
+  const [runBackfillResult, setRunBackfillResult] = useState<UiE2eRunSummaryBackfill | null>(null);
   const [flakyDraft, setFlakyDraft] = useState<UiE2eFlakyDraft>(initialUiE2eFlakyDraft);
 
   const [loadState, setLoadState] = useState<WorkState>({ loading: false });
@@ -243,6 +252,15 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
       : !runCreationReadiness.ready
         ? runCreationReadiness.summary
         : undefined;
+  const runBackfillReadiness = useMemo(
+    () => buildUiE2eRunBackfillReadiness({ health, draft: runBackfillDraft }),
+    [health, runBackfillDraft]
+  );
+  const runBackfillSummary = useMemo(
+    () => runBackfillResult ? buildUiE2eRunBackfillSummary(runBackfillResult) : null,
+    [runBackfillResult]
+  );
+  const runBackfillDisabled = !canManage || runActionState.loading || !runBackfillReadiness.ready;
 
   const refreshWorkbench = useCallback(async () => {
     if (!props.signedIn || !canRead) {
@@ -683,6 +701,31 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
       setRunActionState({ loading: false, success: '运行脱敏摘要已导出', traceId: result.trace_id });
     } catch (error: unknown) {
       setRunActionState({ loading: false, error: error instanceof Error ? error.message : '导出运行摘要失败' });
+    }
+  }
+
+  async function onBackfillRunSummary() {
+    if (!canManage) return;
+    const { payload, issues } = buildUiE2eRunBackfillPayload(runBackfillDraft);
+    if (!payload || issues.length) {
+      setRunActionState({ loading: false, error: issues.join('；') });
+      return;
+    }
+    setRunActionState({ loading: true });
+    try {
+      const result = await backfillUiE2eRunSummary(payload);
+      setRunBackfillResult(result.data);
+      await refreshWorkbench();
+      if (selectedRunId) {
+        await refreshRunDetail(selectedRunId);
+      }
+      setRunActionState({
+        loading: false,
+        success: `回填完成：updated=${result.data.updatedCount} unchanged=${result.data.unchangedCount} failed=${result.data.failedCount}`,
+        traceId: result.trace_id
+      });
+    } catch (error: unknown) {
+      setRunActionState({ loading: false, error: error instanceof Error ? error.message : '运行摘要回填失败' });
     }
   }
 
@@ -1290,10 +1333,62 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
                 <button className="btn btn-secondary" type="button" onClick={() => void onExportRun()} disabled={!canExport || runActionState.loading || !runDetail}>
                   <Download size={16} />导出摘要
                 </button>
+                <button className="btn btn-secondary" type="button" onClick={() => void onBackfillRunSummary()} disabled={runBackfillDisabled}>
+                  <RefreshCw size={16} />回填摘要
+                </button>
               </div>
               {!canExecute && (
                 <div className="notice info">当前账号缺少 `uiE2e:execute` 权限，因此运行与取消按钮不会开放。</div>
               )}
+              <div className={`notice ${runBackfillReadiness.tone}`}>
+                <strong>Run Summary Backfill · {runBackfillReadiness.label}</strong>
+                <span>{runBackfillReadiness.summary}</span>
+                {runBackfillReadiness.checks.length ? <span>{runBackfillReadiness.checks.join(' · ')}</span> : null}
+              </div>
+              <div className="form-grid">
+                <Field label="backfill projectId">
+                  <input
+                    value={runBackfillDraft.projectId}
+                    onChange={(event) => setRunBackfillDraft((current) => ({ ...current, projectId: event.target.value }))}
+                    placeholder="project-alpha"
+                    disabled={!canManage || runActionState.loading}
+                  />
+                </Field>
+                <Field label="runIds">
+                  <input
+                    value={runBackfillDraft.runIdsText}
+                    onChange={(event) => setRunBackfillDraft((current) => ({ ...current, runIdsText: event.target.value }))}
+                    placeholder="UUID，多个可用空格/逗号分隔"
+                    disabled={!canManage || runActionState.loading}
+                  />
+                </Field>
+                <Field label="limit">
+                  <input
+                    value={runBackfillDraft.limit}
+                    onChange={(event) => setRunBackfillDraft((current) => ({ ...current, limit: event.target.value }))}
+                    placeholder="1 - 200；当 runIds 为空时生效"
+                    disabled={!canManage || runActionState.loading}
+                  />
+                </Field>
+              </div>
+              {runBackfillSummary ? (
+                <div className="report-card-list">
+                  <div className="report-mini-card report-mini-card-muted">
+                    <div className="report-card-heading">
+                      <strong>{runBackfillSummary.label}</strong>
+                      <span className={`badge badge-${runBackfillSummary.tone === 'error' ? 'danger' : runBackfillSummary.tone}`}>{runBackfillResult?.projectId || '-'}</span>
+                    </div>
+                    <span>{runBackfillSummary.summary}</span>
+                    <small>{runBackfillSummary.signals.join(' · ')}</small>
+                    {runBackfillSummary.failedItems.length ? (
+                      <div className="report-policy-list">
+                        <div className="report-policy-title">失败项</div>
+                        {runBackfillSummary.failedItems.map((item) => <span key={item}>{item}</span>)}
+                      </div>
+                    ) : null}
+                  </div>
+                </div>
+              ) : null}
               <StateLine state={runActionState} />
             </form>
             <form className="ui-e2e-filter-grid" onSubmit={(event) => { event.preventDefault(); void refreshWorkbench(); }}>

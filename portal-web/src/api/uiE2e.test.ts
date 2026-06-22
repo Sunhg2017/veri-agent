@@ -4,6 +4,7 @@ import {
   approveUiE2eBundle,
   archiveUiE2eBundle,
   archiveUiE2eScene,
+  backfillUiE2eRunSummary,
   cancelUiE2eRun,
   createUiE2eBundle,
   createUiE2eRun,
@@ -29,6 +30,7 @@ import {
   normalizeUiE2eList,
   normalizeUiE2eRunDetail,
   normalizeUiE2eRunExport,
+  normalizeUiE2eRunSummaryBackfill,
   normalizeUiE2eSceneDetail,
   normalizeUiE2eSceneImport,
   normalizeUiE2eSceneSummary,
@@ -305,6 +307,39 @@ describe('WP7 ui e2e API helpers', () => {
       redactionPolicy: { aggregateOnly: true, artifactDownloadReady: false }
     });
 
+    expect(normalizeUiE2eRunSummaryBackfill({
+      project_id: 'project-alpha',
+      requested_count: '3',
+      updated_count: '1',
+      unchanged_count: '1',
+      failed_count: '1',
+      items: [{
+        run_id: 'run-1',
+        scene_id: 'scene-1',
+        status: 'FAILED',
+        updated: false,
+        step_result_count: '2',
+        artifact_count: '1',
+        error_code: 'UI_E2E_RUN_NOT_FOUND',
+        error_message: 'missing run'
+      }]
+    })).toMatchObject({
+      projectId: 'project-alpha',
+      requestedCount: 3,
+      updatedCount: 1,
+      unchangedCount: 1,
+      failedCount: 1,
+      items: [{
+        runId: 'run-1',
+        sceneId: 'scene-1',
+        status: 'FAILED',
+        stepResultCount: 2,
+        artifactCount: 1,
+        errorCode: 'UI_E2E_RUN_NOT_FOUND',
+        errorMessage: 'missing run'
+      }]
+    });
+
     expect(normalizeUiE2eList({
       items: [{ id: 'scene-1', project_id: 'project-alpha', code: 'portal-login', name: 'Portal login', status: 'APPROVED', risk_level: 'HIGH' }],
       total: '1'
@@ -374,6 +409,10 @@ describe('WP7 ui e2e API helpers', () => {
     });
     await cancelUiE2eRun('run-1', { reason: 'cancel' });
     await exportUiE2eRun('run-1');
+    await backfillUiE2eRunSummary({
+      projectId: 'project-alpha',
+      runIds: ['run-1', 'run-2']
+    });
     await downloadUiE2eArtifact('run-1', 'artifact-1');
     await fetchUiE2eFlakyMarks({ projectId: 'project-alpha', status: 'CONFIRMED_FLAKY', keyword: 'locator' });
     await fetchUiE2eFlakyMark('flaky-1');
@@ -464,10 +503,17 @@ describe('WP7 ui e2e API helpers', () => {
       body: JSON.stringify({ reason: 'cancel' })
     });
     expect(requestJsonMock).toHaveBeenNthCalledWith(20, '/api/v1/ui-e2e/runs/run-1/export');
+    expect(requestJsonMock).toHaveBeenNthCalledWith(21, '/api/v1/ui-e2e/runs/backfill', {
+      method: 'POST',
+      body: JSON.stringify({
+        projectId: 'project-alpha',
+        runIds: ['run-1', 'run-2']
+      })
+    });
     expect(requestBinaryMock).toHaveBeenNthCalledWith(1, '/api/v1/ui-e2e/runs/run-1/artifacts/artifact-1/download');
-    expect(requestJsonMock).toHaveBeenNthCalledWith(21, '/api/v1/ui-e2e/flaky-marks?projectId=project-alpha&status=CONFIRMED_FLAKY&keyword=locator');
-    expect(requestJsonMock).toHaveBeenNthCalledWith(22, '/api/v1/ui-e2e/flaky-marks/flaky-1');
-    expect(requestJsonMock).toHaveBeenNthCalledWith(23, '/api/v1/ui-e2e/flaky-marks', {
+    expect(requestJsonMock).toHaveBeenNthCalledWith(22, '/api/v1/ui-e2e/flaky-marks?projectId=project-alpha&status=CONFIRMED_FLAKY&keyword=locator');
+    expect(requestJsonMock).toHaveBeenNthCalledWith(23, '/api/v1/ui-e2e/flaky-marks/flaky-1');
+    expect(requestJsonMock).toHaveBeenNthCalledWith(24, '/api/v1/ui-e2e/flaky-marks', {
       method: 'POST',
       body: JSON.stringify({
         projectId: 'project-alpha',
