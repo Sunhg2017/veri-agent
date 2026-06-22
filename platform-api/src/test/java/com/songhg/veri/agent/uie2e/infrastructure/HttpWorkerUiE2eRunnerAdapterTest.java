@@ -61,7 +61,13 @@ class HttpWorkerUiE2eRunnerAdapterTest {
         AtomicReference<String> authorization = new AtomicReference<>();
         AtomicReference<String> requestBody = new AtomicReference<>();
         AtomicReference<String> cancelAuthorization = new AtomicReference<>();
-        HttpServer server = startWorkerServer(authorization, requestBody, cancelAuthorization);
+        HttpServer server = startWorkerServer(
+                authorization,
+                requestBody,
+                cancelAuthorization,
+                new AtomicReference<>(),
+                inlineRunResponse()
+        );
         try {
             String baseUrl = "http://127.0.0.1:" + server.getAddress().getPort();
             Fixture fixture = fixture(
@@ -113,6 +119,81 @@ class HttpWorkerUiE2eRunnerAdapterTest {
     }
 
     @Test
+    void runsAgainstExternalWorkerAndStoresSameOriginDownloadArtifacts() throws Exception {
+        AtomicReference<String> authorization = new AtomicReference<>();
+        AtomicReference<String> requestBody = new AtomicReference<>();
+        AtomicReference<String> cancelAuthorization = new AtomicReference<>();
+        AtomicReference<String> artifactAuthorization = new AtomicReference<>();
+        HttpServer server = startWorkerServer(
+                authorization,
+                requestBody,
+                cancelAuthorization,
+                artifactAuthorization,
+                downloadRunResponse("/artifacts/screenshot.png")
+        );
+        try {
+            String baseUrl = "http://127.0.0.1:" + server.getAddress().getPort();
+            Fixture fixture = fixture(
+                    baseUrl + "/run",
+                    baseUrl + "/cancel",
+                    "worker-token-001",
+                    tempDir.resolve("artifacts-remote")
+            );
+
+            UiE2eRunnerPort.RunnerRunResult result = fixture.adapter().run(request(fixture.leaseRef(), fixture.accountSummary()));
+
+            assertThat(result.status()).isEqualTo("SUCCEEDED");
+            assertThat(artifactAuthorization.get()).isEqualTo("Bearer worker-token-001");
+            assertThat(result.artifacts()).singleElement().satisfies(artifact -> {
+                assertThat(artifact.storageRef()).startsWith("artifact://ui-e2e/" + RUN_ID + "/");
+                assertThat(artifact.redactionFlags()).containsEntry("rawArtifactStored", true);
+                assertThat(artifact.redactionFlags()).containsEntry("rawArtifactDownloadReady", true);
+                assertThat(new String(fixture.artifactStorage().read(artifact.storageRef()).content(), StandardCharsets.UTF_8))
+                        .isEqualTo("remote-png-01");
+            });
+        } finally {
+            server.stop(0);
+        }
+    }
+
+    @Test
+    void keepsCrossOriginDownloadArtifactsAggregateOnly() throws Exception {
+        AtomicReference<String> authorization = new AtomicReference<>();
+        AtomicReference<String> requestBody = new AtomicReference<>();
+        AtomicReference<String> cancelAuthorization = new AtomicReference<>();
+        AtomicReference<String> artifactAuthorization = new AtomicReference<>();
+        HttpServer server = startWorkerServer(
+                authorization,
+                requestBody,
+                cancelAuthorization,
+                artifactAuthorization,
+                downloadRunResponse("http://127.0.0.1:65535/artifacts/screenshot.png")
+        );
+        try {
+            String baseUrl = "http://127.0.0.1:" + server.getAddress().getPort();
+            Fixture fixture = fixture(
+                    baseUrl + "/run",
+                    baseUrl + "/cancel",
+                    "worker-token-001",
+                    tempDir.resolve("artifacts-cross-origin")
+            );
+
+            UiE2eRunnerPort.RunnerRunResult result = fixture.adapter().run(request(fixture.leaseRef(), fixture.accountSummary()));
+
+            assertThat(result.status()).isEqualTo("SUCCEEDED");
+            assertThat(artifactAuthorization.get()).isNull();
+            assertThat(result.artifacts()).singleElement().satisfies(artifact -> {
+                assertThat(artifact.storageRef()).startsWith("summary://ui-e2e/http-worker/screenshot/");
+                assertThat(artifact.redactionFlags()).containsEntry("rawArtifactStored", false);
+                assertThat(artifact.redactionFlags()).containsEntry("rawArtifactDownloadReady", false);
+                assertThat(fixture.artifactStorage().isDownloadReady(artifact.storageRef())).isFalse();
+            });
+        } finally {
+            server.stop(0);
+        }
+    }
+
+    @Test
     void blocksValidationWhenWorkerUrlIsMissing() {
         Fixture fixture = fixture("", "", "", tempDir.resolve("artifacts-missing"));
 
@@ -133,50 +214,15 @@ class HttpWorkerUiE2eRunnerAdapterTest {
     private HttpServer startWorkerServer(
             AtomicReference<String> authorization,
             AtomicReference<String> requestBody,
-            AtomicReference<String> cancelAuthorization
+            AtomicReference<String> cancelAuthorization,
+            AtomicReference<String> artifactAuthorization,
+            String runResponseBody
     ) throws Exception {
         HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
         server.createContext("/run", exchange -> {
             authorization.set(exchange.getRequestHeaders().getFirst("Authorization"));
             requestBody.set(new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8));
-            byte[] response = """
-                    {
-                      "status": "SUCCEEDED",
-                      "runnerMode": "REMOTE_BROWSER",
-                      "stepResults": [
-                        {
-                          "sceneStepId": "%s",
-                          "stepOrder": 1,
-                          "status": "SUCCEEDED",
-                          "durationMs": 187,
-                          "summary": {
-                            "stepType": "LOGIN",
-                            "workerNode": "runner-a"
-                          }
-                        }
-                      ],
-                      "artifacts": [
-                        {
-                          "artifactType": "SCREENSHOT",
-                          "artifactDigest": "%s",
-                          "sizeBytes": 10,
-                          "redactionFlags": {
-                            "workerStored": false
-                          },
-                          "captureStatus": "CAPTURED",
-                          "fileName": "screenshot.png",
-                          "contentBase64": "%s"
-                        }
-                      ],
-                      "executionSummary": {
-                        "workerRequestAccepted": true
-                      }
-                    }
-                    """.formatted(
-                    UUID.fromString("d4444444-f4e6-441c-a2ba-0d1041e3844f"),
-                    "a".repeat(64),
-                    Base64.getEncoder().encodeToString("png-bytes-1".getBytes(StandardCharsets.UTF_8))
-            ).getBytes(StandardCharsets.UTF_8);
+            byte[] response = runResponseBody.getBytes(StandardCharsets.UTF_8);
             exchange.getResponseHeaders().add("Content-Type", "application/json");
             exchange.sendResponseHeaders(200, response.length);
             exchange.getResponseBody().write(response);
@@ -194,8 +240,99 @@ class HttpWorkerUiE2eRunnerAdapterTest {
             exchange.getResponseBody().write(response);
             exchange.close();
         });
+        server.createContext("/artifacts/screenshot.png", exchange -> {
+            artifactAuthorization.set(exchange.getRequestHeaders().getFirst("Authorization"));
+            byte[] response = "remote-png-01".getBytes(StandardCharsets.UTF_8);
+            exchange.getResponseHeaders().add("Content-Type", "image/png");
+            exchange.getResponseHeaders().add("Content-Length", String.valueOf(response.length));
+            exchange.sendResponseHeaders(200, response.length);
+            exchange.getResponseBody().write(response);
+            exchange.close();
+        });
         server.start();
         return server;
+    }
+
+    private String inlineRunResponse() {
+        return """
+                {
+                  "status": "SUCCEEDED",
+                  "runnerMode": "REMOTE_BROWSER",
+                  "stepResults": [
+                    {
+                      "sceneStepId": "%s",
+                      "stepOrder": 1,
+                      "status": "SUCCEEDED",
+                      "durationMs": 187,
+                      "summary": {
+                        "stepType": "LOGIN",
+                        "workerNode": "runner-a"
+                      }
+                    }
+                  ],
+                  "artifacts": [
+                    {
+                      "artifactType": "SCREENSHOT",
+                      "artifactDigest": "%s",
+                      "sizeBytes": 10,
+                      "redactionFlags": {
+                        "workerStored": false
+                      },
+                      "captureStatus": "CAPTURED",
+                      "fileName": "screenshot.png",
+                      "contentBase64": "%s"
+                    }
+                  ],
+                  "executionSummary": {
+                    "workerRequestAccepted": true
+                  }
+                }
+                """.formatted(
+                UUID.fromString("d4444444-f4e6-441c-a2ba-0d1041e3844f"),
+                "a".repeat(64),
+                Base64.getEncoder().encodeToString("png-bytes-1".getBytes(StandardCharsets.UTF_8))
+        );
+    }
+
+    private String downloadRunResponse(String downloadUrl) {
+        return """
+                {
+                  "status": "SUCCEEDED",
+                  "runnerMode": "REMOTE_BROWSER",
+                  "stepResults": [
+                    {
+                      "sceneStepId": "%s",
+                      "stepOrder": 1,
+                      "status": "SUCCEEDED",
+                      "durationMs": 187,
+                      "summary": {
+                        "stepType": "LOGIN",
+                        "workerNode": "runner-b"
+                      }
+                    }
+                  ],
+                  "artifacts": [
+                    {
+                      "artifactType": "SCREENSHOT",
+                      "artifactDigest": "%s",
+                      "sizeBytes": 13,
+                      "redactionFlags": {
+                        "workerStored": true
+                      },
+                      "captureStatus": "CAPTURED",
+                      "fileName": "downloaded-screenshot.png",
+                      "downloadUrl": "%s"
+                    }
+                  ],
+                  "executionSummary": {
+                    "workerRequestAccepted": true
+                  }
+                }
+                """.formatted(
+                UUID.fromString("d4444444-f4e6-441c-a2ba-0d1041e3844f"),
+                "b".repeat(64),
+                downloadUrl
+        );
     }
 
     private Fixture fixture(

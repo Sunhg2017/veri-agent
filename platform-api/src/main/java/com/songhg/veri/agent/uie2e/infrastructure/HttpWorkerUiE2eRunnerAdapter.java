@@ -17,6 +17,8 @@ import com.songhg.veri.agent.uie2e.domain.UiE2eBundle;
 import com.songhg.veri.agent.uie2e.domain.UiE2eScene;
 import com.songhg.veri.agent.uie2e.domain.UiE2eSceneStep;
 import com.songhg.veri.agent.uie2e.infrastructure.UiE2eRunnerCredentialPlanSupport.RunnerCredentialInjectionPlan;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.io.IOException;
 import java.net.URI;
 import java.net.http.HttpClient;
@@ -190,7 +192,7 @@ public class HttpWorkerUiE2eRunnerAdapter implements UiE2eRunnerPort {
                         blockedArtifacts("workerHttpFailed")
                 );
             }
-            return readPayload(response.body()).toResult(request.runId(), properties, workspace, artifactStorage);
+            return readPayload(response.body()).toResult(request.runId(), properties, workspace, artifactStorage, httpClient);
         } catch (BusinessException exception) {
             String errorCode = StringUtils.hasText(exception.getMessage()) ? exception.getMessage() : RUNNER_FAILED;
             return failure(
@@ -714,6 +716,52 @@ public class HttpWorkerUiE2eRunnerAdapter implements UiE2eRunnerPort {
         }
     }
 
+    /**
+     * Only same-origin artifact fetch URLs are accepted so the worker contract can return downloadable blobs without
+     * turning the control plane into a generic outbound fetcher.
+     */
+    private static URI resolveWorkerArtifactUri(String workerUrl, String rawDownloadUrl) {
+        if (!StringUtils.hasText(workerUrl) || !StringUtils.hasText(rawDownloadUrl)) {
+            return null;
+        }
+        try {
+            URI baseUri = URI.create(workerUrl.trim());
+            URI resolved = baseUri.resolve(rawDownloadUrl.trim());
+            if (!httpUrl(baseUri) || !httpUrl(resolved) || !sameOrigin(baseUri, resolved)) {
+                return null;
+            }
+            return resolved;
+        } catch (IllegalArgumentException exception) {
+            return null;
+        }
+    }
+
+    private static boolean httpUrl(URI uri) {
+        if (uri == null || !StringUtils.hasText(uri.getScheme())) {
+            return false;
+        }
+        return "http".equalsIgnoreCase(uri.getScheme()) || "https".equalsIgnoreCase(uri.getScheme());
+    }
+
+    private static boolean sameOrigin(URI left, URI right) {
+        if (!httpUrl(left) || !httpUrl(right) || !StringUtils.hasText(left.getHost()) || !StringUtils.hasText(right.getHost())) {
+            return false;
+        }
+        return left.getScheme().equalsIgnoreCase(right.getScheme())
+                && left.getHost().equalsIgnoreCase(right.getHost())
+                && effectivePort(left) == effectivePort(right);
+    }
+
+    private static int effectivePort(URI uri) {
+        if (uri == null) {
+            return -1;
+        }
+        if (uri.getPort() > 0) {
+            return uri.getPort();
+        }
+        return "https".equalsIgnoreCase(uri.getScheme()) ? 443 : 80;
+    }
+
     private void putIfPresent(Map<String, Object> target, String key, Object value) {
         if (target == null || !StringUtils.hasText(key) || value == null) {
             return;
@@ -751,7 +799,8 @@ public class HttpWorkerUiE2eRunnerAdapter implements UiE2eRunnerPort {
                 UUID runId,
                 UiE2eProperties properties,
                 Path workspace,
-                UiE2eArtifactStorage artifactStorage
+                UiE2eArtifactStorage artifactStorage,
+                HttpClient httpClient
         ) {
             String normalizedStatus = StringUtils.hasText(status) ? status.trim().toUpperCase(Locale.ROOT) : "FAILED";
             String effectiveStatus = Set.of("SUCCEEDED", "FAILED", "TIMEOUT", "BLOCKED", "CANCELED").contains(normalizedStatus)
@@ -768,7 +817,7 @@ public class HttpWorkerUiE2eRunnerAdapter implements UiE2eRunnerPort {
                     : artifacts.stream()
                     .filter(item -> item != null)
                     .limit(properties.effectiveMaxArtifactCount())
-                    .map(item -> item.toManifest(runId, properties, workspace, artifactStorage))
+                    .map(item -> item.toManifest(runId, properties, workspace, artifactStorage, httpClient))
                     .toList();
             Map<String, Object> safeSummary = sanitizeMap(executionSummary);
             if (StringUtils.hasText(runnerMode)) {
@@ -821,29 +870,34 @@ public class HttpWorkerUiE2eRunnerAdapter implements UiE2eRunnerPort {
             Map<String, Object> redactionFlags,
             String captureStatus,
             String fileName,
-            String contentBase64
+            String contentBase64,
+            String downloadUrl,
+            String contentUrl,
+            String artifactUrl
     ) {
         RunnerArtifactManifest toManifest(
                 UUID runId,
                 UiE2eProperties properties,
                 Path workspace,
-                UiE2eArtifactStorage artifactStorage
+                UiE2eArtifactStorage artifactStorage,
+                HttpClient httpClient
         ) {
             Map<String, Object> safeFlags = sanitizeMap(redactionFlags);
-            UiE2eArtifactStorage.StoredArtifact storedArtifact = store(runId, workspace, artifactStorage);
+            String effectiveType = StringUtils.hasText(artifactType) ? artifactType.trim().toUpperCase(Locale.ROOT) : "LOG";
+            long boundedSize = Math.max(0L, Math.min(sizeBytes, properties.effectiveMaxArtifactSizeBytes()));
+            String digest = StringUtils.hasText(artifactDigest)
+                    ? SensitiveTextSanitizer.boundedText(artifactDigest.trim().toLowerCase(Locale.ROOT), 64)
+                    : SensitiveTextSanitizer.sha256Hex(String.valueOf(runId) + ":" + effectiveType + ":" + boundedSize);
+            UiE2eArtifactStorage.StoredArtifact storedArtifact = store(runId, properties, workspace, artifactStorage, httpClient, effectiveType);
             safeFlags.put("aggregateOnly", true);
             safeFlags.put("rawArtifactStored", storedArtifact != null);
             safeFlags.put("rawArtifactDownloadReady", storedArtifact != null);
             safeFlags.put("secretPlaintextStored", false);
             safeFlags.put("storageCredentialStored", false);
-            long boundedSize = Math.max(0L, Math.min(sizeBytes, properties.effectiveMaxArtifactSizeBytes()));
-            String digest = StringUtils.hasText(artifactDigest)
-                    ? SensitiveTextSanitizer.boundedText(artifactDigest.trim().toLowerCase(Locale.ROOT), 64)
-                    : SensitiveTextSanitizer.sha256Hex(String.valueOf(runId) + ":" + artifactType + ":" + boundedSize);
             return new RunnerArtifactManifest(
-                    StringUtils.hasText(artifactType) ? artifactType.trim().toUpperCase(Locale.ROOT) : "LOG",
+                    effectiveType,
                     storedArtifact == null
-                            ? SensitiveTextSanitizer.sanitizedEvidenceText(storageRef, 256)
+                            ? aggregateStorageRef(effectiveType, digest)
                             : storedArtifact.storageRef(),
                     digest.matches("^[0-9a-f]{1,64}$") ? digest : SensitiveTextSanitizer.sha256Hex(digest),
                     storedArtifact == null ? boundedSize : Math.max(0L, Math.min(storedArtifact.sizeBytes(), properties.effectiveMaxArtifactSizeBytes())),
@@ -853,28 +907,77 @@ public class HttpWorkerUiE2eRunnerAdapter implements UiE2eRunnerPort {
         }
 
         /**
-         * Copies inline base64 artifact bytes into controlled local storage before the temporary worker payload
-         * workspace is removed. Remote URLs intentionally stay non-downloadable until a reviewed fetch path exists.
+         * Copies inline artifact bytes, or approved same-origin worker download URLs, into controlled local storage
+         * before the temporary worker payload workspace is removed.
          */
         private UiE2eArtifactStorage.StoredArtifact store(
                 UUID runId,
+                UiE2eProperties properties,
                 Path workspace,
-                UiE2eArtifactStorage artifactStorage
+                UiE2eArtifactStorage artifactStorage,
+                HttpClient httpClient,
+                String effectiveType
         ) {
-            if (runId == null || artifactStorage == null || workspace == null || !StringUtils.hasText(contentBase64)) {
+            if (runId == null || properties == null || artifactStorage == null || workspace == null) {
                 return null;
             }
             try {
-                byte[] content = Base64.getDecoder().decode(contentBase64);
-                String effectiveType = StringUtils.hasText(artifactType) ? artifactType.trim().toUpperCase(Locale.ROOT) : "LOG";
-                String extension = extension(fileName, effectiveType);
+                if (StringUtils.hasText(contentBase64)) {
+                    byte[] content = Base64.getDecoder().decode(contentBase64);
+                    String extension = extension(fileName, effectiveType);
+                    Path source = workspace.resolve("artifact-" + UUID.randomUUID() + extension).normalize();
+                    if (!source.startsWith(workspace)) {
+                        return null;
+                    }
+                    Files.write(source, content);
+                    return artifactStorage.store(runId, UUID.randomUUID(), effectiveType, source);
+                }
+                URI downloadUri = resolveWorkerArtifactUri(properties.effectiveRunnerWorkerUrl(), rawDownloadUrl());
+                if (downloadUri == null || httpClient == null) {
+                    return null;
+                }
+                String extension = extension(sourceFileName(downloadUri, effectiveType), effectiveType);
                 Path source = workspace.resolve("artifact-" + UUID.randomUUID() + extension).normalize();
                 if (!source.startsWith(workspace)) {
                     return null;
                 }
-                Files.write(source, content);
+                HttpRequest.Builder requestBuilder = HttpRequest.newBuilder(downloadUri)
+                        .timeout(Duration.ofSeconds(properties.effectiveDefaultTimeoutSeconds()))
+                        .header("Accept", "*/*")
+                        .GET();
+                if (properties.runnerWorkerTokenConfigured()) {
+                    requestBuilder.header("Authorization", "Bearer " + properties.effectiveRunnerWorkerToken());
+                }
+                HttpResponse<InputStream> response = httpClient.send(
+                        requestBuilder.build(),
+                        HttpResponse.BodyHandlers.ofInputStream()
+                );
+                if (response.statusCode() / 100 != 2) {
+                    return null;
+                }
+                long maxArtifactSizeBytes = properties.effectiveMaxArtifactSizeBytes();
+                long contentLength = response.headers().firstValueAsLong("Content-Length").orElse(-1L);
+                if (contentLength > maxArtifactSizeBytes) {
+                    return null;
+                }
+                try (InputStream inputStream = response.body(); OutputStream outputStream = Files.newOutputStream(source)) {
+                    byte[] buffer = new byte[8192];
+                    long total = 0L;
+                    int read;
+                    while ((read = inputStream.read(buffer)) >= 0) {
+                        total += read;
+                        if (total > maxArtifactSizeBytes) {
+                            Files.deleteIfExists(source);
+                            return null;
+                        }
+                        outputStream.write(buffer, 0, read);
+                    }
+                }
                 return artifactStorage.store(runId, UUID.randomUUID(), effectiveType, source);
             } catch (IllegalArgumentException | IOException ignored) {
+                return null;
+            } catch (InterruptedException ignored) {
+                Thread.currentThread().interrupt();
                 return null;
             }
         }
@@ -894,6 +997,60 @@ public class HttpWorkerUiE2eRunnerAdapter implements UiE2eRunnerPort {
                 case "JUNIT_XML" -> ".xml";
                 default -> ".log";
             };
+        }
+
+        private String rawDownloadUrl() {
+            if (StringUtils.hasText(downloadUrl)) {
+                return downloadUrl.trim();
+            }
+            if (StringUtils.hasText(contentUrl)) {
+                return contentUrl.trim();
+            }
+            if (StringUtils.hasText(artifactUrl)) {
+                return artifactUrl.trim();
+            }
+            return null;
+        }
+
+        private String sourceFileName(URI downloadUri, String effectiveType) {
+            if (StringUtils.hasText(fileName)) {
+                return fileName.trim();
+            }
+            if (downloadUri != null && StringUtils.hasText(downloadUri.getPath())) {
+                String path = downloadUri.getPath();
+                int index = path.lastIndexOf('/');
+                String candidate = index >= 0 ? path.substring(index + 1) : path;
+                if (StringUtils.hasText(candidate)) {
+                    return candidate;
+                }
+            }
+            return effectiveType.toLowerCase(Locale.ROOT);
+        }
+
+        private String aggregateStorageRef(String effectiveType, String digest) {
+            String safeStorageRef = boundedAggregateStorageRef(storageRef);
+            if (StringUtils.hasText(safeStorageRef)) {
+                return safeStorageRef;
+            }
+            if (StringUtils.hasText(contentBase64) || StringUtils.hasText(rawDownloadUrl())) {
+                return "summary://ui-e2e/http-worker/" + effectiveType.toLowerCase(Locale.ROOT) + "/" + digest;
+            }
+            return null;
+        }
+
+        private String boundedAggregateStorageRef(String rawStorageRef) {
+            if (!StringUtils.hasText(rawStorageRef)) {
+                return null;
+            }
+            try {
+                URI uri = URI.create(rawStorageRef.trim());
+                if (httpUrl(uri)) {
+                    return null;
+                }
+            } catch (IllegalArgumentException ignored) {
+                // Keep opaque non-URI refs as bounded summary values.
+            }
+            return SensitiveTextSanitizer.sanitizedEvidenceText(rawStorageRef, 256);
         }
     }
 
