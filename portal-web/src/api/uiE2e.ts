@@ -252,6 +252,39 @@ export interface BackfillUiE2eRunSummaryPayload {
   limit?: number;
 }
 
+export interface BatchCreateUiE2eRunPayload {
+  projectId: string;
+  sceneIds: string[];
+  environmentId?: string;
+  baseUrlRef: string;
+  accountLeaseRef: string;
+  requestKeyPrefix?: string;
+  reason?: string;
+  browsers?: string[];
+  visualRegressionEnabled?: boolean;
+  baselineRunId?: string;
+  visualMismatchThreshold?: number;
+}
+
+export interface UiE2eBatchRunItem {
+  sceneId: string;
+  sceneCode?: string;
+  bundleId?: string;
+  outcome: string;
+  errorCode?: string;
+  errorMessage?: string;
+  run?: UiE2eRunDetail;
+}
+
+export interface UiE2eBatchRun {
+  projectId: string;
+  requestedCount: number;
+  createdCount: number;
+  replayedCount: number;
+  failedCount: number;
+  items: UiE2eBatchRunItem[];
+}
+
 export interface UiE2eRunSummaryBackfillItem {
   runId: string;
   sceneId?: string;
@@ -517,6 +550,14 @@ export async function createUiE2eRun(payload: CreateUiE2eRunPayload): Promise<Ap
     body: JSON.stringify(payload)
   });
   return { ...response, data: normalizeUiE2eRunDetail(response.data) };
+}
+
+export async function createUiE2eBatchRun(payload: BatchCreateUiE2eRunPayload): Promise<ApiResponse<UiE2eBatchRun>> {
+  const response = await requestJson<unknown>(`${UI_E2E_BASE}/runs/batch`, {
+    method: 'POST',
+    body: JSON.stringify(payload)
+  });
+  return { ...response, data: normalizeUiE2eBatchRun(response.data) };
 }
 
 export async function cancelUiE2eRun(id: string, payload: CancelUiE2eRunPayload = {}): Promise<ApiResponse<UiE2eRunDetail>> {
@@ -863,6 +904,31 @@ export function normalizeUiE2eRunExport(input: unknown): UiE2eRunExport {
   };
 }
 
+export function normalizeUiE2eBatchRun(input: unknown): UiE2eBatchRun {
+  const value = objectValue(input);
+  return {
+    projectId: stringValue(read(value, 'projectId', 'project_id')),
+    requestedCount: numberValue(read(value, 'requestedCount', 'requested_count'), 0),
+    createdCount: numberValue(read(value, 'createdCount', 'created_count'), 0),
+    replayedCount: numberValue(read(value, 'replayedCount', 'replayed_count'), 0),
+    failedCount: numberValue(read(value, 'failedCount', 'failed_count'), 0),
+    items: arrayValue(read(value, 'items')).map(normalizeUiE2eBatchRunItem)
+  };
+}
+
+export function normalizeUiE2eBatchRunItem(input: unknown): UiE2eBatchRunItem {
+  const value = objectValue(input);
+  return {
+    sceneId: stringValue(read(value, 'sceneId', 'scene_id')),
+    sceneCode: optionalString(read(value, 'sceneCode', 'scene_code')),
+    bundleId: optionalString(read(value, 'bundleId', 'bundle_id')),
+    outcome: stringValue(read(value, 'outcome'), 'FAILED'),
+    errorCode: optionalString(read(value, 'errorCode', 'error_code')),
+    errorMessage: optionalString(read(value, 'errorMessage', 'error_message')),
+    run: normalizeOptionalUiE2eRunDetail(read(value, 'run'))
+  };
+}
+
 export function normalizeUiE2eRunSummaryBackfill(input: unknown): UiE2eRunSummaryBackfill {
   const value = objectValue(input);
   return {
@@ -902,6 +968,11 @@ export function normalizeUiE2eList<T>(input: unknown, itemNormalizer: (value: un
 function normalizeOptionalUiE2eFlakyMark(input: unknown): UiE2eFlakyMark | undefined {
   const value = objectValue(input);
   return Object.keys(value).length ? normalizeUiE2eFlakyMark(value) : undefined;
+}
+
+function normalizeOptionalUiE2eRunDetail(input: unknown): UiE2eRunDetail | undefined {
+  const value = objectValue(input);
+  return Object.keys(value).length ? normalizeUiE2eRunDetail(value) : undefined;
 }
 
 function compactNotePayload(payload: { reason?: string; note?: string }) {

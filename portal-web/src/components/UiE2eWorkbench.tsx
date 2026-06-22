@@ -19,6 +19,7 @@ import {
   archiveUiE2eBundle,
   backfillUiE2eRunSummary,
   cancelUiE2eRun,
+  createUiE2eBatchRun,
   createUiE2eBundle,
   createUiE2eRun,
   createUiE2eScene,
@@ -40,6 +41,7 @@ import {
   updateUiE2eScene,
   upsertUiE2eFlakyMark,
   type UiE2eArtifactManifest,
+  type UiE2eBatchRun,
   type UiE2eBundleDetail,
   type UiE2eBundleExport,
   type UiE2eBundleSummary,
@@ -59,6 +61,9 @@ import {
   blankUiE2eSceneDraft,
   buildUiE2eBundleListSummary,
   buildUiE2eArtifactDownloadState,
+  buildUiE2eBatchRunPayload,
+  buildUiE2eBatchRunReadiness,
+  buildUiE2eBatchRunSummary,
   buildUiE2eFlakyDetailInsight,
   buildUiE2eBundleQueueOverview,
   buildUiE2eFlakyListSummary,
@@ -87,6 +92,7 @@ import {
   filterUiE2eFlakyMarksByFocusMode,
   filterUiE2eRunsByFocusMode,
   filterUiE2eScenesByFocusMode,
+  initialUiE2eBatchRunDraft,
   initialUiE2eFlakyDraft,
   initialUiE2eRunBackfillDraft,
   initialUiE2eRunDraft,
@@ -101,6 +107,7 @@ import {
   sceneDraftFromDetail,
   sceneDraftFromImport,
   splitTags,
+  type UiE2eBatchRunDraft,
   type UiE2eBundleFocusMode,
   type UiE2eFlakyDraft,
   type UiE2eFlakyFocusMode,
@@ -198,6 +205,8 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
   const [bundleSceneId, setBundleSceneId] = useState('');
   const [reviewNote, setReviewNote] = useState('');
   const [runDraft, setRunDraft] = useState<UiE2eRunDraft>(initialUiE2eRunDraft);
+  const [batchRunDraft, setBatchRunDraft] = useState<UiE2eBatchRunDraft>(initialUiE2eBatchRunDraft);
+  const [batchRunResult, setBatchRunResult] = useState<UiE2eBatchRun | null>(null);
   const [runBackfillDraft, setRunBackfillDraft] = useState<UiE2eRunBackfillDraft>(initialUiE2eRunBackfillDraft);
   const [runBackfillResult, setRunBackfillResult] = useState<UiE2eRunSummaryBackfill | null>(null);
   const [flakyDraft, setFlakyDraft] = useState<UiE2eFlakyDraft>(initialUiE2eFlakyDraft);
@@ -252,6 +261,15 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
       : !runCreationReadiness.ready
         ? runCreationReadiness.summary
         : undefined;
+  const runBatchReadiness = useMemo(
+    () => buildUiE2eBatchRunReadiness({ health, draft: batchRunDraft, scenes }),
+    [batchRunDraft, health, scenes]
+  );
+  const runBatchSummary = useMemo(
+    () => batchRunResult ? buildUiE2eBatchRunSummary(batchRunResult) : null,
+    [batchRunResult]
+  );
+  const runBatchDisabled = !canExecute || runActionState.loading || !runBatchReadiness.ready;
   const runBackfillReadiness = useMemo(
     () => buildUiE2eRunBackfillReadiness({ health, draft: runBackfillDraft }),
     [health, runBackfillDraft]
@@ -676,6 +694,41 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
       });
     } catch (error: unknown) {
       setRunActionState({ loading: false, error: error instanceof Error ? error.message : '创建运行失败' });
+    }
+  }
+
+  async function onCreateBatchRun() {
+    if (!canExecute) return;
+    const { payload, issues } = buildUiE2eBatchRunPayload(batchRunDraft);
+    if (!payload || issues.length) {
+      setRunActionState({ loading: false, error: issues.join('；') });
+      return;
+    }
+    setRunActionState({ loading: true });
+    try {
+      const result = await createUiE2eBatchRun(payload);
+      setBatchRunResult(result.data);
+      const createdRuns = result.data.items
+        .map((item) => item.run)
+        .filter((item): item is UiE2eRunDetail => Boolean(item));
+      if (createdRuns.length) {
+        setRuns((current) => mergeRunSummaries(createdRuns, current));
+        setSelectedRunId(createdRuns[0].id);
+        setRunDetail(createdRuns[0]);
+        applyRunDefaults(createdRuns[0]);
+      }
+      await refreshWorkbench();
+      if (createdRuns.length) {
+        await refreshRunDetail(createdRuns[0].id);
+        setSelectedRunId(createdRuns[0].id);
+      }
+      setRunActionState({
+        loading: false,
+        success: `批量运行完成：created=${result.data.createdCount} replayed=${result.data.replayedCount} failed=${result.data.failedCount}`,
+        traceId: result.trace_id
+      });
+    } catch (error: unknown) {
+      setRunActionState({ loading: false, error: error instanceof Error ? error.message : '批量创建运行失败' });
     }
   }
 
@@ -1333,6 +1386,9 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
                 <button className="btn btn-secondary" type="button" onClick={() => void onExportRun()} disabled={!canExport || runActionState.loading || !runDetail}>
                   <Download size={16} />导出摘要
                 </button>
+                <button className="btn btn-secondary" type="button" onClick={() => void onCreateBatchRun()} disabled={runBatchDisabled}>
+                  <Play size={16} />批量运行
+                </button>
                 <button className="btn btn-secondary" type="button" onClick={() => void onBackfillRunSummary()} disabled={runBackfillDisabled}>
                   <RefreshCw size={16} />回填摘要
                 </button>
@@ -1340,6 +1396,124 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
               {!canExecute && (
                 <div className="notice info">当前账号缺少 `uiE2e:execute` 权限，因此运行与取消按钮不会开放。</div>
               )}
+              <div className={`notice ${runBatchReadiness.tone}`}>
+                <strong>Batch Run · {runBatchReadiness.label}</strong>
+                <span>{runBatchReadiness.summary}</span>
+                {runBatchReadiness.checks.length ? <span>{runBatchReadiness.checks.join(' · ')}</span> : null}
+              </div>
+              <div className="form-grid">
+                <Field label="batch projectId">
+                  <input
+                    value={batchRunDraft.projectId}
+                    onChange={(event) => setBatchRunDraftValue('projectId', event.target.value)}
+                    placeholder="project-alpha"
+                    disabled={!canExecute || runActionState.loading}
+                  />
+                </Field>
+                <Field label="sceneIds">
+                  <textarea
+                    value={batchRunDraft.sceneIdsText}
+                    onChange={(event) => setBatchRunDraftValue('sceneIdsText', event.target.value)}
+                    placeholder="UUID，多个可用空格/逗号/分号分隔"
+                    disabled={!canExecute || runActionState.loading}
+                    rows={3}
+                  />
+                </Field>
+                <Field label="batch environmentId">
+                  <input
+                    value={batchRunDraft.environmentId}
+                    onChange={(event) => setBatchRunDraftValue('environmentId', event.target.value)}
+                    placeholder="staging"
+                    disabled={!canExecute || runActionState.loading}
+                  />
+                </Field>
+                <Field label="batch baseUrlRef">
+                  <input
+                    value={batchRunDraft.baseUrlRef}
+                    onChange={(event) => setBatchRunDraftValue('baseUrlRef', event.target.value)}
+                    placeholder="env:staging"
+                    disabled={!canExecute || runActionState.loading}
+                  />
+                </Field>
+                <Field label="batch accountLeaseRef">
+                  <input
+                    value={batchRunDraft.accountLeaseRef}
+                    onChange={(event) => setBatchRunDraftValue('accountLeaseRef', event.target.value)}
+                    placeholder="UUID"
+                    disabled={!canExecute || runActionState.loading}
+                  />
+                </Field>
+                <Field label="requestKeyPrefix">
+                  <input
+                    value={batchRunDraft.requestKeyPrefix}
+                    onChange={(event) => setBatchRunDraftValue('requestKeyPrefix', event.target.value)}
+                    placeholder="可选批量幂等前缀"
+                    disabled={!canExecute || runActionState.loading}
+                  />
+                </Field>
+                <Field label="batch reason">
+                  <input
+                    value={batchRunDraft.reason}
+                    onChange={(event) => setBatchRunDraftValue('reason', event.target.value)}
+                    placeholder="例如 nightly smoke / multi-scene replay"
+                    disabled={!canExecute || runActionState.loading}
+                  />
+                </Field>
+                <Field label="batch browsers">
+                  <input
+                    value={batchRunDraft.browsersText}
+                    onChange={(event) => setBatchRunDraftValue('browsersText', event.target.value)}
+                    placeholder="CHROMIUM FIREFOX WEBKIT"
+                    disabled={!canExecute || runActionState.loading}
+                  />
+                </Field>
+                <Field label="batch baselineRunId">
+                  <input
+                    value={batchRunDraft.baselineRunId}
+                    onChange={(event) => setBatchRunDraftValue('baselineRunId', event.target.value)}
+                    placeholder="可选 UUID，不填则自动取最近成功基线"
+                    disabled={!canExecute || runActionState.loading || !batchRunDraft.visualRegressionEnabled}
+                  />
+                </Field>
+                <Field label="batch visualThreshold">
+                  <input
+                    value={batchRunDraft.visualMismatchThreshold}
+                    onChange={(event) => setBatchRunDraftValue('visualMismatchThreshold', event.target.value)}
+                    placeholder="0 - 1，可选"
+                    disabled={!canExecute || runActionState.loading || !batchRunDraft.visualRegressionEnabled}
+                  />
+                </Field>
+              </div>
+              <label className="field field-inline">
+                <span className="field-inline-main">
+                  <input
+                    type="checkbox"
+                    checked={batchRunDraft.visualRegressionEnabled}
+                    onChange={(event) => setBatchRunDraftBooleanValue('visualRegressionEnabled', event.target.checked)}
+                    disabled={!canExecute || runActionState.loading}
+                  />
+                  <span>批量启用截图 Diff / 视觉回归</span>
+                </span>
+                <small>后端会为每个 sceneId 自动选择最新 APPROVED bundle，并展开成独立运行请求。</small>
+              </label>
+              {runBatchSummary ? (
+                <div className="report-card-list">
+                  <div className="report-mini-card report-mini-card-muted">
+                    <div className="report-card-heading">
+                      <strong>{runBatchSummary.label}</strong>
+                      <span className={`badge badge-${runBatchSummary.tone === 'error' ? 'danger' : runBatchSummary.tone}`}>{batchRunResult?.projectId || '-'}</span>
+                    </div>
+                    <span>{runBatchSummary.summary}</span>
+                    <small>{runBatchSummary.signals.join(' · ')}</small>
+                    {runBatchSummary.failedItems.length ? (
+                      <div className="report-policy-list">
+                        <div className="report-policy-title">失败项</div>
+                        {runBatchSummary.failedItems.map((item) => <span key={item}>{item}</span>)}
+                      </div>
+                    ) : null}
+                  </div>
+                </div>
+              ) : null}
               <div className={`notice ${runBackfillReadiness.tone}`}>
                 <strong>Run Summary Backfill · {runBackfillReadiness.label}</strong>
                 <span>{runBackfillReadiness.summary}</span>
@@ -1639,6 +1813,16 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
     setRunActionState({ loading: false });
   }
 
+  function setBatchRunDraftValue(key: keyof UiE2eBatchRunDraft, value: string) {
+    setBatchRunDraft((current) => ({ ...current, [key]: value }));
+    setRunActionState({ loading: false });
+  }
+
+  function setBatchRunDraftBooleanValue(key: keyof Pick<UiE2eBatchRunDraft, 'visualRegressionEnabled'>, value: boolean) {
+    setBatchRunDraft((current) => ({ ...current, [key]: value }));
+    setRunActionState({ loading: false });
+  }
+
   function setFlakyDraftValue(key: keyof UiE2eFlakyDraft, value: string) {
     setFlakyDraft((current) => ({ ...current, [key]: value }));
     setFlakyActionState({ loading: false });
@@ -1651,6 +1835,12 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
       projectId: scene.projectId,
       sceneId: scene.id,
       environmentId: scene.environmentId || current.environmentId
+    }));
+    setBatchRunDraft((current) => ({
+      ...current,
+      projectId: scene.projectId,
+      environmentId: scene.environmentId || current.environmentId,
+      sceneIdsText: current.sceneIdsText || scene.id
     }));
     setFlakyDraft((current) => ({
       ...current,
@@ -1666,6 +1856,12 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
       sceneId: bundle.sceneId,
       bundleId: bundle.id,
       environmentId: bundle.environmentId || current.environmentId
+    }));
+    setBatchRunDraft((current) => ({
+      ...current,
+      projectId: bundle.projectId,
+      environmentId: bundle.environmentId || current.environmentId,
+      sceneIdsText: current.sceneIdsText || bundle.sceneId
     }));
   }
 
@@ -2449,6 +2645,12 @@ function summaryFromRunDetail(detail: UiE2eRunDetail): UiE2eRunSummary {
     createdAt: detail.createdAt,
     updatedAt: detail.updatedAt
   };
+}
+
+function mergeRunSummaries(details: UiE2eRunDetail[], current: UiE2eRunSummary[]) {
+  const next = details.map(summaryFromRunDetail);
+  const ids = new Set(next.map((item) => item.id));
+  return [...next, ...current.filter((item) => !ids.has(item.id))];
 }
 
 function statusTone(status: string) {

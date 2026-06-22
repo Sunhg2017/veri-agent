@@ -1,8 +1,10 @@
 import type {
+  BatchCreateUiE2eRunPayload,
   BackfillUiE2eRunSummaryPayload,
   CreateUiE2eRunPayload,
   CreateUiE2eScenePayload,
   UiE2eArtifactManifest,
+  UiE2eBatchRun,
   UiE2eBundleSummary,
   UiE2eFlakyMark,
   UiE2eHealth,
@@ -47,6 +49,20 @@ export type UiE2eRunDraft = {
   baseUrlRef: string;
   accountLeaseRef: string;
   requestKey: string;
+  reason: string;
+  browsersText: string;
+  visualRegressionEnabled: boolean;
+  baselineRunId: string;
+  visualMismatchThreshold: string;
+};
+
+export type UiE2eBatchRunDraft = {
+  projectId: string;
+  sceneIdsText: string;
+  environmentId: string;
+  baseUrlRef: string;
+  accountLeaseRef: string;
+  requestKeyPrefix: string;
   reason: string;
   browsersText: string;
   visualRegressionEnabled: boolean;
@@ -214,6 +230,22 @@ export type UiE2eRunBackfillSummary = {
   failedItems: string[];
 };
 
+export type UiE2eBatchRunReadiness = {
+  ready: boolean;
+  tone: UiE2eWorkbenchNoticeTone;
+  label: string;
+  summary: string;
+  checks: string[];
+};
+
+export type UiE2eBatchRunSummary = {
+  tone: UiE2eWorkbenchNoticeTone;
+  label: string;
+  summary: string;
+  signals: string[];
+  failedItems: string[];
+};
+
 export type UiE2eRunFlakyPreset = {
   status: 'FLAKY_CANDIDATE' | 'CONFIRMED_FLAKY' | 'WAIVED';
   label: string;
@@ -290,6 +322,20 @@ export const initialUiE2eRunDraft: UiE2eRunDraft = {
   baseUrlRef: 'env:staging',
   accountLeaseRef: '',
   requestKey: '',
+  reason: '',
+  browsersText: 'CHROMIUM',
+  visualRegressionEnabled: false,
+  baselineRunId: '',
+  visualMismatchThreshold: ''
+};
+
+export const initialUiE2eBatchRunDraft: UiE2eBatchRunDraft = {
+  projectId: '',
+  sceneIdsText: '',
+  environmentId: '',
+  baseUrlRef: 'env:staging',
+  accountLeaseRef: '',
+  requestKeyPrefix: '',
   reason: '',
   browsersText: 'CHROMIUM',
   visualRegressionEnabled: false,
@@ -917,6 +963,154 @@ export function buildUiE2eRunCreationReadiness(input: {
   };
 }
 
+export function buildUiE2eBatchRunPayload(draft: UiE2eBatchRunDraft): { payload?: BatchCreateUiE2eRunPayload; issues: string[] } {
+  const issues: string[] = [];
+  const projectId = draft.projectId.trim();
+  const sceneIds = uniqueOrderedRunIds(draft.sceneIdsText);
+  const browsers = splitTags(draft.browsersText || '').map((item) => item.toUpperCase());
+
+  if (!projectId) issues.push('请填写 batch projectId');
+  if (!sceneIds.length) issues.push('请至少填写一个 sceneId');
+  if (sceneIds.length > 100) issues.push('sceneIds 最多支持 100 个');
+  if (sceneIds.length) {
+    const invalidSceneId = sceneIds.find((sceneId) => !uuidPattern.test(sceneId));
+    if (invalidSceneId) {
+      issues.push(`sceneId 需要是 UUID：${invalidSceneId}`);
+    }
+  }
+  if (!draft.baseUrlRef.trim()) issues.push('请填写 batch baseUrlRef');
+  if (!uuidPattern.test(draft.accountLeaseRef.trim())) issues.push('accountLeaseRef 需要是 UUID');
+  if (!browsers.length) issues.push('至少指定一个浏览器（CHROMIUM/FIREFOX/WEBKIT）');
+  if (browsers.some((item) => !['CHROMIUM', 'FIREFOX', 'WEBKIT'].includes(item))) {
+    issues.push('浏览器仅支持 CHROMIUM / FIREFOX / WEBKIT');
+  }
+  if (draft.visualRegressionEnabled && draft.baselineRunId.trim() && !uuidPattern.test(draft.baselineRunId.trim())) {
+    issues.push('baselineRunId 需要是 UUID');
+  }
+  if (draft.visualMismatchThreshold.trim()) {
+    const threshold = Number(draft.visualMismatchThreshold.trim());
+    if (Number.isNaN(threshold) || threshold < 0 || threshold > 1) {
+      issues.push('visualMismatchThreshold 需要在 0 到 1 之间');
+    }
+  }
+  if (draft.requestKeyPrefix.trim() && !requestKeyPattern.test(draft.requestKeyPrefix.trim())) {
+    issues.push('requestKeyPrefix 只能包含字母、数字、-、_、.、:，且不超过 128 字符');
+  }
+  if (draft.reason.length > 512) issues.push('reason 最多 512 字符');
+
+  if (issues.length) {
+    return { issues };
+  }
+
+  return {
+    issues,
+    payload: {
+      projectId,
+      sceneIds,
+      environmentId: optionalText(draft.environmentId),
+      baseUrlRef: draft.baseUrlRef.trim(),
+      accountLeaseRef: draft.accountLeaseRef.trim(),
+      requestKeyPrefix: optionalText(draft.requestKeyPrefix),
+      reason: optionalText(draft.reason),
+      browsers,
+      visualRegressionEnabled: draft.visualRegressionEnabled,
+      baselineRunId: optionalText(draft.baselineRunId),
+      visualMismatchThreshold: draft.visualMismatchThreshold.trim() ? Number(draft.visualMismatchThreshold.trim()) : undefined
+    }
+  };
+}
+
+export function buildUiE2eBatchRunReadiness(input: {
+  health: UiE2eHealth | null;
+  draft: UiE2eBatchRunDraft;
+  scenes: UiE2eSceneSummary[];
+}): UiE2eBatchRunReadiness {
+  const { health, draft, scenes } = input;
+  const { payload, issues } = buildUiE2eBatchRunPayload(draft);
+  const checks: string[] = [];
+  const sceneIds = uniqueOrderedRunIds(draft.sceneIdsText);
+  const matchedScenes = sceneIds.length ? scenes.filter((scene) => sceneIds.includes(scene.id)) : [];
+  const nonApprovedScenes = matchedScenes.filter((scene) => scene.status !== 'APPROVED');
+
+  if (health) {
+    pushUnique(checks, `runner=${health.runnerEnabled ? 'ON' : 'OFF'}:${health.runnerMode || 'UNKNOWN'}`);
+    pushUnique(checks, `batch=${booleanFromUnknown(health.runnerCapacity?.batchRunReady, true) ? 'READY' : 'PENDING'}`);
+    pushUnique(checks, `maxScenes=${health.maxScenesPerRun}`);
+  } else {
+    pushUnique(checks, 'health=pending');
+  }
+  if (sceneIds.length) {
+    pushUnique(checks, `sceneIds=${sceneIds.length}`);
+  }
+  if (matchedScenes.length) {
+    pushUnique(checks, `sceneMatched=${matchedScenes.length}`);
+  }
+  if (nonApprovedScenes.length) {
+    pushUnique(checks, `sceneNotApproved=${nonApprovedScenes.length}`);
+  }
+  if (issues.length) {
+    pushUnique(checks, `issues=${issues.length}`);
+  }
+
+  if (issues.length || !payload) {
+    return {
+      ready: false,
+      tone: 'info',
+      label: '填写 Batch 参数',
+      summary: issues[0] || '请先补全批量运行参数。',
+      checks
+    };
+  }
+
+  if (health && payload.sceneIds.length > health.maxScenesPerRun) {
+    return {
+      ready: false,
+      tone: 'warning',
+      label: 'Batch Size Exceeded',
+      summary: `当前控制面单次批量最多支持 ${health.maxScenesPerRun} 个场景，请缩小本次 sceneId 范围。`,
+      checks
+    };
+  }
+
+  if (health && !health.runnerEnabled) {
+    return {
+      ready: false,
+      tone: 'warning',
+      label: 'Runner Disabled',
+      summary: '当前环境 runner 默认关闭，批量运行不会创建真实浏览器执行。',
+      checks
+    };
+  }
+
+  if (health && !booleanFromUnknown(health.runnerCapacity?.batchRunReady, true)) {
+    return {
+      ready: false,
+      tone: 'warning',
+      label: 'Batch Pending',
+      summary: '当前控制面尚未声明 batch run ready，建议先确认健康状态和部署版本。',
+      checks
+    };
+  }
+
+  if (nonApprovedScenes.length) {
+    return {
+      ready: false,
+      tone: 'warning',
+      label: 'Scene Not Ready',
+      summary: `当前列表中有 ${nonApprovedScenes.length} 个场景不是 APPROVED，建议先处理后再批量运行。`,
+      checks
+    };
+  }
+
+  return {
+    ready: true,
+    tone: 'success',
+    label: 'Batch Ready',
+    summary: `将按 ${payload.sceneIds.length} 个场景展开独立运行请求，逐条复用后端既有准入校验。`,
+    checks
+  };
+}
+
 export function buildUiE2eRunBackfillPayload(draft: UiE2eRunBackfillDraft): { payload?: BackfillUiE2eRunSummaryPayload; issues: string[] } {
   const issues: string[] = [];
   const projectId = draft.projectId.trim();
@@ -1052,6 +1246,48 @@ export function buildUiE2eRunBackfillSummary(result: UiE2eRunSummaryBackfill): U
     tone: 'info',
     label: 'Backfill Unchanged',
     summary: `本次回填未发现需要重写的摘要，共检查 ${result.requestedCount} 条运行。`,
+    signals,
+    failedItems
+  };
+}
+
+export function buildUiE2eBatchRunSummary(result: UiE2eBatchRun): UiE2eBatchRunSummary {
+  const failedItems = result.items
+    .filter((item) => item.outcome === 'FAILED')
+    .map((item) => `${item.sceneCode || item.sceneId} · ${compactUiE2eFailureCode(item.errorCode)}${item.errorMessage ? ` · ${compactUiE2eText(item.errorMessage, 48)}` : ''}`);
+  const signals: string[] = [
+    `requested=${result.requestedCount}`,
+    `created=${result.createdCount}`,
+    `replayed=${result.replayedCount}`,
+    `failed=${result.failedCount}`
+  ];
+
+  if (result.failedCount > 0) {
+    return {
+      tone: result.createdCount > 0 || result.replayedCount > 0 ? 'warning' : 'error',
+      label: result.createdCount > 0 || result.replayedCount > 0 ? 'Batch Partially Failed' : 'Batch Failed',
+      summary: result.createdCount > 0 || result.replayedCount > 0
+        ? `本次批量运行已创建 ${result.createdCount} 条、回放 ${result.replayedCount} 条，但仍有 ${result.failedCount} 条失败。`
+        : `本次批量运行失败 ${result.failedCount} 条，请先排查失败项。`,
+      signals,
+      failedItems
+    };
+  }
+
+  if (result.replayedCount > 0) {
+    return {
+      tone: 'success',
+      label: 'Batch Replayed',
+      summary: `本次批量运行全部成功，其中新建 ${result.createdCount} 条、回放既有运行 ${result.replayedCount} 条。`,
+      signals,
+      failedItems
+    };
+  }
+
+  return {
+    tone: 'success',
+    label: 'Batch Created',
+    summary: `本次批量运行已成功创建 ${result.createdCount} 条运行请求。`,
     signals,
     failedItems
   };

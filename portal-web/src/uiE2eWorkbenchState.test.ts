@@ -3,6 +3,9 @@ import {
   blankUiE2eSceneDraft,
   buildUiE2eBundleListSummary,
   buildUiE2eArtifactDownloadState,
+  buildUiE2eBatchRunPayload,
+  buildUiE2eBatchRunReadiness,
+  buildUiE2eBatchRunSummary,
   buildUiE2eFlakyDetailInsight,
   buildUiE2eBundleQueueOverview,
   buildUiE2eFlakyListSummary,
@@ -492,6 +495,153 @@ describe('ui e2e workbench state helpers', () => {
       label: 'Backfill Partially Failed',
       signals: expect.arrayContaining(['requested=3', 'updated=1', 'unchanged=1', 'failed=1']),
       failedItems: ['RUN_NOT_FOUND · run-3 · run missing from repository snapshot']
+    });
+  });
+
+  it('builds batch run payloads, readiness, and summaries', () => {
+    expect(buildUiE2eBatchRunPayload({
+      projectId: 'project-alpha',
+      sceneIdsText: '11111111-1111-4111-8111-111111111111, 22222222-2222-4222-8222-222222222222 11111111-1111-4111-8111-111111111111',
+      environmentId: 'staging',
+      baseUrlRef: 'env:staging',
+      accountLeaseRef: '33333333-3333-4333-8333-333333333333',
+      requestKeyPrefix: 'nightly-smoke',
+      reason: 'batch smoke',
+      browsersText: 'CHROMIUM FIREFOX',
+      visualRegressionEnabled: true,
+      baselineRunId: '',
+      visualMismatchThreshold: '0.02'
+    })).toMatchObject({
+      issues: [],
+      payload: {
+        projectId: 'project-alpha',
+        sceneIds: [
+          '11111111-1111-4111-8111-111111111111',
+          '22222222-2222-4222-8222-222222222222'
+        ],
+        environmentId: 'staging',
+        baseUrlRef: 'env:staging',
+        accountLeaseRef: '33333333-3333-4333-8333-333333333333',
+        requestKeyPrefix: 'nightly-smoke',
+        reason: 'batch smoke',
+        browsers: ['CHROMIUM', 'FIREFOX'],
+        visualRegressionEnabled: true,
+        visualMismatchThreshold: 0.02
+      }
+    });
+
+    const invalid = buildUiE2eBatchRunPayload({
+      projectId: '',
+      sceneIdsText: 'bad-scene-id',
+      environmentId: '',
+      baseUrlRef: '',
+      accountLeaseRef: 'bad-lease',
+      requestKeyPrefix: 'bad key',
+      reason: 'x'.repeat(513),
+      browsersText: 'SAFARI',
+      visualRegressionEnabled: true,
+      baselineRunId: 'bad-baseline',
+      visualMismatchThreshold: '2'
+    });
+    expect(invalid.payload).toBeUndefined();
+    expect(invalid.issues).toContain('请填写 batch projectId');
+    expect(invalid.issues).toContain('sceneId 需要是 UUID：bad-scene-id');
+    expect(invalid.issues).toContain('请填写 batch baseUrlRef');
+    expect(invalid.issues).toContain('accountLeaseRef 需要是 UUID');
+    expect(invalid.issues).toContain('浏览器仅支持 CHROMIUM / FIREFOX / WEBKIT');
+    expect(invalid.issues).toContain('baselineRunId 需要是 UUID');
+    expect(invalid.issues).toContain('visualMismatchThreshold 需要在 0 到 1 之间');
+
+    expect(buildUiE2eBatchRunReadiness({
+      health: {
+        service: 'ui-e2e',
+        status: 'UP',
+        enabled: true,
+        runnerEnabled: true,
+        runnerMode: 'MANAGED',
+        defaultTimeoutSeconds: 60,
+        maxTimeoutSeconds: 300,
+        maxScenesPerRun: 2,
+        maxConcurrency: 2,
+        allowlistEnabled: true,
+        allowlistHostCount: 1,
+        exportEnabled: true,
+        supportedNodeTypes: ['UI_TEST'],
+        credentialPolicy: {},
+        artifactPolicy: {},
+        runnerCapacity: { batchRunReady: true },
+        policy: {}
+      },
+      draft: {
+        projectId: 'project-alpha',
+        sceneIdsText: '11111111-1111-4111-8111-111111111111 22222222-2222-4222-8222-222222222222',
+        environmentId: 'staging',
+        baseUrlRef: 'env:staging',
+        accountLeaseRef: '33333333-3333-4333-8333-333333333333',
+        requestKeyPrefix: '',
+        reason: '',
+        browsersText: 'CHROMIUM FIREFOX',
+        visualRegressionEnabled: false,
+        baselineRunId: '',
+        visualMismatchThreshold: ''
+      },
+      scenes: [
+        { id: '11111111-1111-4111-8111-111111111111', projectId: 'project-alpha', code: 'portal-login', name: 'Portal login', status: 'APPROVED', riskLevel: 'HIGH', tags: [], sourceSummary: {}, stepCount: 2 },
+        { id: '22222222-2222-4222-8222-222222222222', projectId: 'project-alpha', code: 'portal-dashboard', name: 'Portal dashboard', status: 'APPROVED', riskLevel: 'MEDIUM', tags: [], sourceSummary: {}, stepCount: 3 }
+      ]
+    })).toMatchObject({
+      ready: true,
+      tone: 'success',
+      label: 'Batch Ready',
+      checks: expect.arrayContaining(['runner=ON:MANAGED', 'batch=READY', 'maxScenes=2', 'sceneIds=2', 'sceneMatched=2'])
+    });
+
+    expect(buildUiE2eBatchRunSummary({
+      projectId: 'project-alpha',
+      requestedCount: 3,
+      createdCount: 1,
+      replayedCount: 1,
+      failedCount: 1,
+      items: [
+        {
+          sceneId: 'scene-1',
+          sceneCode: 'portal-login',
+          bundleId: 'bundle-1',
+          outcome: 'CREATED',
+          run: {
+            id: 'run-1',
+            projectId: 'project-alpha',
+            sceneId: 'scene-1',
+            bundleId: 'bundle-1',
+            status: 'QUEUED',
+            runnerMode: 'MANAGED',
+            accountSummary: {},
+            executionSummary: {},
+            stepResults: [],
+            artifacts: [],
+            idempotentReplay: false
+          }
+        },
+        {
+          sceneId: 'scene-2',
+          sceneCode: 'portal-dashboard',
+          bundleId: 'bundle-2',
+          outcome: 'REPLAYED'
+        },
+        {
+          sceneId: 'scene-3',
+          sceneCode: 'portal-report',
+          bundleId: 'bundle-3',
+          outcome: 'FAILED',
+          errorCode: 'UI_E2E_BUNDLE_NOT_READY',
+          errorMessage: '未找到 APPROVED 脚本包'
+        }
+      ]
+    })).toMatchObject({
+      tone: 'warning',
+      label: 'Batch Partially Failed',
+      signals: expect.arrayContaining(['requested=3', 'created=1', 'replayed=1', 'failed=1']),
+      failedItems: ['portal-report · BUNDLE_NOT_READY · 未找到 APPROVED 脚本包']
     });
   });
 

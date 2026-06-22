@@ -6,6 +6,7 @@ import {
   archiveUiE2eScene,
   backfillUiE2eRunSummary,
   cancelUiE2eRun,
+  createUiE2eBatchRun,
   createUiE2eBundle,
   createUiE2eRun,
   createUiE2eScene,
@@ -27,6 +28,7 @@ import {
   normalizeUiE2eBundleSummary,
   normalizeUiE2eFlakyMark,
   normalizeUiE2eHealth,
+  normalizeUiE2eBatchRun,
   normalizeUiE2eList,
   normalizeUiE2eRunDetail,
   normalizeUiE2eRunExport,
@@ -340,6 +342,47 @@ describe('WP7 ui e2e API helpers', () => {
       }]
     });
 
+    expect(normalizeUiE2eBatchRun({
+      project_id: 'project-alpha',
+      requested_count: '3',
+      created_count: '1',
+      replayed_count: '1',
+      failed_count: '1',
+      items: [{
+        scene_id: '11111111-1111-4111-8111-111111111111',
+        scene_code: 'portal-login',
+        bundle_id: 'bundle-1',
+        outcome: 'REPLAYED',
+        run: {
+          id: 'run-1',
+          project_id: 'project-alpha',
+          scene_id: '11111111-1111-4111-8111-111111111111',
+          bundle_id: 'bundle-1',
+          status: 'BLOCKED',
+          runner_mode: 'DISABLED',
+          account_summary: {},
+          idempotent_replay: true
+        }
+      }]
+    })).toMatchObject({
+      projectId: 'project-alpha',
+      requestedCount: 3,
+      createdCount: 1,
+      replayedCount: 1,
+      failedCount: 1,
+      items: [{
+        sceneId: '11111111-1111-4111-8111-111111111111',
+        sceneCode: 'portal-login',
+        bundleId: 'bundle-1',
+        outcome: 'REPLAYED',
+        run: {
+          id: 'run-1',
+          sceneId: '11111111-1111-4111-8111-111111111111',
+          idempotentReplay: true
+        }
+      }]
+    });
+
     expect(normalizeUiE2eList({
       items: [{ id: 'scene-1', project_id: 'project-alpha', code: 'portal-login', name: 'Portal login', status: 'APPROVED', risk_level: 'HIGH' }],
       total: '1'
@@ -405,6 +448,18 @@ describe('WP7 ui e2e API helpers', () => {
       browsers: ['CHROMIUM', 'FIREFOX'],
       visualRegressionEnabled: true,
       baselineRunId: 'baseline-run-1',
+      visualMismatchThreshold: 0.02
+    });
+    await createUiE2eBatchRun({
+      projectId: 'project-alpha',
+      sceneIds: ['scene-1', 'scene-2'],
+      environmentId: 'staging',
+      baseUrlRef: 'env:staging',
+      accountLeaseRef: 'lease-1',
+      requestKeyPrefix: 'run-batch-001',
+      reason: 'nightly smoke',
+      browsers: ['CHROMIUM', 'FIREFOX'],
+      visualRegressionEnabled: true,
       visualMismatchThreshold: 0.02
     });
     await cancelUiE2eRun('run-1', { reason: 'cancel' });
@@ -498,12 +553,27 @@ describe('WP7 ui e2e API helpers', () => {
         visualMismatchThreshold: 0.02
       })
     });
-    expect(requestJsonMock).toHaveBeenNthCalledWith(19, '/api/v1/ui-e2e/runs/run-1/cancel', {
+    expect(requestJsonMock).toHaveBeenNthCalledWith(19, '/api/v1/ui-e2e/runs/batch', {
+      method: 'POST',
+      body: JSON.stringify({
+        projectId: 'project-alpha',
+        sceneIds: ['scene-1', 'scene-2'],
+        environmentId: 'staging',
+        baseUrlRef: 'env:staging',
+        accountLeaseRef: 'lease-1',
+        requestKeyPrefix: 'run-batch-001',
+        reason: 'nightly smoke',
+        browsers: ['CHROMIUM', 'FIREFOX'],
+        visualRegressionEnabled: true,
+        visualMismatchThreshold: 0.02
+      })
+    });
+    expect(requestJsonMock).toHaveBeenNthCalledWith(20, '/api/v1/ui-e2e/runs/run-1/cancel', {
       method: 'POST',
       body: JSON.stringify({ reason: 'cancel' })
     });
-    expect(requestJsonMock).toHaveBeenNthCalledWith(20, '/api/v1/ui-e2e/runs/run-1/export');
-    expect(requestJsonMock).toHaveBeenNthCalledWith(21, '/api/v1/ui-e2e/runs/backfill', {
+    expect(requestJsonMock).toHaveBeenNthCalledWith(21, '/api/v1/ui-e2e/runs/run-1/export');
+    expect(requestJsonMock).toHaveBeenNthCalledWith(22, '/api/v1/ui-e2e/runs/backfill', {
       method: 'POST',
       body: JSON.stringify({
         projectId: 'project-alpha',
@@ -511,9 +581,9 @@ describe('WP7 ui e2e API helpers', () => {
       })
     });
     expect(requestBinaryMock).toHaveBeenNthCalledWith(1, '/api/v1/ui-e2e/runs/run-1/artifacts/artifact-1/download');
-    expect(requestJsonMock).toHaveBeenNthCalledWith(22, '/api/v1/ui-e2e/flaky-marks?projectId=project-alpha&status=CONFIRMED_FLAKY&keyword=locator');
-    expect(requestJsonMock).toHaveBeenNthCalledWith(23, '/api/v1/ui-e2e/flaky-marks/flaky-1');
-    expect(requestJsonMock).toHaveBeenNthCalledWith(24, '/api/v1/ui-e2e/flaky-marks', {
+    expect(requestJsonMock).toHaveBeenNthCalledWith(23, '/api/v1/ui-e2e/flaky-marks?projectId=project-alpha&status=CONFIRMED_FLAKY&keyword=locator');
+    expect(requestJsonMock).toHaveBeenNthCalledWith(24, '/api/v1/ui-e2e/flaky-marks/flaky-1');
+    expect(requestJsonMock).toHaveBeenNthCalledWith(25, '/api/v1/ui-e2e/flaky-marks', {
       method: 'POST',
       body: JSON.stringify({
         projectId: 'project-alpha',
