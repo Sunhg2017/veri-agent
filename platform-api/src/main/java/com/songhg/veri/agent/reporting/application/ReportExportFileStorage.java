@@ -3,7 +3,6 @@ package com.songhg.veri.agent.reporting.application;
 import com.songhg.veri.agent.common.storage.OpaqueFileStorage;
 import com.songhg.veri.agent.reporting.domain.ReportExportManifest;
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.util.Locale;
 import org.springframework.util.StringUtils;
 
@@ -21,12 +20,12 @@ public class ReportExportFileStorage {
         this.storage = storage;
     }
 
-    public StoredExport store(ReportExportManifest manifest, String serializedContent) throws IOException {
+    public StoredExport store(ReportExportManifest manifest, byte[] content) throws IOException {
         OpaqueFileStorage.StoredFile stored = storage.storeBytes(
                 partition(manifest),
                 fileName(manifest),
                 contentType(manifest.exportType()),
-                serializedContent == null ? new byte[0] : serializedContent.getBytes(StandardCharsets.UTF_8)
+                content == null ? new byte[0] : content
         );
         return new StoredExport(
                 stored.storageRef(),
@@ -61,6 +60,8 @@ public class ReportExportFileStorage {
     private String fileName(ReportExportManifest manifest) {
         String suffix = switch (normalizedType(manifest.exportType())) {
             case "MARKDOWN" -> ".md";
+            case "PDF" -> ".pdf";
+            case "WORD" -> ".docx";
             default -> ".json";
         };
         return "export-" + manifest.id() + suffix;
@@ -69,6 +70,8 @@ public class ReportExportFileStorage {
     private String contentType(String exportType) {
         return switch (normalizedType(exportType)) {
             case "MARKDOWN" -> "text/markdown;charset=UTF-8";
+            case "PDF" -> "application/pdf";
+            case "WORD" -> "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
             default -> "application/json;charset=UTF-8";
         };
     }

@@ -12,6 +12,7 @@ import com.songhg.veri.agent.reporting.domain.ReportEvidenceManifest;
 import com.songhg.veri.agent.reporting.domain.ReportExecutionReport;
 import com.songhg.veri.agent.reporting.domain.ReportExportManifest;
 import com.songhg.veri.agent.reporting.domain.ReportFailureDiagnosis;
+import java.nio.charset.StandardCharsets;
 import java.io.IOException;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -29,7 +30,7 @@ import org.springframework.util.StringUtils;
 @Service
 public class ReportExportService {
 
-    private static final SetLike EXPORT_TYPES = new SetLike("JSON", "MARKDOWN");
+    private static final SetLike EXPORT_TYPES = new SetLike("JSON", "MARKDOWN", "PDF", "WORD");
     private static final Pattern UNSAFE_EXPORT_KEY_PATTERN = Pattern.compile(
             "(?i).*(authorization|cookie|password|passwd|secret|token|credential|payload|raw|prompt|response"
                     + "|stdout|stderr).*"
@@ -46,6 +47,7 @@ public class ReportExportService {
     private final ReportingPlatformContextClient contextClient;
     private final ReportingJsonSupport jsonSupport;
     private final ReportExportFileStorage fileStorage;
+    private final ReportDocumentRenderer documentRenderer;
 
     public ReportExportService(
             ReportingRepository repository,
@@ -53,7 +55,8 @@ public class ReportExportService {
             ReportingActorResolver actorResolver,
             ReportingPlatformContextClient contextClient,
             ObjectMapper objectMapper,
-            ReportExportFileStorage fileStorage
+            ReportExportFileStorage fileStorage,
+            ReportDocumentRenderer documentRenderer
     ) {
         this.repository = repository;
         this.properties = properties;
@@ -61,6 +64,7 @@ public class ReportExportService {
         this.contextClient = contextClient;
         this.jsonSupport = new ReportingJsonSupport(objectMapper);
         this.fileStorage = fileStorage;
+        this.documentRenderer = documentRenderer;
     }
 
     /**
@@ -80,15 +84,21 @@ public class ReportExportService {
         }
         List<ReportEvidenceManifest> evidenceManifests = repository.evidenceManifests(report.id());
         Optional<ReportFailureDiagnosis> latestDiagnosis = repository.latestFailureDiagnosis(report.id());
-        Map<String, Object> exportContent = exportContent(report, evidenceManifests, latestDiagnosis, normalizedType);
-        Object renderedContent = "MARKDOWN".equals(normalizedType)
-                ? markdownContent(exportContent)
-                : exportContent;
-        String serializedContent = "MARKDOWN".equals(normalizedType)
-                ? String.valueOf(renderedContent)
-                : jsonSupport.json(renderedContent);
+        List<Map<String, Object>> defectDrafts = repository.defectDrafts(report.id()).stream()
+                .map(this::defectDraftSnapshot)
+                .toList();
+        Map<String, Object> exportContent = exportContent(
+                report,
+                evidenceManifests,
+                latestDiagnosis,
+                defectDrafts,
+                normalizedType
+        );
+        RenderedReportExport renderedExport = renderedExport(exportContent, normalizedType);
+        Object renderedContent = renderedExport.responseContent();
         Map<String, Object> redactionPolicy = exportRedactionPolicy(normalizedType, renderedContent);
         Instant now = Instant.now();
+        String serializedContent = renderedExport.textForDigestAndScan();
         if (FORBIDDEN_EXPORT_TEXT_PATTERN.matcher(serializedContent).find()) {
             return blockedExport(report, normalizedType, redactionPolicy, now);
         }
@@ -102,7 +112,7 @@ public class ReportExportService {
                 null,
                 now
         );
-        ReportExportFileStorage.StoredExport storedExport = storeExportFile(manifest, serializedContent);
+        ReportExportFileStorage.StoredExport storedExport = storeExportFile(manifest, renderedExport.fileContent());
         repository.insertExportManifest(manifest);
         repository.updateReport(withExportManifestCount(report, repository.countExportManifests(report.id())));
         audit(report, "report.exported", "SUCCESS", Map.of(
@@ -185,6 +195,7 @@ public class ReportExportService {
             ReportExecutionReport report,
             List<ReportEvidenceManifest> evidenceManifests,
             Optional<ReportFailureDiagnosis> latestDiagnosis,
+            List<Map<String, Object>> defectDrafts,
             String exportType
     ) {
         Map<String, Object> content = new LinkedHashMap<>();
@@ -196,6 +207,7 @@ public class ReportExportService {
         content.put("evidenceManifests", evidenceManifests.stream().map(this::evidenceSnapshot).toList());
         content.put("latestDiagnosis", latestDiagnosis.map(this::diagnosisSnapshot)
                 .orElseGet(() -> Map.of("status", "NOT_REQUESTED")));
+        content.put("defectDrafts", defectDrafts);
         content.put("redactionPolicy", exportRedactionPolicy(exportType, null));
         return content;
     }
@@ -241,6 +253,25 @@ public class ReportExportService {
         snapshot.put("errorCode", safeText(diagnosis.errorCode(), 64));
         snapshot.put("createdAt", stringInstant(diagnosis.createdAt()));
         snapshot.put("updatedAt", stringInstant(diagnosis.updatedAt()));
+        return snapshot;
+    }
+
+    private Map<String, Object> defectDraftSnapshot(com.songhg.veri.agent.reporting.domain.ReportDefectDraft draft) {
+        Map<String, Object> snapshot = new LinkedHashMap<>();
+        snapshot.put("id", draft.id());
+        snapshot.put("reportId", draft.reportId());
+        snapshot.put("diagnosisId", draft.diagnosisId());
+        snapshot.put("status", draft.status());
+        snapshot.put("title", safeText(draft.title(), 256));
+        snapshot.put("reproductionSummary", safeText(draft.reproductionSummary(), 512));
+        snapshot.put("impactSummary", safeText(draft.impactSummary(), 512));
+        snapshot.put("prioritySuggestion", safeText(draft.prioritySuggestion(), 32));
+        snapshot.put("evidenceRefs", safeStringList(jsonSupport.readStringList(draft.evidenceRefsJson())));
+        snapshot.put("payloadPreview", sanitizedMap(jsonSupport.readMap(draft.payloadPreviewJson())));
+        snapshot.put("createdBy", safeText(draft.createdBy(), 128));
+        snapshot.put("updatedBy", safeText(draft.updatedBy(), 128));
+        snapshot.put("createdAt", stringInstant(draft.createdAt()));
+        snapshot.put("updatedAt", stringInstant(draft.updatedAt()));
         return snapshot;
     }
 
@@ -306,7 +337,60 @@ public class ReportExportService {
         } else {
             builder.append("- None\n");
         }
+        builder.append("\n## Defect Drafts\n");
+        Object drafts = content.get("defectDrafts");
+        if (drafts instanceof List<?> items && !items.isEmpty()) {
+            for (Object item : items) {
+                Map<String, Object> draft = mapValue(item);
+                builder.append("- ")
+                        .append(valueText(draft.get("status")))
+                        .append(" / ")
+                        .append(valueText(draft.get("prioritySuggestion")))
+                        .append(" / ")
+                        .append(valueText(draft.get("title")))
+                        .append("\n");
+            }
+        } else {
+            builder.append("- None\n");
+        }
         return SensitiveTextSanitizer.boundedWithEllipsis(builder.toString(), properties.effectiveMaxExportMarkdownChars());
+    }
+
+    private RenderedReportExport renderedExport(Map<String, Object> exportContent, String exportType) {
+        return switch (exportType) {
+            case "MARKDOWN" -> {
+                String markdown = markdownContent(exportContent);
+                yield new RenderedReportExport(
+                        markdown,
+                        markdown.getBytes(StandardCharsets.UTF_8),
+                        markdown
+                );
+            }
+            case "PDF" -> {
+                byte[] pdf = documentRenderer.renderPdf(exportContent);
+                yield new RenderedReportExport(
+                        null,
+                        pdf,
+                        documentRenderer.extractPdfText(pdf)
+                );
+            }
+            case "WORD" -> {
+                byte[] word = documentRenderer.renderWord(exportContent);
+                yield new RenderedReportExport(
+                        null,
+                        word,
+                        markdownContent(exportContent)
+                );
+            }
+            default -> {
+                String json = jsonSupport.json(exportContent);
+                yield new RenderedReportExport(
+                        exportContent,
+                        json.getBytes(StandardCharsets.UTF_8),
+                        json
+                );
+            }
+        };
     }
 
     private void appendLine(StringBuilder builder, String label, Object value) {
@@ -457,10 +541,10 @@ public class ReportExportService {
 
     private ReportExportFileStorage.StoredExport storeExportFile(
             ReportExportManifest manifest,
-            String serializedContent
+            byte[] content
     ) {
         try {
-            return fileStorage.store(manifest, serializedContent);
+            return fileStorage.store(manifest, content);
         } catch (IOException exception) {
             throw new BusinessException(ErrorCode.INTERNAL_ERROR, "REPORT_EXPORT_STORAGE_FAILED");
         }

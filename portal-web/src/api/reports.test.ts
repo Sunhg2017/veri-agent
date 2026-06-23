@@ -171,6 +171,49 @@ describe('WP10 report API helpers', () => {
       downloadFileName: 'report-export.md'
     });
 
+    expect(normalizeReportExport({
+      id: 'export-2',
+      report_id: 'report-1',
+      export_type: 'PDF',
+      status: 'CREATED',
+      schema_version: 'wp10-report-export-v1',
+      field_set_version: 'wp10-export-fields-v1',
+      content_digest: 'sha256:pdf',
+      aggregate_only: true,
+      redaction_policy: { aggregateOnly: true },
+      manifest: { digest: 'sha256:manifest-pdf' },
+      download_ready: true,
+      download_file_name: 'report-export.pdf',
+      download_content_type: 'application/pdf',
+      content: null
+    })).toMatchObject({
+      exportType: 'PDF',
+      downloadReady: true,
+      downloadFileName: 'report-export.pdf',
+      downloadContentType: 'application/pdf'
+    });
+
+    expect(normalizeReportExport({
+      id: 'export-3',
+      report_id: 'report-1',
+      export_type: 'WORD',
+      status: 'CREATED',
+      schema_version: 'wp10-report-export-v1',
+      field_set_version: 'wp10-export-fields-v1',
+      content_digest: 'sha256:word',
+      aggregate_only: true,
+      redaction_policy: { aggregateOnly: true },
+      manifest: { digest: 'sha256:manifest-word' },
+      download_ready: true,
+      download_file_name: 'report-export.docx',
+      download_content_type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      content: null
+    })).toMatchObject({
+      exportType: 'WORD',
+      downloadReady: true,
+      downloadFileName: 'report-export.docx'
+    });
+
     expect(normalizeReportCompare({
       report_id: 'report-1',
       baseline_report_id: 'report-0',
@@ -222,6 +265,8 @@ describe('WP10 report API helpers', () => {
     await createDefectDraft('report-1');
     await reviewDefectDraft('report-1', 'draft-1', 'REVIEWED');
     await exportReport('report-1', 'MARKDOWN');
+    await exportReport('report-1', 'PDF');
+    await exportReport('report-1', 'WORD');
     await downloadReportExport('report-1', 'export-1');
 
     expect(requestJsonMock).toHaveBeenNthCalledWith(1, '/api/v1/reports/health');
@@ -245,6 +290,8 @@ describe('WP10 report API helpers', () => {
       body: JSON.stringify({ status: 'REVIEWED' })
     });
     expect(requestJsonMock).toHaveBeenNthCalledWith(12, '/api/v1/reports/report-1/export?exportType=MARKDOWN');
+    expect(requestJsonMock).toHaveBeenNthCalledWith(13, '/api/v1/reports/report-1/export?exportType=PDF');
+    expect(requestJsonMock).toHaveBeenNthCalledWith(14, '/api/v1/reports/report-1/export?exportType=WORD');
     expect(requestBinaryMock).toHaveBeenNthCalledWith(1, '/api/v1/reports/report-1/exports/export-1/download');
   });
 });

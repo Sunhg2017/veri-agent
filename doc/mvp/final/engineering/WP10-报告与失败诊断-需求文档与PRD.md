@@ -5,7 +5,7 @@
 | 工作包 | WP10 报告与失败诊断 |
 | 角色产出 | 资深产品经理 |
 | 文档性质 | 需求文档、产品 PRD 和产品验收标准 |
-| 当前口径 | 当前范围已推进至 M10：基于 WP9 脱敏 run export、`REPORT_HANDOFF` 摘要、WP8/WP3/WP5 aggregate-only evidence 和 WP2 模型能力，已交付可审计的报告、可选异步生成 worker、同项目历史快照对比、失败诊断、缺陷草稿、JSON/Markdown 导出、报告完成 webhook 回调和 `#reports` 控制面；外部缺陷写入、完整报告和趋势/BI 保持后续专项 |
+| 当前口径 | 当前范围已推进至 M12：基于 WP9 脱敏 run export、`REPORT_HANDOFF` 摘要、WP8/WP3/WP5 aggregate-only evidence 和 WP2 模型能力，已交付可审计的报告、可选异步生成 worker、同项目历史快照对比、失败诊断、缺陷草稿、JSON/Markdown/PDF/Word 导出、真实文件下载、报告完成 webhook 回调和 `#reports` 控制面；外部缺陷写入和趋势/BI 保持后续专项 |
 | 版本 | v0.2 |
 | 日期 | 2026-06-17 |
 
@@ -31,7 +31,7 @@ WP10 负责把这些已脱敏输入组织成版本化报告快照，并提供规
 2. 报告详情展示 run summary、节点状态计数、失败分类、证据 manifest、redaction policy 和 traceId。
 3. 失败诊断在无模型时可给出规则分类；模型可用时通过 WP2 生成脱敏 AI 建议，并明确置信度和人工确认要求。
 4. 用户可从报告生成缺陷草稿，草稿只保存平台内内容，不自动写外部缺陷系统。
-5. 用户可导出脱敏 JSON/Markdown 摘要和 export manifest，不导出 runner 原始 stdout/stderr、请求响应正文、webhook payload、Prompt 原文、secret 或账号凭据。
+5. 用户可导出脱敏 JSON/Markdown/PDF/Word 报告和 export manifest，不导出 runner 原始 stdout/stderr、请求响应正文、webhook payload、Prompt 原文、secret 或账号凭据。
 6. 报告、诊断、导出、草稿均按项目 scope 鉴权并写审计。
 7. 报告到达终态后可按全局配置异步回调一个 aggregate-only webhook，不阻断报告成功或失败落库。
 
@@ -45,7 +45,7 @@ WP10 负责把这些已脱敏输入组织成版本化报告快照，并提供规
 | 失败分类 | 基于 errorCode、status、nodeType、runnerMode、timeout、blocked、lease release 和 trigger 来源分类 | 可配置分类规则和团队标签 |
 | AI 诊断 | 通过 WP2 生成脱敏建议，输出候选根因、置信度、依据和下一步动作 | 反馈闭环和诊断模型评测看板 |
 | 缺陷草稿 | 生成标题、复现摘要、影响范围、优先级建议和证据引用，支持 DRAFT/REVIEWED/DISMISSED | 外部 Jira/禅道/飞书写入由 WP11 承接 |
-| 导出摘要 | JSON/Markdown 脱敏摘要和 export manifest | PDF/Word 完整报告由合规审批专项承接 |
+| 导出报告 | JSON/Markdown/PDF/Word 脱敏报告和 export manifest | 原始 artifact 附件包和审批后明细归档 |
 | 前端 | `#reports` 工作台、列表、详情、诊断、草稿、导出和状态反馈 | 报告订阅、趋势图、团队视图 |
 | webhook 回调 | 默认关闭的全局 outbound callback，在报告 `READY/FAILED` 终态时发送 aggregate-only 完成通知 | 订阅管理、回放补偿和租户级路由 |
 
@@ -88,10 +88,10 @@ WP10 负责把这些已脱敏输入组织成版本化报告快照，并提供规
 
 ### 6.4 导出摘要
 
-1. 用户点击导出 JSON 或 Markdown。
+1. 用户点击导出 JSON、Markdown、PDF 或 Word。
 2. 服务端校验 `report:export` 和报告状态。
-3. 系统返回脱敏摘要、export manifest、digest、schemaVersion、fieldSetVersion 和 redactionPolicy。
-4. 前端展示导出结果和敏感字段拦截状态，不下载包含敏感明细的完整文件。
+3. 系统返回脱敏报告 export manifest、digest、schemaVersion、fieldSetVersion 和 redactionPolicy。
+4. JSON/Markdown 直接返回可预览内容；PDF/Word 生成真实文件并通过统一下载端点提供下载。
 
 ### 6.5 报告对比
 
@@ -123,7 +123,7 @@ WP10 负责把这些已脱敏输入组织成版本化报告快照，并提供规
 | `report:read` | 查看报告列表、详情、诊断摘要和草稿摘要 | SuperAdmin、PlatformAdmin、ProjectOwner、AppOwner、Tester、Developer、Auditor |
 | `report:generate` | 基于 execution run 创建或重试报告 | SuperAdmin、PlatformAdmin、ProjectOwner、AppOwner、Tester |
 | `report:diagnose` | 触发 AI 失败诊断和查看诊断详情 | SuperAdmin、PlatformAdmin、ProjectOwner、AppOwner、Tester |
-| `report:export` | 导出脱敏 JSON/Markdown 摘要和 manifest | SuperAdmin、PlatformAdmin、ProjectOwner、Auditor |
+| `report:export` | 导出脱敏 JSON/Markdown/PDF/Word 报告和 manifest | SuperAdmin、PlatformAdmin、ProjectOwner、Auditor |
 | `report:manage` | 归档报告、审阅或 dismiss 缺陷草稿、管理开关 | SuperAdmin、PlatformAdmin、ProjectOwner |
 
 ## 9. 状态定义

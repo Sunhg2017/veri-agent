@@ -108,6 +108,8 @@ export interface ReportExport {
   createdAt?: string;
 }
 
+export type ReportExportType = 'JSON' | 'MARKDOWN' | 'PDF' | 'WORD';
+
 export interface ReportDetail extends ReportSummary {
   redactionPolicy: Record<string, unknown>;
   evidenceManifests: ReportEvidenceManifest[];
@@ -256,7 +258,7 @@ export async function reviewDefectDraft(
 
 export async function exportReport(
   id: string,
-  exportType: 'JSON' | 'MARKDOWN' = 'JSON'
+  exportType: ReportExportType = 'JSON'
 ): Promise<ApiResponse<ReportExport>> {
   const response = await requestJson<unknown>(
     `${REPORTS_BASE}/${encodeURIComponent(id)}/export?exportType=${encodeURIComponent(exportType)}`

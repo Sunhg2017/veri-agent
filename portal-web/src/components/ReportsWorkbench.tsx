@@ -31,6 +31,7 @@ import {
   type ReportDetail,
   type ReportDiagnosis,
   type ReportExport,
+  type ReportExportType,
   type ReportingHealth,
   type ReportSummary
 } from '../api/reports';
@@ -303,7 +304,7 @@ export function ReportsWorkbench(props: { signedIn: boolean; currentUser: Curren
     }
   }
 
-  async function onExportReport(exportType: 'JSON' | 'MARKDOWN') {
+  async function onExportReport(exportType: ReportExportType) {
     if (!detail || !canExport) return;
     setExportState({ loading: true });
     try {
@@ -311,7 +312,7 @@ export function ReportsWorkbench(props: { signedIn: boolean; currentUser: Curren
       setLatestExport(result.data);
       setExportState({
         loading: false,
-        success: result.data.downloadReady ? `${exportType} 摘要已生成，可下载文件` : `${exportType} 摘要已生成`,
+        success: result.data.downloadReady ? `${exportType} 报告已生成，可下载文件` : `${exportType} 报告已生成`,
         traceId: result.trace_id
       });
     } catch (error: unknown) {
@@ -810,14 +811,14 @@ function ExportPanel(props: {
   latestExport: ReportExport | null;
   state: WorkState;
   canExport: boolean;
-  onExport: (exportType: 'JSON' | 'MARKDOWN') => void;
+  onExport: (exportType: ReportExportType) => void;
   onDownloadExport: () => void;
 }) {
   const domClean = props.latestExport ? domSensitiveScan(props.latestExport) : true;
   return (
     <Panel
-      title="导出摘要"
-      desc="仅展示脱敏摘要 manifest 和 digest，不渲染原始证据正文。"
+      title="导出报告"
+      desc="导出 aggregate-only 脱敏报告，支持 JSON、Markdown、PDF 和 Word。"
       testId="report-export-panel"
       action={(
         <div className="report-actions-row compact">
@@ -825,7 +826,13 @@ function ExportPanel(props: {
             <FileJson size={15} />导出 JSON
           </button>
           <button className="btn btn-secondary btn-sm" type="button" onClick={() => props.onExport('MARKDOWN')} disabled={!props.canExport || props.state.loading || props.detail.status !== 'READY'}>
-            <Download size={15} />导出 Markdown
+            <FileText size={15} />导出 Markdown
+          </button>
+          <button className="btn btn-secondary btn-sm" type="button" onClick={() => props.onExport('PDF')} disabled={!props.canExport || props.state.loading || props.detail.status !== 'READY'}>
+            <Download size={15} />导出 PDF
+          </button>
+          <button className="btn btn-secondary btn-sm" type="button" onClick={() => props.onExport('WORD')} disabled={!props.canExport || props.state.loading || props.detail.status !== 'READY'}>
+            <FileText size={15} />导出 Word
           </button>
           {props.latestExport?.downloadReady ? (
             <button className="btn btn-secondary btn-sm" type="button" onClick={props.onDownloadExport} disabled={!props.canExport || props.state.loading}>
@@ -1095,6 +1102,12 @@ function downloadBlob(blob: Blob, filename: string, contentType: string) {
 }
 
 function fallbackExportFileName(reportId: string, exportType: string) {
-  const suffix = exportType === 'MARKDOWN' ? 'md' : 'json';
+  const suffix = exportType === 'MARKDOWN'
+    ? 'md'
+    : exportType === 'PDF'
+      ? 'pdf'
+      : exportType === 'WORD'
+        ? 'docx'
+        : 'json';
   return `report-${reportId}.${suffix}`;
 }

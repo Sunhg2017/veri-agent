@@ -450,11 +450,69 @@ class ReportControllerTest {
                 .andExpect(content().string(not(containsString(accountLeaseRef.toString()))))
                 .andExpect(content().string(not(containsString("Staging Admin"))));
 
+        MvcResult pdfExport = mockMvc.perform(get("/api/v1/reports/{id}/export", reportId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + ownerToken)
+                        .param("exportType", "PDF"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.reportId").value(reportId.toString()))
+                .andExpect(jsonPath("$.data.exportType").value("PDF"))
+                .andExpect(jsonPath("$.data.status").value("CREATED"))
+                .andExpect(jsonPath("$.data.contentDigest").isString())
+                .andExpect(jsonPath("$.data.downloadReady").value(true))
+                .andExpect(jsonPath("$.data.downloadFileName", containsString(".pdf")))
+                .andExpect(jsonPath("$.data.downloadContentType").value("application/pdf"))
+                .andExpect(jsonPath("$.data.content").doesNotExist())
+                .andExpect(content().string(not(containsString("Authorization"))))
+                .andExpect(content().string(not(containsString("secret://"))))
+                .andReturn();
+
+        UUID pdfExportId = UUID.fromString(JsonPath.read(
+                pdfExport.getResponse().getContentAsString(),
+                "$.data.id"
+        ));
+
+        mockMvc.perform(get("/api/v1/reports/{id}/exports/{exportId}/download", reportId, pdfExportId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + ownerToken))
+                .andExpect(status().isOk())
+                .andExpect(content().contentType("application/pdf"))
+                .andExpect(header().string(HttpHeaders.CONTENT_DISPOSITION, containsString("export-" + pdfExportId)))
+                .andExpect(result -> assertThat(result.getResponse().getContentAsByteArray()).isNotEmpty());
+
+        MvcResult wordExport = mockMvc.perform(get("/api/v1/reports/{id}/export", reportId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + ownerToken)
+                        .param("exportType", "WORD"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.reportId").value(reportId.toString()))
+                .andExpect(jsonPath("$.data.exportType").value("WORD"))
+                .andExpect(jsonPath("$.data.status").value("CREATED"))
+                .andExpect(jsonPath("$.data.contentDigest").isString())
+                .andExpect(jsonPath("$.data.downloadReady").value(true))
+                .andExpect(jsonPath("$.data.downloadFileName", containsString(".docx")))
+                .andExpect(jsonPath("$.data.downloadContentType")
+                        .value("application/vnd.openxmlformats-officedocument.wordprocessingml.document"))
+                .andExpect(jsonPath("$.data.content").doesNotExist())
+                .andExpect(content().string(not(containsString("Authorization"))))
+                .andExpect(content().string(not(containsString("secret://"))))
+                .andReturn();
+
+        UUID wordExportId = UUID.fromString(JsonPath.read(
+                wordExport.getResponse().getContentAsString(),
+                "$.data.id"
+        ));
+
+        mockMvc.perform(get("/api/v1/reports/{id}/exports/{exportId}/download", reportId, wordExportId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + ownerToken))
+                .andExpect(status().isOk())
+                .andExpect(content().contentType(
+                        "application/vnd.openxmlformats-officedocument.wordprocessingml.document"))
+                .andExpect(header().string(HttpHeaders.CONTENT_DISPOSITION, containsString("export-" + wordExportId)))
+                .andExpect(result -> assertThat(result.getResponse().getContentAsByteArray()).isNotEmpty());
+
         mockMvc.perform(get("/api/v1/reports")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + ownerToken)
                         .param("projectId", "project-alpha"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.items[0].summary.exportManifestCount").value(2));
+                .andExpect(jsonPath("$.data.items[0].summary.exportManifestCount").value(4));
 
         mockMvc.perform(post("/api/v1/reports/{id}/archive", reportId)
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + ownerToken))
@@ -568,7 +626,7 @@ class ReportControllerTest {
 
         mockMvc.perform(get("/api/v1/reports/{id}/export", reportId)
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + ownerToken)
-                        .param("exportType", "PDF"))
+                        .param("exportType", "HTML"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.message").value("REPORT_EXPORT_TYPE_INVALID"));
     }
