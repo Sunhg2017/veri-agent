@@ -9,14 +9,17 @@ import java.util.UUID;
 import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
+import com.songhg.veri.agent.notification.application.AsyncTaskNotificationService;
 
 class TestDesignEventRecoveryServiceTest {
 
     private final InMemoryTestDesignRepository repository = new InMemoryTestDesignRepository();
     private final TestDesignEventPublisher eventPublisher = mock(TestDesignEventPublisher.class);
+    private final AsyncTaskNotificationService notificationService = mock(AsyncTaskNotificationService.class);
 
     @Test
     void republishesQueuedTasksAndFailsStaleRunningTasks() {
@@ -31,6 +34,7 @@ class TestDesignEventRecoveryServiceTest {
                 repository,
                 eventPublisher,
                 properties(true, 60),
+                notificationService,
                 "0 */2 * * * *"
         );
 
@@ -53,6 +57,10 @@ class TestDesignEventRecoveryServiceTest {
         assertThat(repository.task(freshRunningTaskId)).get().extracting(TestDesignTask::status)
                 .isEqualTo(TestDesignTaskStatus.RUNNING.name());
         verify(eventPublisher).publishGenerationRequested(queuedTaskId);
+        verify(notificationService).notifyTestDesignGenerationFailed(argThat(task ->
+                staleRunningTaskId.equals(task.id())
+                        && TestDesignTaskStatus.FAILED.name().equals(task.status())
+                        && "生成任务运行超时，已由恢复扫描标记失败，可重试".equals(task.errorMessage())));
     }
 
     @Test
@@ -65,6 +73,7 @@ class TestDesignEventRecoveryServiceTest {
                 repository,
                 eventPublisher,
                 properties(false, 60),
+                notificationService,
                 "0 */2 * * * *"
         );
 
@@ -83,6 +92,7 @@ class TestDesignEventRecoveryServiceTest {
         assertThat(repository.task(staleRunningTaskId)).get().extracting(TestDesignTask::status)
                 .isEqualTo(TestDesignTaskStatus.RUNNING.name());
         verifyNoInteractions(eventPublisher);
+        verifyNoInteractions(notificationService);
     }
 
     private TestDesignTask task(UUID id, TestDesignTaskStatus status, Instant updatedAt) {

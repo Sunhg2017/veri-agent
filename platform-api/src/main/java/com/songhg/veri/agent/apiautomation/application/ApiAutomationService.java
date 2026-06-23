@@ -44,6 +44,7 @@ import com.songhg.veri.agent.common.error.ErrorCode;
 import com.songhg.veri.agent.common.secret.SecretProvider;
 import com.songhg.veri.agent.common.util.SensitiveTextSanitizer;
 import com.songhg.veri.agent.modelaccess.application.ModelInvocationService;
+import com.songhg.veri.agent.notification.application.AsyncTaskNotificationService;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -82,6 +83,7 @@ public class ApiAutomationService {
     private final ApiAutomationGenerationSupport generationSupport;
     private final ApiAutomationSyncSupport syncSupport;
     private final ApiAutomationRunSupport runSupport;
+    private final AsyncTaskNotificationService notificationService;
 
     public ApiAutomationService(
             ApiAutomationRepository repository,
@@ -108,6 +110,38 @@ public class ApiAutomationService {
                 modelInvocationService,
                 modelOutputParser,
                 objectMapper,
+                new AsyncTaskNotificationService((userId, type, title, body, link, metadata) -> {
+                })
+        );
+    }
+
+    public ApiAutomationService(
+            ApiAutomationRepository repository,
+            ApiAutomationRunnerPort runnerPort,
+            OpenApiSpecParser parser,
+            ApiAutomationProperties properties,
+            ApiAutomationPlatformContextClient contextClient,
+            ApiAutomationActorResolver actorResolver,
+            AssetApiService assetApiService,
+            AssetTestCaseService assetTestCaseService,
+            ModelInvocationService modelInvocationService,
+            ApiAutomationModelOutputParser modelOutputParser,
+            ObjectMapper objectMapper,
+            AsyncTaskNotificationService notificationService
+    ) {
+        this(
+                repository,
+                runnerPort,
+                parser,
+                properties,
+                contextClient,
+                actorResolver,
+                assetApiService,
+                assetTestCaseService,
+                modelInvocationService,
+                modelOutputParser,
+                objectMapper,
+                notificationService,
                 List.of()
         );
     }
@@ -125,6 +159,7 @@ public class ApiAutomationService {
             ModelInvocationService modelInvocationService,
             ApiAutomationModelOutputParser modelOutputParser,
             ObjectMapper objectMapper,
+            AsyncTaskNotificationService notificationService,
             ObjectProvider<SecretProvider> secretProviders
     ) {
         this(
@@ -139,6 +174,7 @@ public class ApiAutomationService {
                 modelInvocationService,
                 modelOutputParser,
                 objectMapper,
+                notificationService,
                 secretProviders == null ? List.of() : secretProviders.orderedStream().toList()
         );
     }
@@ -155,6 +191,7 @@ public class ApiAutomationService {
             ModelInvocationService modelInvocationService,
             ApiAutomationModelOutputParser modelOutputParser,
             ObjectMapper objectMapper,
+            AsyncTaskNotificationService notificationService,
             List<SecretProvider> secretProviders
     ) {
         this.repository = repository;
@@ -169,6 +206,7 @@ public class ApiAutomationService {
         this.jsonSupport = new ApiAutomationJsonSupport(objectMapper);
         this.scriptBundleFactory = new ApiAutomationScriptBundleFactory(objectMapper);
         this.responseMapper = new ApiAutomationResponseMapper(objectMapper);
+        this.notificationService = notificationService;
         this.generationSupport = new ApiAutomationGenerationSupport(
                 repository,
                 assetTestCaseService,
@@ -446,6 +484,7 @@ public class ApiAutomationService {
                 "fileCount", bundle.fileCount(),
                 "staticCheckStatus", bundle.staticCheckStatus()
         ));
+        notificationService.notifyApiAutomationGenerationTaskFinished(task);
         return responseMapper.toGenerationTaskDetail(task, persistedCases, List.of(bundle));
     }
 
@@ -638,6 +677,7 @@ public class ApiAutomationService {
                     "secretRefCount", secretRefs.count(),
                     "secretRefDigests", secretRefs.digests()
             ));
+            notificationService.notifyApiAutomationRunFinished(run);
             return responseMapper.toRunDetail(run, results);
         }
 
@@ -689,6 +729,7 @@ public class ApiAutomationService {
                 "secretRefCount", secretRefs.count(),
                 "secretRefDigests", secretRefs.digests()
         ));
+        notificationService.notifyApiAutomationRunFinished(run);
         return responseMapper.toRunDetail(run, results);
     }
 
@@ -738,6 +779,7 @@ public class ApiAutomationService {
                 "previousStatus", run.status(),
                 "status", persisted.status()
         ));
+        notificationService.notifyApiAutomationRunFinished(persisted);
         return responseMapper.toRunDetail(persisted, repository.runResults(id));
     }
 

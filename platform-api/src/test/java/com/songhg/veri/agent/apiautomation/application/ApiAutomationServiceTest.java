@@ -40,6 +40,7 @@ import com.songhg.veri.agent.modelaccess.application.ModelInvocationService;
 import com.songhg.veri.agent.modelaccess.application.command.ModelInvocationCommand;
 import com.songhg.veri.agent.modelaccess.application.view.ModelInvocationResult;
 import com.songhg.veri.agent.modelaccess.security.ServicePrincipal;
+import com.songhg.veri.agent.notification.application.AsyncTaskNotificationService;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
@@ -352,6 +353,7 @@ class ApiAutomationServiceTest {
         ApiAutomationPlatformContextClient contextClient = mock(ApiAutomationPlatformContextClient.class);
         ApiAutomationActorResolver actorResolver = mock(ApiAutomationActorResolver.class);
         AssetTestCaseService assetTestCaseService = mock(AssetTestCaseService.class);
+        AsyncTaskNotificationService notificationService = mock(AsyncTaskNotificationService.class);
         when(contextClient.projectContext("project-alpha")).thenReturn(new PlatformContext(
                 "PROJECT",
                 "project-alpha",
@@ -374,7 +376,8 @@ class ApiAutomationServiceTest {
                 assetTestCaseService,
                 mock(ModelInvocationService.class),
                 new ApiAutomationModelOutputParser(new ObjectMapper()),
-                new ObjectMapper()
+                new ObjectMapper(),
+                notificationService
         );
         UUID specId = UUID.randomUUID();
         UUID assetApiId = UUID.randomUUID();
@@ -412,6 +415,8 @@ class ApiAutomationServiceTest {
         assertThat(sourceSummary.get("rawCandidateStored")).isEqualTo(false);
         assertThat(sourceSummary.get("reviewCommentStored")).isEqualTo(false);
         assertThat(sourceSummary.get("sourceRefDigest")).isNotNull();
+        verify(notificationService).notifyApiAutomationGenerationTaskFinished(argThat(task ->
+                response.task().id().equals(task.id()) && "COMPLETED".equals(task.status())));
     }
 
     @Test
@@ -566,6 +571,7 @@ class ApiAutomationServiceTest {
         InMemoryApiAutomationRepository repository = new InMemoryApiAutomationRepository();
         ApiAutomationPlatformContextClient contextClient = mock(ApiAutomationPlatformContextClient.class);
         ApiAutomationActorResolver actorResolver = mock(ApiAutomationActorResolver.class);
+        AsyncTaskNotificationService notificationService = mock(AsyncTaskNotificationService.class);
         when(contextClient.projectContext("project-alpha")).thenReturn(new PlatformContext(
                 "PROJECT",
                 "project-alpha",
@@ -587,7 +593,8 @@ class ApiAutomationServiceTest {
                 mock(AssetTestCaseService.class),
                 mock(ModelInvocationService.class),
                 new ApiAutomationModelOutputParser(new ObjectMapper()),
-                new ObjectMapper()
+                new ObjectMapper(),
+                notificationService
         );
         UUID specId = UUID.randomUUID();
         UUID assetApiId = UUID.randomUUID();
@@ -636,6 +643,10 @@ class ApiAutomationServiceTest {
                 .containsEntry("stdoutStderrExported", false);
         assertThat(exported.toString()).contains("api.example.test")
                 .doesNotContain("https://api.example.test/service");
+        verify(notificationService).notifyApiAutomationGenerationTaskFinished(argThat(task ->
+                generated.task().id().equals(task.id()) && "COMPLETED".equals(task.status())));
+        verify(notificationService).notifyApiAutomationRunFinished(argThat(run ->
+                response.run().id().equals(run.id()) && "BLOCKED".equals(run.status())));
         verify(contextClient, atLeastOnce()).writeAuditEvent(
                 eq("api_automation.exported"),
                 eq("API_AUTOMATION_RUN"),
@@ -710,6 +721,7 @@ class ApiAutomationServiceTest {
                 mock(ModelInvocationService.class),
                 new ApiAutomationModelOutputParser(new ObjectMapper()),
                 new ObjectMapper(),
+                mock(AsyncTaskNotificationService.class),
                 List.of(secretProvider)
         );
         UUID specId = UUID.randomUUID();
@@ -1122,6 +1134,7 @@ class ApiAutomationServiceTest {
     void cancelsActiveRunWhenRunnerAcceptsCancel() {
         InMemoryApiAutomationRepository repository = new InMemoryApiAutomationRepository();
         ApiAutomationActorResolver actorResolver = mock(ApiAutomationActorResolver.class);
+        AsyncTaskNotificationService notificationService = mock(AsyncTaskNotificationService.class);
         when(actorResolver.currentActor()).thenReturn("api-canceler");
         AcceptingCancelRunner runner = new AcceptingCancelRunner(new ApiAutomationRunnerPort.RunnerCancelResult(
                 true,
@@ -1139,7 +1152,8 @@ class ApiAutomationServiceTest {
                 mock(AssetTestCaseService.class),
                 mock(ModelInvocationService.class),
                 new ApiAutomationModelOutputParser(new ObjectMapper()),
-                new ObjectMapper()
+                new ObjectMapper(),
+                notificationService
         );
         UUID runId = UUID.randomUUID();
         repository.insertRun(run(runId, "RUNNING"));
@@ -1152,6 +1166,8 @@ class ApiAutomationServiceTest {
         assertThat(response.run().errorCode()).isEqualTo("RUNNER_CANCELED");
         assertThat(response.run().errorSummary()).isEqualTo("cancel accepted");
         assertThat(repository.run(runId).orElseThrow().updatedBy()).isEqualTo("api-canceler");
+        verify(notificationService).notifyApiAutomationRunFinished(argThat(run ->
+                runId.equals(run.id()) && "CANCELED".equals(run.status())));
     }
 
     @Test

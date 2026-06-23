@@ -1,6 +1,7 @@
 package com.songhg.veri.agent.testdesign.application;
 
 import com.songhg.veri.agent.common.api.PageQuery;
+import com.songhg.veri.agent.notification.application.AsyncTaskNotificationService;
 import com.songhg.veri.agent.testdesign.application.port.TestDesignRepository;
 import com.songhg.veri.agent.testdesign.application.query.TestDesignTaskQuery;
 import com.songhg.veri.agent.testdesign.config.TestDesignProperties;
@@ -30,24 +31,29 @@ public class TestDesignPublishEventRecoveryService {
     private final TestDesignRepository repository;
     private final TestDesignEventPublisher eventPublisher;
     private final TestDesignProperties properties;
+    private final AsyncTaskNotificationService notificationService;
+
     @Autowired
     public TestDesignPublishEventRecoveryService(
             TestDesignRepository repository,
             TestDesignEventPublisher eventPublisher,
-            TestDesignProperties properties
+            TestDesignProperties properties,
+            AsyncTaskNotificationService notificationService
     ) {
         this.repository = repository;
         this.eventPublisher = eventPublisher;
         this.properties = properties;
+        this.notificationService = notificationService;
     }
 
     TestDesignPublishEventRecoveryService(
             TestDesignRepository repository,
             TestDesignEventPublisher eventPublisher,
             TestDesignProperties properties,
+            AsyncTaskNotificationService notificationService,
             String ignoredRecoveryCron
     ) {
-        this(repository, eventPublisher, properties);
+        this(repository, eventPublisher, properties, notificationService);
     }
 
     @EventListener(ApplicationReadyEvent.class)
@@ -170,7 +176,9 @@ public class TestDesignPublishEventRecoveryService {
          * Recovery can fail a stale PUBLISHING candidate after the original consumer has died. The task-level
          * transient status must then be closed so reviewers can inspect the failure and explicitly retry it.
          */
-        repository.saveTask(withTaskCounts(task, candidates));
+        TestDesignTask completed = withTaskCounts(task, candidates);
+        repository.saveTask(completed);
+        notifyRecoveredPublishCompletion(completed, candidates);
         return true;
     }
 
@@ -230,6 +238,16 @@ public class TestDesignPublishEventRecoveryService {
             return 0L;
         }
         return Math.max(0L, Duration.between(timestamp, now).getSeconds());
+    }
+
+    private void notifyRecoveredPublishCompletion(TestDesignTask task, List<TestDesignCandidate> candidates) {
+        int publishedCount = Math.toIntExact(candidates.stream()
+                .filter(candidate -> TestDesignCandidateStatus.PUBLISHED.name().equals(candidate.status()))
+                .count());
+        int failedCount = Math.toIntExact(candidates.stream()
+                .filter(candidate -> TestDesignCandidateStatus.FAILED.name().equals(candidate.status()))
+                .count());
+        notificationService.notifyTestDesignPublishRecoveryFinished(task, publishedCount, failedCount);
     }
 
     public record PublishRecoveryResult(

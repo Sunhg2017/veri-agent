@@ -1,5 +1,7 @@
 package com.songhg.veri.agent.notification.application;
 
+import com.songhg.veri.agent.apiautomation.domain.ApiAutomationGenerationTask;
+import com.songhg.veri.agent.apiautomation.domain.ApiAutomationRun;
 import com.songhg.veri.agent.document.application.view.DocumentPublishResponse;
 import com.songhg.veri.agent.document.domain.DocumentImportRecord;
 import com.songhg.veri.agent.execution.domain.ExecutionRun;
@@ -149,21 +151,95 @@ public class AsyncTaskNotificationService {
         ));
     }
 
-    public void notifyTestDesignPublishFinished(TestDesignTask task, TestDesignPublishResponse response) {
+    public void notifyTestDesignGenerationCancelled(TestDesignTask task) {
         targetUserId(task.requestedBy()).ifPresent(userId -> notificationPublisher.publishToUser(
                 userId,
-                response.failed() > 0 ? "ASYNC_TASK_FAILED" : "ASYNC_TASK_COMPLETED",
-                response.failed() > 0 ? "用例发布部分失败" : "用例发布已完成",
-                response.failed() > 0
-                        ? "异步用例发布存在失败项，请在用例设计工作台查看发布记录。"
-                        : "异步用例发布已完成，可前往用例设计工作台查看已发布结果。",
+                "SYSTEM_INFO",
+                "用例生成已取消",
+                "异步用例生成已取消，可前往用例设计工作台确认当前任务状态。",
                 "#test-design",
+                Map.of(
+                        "taskId", task.id(),
+                        "projectId", task.projectId(),
+                        "status", task.status()
+                )
+        ));
+    }
+
+    public void notifyTestDesignPublishFinished(TestDesignTask task, TestDesignPublishResponse response) {
+        publishTestDesignPublishNotification(
+                task,
+                response.failed() > 0,
                 Map.of(
                         "taskId", task.id(),
                         "projectId", task.projectId(),
                         "createdCount", response.created(),
                         "failedCount", response.failed(),
                         "skippedCount", response.skipped()
+                )
+        );
+    }
+
+    /**
+     * Recovery closes transient publish tasks after stale workers die, so the notification must be reconstructed from
+     * the durable task/candidate snapshot instead of a single request-scoped publish response.
+     */
+    public void notifyTestDesignPublishRecoveryFinished(TestDesignTask task, int publishedCount, int failedCount) {
+        publishTestDesignPublishNotification(
+                task,
+                failedCount > 0,
+                Map.of(
+                        "taskId", task.id(),
+                        "projectId", task.projectId(),
+                        "publishedCount", publishedCount,
+                        "failedCount", failedCount,
+                        "recovered", true
+                )
+        );
+    }
+
+    public void notifyApiAutomationGenerationTaskFinished(ApiAutomationGenerationTask task) {
+        targetUserId(task.createdBy()).ifPresent(userId -> notificationPublisher.publishToUser(
+                userId,
+                apiAutomationGenerationSuccess(task.status()) ? "ASYNC_TASK_COMPLETED" : "ASYNC_TASK_FAILED",
+                apiAutomationGenerationSuccess(task.status()) ? "接口自动化生成已完成" : "接口自动化生成失败",
+                apiAutomationGenerationSuccess(task.status())
+                        ? "接口自动化生成已完成，可前往接口自动化工作台查看生成结果与脚本包。"
+                        : asyncFailureBody("接口自动化生成未完成，请在接口自动化工作台查看失败详情。", task.errorSummary()),
+                "#api-automation",
+                Map.of(
+                        "taskId", task.id(),
+                        "projectId", task.projectId(),
+                        "specId", task.specId(),
+                        "status", task.status(),
+                        "generationMode", safeText(task.generationMode()),
+                        "apiCount", task.apiCount(),
+                        "caseCount", task.caseCount(),
+                        "modelInvocationId", safeText(task.modelInvocationId())
+                )
+        ));
+    }
+
+    public void notifyApiAutomationRunFinished(ApiAutomationRun run) {
+        targetUserId(run.createdBy()).ifPresent(userId -> notificationPublisher.publishToUser(
+                userId,
+                apiAutomationRunCanceled(run.status()) ? "SYSTEM_INFO"
+                        : apiAutomationRunSuccess(run.status()) ? "ASYNC_TASK_COMPLETED" : "ASYNC_TASK_FAILED",
+                apiAutomationRunCanceled(run.status()) ? "接口自动化运行已取消"
+                        : apiAutomationRunSuccess(run.status()) ? "接口自动化运行已完成" : "接口自动化运行结束但存在异常",
+                apiAutomationRunCanceled(run.status())
+                        ? "接口自动化运行已取消，可前往接口自动化工作台确认当前运行状态。"
+                        : apiAutomationRunSuccess(run.status())
+                        ? "接口自动化运行已完成，可前往接口自动化工作台查看运行详情。"
+                        : asyncFailureBody("接口自动化运行已结束，但存在失败、超时或阻断情况，请在接口自动化工作台查看详情。", run.errorSummary()),
+                "#api-automation",
+                Map.of(
+                        "runId", run.id(),
+                        "projectId", run.projectId(),
+                        "bundleId", run.bundleId(),
+                        "status", run.status(),
+                        "runnerMode", safeText(run.runnerMode()),
+                        "errorCode", safeText(run.errorCode())
                 )
         ));
     }
@@ -315,6 +391,35 @@ public class AsyncTaskNotificationService {
     }
 
     private boolean uiE2eCanceled(String status) {
+        return "CANCELED".equals(status);
+    }
+
+    private void publishTestDesignPublishNotification(
+            TestDesignTask task,
+            boolean failed,
+            Map<String, Object> metadata
+    ) {
+        targetUserId(task.requestedBy()).ifPresent(userId -> notificationPublisher.publishToUser(
+                userId,
+                failed ? "ASYNC_TASK_FAILED" : "ASYNC_TASK_COMPLETED",
+                failed ? "用例发布部分失败" : "用例发布已完成",
+                failed
+                        ? "异步用例发布存在失败项，请在用例设计工作台查看发布记录。"
+                        : "异步用例发布已完成，可前往用例设计工作台查看已发布结果。",
+                "#test-design",
+                metadata
+        ));
+    }
+
+    private boolean apiAutomationGenerationSuccess(String status) {
+        return "COMPLETED".equals(status);
+    }
+
+    private boolean apiAutomationRunSuccess(String status) {
+        return "PASSED".equals(status);
+    }
+
+    private boolean apiAutomationRunCanceled(String status) {
         return "CANCELED".equals(status);
     }
 }

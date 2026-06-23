@@ -27,6 +27,7 @@ import java.util.UUID;
 import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -148,6 +149,7 @@ class TestDesignAsyncPublishServiceTest {
                 repository,
                 eventPublisher,
                 properties,
+                notificationService,
                 "30 */2 * * * *"
         );
 
@@ -197,6 +199,7 @@ class TestDesignAsyncPublishServiceTest {
                 repository,
                 eventPublisher,
                 propertiesWithPublishTimeout(60),
+                notificationService,
                 "30 */2 * * * *"
         );
 
@@ -211,6 +214,11 @@ class TestDesignAsyncPublishServiceTest {
         assertThat(repository.task(taskId)).get().extracting(TestDesignTask::status)
                 .isEqualTo(TestDesignTaskStatus.SUCCEEDED.name());
         verify(eventPublisher, never()).publishPublishRequested(taskId, List.of(candidateId));
+        verify(notificationService).notifyTestDesignPublishRecoveryFinished(
+                argThat(task -> taskId.equals(task.id()) && TestDesignTaskStatus.SUCCEEDED.name().equals(task.status())),
+                org.mockito.ArgumentMatchers.eq(0),
+                org.mockito.ArgumentMatchers.eq(1)
+        );
     }
 
     private RequirementResponse createRequirement() {

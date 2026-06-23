@@ -1,6 +1,7 @@
 package com.songhg.veri.agent.testdesign.application;
 
 import com.songhg.veri.agent.common.api.PageQuery;
+import com.songhg.veri.agent.notification.application.AsyncTaskNotificationService;
 import com.songhg.veri.agent.testdesign.application.port.TestDesignRepository;
 import com.songhg.veri.agent.testdesign.application.query.TestDesignTaskQuery;
 import com.songhg.veri.agent.testdesign.config.TestDesignProperties;
@@ -23,24 +24,28 @@ public class TestDesignEventRecoveryService {
     private final TestDesignRepository repository;
     private final TestDesignEventPublisher eventPublisher;
     private final TestDesignProperties properties;
+    private final AsyncTaskNotificationService notificationService;
     @Autowired
     public TestDesignEventRecoveryService(
             TestDesignRepository repository,
             TestDesignEventPublisher eventPublisher,
-            TestDesignProperties properties
+            TestDesignProperties properties,
+            AsyncTaskNotificationService notificationService
     ) {
         this.repository = repository;
         this.eventPublisher = eventPublisher;
         this.properties = properties;
+        this.notificationService = notificationService;
     }
 
     TestDesignEventRecoveryService(
             TestDesignRepository repository,
             TestDesignEventPublisher eventPublisher,
             TestDesignProperties properties,
+            AsyncTaskNotificationService notificationService,
             String ignoredRecoveryCron
     ) {
-        this(repository, eventPublisher, properties);
+        this(repository, eventPublisher, properties, notificationService);
     }
 
     @EventListener(ApplicationReadyEvent.class)
@@ -122,13 +127,33 @@ public class TestDesignEventRecoveryService {
         }
         Instant failedAt = Instant.now();
         Instant staleBefore = failedAt.minusSeconds(timeoutSeconds);
+        List<TestDesignTask> staleRunningTasks = repository.tasks(new TestDesignTaskQuery(
+                null,
+                TestDesignTaskStatus.RUNNING.name(),
+                null,
+                null,
+                PageQuery.of(0, recoveryBatchSize())
+        )).stream()
+                .filter(task -> {
+                    Instant updatedAt = task.updatedAt() != null ? task.updatedAt() : task.createdAt();
+                    return updatedAt != null && updatedAt.isBefore(staleBefore);
+                })
+                .toList();
         // Stale RUNNING tasks are failed instead of re-emitted so retries remain explicit and idempotent.
-        return repository.markStaleRunningTasksFailed(
+        int affected = repository.markStaleRunningTasksFailed(
                 failedAt,
                 staleBefore,
                 "生成任务运行超时，已由恢复扫描标记失败，可重试",
                 recoveryBatchSize()
         );
+        staleRunningTasks.stream()
+                .limit(affected)
+                .map(TestDesignTask::id)
+                .map(repository::task)
+                .flatMap(java.util.Optional::stream)
+                .filter(task -> TestDesignTaskStatus.FAILED.name().equals(task.status()))
+                .forEach(notificationService::notifyTestDesignGenerationFailed);
+        return affected;
     }
 
     private RuntimeSignals runtimeSignals(Instant checkedAt) {

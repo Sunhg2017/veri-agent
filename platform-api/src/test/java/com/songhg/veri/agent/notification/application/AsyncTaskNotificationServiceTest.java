@@ -1,5 +1,7 @@
 package com.songhg.veri.agent.notification.application;
 
+import com.songhg.veri.agent.apiautomation.domain.ApiAutomationGenerationTask;
+import com.songhg.veri.agent.apiautomation.domain.ApiAutomationRun;
 import com.songhg.veri.agent.document.application.view.DocumentPublishResponse;
 import com.songhg.veri.agent.document.domain.DocumentImportRecord;
 import com.songhg.veri.agent.document.domain.DocumentImportStatus;
@@ -218,6 +220,157 @@ class AsyncTaskNotificationServiceTest {
                 eq("异步用例发布已完成，可前往用例设计工作台查看已发布结果。"),
                 eq("#test-design"),
                 argThat(metadata -> Integer.valueOf(2).equals(metadata.get("createdCount")))
+        );
+    }
+
+    @Test
+    void publishesRecoveredTestDesignPublishNotification() {
+        UUID userId = UUID.randomUUID();
+        Instant now = Instant.now();
+        TestDesignTask task = new TestDesignTask(
+                UUID.randomUUID(),
+                "project-td",
+                "task",
+                "SUCCEEDED",
+                UUID.randomUUID().toString(),
+                "SMOKE",
+                "wp5-test-design-v1",
+                "1.0.0",
+                null,
+                null,
+                "RULE_TEMPLATE",
+                1,
+                1,
+                0,
+                0,
+                null,
+                userId.toString(),
+                null,
+                null,
+                "digest",
+                "{}",
+                now.minusSeconds(60),
+                now
+        );
+
+        service.notifyTestDesignPublishRecoveryFinished(task, 0, 1);
+
+        verify(publisher).publishToUser(
+                eq(userId),
+                eq("ASYNC_TASK_FAILED"),
+                eq("用例发布部分失败"),
+                eq("异步用例发布存在失败项，请在用例设计工作台查看发布记录。"),
+                eq("#test-design"),
+                argThat(metadata -> task.id().equals(metadata.get("taskId"))
+                        && Integer.valueOf(0).equals(metadata.get("publishedCount"))
+                        && Integer.valueOf(1).equals(metadata.get("failedCount"))
+                        && Boolean.TRUE.equals(metadata.get("recovered")))
+        );
+    }
+
+    @Test
+    void publishesApiAutomationAndCancellationNotifications() {
+        UUID userId = UUID.randomUUID();
+        Instant now = Instant.now();
+        ApiAutomationGenerationTask generationTask = new ApiAutomationGenerationTask(
+                UUID.randomUUID(),
+                "project-api",
+                UUID.randomUUID(),
+                "request-key",
+                "request-digest",
+                "FALLBACK_ONLY",
+                "[]",
+                "COMPLETED",
+                "wp6-api-automation-v1",
+                "1.0.0",
+                "invocation-1",
+                false,
+                2,
+                3,
+                "{}",
+                null,
+                userId.toString(),
+                userId.toString(),
+                now.minusSeconds(30),
+                now
+        );
+        ApiAutomationRun run = new ApiAutomationRun(
+                UUID.randomUUID(),
+                "project-api",
+                UUID.randomUUID(),
+                "staging",
+                "digest",
+                "api.example.test",
+                "CANCELED",
+                30,
+                3,
+                "trc_api",
+                "MANAGED",
+                "RUNNER_CANCELED",
+                "runner canceled",
+                userId.toString(),
+                userId.toString(),
+                now.minusSeconds(20),
+                now.minusSeconds(10),
+                now.minusSeconds(20),
+                now
+        );
+        TestDesignTask cancelledTask = new TestDesignTask(
+                UUID.randomUUID(),
+                "project-td",
+                "task",
+                "CANCELLED",
+                UUID.randomUUID().toString(),
+                "SMOKE",
+                "wp5-test-design-v1",
+                "1.0.0",
+                null,
+                null,
+                "RULE_TEMPLATE",
+                1,
+                0,
+                0,
+                0,
+                "用户取消生成任务",
+                userId.toString(),
+                null,
+                null,
+                "digest",
+                "{}",
+                now.minusSeconds(40),
+                now
+        );
+
+        service.notifyApiAutomationGenerationTaskFinished(generationTask);
+        service.notifyApiAutomationRunFinished(run);
+        service.notifyTestDesignGenerationCancelled(cancelledTask);
+
+        verify(publisher).publishToUser(
+                eq(userId),
+                eq("ASYNC_TASK_COMPLETED"),
+                eq("接口自动化生成已完成"),
+                eq("接口自动化生成已完成，可前往接口自动化工作台查看生成结果与脚本包。"),
+                eq("#api-automation"),
+                argThat(metadata -> generationTask.id().equals(metadata.get("taskId"))
+                        && Integer.valueOf(3).equals(metadata.get("caseCount")))
+        );
+        verify(publisher).publishToUser(
+                eq(userId),
+                eq("SYSTEM_INFO"),
+                eq("接口自动化运行已取消"),
+                eq("接口自动化运行已取消，可前往接口自动化工作台确认当前运行状态。"),
+                eq("#api-automation"),
+                argThat(metadata -> run.id().equals(metadata.get("runId"))
+                        && "CANCELED".equals(metadata.get("status")))
+        );
+        verify(publisher).publishToUser(
+                eq(userId),
+                eq("SYSTEM_INFO"),
+                eq("用例生成已取消"),
+                eq("异步用例生成已取消，可前往用例设计工作台确认当前任务状态。"),
+                eq("#test-design"),
+                argThat(metadata -> cancelledTask.id().equals(metadata.get("taskId"))
+                        && "CANCELLED".equals(metadata.get("status")))
         );
     }
 

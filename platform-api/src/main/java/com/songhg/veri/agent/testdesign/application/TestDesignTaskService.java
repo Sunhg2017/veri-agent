@@ -417,6 +417,7 @@ public class TestDesignTaskService {
                 "fromStatus", task.status(),
                 "toStatus", TestDesignTaskStatus.CANCELLED.name()
         ));
+        notificationService.notifyTestDesignGenerationCancelled(cancelled);
         return task(id);
     }
 

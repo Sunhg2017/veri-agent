@@ -23,6 +23,7 @@ import com.songhg.veri.agent.common.secret.SecretProvider;
 import com.songhg.veri.agent.common.secret.SecretResolveContext;
 import com.songhg.veri.agent.integration.application.view.PlatformContext;
 import com.songhg.veri.agent.modelaccess.application.ModelInvocationService;
+import com.songhg.veri.agent.notification.application.AsyncTaskNotificationService;
 import java.net.URI;
 import java.time.Instant;
 import java.util.List;
@@ -252,6 +253,7 @@ class ApiAutomationRunnerSmokeTest {
                 mock(ModelInvocationService.class),
                 new ApiAutomationModelOutputParser(new ObjectMapper()),
                 new ObjectMapper(),
+                mock(AsyncTaskNotificationService.class),
                 List.of(new StaticSecretProvider("secret://wp6/runner-smoke", "runner-smoke-secret"))
         );
 
