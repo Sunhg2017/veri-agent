@@ -56,6 +56,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -373,7 +374,7 @@ class ReportControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.items[0].summary.defectDraftCount").value(1));
 
-        mockMvc.perform(get("/api/v1/reports/{id}/export", reportId)
+        MvcResult jsonExport = mockMvc.perform(get("/api/v1/reports/{id}/export", reportId)
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + ownerToken)
                         .param("exportType", "JSON"))
                 .andExpect(status().isOk())
@@ -386,6 +387,9 @@ class ReportControllerTest {
                 .andExpect(jsonPath("$.data.aggregateOnly").value(true))
                 .andExpect(jsonPath("$.data.redactionPolicy.contentStored").value(false))
                 .andExpect(jsonPath("$.data.redactionPolicy.externalDefectWriteAttempted").value(false))
+                .andExpect(jsonPath("$.data.downloadReady").value(true))
+                .andExpect(jsonPath("$.data.downloadFileName", containsString(".json")))
+                .andExpect(jsonPath("$.data.downloadContentType").value("application/json;charset=UTF-8"))
                 .andExpect(jsonPath("$.data.manifest.contentDigest").isString())
                 .andExpect(jsonPath("$.data.content.report.id").value(reportId.toString()))
                 .andExpect(jsonPath("$.data.content.summary.runStatus").value("FAILED"))
@@ -407,6 +411,24 @@ class ReportControllerTest {
                 .andExpect(content().string(not(containsString("account-key-secret"))))
                 .andExpect(content().string(not(containsString("Staging Admin"))))
                 .andExpect(content().string(not(containsString("raw prompt"))))
+                .andExpect(content().string(not(containsString("raw response"))))
+                .andReturn();
+
+        UUID jsonExportId = UUID.fromString(JsonPath.read(
+                jsonExport.getResponse().getContentAsString(),
+                "$.data.id"
+        ));
+
+        mockMvc.perform(get("/api/v1/reports/{id}/exports/{exportId}/download", reportId, jsonExportId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + ownerToken))
+                .andExpect(status().isOk())
+                .andExpect(content().contentType("application/json;charset=UTF-8"))
+                .andExpect(header().string(HttpHeaders.CONTENT_DISPOSITION, containsString("export-" + jsonExportId)))
+                .andExpect(content().string(containsString(reportId.toString())))
+                .andExpect(content().string(not(containsString("Authorization"))))
+                .andExpect(content().string(not(containsString("secret://"))))
+                .andExpect(content().string(not(containsString(accountLeaseRef.toString()))))
+                .andExpect(content().string(not(containsString("raw prompt"))))
                 .andExpect(content().string(not(containsString("raw response"))));
 
         mockMvc.perform(get("/api/v1/reports/{id}/export", reportId)
@@ -417,6 +439,9 @@ class ReportControllerTest {
                 .andExpect(jsonPath("$.data.exportType").value("MARKDOWN"))
                 .andExpect(jsonPath("$.data.status").value("CREATED"))
                 .andExpect(jsonPath("$.data.contentDigest").isString())
+                .andExpect(jsonPath("$.data.downloadReady").value(true))
+                .andExpect(jsonPath("$.data.downloadFileName", containsString(".md")))
+                .andExpect(jsonPath("$.data.downloadContentType").value("text/markdown;charset=UTF-8"))
                 .andExpect(jsonPath("$.data.content", containsString("WP10 Report Export")))
                 .andExpect(jsonPath("$.data.content", containsString("ASSERTION_FAILED")))
                 .andExpect(content().string(not(containsString("Bearer"))))
@@ -546,6 +571,42 @@ class ReportControllerTest {
                         .param("exportType", "PDF"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.message").value("REPORT_EXPORT_TYPE_INVALID"));
+    }
+
+    @Test
+    void rejectsDownloadingBlockedReportExport() throws Exception {
+        UUID runId = UUID.randomUUID();
+        when(executionRunService.runProjectScopeId(runId)).thenReturn("project-alpha");
+        when(executionRunService.exportRun(runId)).thenReturn(blockedExportRun(runId, "project-alpha"));
+        String ownerToken = userAccessToken(List.of("ProjectOwner@PROJECT:project-alpha"));
+
+        MvcResult created = mockMvc.perform(post("/api/v1/reports")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + ownerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "projectId", "project-alpha",
+                                "executionRunId", runId,
+                                "requestKey", "blocked-export-download"
+                        ))))
+                .andExpect(status().isCreated())
+                .andReturn();
+        UUID reportId = UUID.fromString(JsonPath.read(created.getResponse().getContentAsString(), "$.data.id"));
+
+        MvcResult blockedExport = mockMvc.perform(get("/api/v1/reports/{id}/export", reportId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + ownerToken)
+                        .param("exportType", "JSON"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("BLOCKED"))
+                .andExpect(jsonPath("$.data.blockReason").value("REPORT_EXPORT_REDACTION_BLOCKED"))
+                .andExpect(jsonPath("$.data.downloadReady").value(false))
+                .andReturn();
+        UUID exportId = UUID.fromString(JsonPath.read(blockedExport.getResponse().getContentAsString(), "$.data.id"));
+
+        mockMvc.perform(get("/api/v1/reports/{id}/exports/{exportId}/download", reportId, exportId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + ownerToken))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("NOT_FOUND"))
+                .andExpect(jsonPath("$.message").value("REPORT_EXPORT_DOWNLOAD_NOT_READY"));
     }
 
     @Test
@@ -1022,6 +1083,92 @@ class ReportControllerTest {
                 Instant.parse("2026-06-16T10:02:00Z"),
                 run,
                 Map.of("SUCCEEDED", 2),
+                Map.of(
+                        "rawOutputExported", false,
+                        "rawRequestResponseExported", false,
+                        "secretRefsExported", false,
+                        "claimTokenExported", false
+                )
+        );
+    }
+
+    private ExecutionRunExportResponse blockedExportRun(UUID runId, String projectId) {
+        Instant startedAt = Instant.parse("2026-06-16T10:00:00Z");
+        Instant finishedAt = Instant.parse("2026-06-16T10:00:25Z");
+        List<ExecutionNodeRunResponse> nodes = List.of(
+                new ExecutionNodeRunResponse(
+                        UUID.randomUUID(),
+                        UUID.randomUUID(),
+                        "stdout",
+                        "API_TEST",
+                        "FAILED",
+                        1,
+                        "WP6_API",
+                        "wp6-run-blocked",
+                        "ASSERTION_FAILED",
+                        "assertion failed",
+                        Map.of("sanitized", true, "note", "stdout should block export generation"),
+                        null,
+                        startedAt,
+                        startedAt,
+                        finishedAt,
+                        startedAt,
+                        finishedAt
+                ),
+                new ExecutionNodeRunResponse(
+                        UUID.randomUUID(),
+                        UUID.randomUUID(),
+                        "report",
+                        "REPORT_HANDOFF",
+                        "SUCCEEDED",
+                        1,
+                        "REPORT",
+                        null,
+                        null,
+                        null,
+                        Map.of(
+                                "schedulerManaged", true,
+                                "reportHandoffReady", true,
+                                "rawReportStored", false
+                        ),
+                        null,
+                        startedAt,
+                        startedAt,
+                        finishedAt,
+                        startedAt,
+                        finishedAt
+                )
+        );
+        ExecutionRunDetailResponse run = new ExecutionRunDetailResponse(
+                runId,
+                UUID.randomUUID(),
+                projectId,
+                "FAILED",
+                "MANUAL",
+                "blocked-run-request",
+                null,
+                1,
+                "trc_wp9run_blocked",
+                Map.of(
+                        "runnerDispatched", false,
+                        "stdout", "runner stdout should block export generation"
+                ),
+                "ASSERTION_FAILED",
+                "assertion failed",
+                nodes,
+                List.of(),
+                false,
+                "tester",
+                startedAt,
+                finishedAt,
+                startedAt,
+                finishedAt
+        );
+        return new ExecutionRunExportResponse(
+                "wp9-run-export-v1",
+                Instant.parse("2026-06-16T10:02:00Z"),
+                run,
+                Map.of("FAILED", 1, "SUCCEEDED", 1),
                 Map.of(
                         "rawOutputExported", false,
                         "rawRequestResponseExported", false,

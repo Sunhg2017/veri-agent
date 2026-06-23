@@ -139,6 +139,13 @@ public class InMemoryReportingRepository implements ReportingRepository {
     }
 
     @Override
+    public Optional<ReportExportManifest> exportManifest(UUID reportId, UUID exportId) {
+        return exportManifests.getOrDefault(reportId, List.of()).stream()
+                .filter(manifest -> exportId.equals(manifest.id()))
+                .findFirst();
+    }
+
+    @Override
     public Optional<ReportExportManifest> latestExportManifest(UUID reportId, String exportType) {
         return exportManifests.getOrDefault(reportId, List.of()).stream()
                 .filter(manifest -> exportType == null || exportType.equals(manifest.exportType()))

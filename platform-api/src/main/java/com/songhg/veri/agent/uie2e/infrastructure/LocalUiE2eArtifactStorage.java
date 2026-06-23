@@ -1,19 +1,17 @@
 package com.songhg.veri.agent.uie2e.infrastructure;
 
+import com.songhg.veri.agent.common.storage.LocalOpaqueFileStorage;
+import com.songhg.veri.agent.common.storage.OpaqueFileStorage;
+import com.songhg.veri.agent.common.storage.PlatformStorageProperties;
 import com.songhg.veri.agent.uie2e.application.port.UiE2eArtifactStorage;
 import com.songhg.veri.agent.uie2e.config.UiE2eProperties;
 import java.io.IOException;
 import java.nio.file.Files;
-import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
-import java.nio.file.attribute.FileTime;
 import java.time.Instant;
-import java.util.Comparator;
 import java.util.Locale;
 import java.util.Set;
 import java.util.UUID;
-import java.util.stream.Stream;
 import org.springframework.http.MediaType;
 import org.springframework.util.StringUtils;
 
@@ -23,13 +21,20 @@ import org.springframework.util.StringUtils;
  */
 public class LocalUiE2eArtifactStorage implements UiE2eArtifactStorage {
 
-    private static final String STORAGE_SCHEME = "artifact://ui-e2e/";
+    private static final String STORAGE_NAMESPACE = "ui-e2e";
 
-    private final Path rootDir;
+    private final OpaqueFileStorage delegate;
     private final long maxArtifactSizeBytes;
 
     public LocalUiE2eArtifactStorage(UiE2eProperties properties) {
-        this.rootDir = Path.of(properties.effectiveArtifactStorageDir()).toAbsolutePath().normalize();
+        this(properties, null);
+    }
+
+    public LocalUiE2eArtifactStorage(UiE2eProperties properties, PlatformStorageProperties storageProperties) {
+        Path rootDir = properties.artifactStorageDirConfigured()
+                ? Path.of(properties.effectiveArtifactStorageDir()).toAbsolutePath().normalize()
+                : defaultRoot(storageProperties);
+        this.delegate = new LocalOpaqueFileStorage(STORAGE_NAMESPACE, rootDir);
         this.maxArtifactSizeBytes = Math.max(1L, properties.effectiveMaxArtifactSizeBytes());
     }
 
@@ -42,109 +47,44 @@ public class LocalUiE2eArtifactStorage implements UiE2eArtifactStorage {
         if (sourceSize > maxArtifactSizeBytes) {
             throw new IOException("ui-e2e artifact exceeds configured size limit");
         }
-        Files.createDirectories(rootDir);
         String safeType = normalizedArtifactType(artifactType);
         String extension = extension(sourceFile.getFileName() == null ? "" : sourceFile.getFileName().toString(), safeType);
         String fileName = safeType.toLowerCase(Locale.ROOT) + "-" + artifactId + extension;
-        Path runDir = rootDir.resolve(runId.toString());
-        Files.createDirectories(runDir);
-        Path target = runDir.resolve(fileName).normalize();
-        if (!target.startsWith(runDir)) {
-            throw new IOException("ui-e2e artifact target escaped storage root");
-        }
-        Files.copy(sourceFile, target, StandardCopyOption.REPLACE_EXISTING);
-        return new StoredArtifact(
-                STORAGE_SCHEME + runId + "/" + fileName,
-                contentType(safeType, extension),
-                fileName,
-                sourceSize
-        );
+        OpaqueFileStorage.StoredFile stored = delegate.store(runId.toString(), fileName, contentType(safeType, extension), sourceFile);
+        return new StoredArtifact(stored.storageRef(), stored.contentType(), stored.fileName(), sourceSize);
     }
 
     @Override
     public StoredArtifactContent read(String storageRef) throws IOException {
-        Path target = resolve(storageRef);
-        if (!Files.exists(target) || !Files.isRegularFile(target)) {
-            throw new IOException("ui-e2e artifact does not exist");
-        }
+        OpaqueFileStorage.StoredFileContent content = delegate.read(storageRef);
         return new StoredArtifactContent(
-                storageRef,
-                contentTypeFromName(target.getFileName() == null ? "" : target.getFileName().toString()),
-                target.getFileName() == null ? "artifact.bin" : target.getFileName().toString(),
-                Files.readAllBytes(target)
+                content.storageRef(),
+                content.contentType(),
+                content.fileName(),
+                content.content()
         );
     }
 
     @Override
     public boolean isDownloadReady(String storageRef) {
-        if (!StringUtils.hasText(storageRef)) {
-            return false;
-        }
-        try {
-            return Files.isRegularFile(resolve(storageRef));
-        } catch (IOException ignored) {
-            return false;
-        }
+        return delegate.isDownloadReady(storageRef);
     }
 
     @Override
     public boolean supportsDestructiveCleanup() {
-        return true;
+        return delegate.supportsDestructiveCleanup();
     }
 
     @Override
     public CleanupResult cleanupUnreferenced(Set<String> referencedStorageRefs, Instant cutoff, int batchSize) throws IOException {
-        if (batchSize <= 0 || !Files.exists(rootDir)) {
-            return new CleanupResult(true, 0, 0, 0, 0);
-        }
-        Set<String> referenced = referencedStorageRefs == null ? Set.of() : Set.copyOf(referencedStorageRefs);
-        Instant effectiveCutoff = cutoff == null ? Instant.EPOCH : cutoff;
-        int scannedFileCount = 0;
-        int deletedFileCount = 0;
-        int skippedReferencedCount = 0;
-        int skippedFreshCount = 0;
-        // Cleanup only scans files physically located under the controlled root; it does not follow links into
-        // arbitrary host paths because this worker is allowed to delete files.
-        try (Stream<Path> files = Files.walk(rootDir)
-                .filter(Files::isRegularFile)
-                .sorted(Comparator.naturalOrder())) {
-            for (Path candidate : files.toList()) {
-                scannedFileCount++;
-                String storageRef = storageRef(candidate);
-                if (referenced.contains(storageRef)) {
-                    skippedReferencedCount++;
-                    continue;
-                }
-                FileTime lastModifiedTime = Files.getLastModifiedTime(candidate);
-                if (lastModifiedTime.toInstant().isAfter(effectiveCutoff) || lastModifiedTime.toInstant().equals(effectiveCutoff)) {
-                    skippedFreshCount++;
-                    continue;
-                }
-                Files.deleteIfExists(candidate);
-                deletedFileCount++;
-                pruneEmptyParents(candidate.getParent());
-                if (deletedFileCount >= batchSize) {
-                    break;
-                }
-            }
-        }
-        return new CleanupResult(true, scannedFileCount, deletedFileCount, skippedReferencedCount, skippedFreshCount);
-    }
-
-    private Path resolve(String storageRef) throws IOException {
-        if (!StringUtils.hasText(storageRef) || !storageRef.startsWith(STORAGE_SCHEME)) {
-            throw new IOException("ui-e2e artifact storage ref is invalid");
-        }
-        String relative = storageRef.substring(STORAGE_SCHEME.length());
-        try {
-            Path path = rootDir.resolve(relative).normalize();
-            if (!path.startsWith(rootDir)) {
-                throw new IOException("ui-e2e artifact storage ref escaped storage root");
-            }
-            return path;
-        } catch (InvalidPathException exception) {
-            throw new IOException("ui-e2e artifact storage ref is invalid", exception);
-        }
+        OpaqueFileStorage.CleanupResult result = delegate.cleanupUnreferenced(referencedStorageRefs, cutoff, batchSize);
+        return new CleanupResult(
+                result.supported(),
+                result.scannedFileCount(),
+                result.deletedFileCount(),
+                result.skippedReferencedCount(),
+                result.skippedFreshCount()
+        );
     }
 
     private String normalizedArtifactType(String artifactType) {
@@ -200,21 +140,12 @@ public class LocalUiE2eArtifactStorage implements UiE2eArtifactStorage {
         return MediaType.APPLICATION_OCTET_STREAM_VALUE;
     }
 
-    private String storageRef(Path candidate) {
-        String relative = rootDir.relativize(candidate.toAbsolutePath().normalize()).toString().replace('\\', '/');
-        return STORAGE_SCHEME + relative;
-    }
-
-    private void pruneEmptyParents(Path directory) throws IOException {
-        Path current = directory;
-        while (current != null && !current.equals(rootDir) && current.startsWith(rootDir)) {
-            try (Stream<Path> children = Files.list(current)) {
-                if (children.findAny().isPresent()) {
-                    return;
-                }
-            }
-            Files.deleteIfExists(current);
-            current = current.getParent();
+    private static Path defaultRoot(PlatformStorageProperties storageProperties) {
+        if (storageProperties != null) {
+            return storageProperties.namespaceRoot(STORAGE_NAMESPACE);
         }
+        return Path.of(System.getProperty("java.io.tmpdir"), "veri-agent", "storage", STORAGE_NAMESPACE)
+                .toAbsolutePath()
+                .normalize();
     }
 }

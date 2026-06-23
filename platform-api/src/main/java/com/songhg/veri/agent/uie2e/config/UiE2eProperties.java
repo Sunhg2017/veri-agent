@@ -251,6 +251,10 @@ public record UiE2eProperties(
         return Path.of(System.getProperty("java.io.tmpdir"), "veri-agent", "ui-e2e-artifacts").toString();
     }
 
+    public boolean artifactStorageDirConfigured() {
+        return StringUtils.hasText(artifactStorageDir);
+    }
+
     public int effectiveDefaultTimeoutSeconds() {
         return Math.min(
                 boundedPositive(defaultTimeoutSeconds, DEFAULT_TIMEOUT_SECONDS, MAX_TIMEOUT_SECONDS),

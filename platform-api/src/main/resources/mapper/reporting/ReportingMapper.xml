@@ -327,6 +327,13 @@
         limit 1
     </select>
 
+    <select id="exportManifest" resultMap="exportManifestMap">
+        select <include refid="exportManifestColumns"/>
+        from report_export_manifest
+        where report_id = #{reportId}
+          and id = #{exportId}
+    </select>
+
     <select id="countExportManifests" resultType="long">
         select count(*)
         from report_export_manifest

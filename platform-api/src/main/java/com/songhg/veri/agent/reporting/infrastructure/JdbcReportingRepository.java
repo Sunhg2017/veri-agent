@@ -105,6 +105,11 @@ public class JdbcReportingRepository implements ReportingRepository {
     }
 
     @Override
+    public Optional<ReportExportManifest> exportManifest(UUID reportId, UUID exportId) {
+        return Optional.ofNullable(mapper.exportManifest(reportId, exportId));
+    }
+
+    @Override
     public Optional<ReportExportManifest> latestExportManifest(UUID reportId, String exportType) {
         return Optional.ofNullable(mapper.latestExportManifest(reportId, exportType));
     }

@@ -1,4 +1,4 @@
-import { requestJson, type ApiResponse } from './client';
+import { requestBinary, requestJson, type ApiResponse, type BinaryResponse } from './client';
 
 const REPORTS_BASE = '/api/v1/reports';
 
@@ -101,6 +101,9 @@ export interface ReportExport {
   blockReason?: string;
   redactionPolicy: Record<string, unknown>;
   manifest: Record<string, unknown>;
+  downloadReady: boolean;
+  downloadFileName?: string;
+  downloadContentType?: string;
   content: unknown;
   createdAt?: string;
 }
@@ -261,6 +264,12 @@ export async function exportReport(
   return { ...response, data: normalizeReportExport(response.data) };
 }
 
+export async function downloadReportExport(reportId: string, exportId: string): Promise<BinaryResponse> {
+  return requestBinary(
+    `${REPORTS_BASE}/${encodeURIComponent(reportId)}/exports/${encodeURIComponent(exportId)}/download`
+  );
+}
+
 export function normalizeReportingHealth(input: unknown): ReportingHealth {
   const value = objectValue(input);
   return {
@@ -398,6 +407,9 @@ export function normalizeReportExport(input: unknown): ReportExport {
     blockReason: optionalString(read(value, 'blockReason', 'block_reason')),
     redactionPolicy: objectValue(read(value, 'redactionPolicy', 'redaction_policy')),
     manifest: objectValue(read(value, 'manifest')),
+    downloadReady: booleanValue(read(value, 'downloadReady', 'download_ready'), false),
+    downloadFileName: optionalString(read(value, 'downloadFileName', 'download_file_name')),
+    downloadContentType: optionalString(read(value, 'downloadContentType', 'download_content_type')),
     content: read(value, 'content'),
     createdAt: optionalString(read(value, 'createdAt', 'created_at'))
   };

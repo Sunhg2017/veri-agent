@@ -1,5 +1,6 @@
 package com.songhg.veri.agent.uie2e.config;
 
+import com.songhg.veri.agent.common.storage.PlatformStorageProperties;
 import com.songhg.veri.agent.uie2e.application.UiE2eRunnerExecutionPool;
 import com.songhg.veri.agent.uie2e.application.port.UiE2eRepository;
 import com.songhg.veri.agent.uie2e.application.port.UiE2eArtifactStorage;
@@ -29,8 +30,11 @@ public class UiE2eRunnerConfiguration {
 
     @Bean
     @ConditionalOnMissingBean(UiE2eArtifactStorage.class)
-    public UiE2eArtifactStorage uiE2eArtifactStorage(UiE2eProperties properties) {
-        return new LocalUiE2eArtifactStorage(properties);
+    public UiE2eArtifactStorage uiE2eArtifactStorage(
+            UiE2eProperties properties,
+            PlatformStorageProperties storageProperties
+    ) {
+        return new LocalUiE2eArtifactStorage(properties, storageProperties);
     }
 
     @Bean

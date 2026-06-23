@@ -58,6 +58,11 @@ public interface ReportingMapper {
             @Param("draftId") UUID draftId
     );
 
+    ReportExportManifest exportManifest(
+            @Param("reportId") UUID reportId,
+            @Param("exportId") UUID exportId
+    );
+
     ReportExportManifest latestExportManifest(
             @Param("reportId") UUID reportId,
             @Param("exportType") String exportType

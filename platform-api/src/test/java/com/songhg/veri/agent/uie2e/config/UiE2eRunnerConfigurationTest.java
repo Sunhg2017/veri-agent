@@ -1,5 +1,6 @@
 package com.songhg.veri.agent.uie2e.config;
 
+import com.songhg.veri.agent.common.storage.PlatformStorageConfiguration;
 import com.songhg.veri.agent.testdata.application.TestDataCrossWpReferenceService;
 import com.songhg.veri.agent.uie2e.application.port.UiE2eArtifactStorage;
 import com.songhg.veri.agent.uie2e.application.port.UiE2eRepository;
@@ -18,7 +19,7 @@ import static org.mockito.Mockito.mock;
 class UiE2eRunnerConfigurationTest {
 
     private final ApplicationContextRunner contextRunner = new ApplicationContextRunner()
-            .withUserConfiguration(UiE2eRunnerConfiguration.class)
+            .withUserConfiguration(PlatformStorageConfiguration.class, UiE2eRunnerConfiguration.class)
             .withBean(UiE2eRepository.class, () -> mock(UiE2eRepository.class))
             .withBean(TestDataCrossWpReferenceService.class, () -> mock(TestDataCrossWpReferenceService.class));
 

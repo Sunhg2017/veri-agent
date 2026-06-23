@@ -20,6 +20,9 @@ public record ReportExportResponse(
         String blockReason,
         Map<String, Object> redactionPolicy,
         Map<String, Object> manifest,
+        boolean downloadReady,
+        String downloadFileName,
+        String downloadContentType,
         Object content,
         Instant createdAt
 ) {

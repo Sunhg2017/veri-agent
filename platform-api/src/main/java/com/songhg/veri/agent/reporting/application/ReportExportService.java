@@ -12,6 +12,7 @@ import com.songhg.veri.agent.reporting.domain.ReportEvidenceManifest;
 import com.songhg.veri.agent.reporting.domain.ReportExecutionReport;
 import com.songhg.veri.agent.reporting.domain.ReportExportManifest;
 import com.songhg.veri.agent.reporting.domain.ReportFailureDiagnosis;
+import java.io.IOException;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -44,19 +45,22 @@ public class ReportExportService {
     private final ReportingActorResolver actorResolver;
     private final ReportingPlatformContextClient contextClient;
     private final ReportingJsonSupport jsonSupport;
+    private final ReportExportFileStorage fileStorage;
 
     public ReportExportService(
             ReportingRepository repository,
             ReportingProperties properties,
             ReportingActorResolver actorResolver,
             ReportingPlatformContextClient contextClient,
-            ObjectMapper objectMapper
+            ObjectMapper objectMapper,
+            ReportExportFileStorage fileStorage
     ) {
         this.repository = repository;
         this.properties = properties;
         this.actorResolver = actorResolver;
         this.contextClient = contextClient;
         this.jsonSupport = new ReportingJsonSupport(objectMapper);
+        this.fileStorage = fileStorage;
     }
 
     /**
@@ -98,15 +102,23 @@ public class ReportExportService {
                 null,
                 now
         );
+        ReportExportFileStorage.StoredExport storedExport = storeExportFile(manifest, serializedContent);
         repository.insertExportManifest(manifest);
         repository.updateReport(withExportManifestCount(report, repository.countExportManifests(report.id())));
         audit(report, "report.exported", "SUCCESS", Map.of(
                 "exportType", normalizedType,
                 "contentDigest", contentDigest,
                 "fieldSetVersion", manifest.fieldSetVersion(),
-                "aggregateOnly", true
+                "aggregateOnly", true,
+                "downloadReady", true
         ));
-        return response(manifest, redactionPolicy, exportResponseManifest(manifest, redactionPolicy), renderedContent);
+        return response(
+                manifest,
+                redactionPolicy,
+                exportResponseManifest(manifest, redactionPolicy),
+                storedExport,
+                renderedContent
+        );
     }
 
     private ReportExportResponse blockedExport(
@@ -131,7 +143,42 @@ public class ReportExportService {
                 "blockedReason", "REPORT_EXPORT_REDACTION_BLOCKED",
                 "matchedPolicyCode", "WP10_EXPORT_FORBIDDEN_TEXT"
         ));
-        return response(manifest, redactionPolicy, exportResponseManifest(manifest, redactionPolicy), null);
+        return response(manifest, redactionPolicy, exportResponseManifest(manifest, redactionPolicy), null, null);
+    }
+
+    /**
+     * Downloads one sanitized export file through the same manifest boundary used for audit and redaction decisions.
+     *
+     * <p>Only exports that were successfully materialized into controlled storage can be downloaded. Blocked exports
+     * and missing files are folded into the same not-ready error so callers never learn storage topology details.</p>
+     */
+    @Transactional(readOnly = true)
+    public DownloadableExport downloadExport(UUID reportId, UUID exportId) {
+        requireExportEnabled();
+        ReportExecutionReport report = requireReport(reportId);
+        ReportExportManifest manifest = repository.exportManifest(reportId, exportId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "REPORT_EXPORT_NOT_FOUND"));
+        if (!"CREATED".equals(manifest.status())) {
+            throw new BusinessException(ErrorCode.NOT_FOUND, "REPORT_EXPORT_DOWNLOAD_NOT_READY");
+        }
+        try {
+            ReportExportFileStorage.DownloadableExport content = fileStorage.read(manifest);
+            audit(report, "report.export.downloaded", "SUCCESS", Map.of(
+                    "exportId", exportId,
+                    "exportType", manifest.exportType(),
+                    "contentDigest", manifest.contentDigest()
+            ));
+            return new DownloadableExport(
+                    manifest.id(),
+                    manifest.reportId(),
+                    manifest.exportType(),
+                    content.fileName(),
+                    content.contentType(),
+                    content.content()
+            );
+        } catch (IOException exception) {
+            throw new BusinessException(ErrorCode.NOT_FOUND, "REPORT_EXPORT_DOWNLOAD_NOT_READY");
+        }
     }
 
     private Map<String, Object> exportContent(
@@ -383,6 +430,7 @@ public class ReportExportService {
             ReportExportManifest manifest,
             Map<String, Object> redactionPolicy,
             Map<String, Object> responseManifest,
+            ReportExportFileStorage.StoredExport storedExport,
             Object content
     ) {
         return new ReportExportResponse(
@@ -399,9 +447,23 @@ public class ReportExportService {
                 manifest.blockReason(),
                 redactionPolicy,
                 responseManifest,
+                storedExport != null,
+                storedExport == null ? null : storedExport.fileName(),
+                storedExport == null ? null : storedExport.contentType(),
                 content,
                 manifest.createdAt()
         );
+    }
+
+    private ReportExportFileStorage.StoredExport storeExportFile(
+            ReportExportManifest manifest,
+            String serializedContent
+    ) {
+        try {
+            return fileStorage.store(manifest, serializedContent);
+        } catch (IOException exception) {
+            throw new BusinessException(ErrorCode.INTERNAL_ERROR, "REPORT_EXPORT_STORAGE_FAILED");
+        }
     }
 
     private ReportExecutionReport withExportManifestCount(ReportExecutionReport report, long exportManifestCount) {
@@ -483,5 +545,15 @@ public class ReportExportService {
             }
             return false;
         }
+    }
+
+    public record DownloadableExport(
+            UUID exportId,
+            UUID reportId,
+            String exportType,
+            String fileName,
+            String contentType,
+            byte[] content
+    ) {
     }
 }

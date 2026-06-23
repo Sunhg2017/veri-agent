@@ -18,6 +18,7 @@ import {
   compareReport,
   createDefectDraft,
   diagnoseReport,
+  downloadReportExport,
   exportReport,
   fetchReport,
   fetchReportingHealth,
@@ -308,9 +309,29 @@ export function ReportsWorkbench(props: { signedIn: boolean; currentUser: Curren
     try {
       const result = await exportReport(detail.id, exportType);
       setLatestExport(result.data);
-      setExportState({ loading: false, success: `${exportType} 摘要已生成`, traceId: result.trace_id });
+      setExportState({
+        loading: false,
+        success: result.data.downloadReady ? `${exportType} 摘要已生成，可下载文件` : `${exportType} 摘要已生成`,
+        traceId: result.trace_id
+      });
     } catch (error: unknown) {
       setExportState({ loading: false, error: error instanceof Error ? error.message : '导出失败' });
+    }
+  }
+
+  async function onDownloadLatestExport() {
+    if (!detail || !latestExport?.downloadReady) return;
+    setExportState({ loading: true });
+    try {
+      const response = await downloadReportExport(detail.id, latestExport.id);
+      downloadBlob(
+        response.blob,
+        response.filename || latestExport.downloadFileName || fallbackExportFileName(detail.id, latestExport.exportType),
+        response.contentType || latestExport.downloadContentType || 'application/octet-stream'
+      );
+      setExportState({ loading: false, success: `${latestExport.exportType} 文件已下载`, traceId: response.traceId });
+    } catch (error: unknown) {
+      setExportState({ loading: false, error: error instanceof Error ? error.message : '下载导出文件失败' });
     }
   }
 
@@ -496,6 +517,7 @@ export function ReportsWorkbench(props: { signedIn: boolean; currentUser: Curren
                 state={exportState}
                 canExport={canExport}
                 onExport={(exportType) => void onExportReport(exportType)}
+                onDownloadExport={() => void onDownloadLatestExport()}
               />
             </>
           )}
@@ -789,6 +811,7 @@ function ExportPanel(props: {
   state: WorkState;
   canExport: boolean;
   onExport: (exportType: 'JSON' | 'MARKDOWN') => void;
+  onDownloadExport: () => void;
 }) {
   const domClean = props.latestExport ? domSensitiveScan(props.latestExport) : true;
   return (
@@ -804,6 +827,11 @@ function ExportPanel(props: {
           <button className="btn btn-secondary btn-sm" type="button" onClick={() => props.onExport('MARKDOWN')} disabled={!props.canExport || props.state.loading || props.detail.status !== 'READY'}>
             <Download size={15} />导出 Markdown
           </button>
+          {props.latestExport?.downloadReady ? (
+            <button className="btn btn-secondary btn-sm" type="button" onClick={props.onDownloadExport} disabled={!props.canExport || props.state.loading}>
+              <Download size={15} />下载文件
+            </button>
+          ) : null}
         </div>
       )}
     >
@@ -813,6 +841,8 @@ function ExportPanel(props: {
           <InfoBlock title="fieldSetVersion" value={props.latestExport.fieldSetVersion || '-'} />
           <InfoBlock title="contentDigest" value={props.latestExport.contentDigest || '-'} />
           <InfoBlock title="aggregateOnly" value={props.latestExport.aggregateOnly ? 'true' : 'false'} />
+          <InfoBlock title="downloadReady" value={props.latestExport.downloadReady ? 'true' : 'false'} />
+          <InfoBlock title="fileName" value={props.latestExport.downloadFileName || '-'} />
           <InfoBlock title="manifest" value={formatRecord(props.latestExport.manifest)} />
           <InfoBlock title="DOM scan" value={domClean ? 'clean' : 'blocked term detected'} />
         </div>
@@ -1050,4 +1080,21 @@ function hasSensitiveText(value: string) {
 
 function domSensitiveScan(value: unknown) {
   return !hasSensitiveText(JSON.stringify(value).toLowerCase());
+}
+
+function downloadBlob(blob: Blob, filename: string, contentType: string) {
+  const normalizedBlob = blob.type ? blob : new Blob([blob], { type: contentType || 'application/octet-stream' });
+  const objectUrl = URL.createObjectURL(normalizedBlob);
+  const anchor = document.createElement('a');
+  anchor.href = objectUrl;
+  anchor.download = filename;
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  window.setTimeout(() => URL.revokeObjectURL(objectUrl), 0);
+}
+
+function fallbackExportFileName(reportId: string, exportType: string) {
+  const suffix = exportType === 'MARKDOWN' ? 'md' : 'json';
+  return `report-${reportId}.${suffix}`;
 }

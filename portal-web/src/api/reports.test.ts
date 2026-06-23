@@ -1,10 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { requestJson } from './client';
+import { requestBinary, requestJson } from './client';
 import {
   archiveReport,
   compareReport,
   createDefectDraft,
   diagnoseReport,
+  downloadReportExport,
   exportReport,
   fetchReport,
   fetchLatestReportDiagnosis,
@@ -23,14 +24,23 @@ import {
 } from './reports';
 
 vi.mock('./client', () => ({
-  requestJson: vi.fn()
+  requestJson: vi.fn(),
+  requestBinary: vi.fn()
 }));
 
 const requestJsonMock = vi.mocked(requestJson);
+const requestBinaryMock = vi.mocked(requestBinary);
 
 describe('WP10 report API helpers', () => {
   beforeEach(() => {
     requestJsonMock.mockReset();
+    requestBinaryMock.mockReset();
+    requestBinaryMock.mockResolvedValue({
+      blob: new Blob(['report-export'], { type: 'application/json' }),
+      traceId: 'trc-binary',
+      contentType: 'application/json',
+      filename: 'report-export.json'
+    });
   });
 
   it('normalizes health, report detail, diagnosis, defect draft and export responses', () => {
@@ -148,12 +158,17 @@ describe('WP10 report API helpers', () => {
       aggregate_only: true,
       redaction_policy: { rawResponseStored: false },
       manifest: { digest: 'sha256:manifest' },
+      download_ready: true,
+      download_file_name: 'report-export.md',
+      download_content_type: 'text/markdown;charset=UTF-8',
       content: '# report'
     })).toMatchObject({
       reportId: 'report-1',
       exportType: 'MARKDOWN',
       aggregateOnly: true,
-      contentDigest: 'sha256:content'
+      contentDigest: 'sha256:content',
+      downloadReady: true,
+      downloadFileName: 'report-export.md'
     });
 
     expect(normalizeReportCompare({
@@ -207,6 +222,7 @@ describe('WP10 report API helpers', () => {
     await createDefectDraft('report-1');
     await reviewDefectDraft('report-1', 'draft-1', 'REVIEWED');
     await exportReport('report-1', 'MARKDOWN');
+    await downloadReportExport('report-1', 'export-1');
 
     expect(requestJsonMock).toHaveBeenNthCalledWith(1, '/api/v1/reports/health');
     expect(requestJsonMock).toHaveBeenNthCalledWith(
@@ -229,5 +245,6 @@ describe('WP10 report API helpers', () => {
       body: JSON.stringify({ status: 'REVIEWED' })
     });
     expect(requestJsonMock).toHaveBeenNthCalledWith(12, '/api/v1/reports/report-1/export?exportType=MARKDOWN');
+    expect(requestBinaryMock).toHaveBeenNthCalledWith(1, '/api/v1/reports/report-1/exports/export-1/download');
   });
 });

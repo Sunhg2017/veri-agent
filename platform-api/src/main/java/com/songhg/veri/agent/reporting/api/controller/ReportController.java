@@ -20,8 +20,12 @@ import com.songhg.veri.agent.reporting.application.view.ReportDetailResponse;
 import com.songhg.veri.agent.reporting.application.view.ReportExportResponse;
 import com.songhg.veri.agent.reporting.application.view.ReportSummaryResponse;
 import jakarta.validation.Valid;
+import java.nio.charset.StandardCharsets;
 import java.util.UUID;
+import org.springframework.http.ContentDisposition;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
@@ -136,5 +140,24 @@ public class ReportController {
             @RequestParam(defaultValue = "JSON") String exportType
     ) {
         return exportService.exportReport(id, exportType);
+    }
+
+    @GetMapping("/{id}/exports/{exportId}/download")
+    @RequirePermission(value = PermissionCodes.REPORT_EXPORT, scope = ReportPermissionScopes.REPORT)
+    public ResponseEntity<byte[]> downloadExport(
+            @PathVariable UUID id,
+            @PathVariable UUID exportId
+    ) {
+        ReportExportService.DownloadableExport export = exportService.downloadExport(id, exportId);
+        return ResponseEntity.ok()
+                .contentType(MediaType.parseMediaType(export.contentType()))
+                .header(
+                        HttpHeaders.CONTENT_DISPOSITION,
+                        ContentDisposition.attachment()
+                                .filename(export.fileName(), StandardCharsets.UTF_8)
+                                .build()
+                                .toString()
+                )
+                .body(export.content());
     }
 }

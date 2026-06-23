@@ -43,6 +43,8 @@ public interface ReportingRepository {
 
     Optional<ReportDefectDraft> defectDraft(UUID reportId, UUID draftId);
 
+    Optional<ReportExportManifest> exportManifest(UUID reportId, UUID exportId);
+
     Optional<ReportExportManifest> latestExportManifest(UUID reportId, String exportType);
 
     long countDefectDrafts(UUID reportId);
