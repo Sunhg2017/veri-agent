@@ -107,6 +107,8 @@ services:
       WP4_OCR_TIMEOUT_SECONDS: ${WP4_OCR_TIMEOUT_SECONDS:-30}
       WP4_OCR_MAX_OUTPUT_CHARS: ${WP4_OCR_MAX_OUTPUT_CHARS:-20000}
       WP4_OCR_MAX_CONCURRENT_PROCESSES: ${WP4_OCR_MAX_CONCURRENT_PROCESSES:-2}
+      PLATFORM_STORAGE_PROVIDER: local
+      PLATFORM_STORAGE_ROOT_DIR: /tmp/veri-agent/storage
     depends_on:
       postgres:
         condition: service_healthy

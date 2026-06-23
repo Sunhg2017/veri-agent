@@ -32,6 +32,7 @@
         <pdfbox.version>3.0.2</pdfbox.version>
         <redisson.version>3.52.0</redisson.version>
         <xxl-job.version>3.1.0</xxl-job.version>
+        <aliyun-oss-sdk.version>3.17.4</aliyun-oss-sdk.version>
         <maven.compiler.release>${java.version}</maven.compiler.release>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     </properties>
@@ -72,6 +73,11 @@
                 <groupId>com.xuxueli</groupId>
                 <artifactId>xxl-job-core</artifactId>
                 <version>${xxl-job.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.aliyun.oss</groupId>
+                <artifactId>aliyun-sdk-oss</artifactId>
+                <version>${aliyun-oss-sdk.version}</version>
             </dependency>
         </dependencies>
     </dependencyManagement>

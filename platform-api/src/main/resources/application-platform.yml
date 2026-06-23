@@ -1,4 +1,13 @@
 veri-agent:
+  storage:
+    provider: ${PLATFORM_STORAGE_PROVIDER:oss}
+    root-dir: ${PLATFORM_STORAGE_ROOT_DIR:}
+    oss:
+      endpoint: ${PLATFORM_STORAGE_OSS_ENDPOINT:}
+      bucket: ${PLATFORM_STORAGE_OSS_BUCKET:}
+      access-key-id: ${PLATFORM_STORAGE_OSS_ACCESS_KEY_ID:}
+      access-key-secret: ${PLATFORM_STORAGE_OSS_ACCESS_KEY_SECRET:}
+      key-prefix: ${PLATFORM_STORAGE_OSS_KEY_PREFIX:veri-agent/storage}
   audit:
     retention-cleanup-enabled: ${WP1_AUDIT_RETENTION_CLEANUP_ENABLED:false}
     retention-days: ${WP1_AUDIT_RETENTION_DAYS:365}

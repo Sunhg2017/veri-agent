@@ -9,6 +9,7 @@ import com.songhg.veri.agent.uie2e.infrastructure.DisabledUiE2eRunnerAdapter;
 import com.songhg.veri.agent.uie2e.infrastructure.HttpWorkerUiE2eRunnerAdapter;
 import com.songhg.veri.agent.uie2e.infrastructure.LocalUiE2eArtifactStorage;
 import com.songhg.veri.agent.uie2e.infrastructure.ManagedPreviewUiE2eRunnerAdapter;
+import com.songhg.veri.agent.uie2e.infrastructure.OpaqueUiE2eArtifactStorage;
 import com.songhg.veri.agent.uie2e.infrastructure.PlaywrightSubprocessUiE2eRunnerAdapter;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
@@ -20,6 +21,10 @@ class UiE2eRunnerConfigurationTest {
 
     private final ApplicationContextRunner contextRunner = new ApplicationContextRunner()
             .withUserConfiguration(PlatformStorageConfiguration.class, UiE2eRunnerConfiguration.class)
+            .withPropertyValues(
+                    "veri-agent.storage.provider=local",
+                    "veri-agent.storage.root-dir=/tmp/veri-agent-storage-test"
+            )
             .withBean(UiE2eRepository.class, () -> mock(UiE2eRepository.class))
             .withBean(TestDataCrossWpReferenceService.class, () -> mock(TestDataCrossWpReferenceService.class));
 
@@ -28,11 +33,22 @@ class UiE2eRunnerConfigurationTest {
         contextRunner.run(context -> {
             assertThat(context).hasSingleBean(UiE2eArtifactStorage.class);
             assertThat(context.getBean(UiE2eArtifactStorage.class))
-                    .isInstanceOf(LocalUiE2eArtifactStorage.class);
+                    .isInstanceOf(OpaqueUiE2eArtifactStorage.class);
             assertThat(context).hasSingleBean(UiE2eRunnerPort.class);
             assertThat(context.getBean(UiE2eRunnerPort.class))
                     .isInstanceOf(DisabledUiE2eRunnerAdapter.class);
         });
+    }
+
+    @Test
+    void keepsDedicatedLocalArtifactStorageWhenExplicitDirectoryConfigured() {
+        contextRunner
+                .withPropertyValues("veri-agent.ui-e2e.artifact-storage-dir=/tmp/wp7-artifacts")
+                .run(context -> {
+                    assertThat(context).hasSingleBean(UiE2eArtifactStorage.class);
+                    assertThat(context.getBean(UiE2eArtifactStorage.class))
+                            .isInstanceOf(LocalUiE2eArtifactStorage.class);
+                });
     }
 
     @Test

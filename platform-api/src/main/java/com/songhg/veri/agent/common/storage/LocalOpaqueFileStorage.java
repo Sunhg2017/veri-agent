@@ -21,14 +21,11 @@ import org.springframework.util.StringUtils;
  */
 public class LocalOpaqueFileStorage implements OpaqueFileStorage {
 
-    private final String storageScheme;
     private final Path rootDir;
+    private final StorageRefSupport refSupport;
 
     public LocalOpaqueFileStorage(String namespace, Path rootDir) {
-        if (!StringUtils.hasText(namespace)) {
-            throw new IllegalArgumentException("storage namespace is required");
-        }
-        this.storageScheme = "artifact://" + namespace.trim() + "/";
+        this.refSupport = new StorageRefSupport(namespace);
         this.rootDir = rootDir.toAbsolutePath().normalize();
     }
 
@@ -42,7 +39,7 @@ public class LocalOpaqueFileStorage implements OpaqueFileStorage {
         Files.copy(sourceFile, target, StandardCopyOption.REPLACE_EXISTING);
         long sizeBytes = Files.size(target);
         return new StoredFile(
-                storageRef(partition, fileName),
+                refSupport.storageRef(partition, fileName),
                 normalizedContentType(contentType, fileName, target),
                 target.getFileName().toString(),
                 sizeBytes
@@ -56,7 +53,7 @@ public class LocalOpaqueFileStorage implements OpaqueFileStorage {
         Files.write(target, content == null ? new byte[0] : content);
         long sizeBytes = Files.size(target);
         return new StoredFile(
-                storageRef(partition, fileName),
+                refSupport.storageRef(partition, fileName),
                 normalizedContentType(contentType, fileName, target),
                 target.getFileName().toString(),
                 sizeBytes
@@ -91,12 +88,7 @@ public class LocalOpaqueFileStorage implements OpaqueFileStorage {
 
     @Override
     public String storageRef(String partition, String fileName) {
-        String safePartition = trimmed(partition);
-        String safeFileName = safeFileName(fileName);
-        String relative = StringUtils.hasText(safePartition)
-                ? safePartition + "/" + safeFileName
-                : safeFileName;
-        return storageScheme + relative;
+        return refSupport.storageRef(partition, fileName);
     }
 
     @Override
@@ -142,12 +134,8 @@ public class LocalOpaqueFileStorage implements OpaqueFileStorage {
     }
 
     private Path resolve(String storageRef) throws IOException {
-        if (!StringUtils.hasText(storageRef) || !storageRef.startsWith(storageScheme)) {
-            throw new IOException("storage ref is invalid");
-        }
-        String relative = storageRef.substring(storageScheme.length());
         try {
-            Path target = rootDir.resolve(relative).normalize();
+            Path target = rootDir.resolve(refSupport.relativePathFromStorageRef(storageRef)).normalize();
             if (!target.startsWith(rootDir)) {
                 throw new IOException("storage ref escaped controlled root");
             }
@@ -160,9 +148,7 @@ public class LocalOpaqueFileStorage implements OpaqueFileStorage {
     private Path targetPath(String partition, String fileName) throws IOException {
         try {
             Path namespaceRoot = rootDir;
-            Path target = StringUtils.hasText(partition)
-                    ? namespaceRoot.resolve(trimmed(partition)).resolve(safeFileName(fileName)).normalize()
-                    : namespaceRoot.resolve(safeFileName(fileName)).normalize();
+            Path target = namespaceRoot.resolve(refSupport.relativePath(partition, fileName)).normalize();
             if (!target.startsWith(namespaceRoot)) {
                 throw new IOException("storage target escaped controlled root");
             }
@@ -174,7 +160,7 @@ public class LocalOpaqueFileStorage implements OpaqueFileStorage {
 
     private String storageRefFromPath(Path candidate) {
         String relative = rootDir.relativize(candidate.toAbsolutePath().normalize()).toString().replace('\\', '/');
-        return storageScheme + relative;
+        return refSupport.storageRefFromRelative(relative);
     }
 
     private void pruneEmptyParents(Path directory) throws IOException {
@@ -191,41 +177,7 @@ public class LocalOpaqueFileStorage implements OpaqueFileStorage {
     }
 
     private String normalizedContentType(String contentType, String fileName, Path target) throws IOException {
-        if (StringUtils.hasText(contentType)) {
-            return contentType.trim();
-        }
-        String detected = target == null ? null : Files.probeContentType(target);
-        if (StringUtils.hasText(detected)) {
-            return detected;
-        }
-        String lowered = fileName == null ? "" : fileName.toLowerCase();
-        if (lowered.endsWith(".json") || lowered.endsWith(".har")) {
-            return MediaType.APPLICATION_JSON_VALUE;
-        }
-        if (lowered.endsWith(".md")) {
-            return "text/markdown;charset=UTF-8";
-        }
-        if (lowered.endsWith(".xml")) {
-            return MediaType.APPLICATION_XML_VALUE;
-        }
-        if (lowered.endsWith(".zip")) {
-            return "application/zip";
-        }
-        if (lowered.endsWith(".png")) {
-            return MediaType.IMAGE_PNG_VALUE;
-        }
-        if (lowered.endsWith(".webm")) {
-            return "video/webm";
-        }
-        return MediaType.APPLICATION_OCTET_STREAM_VALUE;
-    }
-
-    private String safeFileName(String fileName) {
-        String value = trimmed(fileName);
-        if (!StringUtils.hasText(value) || value.contains("/") || value.contains("\\") || ".".equals(value) || "..".equals(value)) {
-            throw new IllegalArgumentException("storage file name is invalid");
-        }
-        return value;
+        return OpaqueStorageContentTypes.normalize(contentType, fileName, target == null ? null : Files.probeContentType(target));
     }
 
     private String trimmed(String value) {

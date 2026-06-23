@@ -1,6 +1,7 @@
 package com.songhg.veri.agent.uie2e.config;
 
 import com.songhg.veri.agent.common.storage.PlatformStorageProperties;
+import com.songhg.veri.agent.common.storage.PlatformOpaqueStorageFactory;
 import com.songhg.veri.agent.uie2e.application.UiE2eRunnerExecutionPool;
 import com.songhg.veri.agent.uie2e.application.port.UiE2eRepository;
 import com.songhg.veri.agent.uie2e.application.port.UiE2eArtifactStorage;
@@ -9,6 +10,7 @@ import com.songhg.veri.agent.uie2e.infrastructure.DisabledUiE2eRunnerAdapter;
 import com.songhg.veri.agent.uie2e.infrastructure.HttpWorkerUiE2eRunnerAdapter;
 import com.songhg.veri.agent.uie2e.infrastructure.LocalUiE2eArtifactStorage;
 import com.songhg.veri.agent.uie2e.infrastructure.ManagedPreviewUiE2eRunnerAdapter;
+import com.songhg.veri.agent.uie2e.infrastructure.OpaqueUiE2eArtifactStorage;
 import com.songhg.veri.agent.uie2e.infrastructure.PlaywrightSubprocessUiE2eRunnerAdapter;
 import com.songhg.veri.agent.testdata.application.TestDataCrossWpReferenceService;
 import java.util.Set;
@@ -32,9 +34,13 @@ public class UiE2eRunnerConfiguration {
     @ConditionalOnMissingBean(UiE2eArtifactStorage.class)
     public UiE2eArtifactStorage uiE2eArtifactStorage(
             UiE2eProperties properties,
-            PlatformStorageProperties storageProperties
+            PlatformStorageProperties storageProperties,
+            PlatformOpaqueStorageFactory storageFactory
     ) {
-        return new LocalUiE2eArtifactStorage(properties, storageProperties);
+        if (properties.artifactStorageDirConfigured()) {
+            return new LocalUiE2eArtifactStorage(properties, storageProperties);
+        }
+        return new OpaqueUiE2eArtifactStorage(properties, storageFactory.create("ui-e2e"));
     }
 
     @Bean
