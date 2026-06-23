@@ -29,6 +29,7 @@ import {
   fetchExecutionPlan,
   fetchExecutionPlans,
   fetchExecutionRun,
+  fetchExecutionRunLogs,
   fetchExecutionRuns,
   fetchExecutionTriggerEvents,
   fetchExecutionTriggers,
@@ -43,6 +44,7 @@ import {
   type ExecutionPlanSummary,
   type ExecutionRunDetail,
   type ExecutionRunExport,
+  type ExecutionRunLogHistory,
   type ExecutionRunStreamEvent,
   type ExecutionRunSummary,
   type ExecutionTrigger,
@@ -70,12 +72,23 @@ type WorkState = {
 
 type ExecutionLogEntry = {
   key: string;
+  id?: string;
   level: 'INFO' | 'WARN' | 'ERROR' | 'SUCCESS';
   stage?: string;
   message: string;
   nodeKey?: string;
   timestamp?: string;
   metadata: Record<string, unknown>;
+};
+
+type RunLogHistoryState = {
+  loading: boolean;
+  loadingMore: boolean;
+  index: number;
+  size: number;
+  total: number;
+  loaded: boolean;
+  error?: string;
 };
 
 type TriggerDraft = {
@@ -127,6 +140,14 @@ export function ExecutionWorkbench(props: { signedIn: boolean; currentUser: Curr
   const [lastTriggerDryRun, setLastTriggerDryRun] = useState<ExecutionTriggerDryRun | null>(null);
   const [runLogs, setRunLogs] = useState<ExecutionLogEntry[]>([]);
   const [runStreamState, setRunStreamState] = useState<WorkState>({ loading: false });
+  const [runLogHistoryState, setRunLogHistoryState] = useState<RunLogHistoryState>({
+    loading: false,
+    loadingMore: false,
+    index: 0,
+    size: 20,
+    total: 0,
+    loaded: false
+  });
 
   const summary = useMemo(() => {
     const ready = plans.filter((plan) => plan.status === 'READY').length;
@@ -146,6 +167,14 @@ export function ExecutionWorkbench(props: { signedIn: boolean; currentUser: Curr
       setLastRunExport(null);
       setRunLogs([]);
       setRunStreamState({ loading: false });
+      setRunLogHistoryState({
+        loading: false,
+        loadingMore: false,
+        index: 0,
+        size: 20,
+        total: 0,
+        loaded: false
+      });
       setTriggers([]);
       setTriggerEvents([]);
       setSelectedTriggerId('');
@@ -206,6 +235,14 @@ export function ExecutionWorkbench(props: { signedIn: boolean; currentUser: Curr
       setLastRunExport(null);
       setRunLogs([]);
       setRunStreamState({ loading: false });
+      setRunLogHistoryState({
+        loading: false,
+        loadingMore: false,
+        index: 0,
+        size: 20,
+        total: 0,
+        loaded: false
+      });
       return;
     }
     try {
@@ -214,8 +251,51 @@ export function ExecutionWorkbench(props: { signedIn: boolean; currentUser: Curr
       setLastRunExport(null);
       setRunLogs([]);
       setRunStreamState({ loading: false });
+      setRunLogHistoryState({
+        loading: false,
+        loadingMore: false,
+        index: 0,
+        size: 20,
+        total: 0,
+        loaded: false
+      });
     } catch (error: unknown) {
       setRunActionState({ loading: false, error: error instanceof Error ? error.message : '加载运行详情失败' });
+    }
+  }, [canRead]);
+
+  const loadRunLogHistory = useCallback(async (runId: string, index = 0, append = false) => {
+    if (!runId || !canRead) {
+      return;
+    }
+    setRunLogHistoryState((current) => ({
+      ...current,
+      loading: !append,
+      loadingMore: append,
+      error: undefined
+    }));
+    try {
+      const result = await fetchExecutionRunLogs(runId, { index, size: 20 });
+      setRunLogs((current) => mergeExecutionLogs(
+        append ? current : [],
+        result.data.items.map(toExecutionLogEntry)
+      ));
+      setRunLogHistoryState({
+        loading: false,
+        loadingMore: false,
+        index: result.data.index,
+        size: result.data.size,
+        total: result.data.total,
+        loaded: true
+      });
+    } catch (error: unknown) {
+      setRunLogHistoryState((current) => ({
+        ...current,
+        loading: false,
+        loadingMore: false,
+        loaded: true,
+        error: error instanceof Error ? error.message : '加载运行日志失败'
+      }));
     }
   }, [canRead]);
 
@@ -230,6 +310,13 @@ export function ExecutionWorkbench(props: { signedIn: boolean; currentUser: Curr
   useEffect(() => {
     void refreshRunDetail(selectedRunId);
   }, [refreshRunDetail, selectedRunId]);
+
+  useEffect(() => {
+    if (!selectedRunId || !canRead) {
+      return;
+    }
+    void loadRunLogHistory(selectedRunId);
+  }, [canRead, loadRunLogHistory, selectedRunId]);
 
   useEffect(() => {
     if (!selectedRunId || !canRead) {
@@ -513,18 +600,7 @@ export function ExecutionWorkbench(props: { signedIn: boolean; currentUser: Curr
       return;
     }
     if (event.type === 'log') {
-      setRunLogs((current) => [
-        {
-          key: `${event.timestamp ?? ''}:${event.stage ?? ''}:${event.message}:${current.length}`,
-          level: event.level,
-          stage: event.stage,
-          message: event.message,
-          nodeKey: event.nodeKey,
-          timestamp: event.timestamp,
-          metadata: event.metadata
-        },
-        ...current
-      ].slice(0, 50));
+      setRunLogs((current) => mergeExecutionLogs(current, [toExecutionLogEntryFromStream(event)]));
       setRunStreamState({ loading: false });
       return;
     }
@@ -533,6 +609,13 @@ export function ExecutionWorkbench(props: { signedIn: boolean; currentUser: Curr
       return;
     }
     setRunStreamState((current) => ({ ...current, loading: false }));
+  }
+
+  async function onLoadMoreLogs() {
+    if (!selectedRunId || runLogHistoryState.loadingMore || runLogs.length >= runLogHistoryState.total) {
+      return;
+    }
+    await loadRunLogHistory(selectedRunId, runLogHistoryState.index + 1, true);
   }
 
   return (
@@ -936,9 +1019,10 @@ export function ExecutionWorkbench(props: { signedIn: boolean; currentUser: Curr
             </div>
             <div className="execution-run-log-panel">
               <div className="execution-subheader">
-                <strong>实时事件</strong>
-                <span>{runStreamState.loading ? '连接中' : 'SSE'}</span>
+                <strong>运行日志</strong>
+                <span>{runStreamState.loading ? '连接中' : `${runLogs.length}/${runLogHistoryState.total || runLogs.length}`}</span>
               </div>
+              {runLogHistoryState.error ? <div className="document-state-line error">{runLogHistoryState.error}</div> : null}
               {runLogs.length ? (
                 <div className="execution-run-log-list">
                   {runLogs.map((entry) => (
@@ -952,8 +1036,28 @@ export function ExecutionWorkbench(props: { signedIn: boolean; currentUser: Curr
                   ))}
                 </div>
               ) : (
-                <div className="table-empty">等待运行事件</div>
+                <div className="table-empty">{runLogHistoryState.loading ? '加载运行日志中' : '暂无运行日志'}</div>
               )}
+              <div className="execution-panel-actions">
+                <button
+                  className="btn btn-ghost btn-sm"
+                  type="button"
+                  onClick={() => void loadRunLogHistory(selectedRunId)}
+                  disabled={!selectedRunId || runLogHistoryState.loading || runLogHistoryState.loadingMore}
+                >
+                  <RefreshCw size={15} />
+                  刷新日志
+                </button>
+                <button
+                  className="btn btn-ghost btn-sm"
+                  type="button"
+                  onClick={() => void onLoadMoreLogs()}
+                  disabled={!selectedRunId || runLogHistoryState.loadingMore || runLogs.length >= runLogHistoryState.total}
+                >
+                  <Clock3 size={15} />
+                  加载更多
+                </button>
+              </div>
             </div>
           </div>
         </section>
@@ -1178,6 +1282,44 @@ function logTone(level: ExecutionLogEntry['level']) {
   if (level === 'WARN') return 'warning';
   if (level === 'SUCCESS') return 'success';
   return 'info';
+}
+
+function toExecutionLogEntry(event: ExecutionRunLogHistory['items'][number]): ExecutionLogEntry {
+  return {
+    key: event.id,
+    id: event.id,
+    level: event.level,
+    stage: event.stage,
+    message: event.message,
+    nodeKey: event.nodeKey,
+    timestamp: event.eventAt ?? event.createdAt,
+    metadata: event.metadata
+  };
+}
+
+function toExecutionLogEntryFromStream(event: Extract<ExecutionRunStreamEvent, { type: 'log' }>): ExecutionLogEntry {
+  return {
+    key: event.logId ?? `${event.timestamp ?? ''}:${event.stage ?? ''}:${event.message}:${event.nodeKey ?? 'run'}`,
+    id: event.logId,
+    level: event.level,
+    stage: event.stage,
+    message: event.message,
+    nodeKey: event.nodeKey,
+    timestamp: event.timestamp,
+    metadata: event.metadata
+  };
+}
+
+function mergeExecutionLogs(current: ExecutionLogEntry[], incoming: ExecutionLogEntry[]) {
+  const merged = new Map<string, ExecutionLogEntry>();
+  [...incoming, ...current].forEach((entry) => {
+    merged.set(entry.id ?? entry.key, entry);
+  });
+  return Array.from(merged.values()).sort((left, right) => {
+    const leftTime = left.timestamp ? Date.parse(left.timestamp) : 0;
+    const rightTime = right.timestamp ? Date.parse(right.timestamp) : 0;
+    return rightTime - leftTime;
+  });
 }
 
 function shortId(value?: string) {

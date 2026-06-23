@@ -88,6 +88,7 @@ with expected(table_name) as (
         ('execution_plan_node'),
         ('execution_run'),
         ('execution_node_run'),
+        ('execution_run_log'),
         ('execution_trigger'),
         ('execution_trigger_event'),
         ('execution_queue_claim'),

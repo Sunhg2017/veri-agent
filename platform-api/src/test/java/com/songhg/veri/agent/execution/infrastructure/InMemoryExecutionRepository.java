@@ -2,6 +2,7 @@ package com.songhg.veri.agent.execution.infrastructure;
 
 import com.songhg.veri.agent.execution.application.port.ExecutionRepository;
 import com.songhg.veri.agent.execution.application.query.ExecutionPlanQuery;
+import com.songhg.veri.agent.execution.application.query.ExecutionRunLogQuery;
 import com.songhg.veri.agent.execution.application.query.ExecutionRunQuery;
 import com.songhg.veri.agent.execution.application.query.ExecutionTriggerEventQuery;
 import com.songhg.veri.agent.execution.application.query.ExecutionTriggerQuery;
@@ -10,6 +11,7 @@ import com.songhg.veri.agent.execution.domain.ExecutionPlan;
 import com.songhg.veri.agent.execution.domain.ExecutionPlanNode;
 import com.songhg.veri.agent.execution.domain.ExecutionQueueClaim;
 import com.songhg.veri.agent.execution.domain.ExecutionRun;
+import com.songhg.veri.agent.execution.domain.ExecutionRunLogEntry;
 import com.songhg.veri.agent.execution.domain.ExecutionTrigger;
 import com.songhg.veri.agent.execution.domain.ExecutionTriggerEvent;
 import java.time.Instant;
@@ -34,6 +36,7 @@ public class InMemoryExecutionRepository implements ExecutionRepository {
     private final ConcurrentHashMap<UUID, ExecutionRun> runs = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<UUID, ExecutionNodeRun> nodeRuns = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<UUID, ExecutionQueueClaim> queueClaims = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<UUID, ExecutionRunLogEntry> runLogs = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<UUID, ExecutionTrigger> triggers = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<UUID, ExecutionTriggerEvent> triggerEvents = new ConcurrentHashMap<>();
 
@@ -291,6 +294,24 @@ public class InMemoryExecutionRepository implements ExecutionRepository {
     }
 
     @Override
+    public void insertRunLog(ExecutionRunLogEntry entry) {
+        runLogs.put(entry.id(), entry);
+    }
+
+    @Override
+    public List<ExecutionRunLogEntry> runLogs(UUID runId, ExecutionRunLogQuery query) {
+        return filteredRunLogs(runId, query)
+                .skip(query.offset())
+                .limit(query.limit())
+                .toList();
+    }
+
+    @Override
+    public long countRunLogs(UUID runId, ExecutionRunLogQuery query) {
+        return filteredRunLogs(runId, query).count();
+    }
+
+    @Override
     public void insertTrigger(ExecutionTrigger trigger) {
         triggers.put(trigger.id(), trigger);
     }
@@ -423,6 +444,18 @@ public class InMemoryExecutionRepository implements ExecutionRepository {
             stream = stream.filter(trigger -> query.status().equals(trigger.status()));
         }
         return stream.sorted(Comparator.comparing(ExecutionTrigger::updatedAt).reversed());
+    }
+
+    private Stream<ExecutionRunLogEntry> filteredRunLogs(UUID runId, ExecutionRunLogQuery query) {
+        Stream<ExecutionRunLogEntry> stream = runLogs.values().stream()
+                .filter(entry -> runId.equals(entry.runId()));
+        if (StringUtils.hasText(query.level())) {
+            stream = stream.filter(entry -> query.level().equals(entry.level()));
+        }
+        return stream.sorted(Comparator
+                .comparing(ExecutionRunLogEntry::eventAt, Comparator.nullsLast(Comparator.reverseOrder()))
+                .thenComparing(ExecutionRunLogEntry::createdAt, Comparator.nullsLast(Comparator.reverseOrder()))
+                .thenComparing(ExecutionRunLogEntry::id, Comparator.nullsLast(Comparator.reverseOrder())));
     }
 
     private Stream<ExecutionTriggerEvent> filteredTriggerEvents(ExecutionTriggerEventQuery query) {

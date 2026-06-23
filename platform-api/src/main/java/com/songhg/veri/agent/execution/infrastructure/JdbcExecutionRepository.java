@@ -2,6 +2,7 @@ package com.songhg.veri.agent.execution.infrastructure;
 
 import com.songhg.veri.agent.execution.application.port.ExecutionRepository;
 import com.songhg.veri.agent.execution.application.query.ExecutionPlanQuery;
+import com.songhg.veri.agent.execution.application.query.ExecutionRunLogQuery;
 import com.songhg.veri.agent.execution.application.query.ExecutionRunQuery;
 import com.songhg.veri.agent.execution.application.query.ExecutionTriggerEventQuery;
 import com.songhg.veri.agent.execution.application.query.ExecutionTriggerQuery;
@@ -10,6 +11,7 @@ import com.songhg.veri.agent.execution.domain.ExecutionPlan;
 import com.songhg.veri.agent.execution.domain.ExecutionPlanNode;
 import com.songhg.veri.agent.execution.domain.ExecutionQueueClaim;
 import com.songhg.veri.agent.execution.domain.ExecutionRun;
+import com.songhg.veri.agent.execution.domain.ExecutionRunLogEntry;
 import com.songhg.veri.agent.execution.domain.ExecutionTrigger;
 import com.songhg.veri.agent.execution.domain.ExecutionTriggerEvent;
 import com.songhg.veri.agent.execution.infrastructure.mapper.ExecutionMapper;
@@ -190,6 +192,21 @@ public class JdbcExecutionRepository implements ExecutionRepository {
     @Override
     public Optional<String> runProjectScopeId(UUID id) {
         return Optional.ofNullable(mapper.runProjectScopeId(id));
+    }
+
+    @Override
+    public void insertRunLog(ExecutionRunLogEntry entry) {
+        mapper.insertRunLog(entry);
+    }
+
+    @Override
+    public List<ExecutionRunLogEntry> runLogs(UUID runId, ExecutionRunLogQuery query) {
+        return mapper.runLogs(runId, query);
+    }
+
+    @Override
+    public long countRunLogs(UUID runId, ExecutionRunLogQuery query) {
+        return mapper.countRunLogs(runId, query);
     }
 
     @Override

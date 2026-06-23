@@ -184,12 +184,33 @@ export interface ExecutionRunDetail extends ExecutionRunSummary {
   idempotentReplay: boolean;
 }
 
+export interface ExecutionRunLogEntry {
+  id: string;
+  runId: string;
+  nodeRunId?: string;
+  nodeKey?: string;
+  level: 'INFO' | 'WARN' | 'ERROR' | 'SUCCESS';
+  stage?: string;
+  message: string;
+  metadata: Record<string, unknown>;
+  eventAt?: string;
+  createdAt?: string;
+}
+
+export interface ExecutionRunLogHistory {
+  items: ExecutionRunLogEntry[];
+  index: number;
+  size: number;
+  total: number;
+}
+
 export type ExecutionRunStreamEvent =
   | { type: 'connected'; runId: string; status: string; timestamp?: string }
   | { type: 'heartbeat'; timestamp?: string }
   | { type: 'snapshot'; run: ExecutionRunDetail }
   | {
     type: 'log';
+    logId?: string;
     runId: string;
     status: string;
     level: 'INFO' | 'WARN' | 'ERROR' | 'SUCCESS';
@@ -198,6 +219,7 @@ export type ExecutionRunStreamEvent =
     nodeRunId?: string;
     nodeKey?: string;
     timestamp?: string;
+    historyReplay?: boolean;
     metadata: Record<string, unknown>;
   };
 
@@ -220,6 +242,12 @@ export interface ExecutionRunFilters {
   projectId?: string;
   planId?: string;
   status?: string;
+  index?: number;
+  size?: number;
+}
+
+export interface ExecutionRunLogFilters {
+  level?: string;
   index?: number;
   size?: number;
 }
@@ -365,6 +393,14 @@ export async function fetchExecutionRuns(filters: ExecutionRunFilters = {}): Pro
 export async function fetchExecutionRun(id: string): Promise<ApiResponse<ExecutionRunDetail>> {
   const response = await requestJson<unknown>(`${EXECUTION_BASE}/runs/${encodeURIComponent(id)}`);
   return { ...response, data: normalizeExecutionRunDetail(response.data) };
+}
+
+export async function fetchExecutionRunLogs(
+  id: string,
+  filters: ExecutionRunLogFilters = {}
+): Promise<ApiResponse<ExecutionRunLogHistory>> {
+  const response = await requestJson<unknown>(`${EXECUTION_BASE}/runs/${encodeURIComponent(id)}/logs${queryString(filters)}`);
+  return { ...response, data: normalizeExecutionRunLogHistory(response.data) };
 }
 
 export async function subscribeExecutionRunStream(
@@ -640,6 +676,32 @@ export function normalizeExecutionRunDetail(input: unknown): ExecutionRunDetail 
   };
 }
 
+export function normalizeExecutionRunLogEntry(input: unknown): ExecutionRunLogEntry {
+  const value = objectValue(input);
+  return {
+    id: stringValue(read(value, 'id')),
+    runId: stringValue(read(value, 'runId', 'run_id')),
+    nodeRunId: optionalString(read(value, 'nodeRunId', 'node_run_id')),
+    nodeKey: optionalString(read(value, 'nodeKey', 'node_key')),
+    level: normalizeExecutionRunStreamLevel(read(value, 'level')),
+    stage: optionalString(read(value, 'stage')),
+    message: stringValue(read(value, 'message')),
+    metadata: objectValue(read(value, 'metadata')),
+    eventAt: optionalString(read(value, 'eventAt', 'event_at')),
+    createdAt: optionalString(read(value, 'createdAt', 'created_at'))
+  };
+}
+
+export function normalizeExecutionRunLogHistory(input: unknown): ExecutionRunLogHistory {
+  const value = objectValue(input);
+  return {
+    items: arrayValue(read(value, 'items')).map(normalizeExecutionRunLogEntry),
+    index: numberValue(read(value, 'index'), 0),
+    size: numberValue(read(value, 'size'), 20),
+    total: numberValue(read(value, 'total'), 0)
+  };
+}
+
 export function parseExecutionRunStreamEvents(text: string): ExecutionRunStreamEvent[] {
   return text
     .split(/\r?\n\r?\n/)
@@ -895,6 +957,7 @@ function parseExecutionRunStreamEvent(block: string): ExecutionRunStreamEvent | 
   if (type === 'log') {
     return {
       type,
+      logId: optionalString(read(data, 'logId', 'log_id')),
       runId: stringValue(read(data, 'runId', 'run_id')),
       status: stringValue(read(data, 'status'), 'UNKNOWN'),
       level: normalizeExecutionRunStreamLevel(read(data, 'level')),
@@ -903,6 +966,7 @@ function parseExecutionRunStreamEvent(block: string): ExecutionRunStreamEvent | 
       nodeRunId: optionalString(read(data, 'nodeRunId', 'node_run_id')),
       nodeKey: optionalString(read(data, 'nodeKey', 'node_key')),
       timestamp: optionalString(read(data, 'timestamp')),
+      historyReplay: booleanValue(read(data, 'historyReplay', 'history_replay'), false),
       metadata: objectValue(read(data, 'metadata'))
     };
   }

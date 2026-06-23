@@ -213,6 +213,30 @@ class ExecutionRunControllerTest {
     }
 
     @Test
+    void returnsPersistedRunLogsForHistoryReplay() throws Exception {
+        UUID bundleId = approvedBundle("project-alpha");
+        String token = userAccessToken(List.of("ProjectOwner@PROJECT:project-alpha"));
+        UUID planId = createPlan(bundleId, token, "READY");
+        UUID runId = triggerRun(planId, token, "log-history-smoke");
+
+        mockMvc.perform(post("/api/v1/execution/runs/{id}/cancel", runId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(get("/api/v1/execution/runs/{id}/logs", runId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                        .param("size", "10"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.items.length()").value(2))
+                .andExpect(jsonPath("$.data.items[0].runId").value(runId.toString()))
+                .andExpect(jsonPath("$.data.items[0].level").value("SUCCESS"))
+                .andExpect(jsonPath("$.data.items[0].stage").value("run.canceled"))
+                .andExpect(jsonPath("$.data.items[0].message").value("Execution run canceled before runner dispatch"))
+                .andExpect(jsonPath("$.data.items[1].stage").value("run.created"))
+                .andExpect(jsonPath("$.data.total").value(2));
+    }
+
+    @Test
     void retriesFailedRunOnceAndRejectsNonRetryableRun() throws Exception {
         UUID bundleId = approvedBundle("project-alpha");
         String token = userAccessToken(List.of("ProjectOwner@PROJECT:project-alpha"));

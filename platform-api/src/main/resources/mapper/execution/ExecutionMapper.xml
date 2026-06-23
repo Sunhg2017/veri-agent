@@ -129,6 +129,20 @@
         </constructor>
     </resultMap>
 
+    <resultMap id="runLogMap" type="com.songhg.veri.agent.execution.domain.ExecutionRunLogEntry">
+        <constructor>
+            <arg column="id" javaType="java.util.UUID"/>
+            <arg column="run_id" javaType="java.util.UUID"/>
+            <arg column="node_run_id" javaType="java.util.UUID"/>
+            <arg column="level" javaType="java.lang.String"/>
+            <arg column="stage" javaType="java.lang.String"/>
+            <arg column="message" javaType="java.lang.String"/>
+            <arg column="metadata_json" javaType="java.lang.String"/>
+            <arg column="event_at" javaType="java.time.Instant"/>
+            <arg column="created_at" javaType="java.time.Instant"/>
+        </constructor>
+    </resultMap>
+
     <sql id="planColumns">
         id, project_id, name, status, environment_key,
         trigger_policy_json::text as trigger_policy_json,
@@ -169,6 +183,11 @@
         received_at, error_code, error_summary, trace_id
     </sql>
 
+    <sql id="runLogColumns">
+        id, run_id, node_run_id, level, stage, message,
+        metadata_json::text as metadata_json, event_at, created_at
+    </sql>
+
     <sql id="planWhere">
         <where>
             <if test="query.projectId != null">project_id = #{query.projectId}</if>
@@ -202,6 +221,13 @@
         <where>
             <if test="query.triggerId != null">trigger_id = #{query.triggerId}</if>
             <if test="query.status != null">and status = #{query.status}</if>
+        </where>
+    </sql>
+
+    <sql id="runLogWhere">
+        <where>
+            run_id = #{runId}
+            <if test="query.level != null">and level = #{query.level}</if>
         </where>
     </sql>
 
@@ -463,6 +489,15 @@
         on conflict do nothing
     </insert>
 
+    <insert id="insertRunLog">
+        insert into execution_run_log (
+            id, run_id, node_run_id, level, stage, message, metadata_json, event_at, created_at
+        ) values (
+            #{id}, #{runId}, #{nodeRunId}, #{level}, #{stage}, #{message},
+            cast(coalesce(#{metadataJson}, '{}') as jsonb), #{eventAt}, #{createdAt}
+        )
+    </insert>
+
     <update id="updateTriggerEvent">
         update execution_trigger_event set
             request_digest = #{requestDigest},
@@ -649,6 +684,20 @@
         select project_id
         from execution_run
         where id = #{id}
+    </select>
+
+    <select id="runLogs" resultMap="runLogMap">
+        select <include refid="runLogColumns"/>
+        from execution_run_log
+        <include refid="runLogWhere"/>
+        order by event_at desc, created_at desc, id desc
+        limit #{query.limit} offset #{query.offset}
+    </select>
+
+    <select id="countRunLogs" resultType="long">
+        select count(*)
+        from execution_run_log
+        <include refid="runLogWhere"/>
     </select>
 
     <select id="trigger" resultMap="triggerMap">

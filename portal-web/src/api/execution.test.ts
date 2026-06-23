@@ -14,6 +14,7 @@ import {
   fetchExecutionPlan,
   fetchExecutionPlans,
   fetchExecutionRun,
+  fetchExecutionRunLogs,
   fetchExecutionRuns,
   fetchExecutionTriggerEvents,
   fetchExecutionTriggers,
@@ -23,6 +24,7 @@ import {
   normalizeExecutionPlanList,
   normalizeExecutionRunDetail,
   normalizeExecutionRunExport,
+  normalizeExecutionRunLogHistory,
   normalizeExecutionRunList,
   parseExecutionRunStreamEvents,
   normalizeExecutionTrigger,
@@ -198,6 +200,35 @@ describe('WP9 execution API helpers', () => {
       nodes: [{ nodeKey: 'api-smoke', runnerType: 'WP6_API' }]
     });
 
+    expect(normalizeExecutionRunLogHistory({
+      items: [{
+        id: 'log-1',
+        run_id: 'run-1',
+        node_run_id: 'node-run-1',
+        node_key: 'api-smoke',
+        level: 'INFO',
+        stage: 'dispatch.wp6.started',
+        message: 'Dispatching node to WP6 runner',
+        metadata: { workerId: 'worker-1' },
+        event_at: '2026-06-24T01:00:00Z',
+        created_at: '2026-06-24T01:00:01Z'
+      }],
+      index: '0',
+      size: '20',
+      total: '1'
+    })).toMatchObject({
+      items: [{
+        id: 'log-1',
+        runId: 'run-1',
+        nodeRunId: 'node-run-1',
+        nodeKey: 'api-smoke',
+        level: 'INFO',
+        stage: 'dispatch.wp6.started',
+        metadata: { workerId: 'worker-1' }
+      }],
+      total: 1
+    });
+
     expect(normalizeExecutionRunExport({
       schema_version: 'wp9-run-export-v1',
       exported_at: '2026-06-14T01:00:00Z',
@@ -303,6 +334,7 @@ describe('WP9 execution API helpers', () => {
     await archiveExecutionPlan('plan-1');
     await triggerExecutionRun('plan-1', { requestKey: 'rk-1', reason: 'manual' });
     await fetchExecutionRun('run-1');
+    await fetchExecutionRunLogs('run-1', { index: 1, size: 20, level: 'INFO' });
     await exportExecutionRun('run-1');
     await downloadExecutionArtifact('run-1', 'artifact-1');
     await cancelExecutionRun('run-1');
@@ -333,19 +365,20 @@ describe('WP9 execution API helpers', () => {
       body: JSON.stringify({ requestKey: 'rk-1', reason: 'manual' })
     });
     expect(requestJsonMock).toHaveBeenNthCalledWith(8, '/api/v1/execution/runs/run-1');
-    expect(requestJsonMock).toHaveBeenNthCalledWith(9, '/api/v1/execution/runs/run-1/export');
+    expect(requestJsonMock).toHaveBeenNthCalledWith(9, '/api/v1/execution/runs/run-1/logs?index=1&size=20&level=INFO');
+    expect(requestJsonMock).toHaveBeenNthCalledWith(10, '/api/v1/execution/runs/run-1/export');
     expect(requestBinaryMock).toHaveBeenNthCalledWith(1, '/api/v1/execution/runs/run-1/artifacts/artifact-1/download');
-    expect(requestJsonMock).toHaveBeenNthCalledWith(10, '/api/v1/execution/runs/run-1/cancel', { method: 'POST' });
-    expect(requestJsonMock).toHaveBeenNthCalledWith(11, '/api/v1/execution/runs/run-1/retry', { method: 'POST' });
-    expect(requestJsonMock).toHaveBeenNthCalledWith(12, '/api/v1/execution/plans/plan-1/triggers', {
+    expect(requestJsonMock).toHaveBeenNthCalledWith(11, '/api/v1/execution/runs/run-1/cancel', { method: 'POST' });
+    expect(requestJsonMock).toHaveBeenNthCalledWith(12, '/api/v1/execution/runs/run-1/retry', { method: 'POST' });
+    expect(requestJsonMock).toHaveBeenNthCalledWith(13, '/api/v1/execution/plans/plan-1/triggers', {
       method: 'POST',
       body: expect.stringContaining('secret://wp9/webhook')
     });
-    expect(requestJsonMock).toHaveBeenNthCalledWith(13, '/api/v1/execution/triggers/trigger-1', {
+    expect(requestJsonMock).toHaveBeenNthCalledWith(14, '/api/v1/execution/triggers/trigger-1', {
       method: 'PATCH',
       body: JSON.stringify({ status: 'ENABLED' })
     });
-    expect(requestJsonMock).toHaveBeenNthCalledWith(14, '/api/v1/execution/triggers/trigger-1/dry-run', {
+    expect(requestJsonMock).toHaveBeenNthCalledWith(15, '/api/v1/execution/triggers/trigger-1/dry-run', {
       method: 'POST'
     });
   });
@@ -359,7 +392,7 @@ event: snapshot
 data: {"run":{"id":"run-1","plan_id":"plan-1","project_id":"project-alpha","status":"RUNNING","trigger_type":"MANUAL","node_count":1,"nodes":[],"idempotent_replay":false}}
 
 event: log
-data: {"runId":"run-1","status":"RUNNING","level":"INFO","stage":"queue.claimed","message":"Execution node claimed","nodeRunId":"node-run-1","nodeKey":"api-smoke","metadata":{"workerId":"worker-1"}}
+data: {"runId":"run-1","status":"RUNNING","logId":"log-1","level":"INFO","stage":"queue.claimed","message":"Execution node claimed","nodeRunId":"node-run-1","nodeKey":"api-smoke","historyReplay":true,"metadata":{"workerId":"worker-1"}}
 
 event: heartbeat
 data: {"timestamp":"2026-06-21T01:00:05Z"}
@@ -380,6 +413,7 @@ data: {"timestamp":"2026-06-21T01:00:05Z"}
       },
       {
         type: 'log',
+        logId: 'log-1',
         runId: 'run-1',
         status: 'RUNNING',
         level: 'INFO',
@@ -388,6 +422,7 @@ data: {"timestamp":"2026-06-21T01:00:05Z"}
         nodeRunId: 'node-run-1',
         nodeKey: 'api-smoke',
         timestamp: undefined,
+        historyReplay: true,
         metadata: { workerId: 'worker-1' }
       },
       {
@@ -428,6 +463,7 @@ data: {"timestamp":"2026-06-21T01:00:05Z"}
     expect(events).toEqual([
       {
         type: 'log',
+        logId: undefined,
         runId: 'run-1',
         status: 'RUNNING',
         level: 'INFO',
@@ -436,6 +472,7 @@ data: {"timestamp":"2026-06-21T01:00:05Z"}
         nodeRunId: undefined,
         nodeKey: undefined,
         timestamp: undefined,
+        historyReplay: false,
         metadata: {}
       }
     ]);

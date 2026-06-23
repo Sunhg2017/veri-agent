@@ -1,8 +1,12 @@
 package com.songhg.veri.agent.execution.application;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.songhg.veri.agent.common.util.SensitiveTextSanitizer;
+import com.songhg.veri.agent.execution.application.port.ExecutionRepository;
 import com.songhg.veri.agent.execution.application.view.ExecutionNodeRunResponse;
 import com.songhg.veri.agent.execution.application.view.ExecutionRunDetailResponse;
+import com.songhg.veri.agent.execution.application.view.ExecutionRunLogEntryResponse;
+import com.songhg.veri.agent.execution.domain.ExecutionRunLogEntry;
 import java.io.IOException;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -41,11 +45,22 @@ public class ExecutionRunStreamService implements ExecutionRunEventPublisher {
     private final ConcurrentMap<UUID, ConcurrentMap<String, SseEmitter>> subscribers = new ConcurrentHashMap<>();
     private final AtomicLong subscriberSequence = new AtomicLong(1);
     private final long streamTimeoutMs;
+    private final ExecutionRepository repository;
+    private final ExecutionRunJsonSupport jsonSupport;
+    private final ExecutionRunLogHistoryService logHistoryService;
+    private final int replayLimit;
 
     public ExecutionRunStreamService(
-            @Value("${veri-agent.execution.run-stream-timeout-ms:1800000}") long streamTimeoutMs
+            ExecutionRepository repository,
+            ObjectMapper objectMapper,
+            @Value("${veri-agent.execution.run-stream-timeout-ms:1800000}") long streamTimeoutMs,
+            @Value("${veri-agent.execution.run-stream-replay-limit:50}") int replayLimit
     ) {
+        this.repository = repository;
+        this.jsonSupport = new ExecutionRunJsonSupport(objectMapper);
+        this.logHistoryService = new ExecutionRunLogHistoryService(repository, this.jsonSupport);
         this.streamTimeoutMs = streamTimeoutMs;
+        this.replayLimit = replayLimit;
     }
 
     public SseEmitter subscribe(UUID runId, ExecutionRunDetailResponse initialSnapshot) {
@@ -64,6 +79,7 @@ public class ExecutionRunStreamService implements ExecutionRunEventPublisher {
                 "timestamp", Instant.now().toString()
         ));
         sendToEmitter(runId, subscriberId, emitter, "snapshot", Map.of("run", initialSnapshot));
+        sendHistoryToEmitter(runId, subscriberId, emitter);
         return emitter;
     }
 
@@ -79,9 +95,11 @@ public class ExecutionRunStreamService implements ExecutionRunEventPublisher {
         if (run == null) {
             return;
         }
+        ExecutionRunLogEntry entry = logEntry(run, level, stage, message, nodeRunId, metadata);
+        repository.insertRunLog(entry);
         publishAfterCommit(() -> {
             sendToRun(run.id(), "snapshot", Map.of("run", run));
-            sendToRun(run.id(), "log", logPayload(run, level, stage, message, nodeRunId, metadata));
+            sendToRun(run.id(), "log", logPayload(run, entry));
         });
     }
 
@@ -119,28 +137,47 @@ public class ExecutionRunStreamService implements ExecutionRunEventPublisher {
 
     private Map<String, Object> logPayload(
             ExecutionRunDetailResponse run,
+            ExecutionRunLogEntry entry
+    ) {
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("runId", run.id().toString());
+        payload.put("status", boundedText(run.status(), 32));
+        payload.put("logId", entry.id().toString());
+        payload.put("level", safeLevel(entry.level()));
+        payload.put("stage", boundedText(entry.stage(), 64));
+        payload.put("message", entry.message());
+        payload.put("timestamp", entry.eventAt() == null ? Instant.now().toString() : entry.eventAt().toString());
+        if (entry.nodeRunId() != null) {
+            payload.put("nodeRunId", entry.nodeRunId().toString());
+            String nodeKey = nodeKey(run, entry.nodeRunId());
+            if (StringUtils.hasText(nodeKey)) {
+                payload.put("nodeKey", nodeKey);
+            }
+        }
+        payload.put("metadata", jsonSupport.readMap(entry.metadataJson()));
+        return payload;
+    }
+
+    private ExecutionRunLogEntry logEntry(
+            ExecutionRunDetailResponse run,
             String level,
             String stage,
             String message,
             UUID nodeRunId,
             Map<String, Object> metadata
     ) {
-        Map<String, Object> payload = new LinkedHashMap<>();
-        payload.put("runId", run.id().toString());
-        payload.put("status", boundedText(run.status(), 32));
-        payload.put("level", safeLevel(level));
-        payload.put("stage", boundedText(stage, 64));
-        payload.put("message", SensitiveTextSanitizer.sanitizedEvidenceText(message, MAX_TEXT_LENGTH));
-        payload.put("timestamp", Instant.now().toString());
-        if (nodeRunId != null) {
-            payload.put("nodeRunId", nodeRunId.toString());
-            String nodeKey = nodeKey(run, nodeRunId);
-            if (StringUtils.hasText(nodeKey)) {
-                payload.put("nodeKey", nodeKey);
-            }
-        }
-        payload.put("metadata", sanitizeMetadata(metadata == null ? Map.of() : metadata));
-        return payload;
+        Instant now = Instant.now();
+        return new ExecutionRunLogEntry(
+                UUID.randomUUID(),
+                run.id(),
+                nodeRunId,
+                safeLevel(level),
+                boundedNullable(stage, 64),
+                SensitiveTextSanitizer.sanitizedEvidenceText(message, MAX_TEXT_LENGTH),
+                jsonSupport.json(sanitizeMetadata(metadata == null ? Map.of() : metadata)),
+                now,
+                now
+        );
     }
 
     private Object sanitizeMetadata(Object value) {
@@ -205,6 +242,34 @@ public class ExecutionRunStreamService implements ExecutionRunEventPublisher {
     private String boundedText(String value, int maxLength) {
         String normalized = SensitiveTextSanitizer.boundedNullableText(value, maxLength);
         return normalized == null ? "" : normalized;
+    }
+
+    private String boundedNullable(String value, int maxLength) {
+        return SensitiveTextSanitizer.boundedNullableText(value, maxLength);
+    }
+
+    private void sendHistoryToEmitter(UUID runId, String subscriberId, SseEmitter emitter) {
+        List<ExecutionRunLogEntryResponse> history = logHistoryService.recentHistory(runId, replayLimit);
+        for (int index = history.size() - 1; index >= 0; index--) {
+            ExecutionRunLogEntryResponse entry = history.get(index);
+            Map<String, Object> payload = new LinkedHashMap<>();
+            payload.put("runId", entry.runId().toString());
+            payload.put("status", "");
+            payload.put("logId", entry.id().toString());
+            payload.put("level", entry.level());
+            payload.put("stage", entry.stage());
+            payload.put("message", entry.message());
+            payload.put("timestamp", entry.eventAt() == null ? null : entry.eventAt().toString());
+            if (entry.nodeRunId() != null) {
+                payload.put("nodeRunId", entry.nodeRunId().toString());
+            }
+            if (StringUtils.hasText(entry.nodeKey())) {
+                payload.put("nodeKey", entry.nodeKey());
+            }
+            payload.put("metadata", entry.metadata());
+            payload.put("historyReplay", true);
+            sendToEmitter(runId, subscriberId, emitter, "log", payload);
+        }
     }
 
     private void sendToRun(UUID runId, String eventName, Object payload) {

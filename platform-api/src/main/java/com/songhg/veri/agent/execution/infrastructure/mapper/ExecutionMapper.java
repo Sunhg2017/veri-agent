@@ -1,6 +1,7 @@
 package com.songhg.veri.agent.execution.infrastructure.mapper;
 
 import com.songhg.veri.agent.execution.application.query.ExecutionPlanQuery;
+import com.songhg.veri.agent.execution.application.query.ExecutionRunLogQuery;
 import com.songhg.veri.agent.execution.application.query.ExecutionRunQuery;
 import com.songhg.veri.agent.execution.application.query.ExecutionTriggerEventQuery;
 import com.songhg.veri.agent.execution.application.query.ExecutionTriggerQuery;
@@ -9,6 +10,7 @@ import com.songhg.veri.agent.execution.domain.ExecutionPlan;
 import com.songhg.veri.agent.execution.domain.ExecutionPlanNode;
 import com.songhg.veri.agent.execution.domain.ExecutionQueueClaim;
 import com.songhg.veri.agent.execution.domain.ExecutionRun;
+import com.songhg.veri.agent.execution.domain.ExecutionRunLogEntry;
 import com.songhg.veri.agent.execution.domain.ExecutionTrigger;
 import com.songhg.veri.agent.execution.domain.ExecutionTriggerEvent;
 import java.time.Instant;
@@ -89,6 +91,12 @@ public interface ExecutionMapper {
     long countRuns(@Param("query") ExecutionRunQuery query);
 
     String runProjectScopeId(@Param("id") UUID id);
+
+    void insertRunLog(ExecutionRunLogEntry entry);
+
+    List<ExecutionRunLogEntry> runLogs(@Param("runId") UUID runId, @Param("query") ExecutionRunLogQuery query);
+
+    long countRunLogs(@Param("runId") UUID runId, @Param("query") ExecutionRunLogQuery query);
 
     void insertTrigger(ExecutionTrigger trigger);
 

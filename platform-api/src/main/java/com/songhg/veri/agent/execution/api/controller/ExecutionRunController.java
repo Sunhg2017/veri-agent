@@ -11,11 +11,13 @@ import com.songhg.veri.agent.execution.application.command.CompleteExecutionNode
 import com.songhg.veri.agent.execution.application.command.DispatchExecutionNodeRunCommand;
 import com.songhg.veri.agent.execution.application.command.HeartbeatExecutionQueueClaimCommand;
 import com.songhg.veri.agent.execution.application.command.TriggerExecutionRunCommand;
+import com.songhg.veri.agent.execution.application.query.ExecutionRunLogPageRequest;
 import com.songhg.veri.agent.execution.application.query.ExecutionRunPageRequest;
 import com.songhg.veri.agent.execution.application.view.ExecutionQueueClaimResponse;
 import com.songhg.veri.agent.execution.application.view.ExecutionQueueRecoveryResponse;
 import com.songhg.veri.agent.execution.application.view.ExecutionRunDetailResponse;
 import com.songhg.veri.agent.execution.application.view.ExecutionRunExportResponse;
+import com.songhg.veri.agent.execution.application.view.ExecutionRunLogEntryResponse;
 import com.songhg.veri.agent.execution.application.view.ExecutionRunSummaryResponse;
 import jakarta.validation.Valid;
 import java.nio.charset.StandardCharsets;
@@ -68,6 +70,15 @@ public class ExecutionRunController {
     @RequirePermission(value = PermissionCodes.EXECUTION_READ, scope = ExecutionPermissionScopes.RUN)
     public ExecutionRunDetailResponse run(@PathVariable UUID id) {
         return service.run(id);
+    }
+
+    @GetMapping("/runs/{id}/logs")
+    @RequirePermission(value = PermissionCodes.EXECUTION_READ, scope = ExecutionPermissionScopes.RUN)
+    public PageResponse<ExecutionRunLogEntryResponse> runLogs(
+            @PathVariable UUID id,
+            @Valid ExecutionRunLogPageRequest request
+    ) {
+        return service.runLogs(id, request);
     }
 
     @GetMapping(value = "/runs/{id}/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)

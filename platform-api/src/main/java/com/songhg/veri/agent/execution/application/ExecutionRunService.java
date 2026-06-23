@@ -14,12 +14,14 @@ import com.songhg.veri.agent.execution.application.command.DispatchExecutionNode
 import com.songhg.veri.agent.execution.application.command.HeartbeatExecutionQueueClaimCommand;
 import com.songhg.veri.agent.execution.application.command.TriggerExecutionRunCommand;
 import com.songhg.veri.agent.execution.application.port.ExecutionRepository;
+import com.songhg.veri.agent.execution.application.query.ExecutionRunLogPageRequest;
 import com.songhg.veri.agent.execution.application.query.ExecutionRunPageRequest;
 import com.songhg.veri.agent.execution.application.query.ExecutionRunQuery;
 import com.songhg.veri.agent.execution.application.view.ExecutionQueueClaimResponse;
 import com.songhg.veri.agent.execution.application.view.ExecutionQueueRecoveryResponse;
 import com.songhg.veri.agent.execution.application.view.ExecutionRunDetailResponse;
 import com.songhg.veri.agent.execution.application.view.ExecutionRunExportResponse;
+import com.songhg.veri.agent.execution.application.view.ExecutionRunLogEntryResponse;
 import com.songhg.veri.agent.execution.application.view.ExecutionRunSummaryResponse;
 import com.songhg.veri.agent.execution.config.ExecutionProperties;
 import com.songhg.veri.agent.execution.domain.ExecutionNodeRun;
@@ -82,6 +84,7 @@ public class ExecutionRunService {
     private final TransactionTemplate transactionTemplate;
     private final AsyncTaskNotificationService notificationService;
     private final ExecutionRunStreamService runStreamService;
+    private final ExecutionRunLogHistoryService runLogHistoryService;
 
     public ExecutionRunService(
             ExecutionRepository repository,
@@ -107,6 +110,7 @@ public class ExecutionRunService {
         this.managementStore = managementStores.getIfAvailable();
         this.jsonSupport = new ExecutionRunJsonSupport(objectMapper);
         this.responseMapper = new ExecutionRunResponseMapper(objectMapper);
+        this.runLogHistoryService = new ExecutionRunLogHistoryService(repository, jsonSupport);
         this.artifactSupport = new ExecutionRunArtifactSupport(this.uiE2eRunService);
         this.properties = properties;
         this.notificationService = notificationService;
@@ -229,6 +233,12 @@ public class ExecutionRunService {
         return runStreamService == null
                 ? new org.springframework.web.servlet.mvc.method.annotation.SseEmitter(0L)
                 : runStreamService.subscribe(id, detail(requireRun(id), false));
+    }
+
+    @Transactional(readOnly = true)
+    public PageResponse<ExecutionRunLogEntryResponse> runLogs(UUID id, ExecutionRunLogPageRequest request) {
+        requireRun(id);
+        return runLogHistoryService.history(id, request.toQuery());
     }
 
     /**

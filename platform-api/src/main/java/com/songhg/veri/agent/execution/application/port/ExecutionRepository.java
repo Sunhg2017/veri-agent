@@ -1,6 +1,7 @@
 package com.songhg.veri.agent.execution.application.port;
 
 import com.songhg.veri.agent.execution.application.query.ExecutionPlanQuery;
+import com.songhg.veri.agent.execution.application.query.ExecutionRunLogQuery;
 import com.songhg.veri.agent.execution.application.query.ExecutionRunQuery;
 import com.songhg.veri.agent.execution.application.query.ExecutionTriggerEventQuery;
 import com.songhg.veri.agent.execution.application.query.ExecutionTriggerQuery;
@@ -9,6 +10,7 @@ import com.songhg.veri.agent.execution.domain.ExecutionPlan;
 import com.songhg.veri.agent.execution.domain.ExecutionPlanNode;
 import com.songhg.veri.agent.execution.domain.ExecutionQueueClaim;
 import com.songhg.veri.agent.execution.domain.ExecutionRun;
+import com.songhg.veri.agent.execution.domain.ExecutionRunLogEntry;
 import com.songhg.veri.agent.execution.domain.ExecutionTrigger;
 import com.songhg.veri.agent.execution.domain.ExecutionTriggerEvent;
 import java.time.Instant;
@@ -79,6 +81,12 @@ public interface ExecutionRepository {
     long countRuns(ExecutionRunQuery query);
 
     Optional<String> runProjectScopeId(UUID id);
+
+    void insertRunLog(ExecutionRunLogEntry entry);
+
+    List<ExecutionRunLogEntry> runLogs(UUID runId, ExecutionRunLogQuery query);
+
+    long countRunLogs(UUID runId, ExecutionRunLogQuery query);
 
     void insertTrigger(ExecutionTrigger trigger);
 
