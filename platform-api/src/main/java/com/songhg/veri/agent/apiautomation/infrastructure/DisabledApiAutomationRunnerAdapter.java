@@ -24,7 +24,12 @@ public class DisabledApiAutomationRunnerAdapter implements ApiAutomationRunnerPo
     }
 
     @Override
-    public RunnerCancelResult cancel(UUID runId) {
+    public RunnerCancelResult cancel(RunnerCancelRequest request) {
         return new RunnerCancelResult(false, "RUNNER_DISABLED", "WP6 runner is disabled by default");
+    }
+
+    @Override
+    public RunnerCancelResult cancel(UUID runId) {
+        return cancel(new RunnerCancelRequest(runId, null, null));
     }
 }

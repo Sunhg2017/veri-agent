@@ -45,6 +45,7 @@ class ApiAutomationRunnerResultSanitizerTest {
 
         assertThat(result.status()).isEqualTo("FAILED");
         assertThat(result.errorCode()).isEqualTo("RUNNER_ARTIFACT_TOO_LARGE");
+        assertThat(result.externalRunId()).isNull();
         ApiAutomationRunnerPort.RunnerCaseResult caseResult = result.caseResults().getFirst();
         assertThat(caseResult.status()).isEqualTo("ERROR");
         assertThat(caseResult.errorCode()).isEqualTo("RUNNER_ARTIFACT_TOO_LARGE");

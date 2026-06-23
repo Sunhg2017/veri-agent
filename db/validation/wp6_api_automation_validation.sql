@@ -101,6 +101,7 @@ with expected(table_name, column_name) as (
         ('api_automation_run','case_count'),
         ('api_automation_run','trace_id'),
         ('api_automation_run','runner_mode'),
+        ('api_automation_run','external_run_id'),
         ('api_automation_run','error_code'),
         ('api_automation_run','error_summary'),
         ('api_automation_run','started_at'),
@@ -207,6 +208,7 @@ with expected(table_name, index_name) as (
         ('api_automation_run','idx_api_automation_run_bundle_created'),
         ('api_automation_run','idx_api_automation_run_trace'),
         ('api_automation_run','idx_api_automation_run_base_host'),
+        ('api_automation_run','idx_api_automation_run_external'),
         ('api_automation_run_result','idx_api_automation_run_result_run'),
         ('api_automation_run_result','idx_api_automation_run_result_case')
 ),

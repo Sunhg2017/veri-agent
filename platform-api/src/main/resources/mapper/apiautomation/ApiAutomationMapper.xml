@@ -139,6 +139,7 @@
             <arg column="case_count" javaType="_int"/>
             <arg column="trace_id" javaType="java.lang.String"/>
             <arg column="runner_mode" javaType="java.lang.String"/>
+            <arg column="external_run_id" javaType="java.lang.String"/>
             <arg column="error_code" javaType="java.lang.String"/>
             <arg column="error_summary" javaType="java.lang.String"/>
             <arg column="created_by" javaType="java.lang.String"/>
@@ -207,7 +208,7 @@
 
     <sql id="runColumns">
         id, project_id, bundle_id, environment_id, base_url_digest, base_url_host, status,
-        timeout_seconds, case_count, trace_id, runner_mode, error_code, error_summary,
+        timeout_seconds, case_count, trace_id, runner_mode, external_run_id, error_code, error_summary,
         created_by, updated_by, started_at, completed_at, created_at, updated_at
     </sql>
 
@@ -443,11 +444,11 @@
     <insert id="insertRun">
         insert into api_automation_run (
             id, project_id, bundle_id, environment_id, base_url_digest, base_url_host, status,
-            timeout_seconds, case_count, trace_id, runner_mode, error_code, error_summary,
+            timeout_seconds, case_count, trace_id, runner_mode, external_run_id, error_code, error_summary,
             created_by, updated_by, started_at, completed_at, created_at, updated_at
         ) values (
             #{id}, #{projectId}, #{bundleId}, #{environmentId}, #{baseUrlDigest}, #{baseUrlHost}, #{status},
-            #{timeoutSeconds}, #{caseCount}, #{traceId}, #{runnerMode}, #{errorCode}, #{errorSummary},
+            #{timeoutSeconds}, #{caseCount}, #{traceId}, #{runnerMode}, #{externalRunId}, #{errorCode}, #{errorSummary},
             #{createdBy}, #{updatedBy}, #{startedAt}, #{completedAt}, #{createdAt}, #{updatedAt}
         )
     </insert>

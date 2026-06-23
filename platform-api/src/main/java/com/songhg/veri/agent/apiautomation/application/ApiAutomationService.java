@@ -660,6 +660,7 @@ public class ApiAutomationService {
                     timeoutSeconds,
                     cases.size(),
                     properties.runnerEnabled() ? "NOOP" : "DISABLED",
+                    null,
                     block.errorCode(),
                     block.errorSummary(),
                     actor,
@@ -695,7 +696,9 @@ public class ApiAutomationService {
         ApiAutomationRunnerPort.RunnerRunResult attempt = runnerResultSanitizer.enforceRunnerArtifactLimit(rawAttempt);
         String status = runSupport.normalizeRunStatus(attempt.status());
         String runnerMode = runSupport.normalizeRunnerMode(attempt.runnerMode());
-        Instant completedAt = Instant.now();
+        // Asynchronous runners stay open until a later callback/worker update closes the platform run.
+        boolean activeRun = runSupport.activeRunStatus(status);
+        Instant completedAt = activeRun ? null : Instant.now();
         ApiAutomationRun run = runSupport.newRun(
                 runId,
                 bundle,
@@ -705,6 +708,7 @@ public class ApiAutomationService {
                 timeoutSeconds,
                 cases.size(),
                 runnerMode,
+                attempt.externalRunId(),
                 SensitiveTextSanitizer.boundedNullableText(attempt.errorCode(), 64),
                 runnerResultSanitizer.safeRunnerErrorSummary(attempt.errorSummary(), target.normalizedBaseUrl()),
                 actor,
@@ -713,7 +717,9 @@ public class ApiAutomationService {
                 completedAt
         );
         repository.insertRun(run);
-        List<ApiAutomationRunResult> results = runSupport.runnerResults(run, cases, attempt, target.normalizedBaseUrl(), completedAt);
+        List<ApiAutomationRunResult> results = activeRun
+                ? List.of()
+                : runSupport.runnerResults(run, cases, attempt, target.normalizedBaseUrl(), completedAt);
         results.forEach(repository::insertRunResult);
         auditRun(run, "SUCCESS", "STARTED", Map.of(
                 "runnerMode", run.runnerMode(),
@@ -721,15 +727,17 @@ public class ApiAutomationService {
                 "secretRefCount", secretRefs.count(),
                 "secretRefDigests", secretRefs.digests()
         ));
-        auditRun(run, runSupport.runAuditResult(status), "COMPLETED", Map.of(
-                "status", run.status(),
-                "runnerMode", run.runnerMode(),
-                "caseCount", run.caseCount(),
-                "resultCount", results.size(),
-                "secretRefCount", secretRefs.count(),
-                "secretRefDigests", secretRefs.digests()
-        ));
-        notificationService.notifyApiAutomationRunFinished(run);
+        if (!activeRun) {
+            auditRun(run, runSupport.runAuditResult(status), "COMPLETED", Map.of(
+                    "status", run.status(),
+                    "runnerMode", run.runnerMode(),
+                    "caseCount", run.caseCount(),
+                    "resultCount", results.size(),
+                    "secretRefCount", secretRefs.count(),
+                    "secretRefDigests", secretRefs.digests()
+            ));
+            notificationService.notifyApiAutomationRunFinished(run);
+        }
         return responseMapper.toRunDetail(run, results);
     }
 
@@ -740,11 +748,6 @@ public class ApiAutomationService {
         return responseMapper.toRunDetail(run, repository.runResults(id));
     }
 
-    /**
-     * Cancels only active control-plane runs. Current managed HTTP execution is synchronous, so most runs are already
-     * terminal when this method is called; those calls intentionally return the existing run without mutation to keep
-     * retrying clients idempotent until a future asynchronous runner can honor cancellation in-flight.
-     */
     @Transactional
     public ApiAutomationRunDetailResponse cancelRun(UUID id) {
         ApiAutomationRun run = repository.run(id)
@@ -757,7 +760,12 @@ public class ApiAutomationService {
             return responseMapper.toRunDetail(run, repository.runResults(id));
         }
 
-        ApiAutomationRunnerPort.RunnerCancelResult cancelResult = runnerPort.cancel(id);
+        // Reuse the opaque external handle so downstream workers can cancel the real execution when one exists.
+        ApiAutomationRunnerPort.RunnerCancelResult cancelResult = runnerPort.cancel(new ApiAutomationRunnerPort.RunnerCancelRequest(
+                id,
+                run.externalRunId(),
+                run.runnerMode()
+        ));
         boolean accepted = cancelResult != null && cancelResult.accepted();
         if (!accepted) {
             auditRun(run, "FAILED", "CANCEL_REJECTED", runSupport.cancelAuditPayload(run, cancelResult));
@@ -1163,6 +1171,7 @@ public class ApiAutomationService {
         payload.put("bundleId", run.bundleId().toString());
         payload.put("status", run.status());
         payload.put("runnerMode", run.runnerMode());
+        payload.put("externalRunIdPresent", org.springframework.util.StringUtils.hasText(run.externalRunId()));
         payload.put("runAction", action);
         contextClient.writeAuditEvent(
                 runAuditActionName(action),

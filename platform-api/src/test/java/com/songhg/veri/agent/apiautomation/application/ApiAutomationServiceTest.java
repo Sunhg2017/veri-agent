@@ -1162,12 +1162,121 @@ class ApiAutomationServiceTest {
 
         assertThat(runner.cancelCalls).isEqualTo(1);
         assertThat(runner.lastRunId).isEqualTo(runId);
+        assertThat(runner.lastCancelRequest.externalRunId()).isNull();
         assertThat(response.run().status()).isEqualTo("CANCELED");
         assertThat(response.run().errorCode()).isEqualTo("RUNNER_CANCELED");
         assertThat(response.run().errorSummary()).isEqualTo("cancel accepted");
         assertThat(repository.run(runId).orElseThrow().updatedBy()).isEqualTo("api-canceler");
         verify(notificationService).notifyApiAutomationRunFinished(argThat(run ->
                 runId.equals(run.id()) && "CANCELED".equals(run.status())));
+    }
+
+    @Test
+    void persistsExternalRunHandleForAsyncRunnerAndUsesItOnCancel() {
+        InMemoryApiAutomationRepository repository = new InMemoryApiAutomationRepository();
+        ApiAutomationActorResolver actorResolver = mock(ApiAutomationActorResolver.class);
+        AsyncTaskNotificationService notificationService = mock(AsyncTaskNotificationService.class);
+        ApiAutomationPlatformContextClient contextClient = mock(ApiAutomationPlatformContextClient.class);
+        when(contextClient.projectContext("project-alpha")).thenReturn(new PlatformContext(
+                "PROJECT",
+                "project-alpha",
+                "ACTIVE",
+                "INTERNAL",
+                false,
+                List.of(),
+                Instant.EPOCH
+        ));
+        when(actorResolver.currentActor()).thenReturn("api-runner");
+        AcceptingCancelRunner runner = new AcceptingCancelRunner(
+                new ApiAutomationRunnerPort.RunnerCancelResult(true, "RUNNER_CANCELED", "cancel accepted"),
+                new ApiAutomationRunnerPort.RunnerRunResult(
+                        "RUNNING",
+                        "EXTERNAL",
+                        null,
+                        null,
+                        List.of(),
+                        "worker-run-001"
+                )
+        );
+        ApiAutomationService service = new ApiAutomationService(
+                repository,
+                runner,
+                mock(OpenApiSpecParser.class),
+                new ApiAutomationProperties(
+                        65_536,
+                        50,
+                        true,
+                        120,
+                        100,
+                        "api.example.test",
+                        1_048_576,
+                        "wp6-api-automation-v1",
+                        true
+                ),
+                contextClient,
+                actorResolver,
+                mock(AssetApiService.class),
+                mock(AssetTestCaseService.class),
+                mock(ModelInvocationService.class),
+                new ApiAutomationModelOutputParser(new ObjectMapper()),
+                new ObjectMapper(),
+                notificationService
+        );
+        UUID specId = UUID.randomUUID();
+        UUID assetApiId = UUID.randomUUID();
+        ApiAutomationSpec spec = spec("project-alpha", specId);
+        repository.insertSpec(spec);
+        repository.insertEndpointSnapshot(syncedEndpoint(spec, "/v1/payments", "POST", "digest-payments", assetApiId));
+        ApiAutomationGenerationTaskDetailResponse generated = service.createGenerationTask(
+                new CreateApiAutomationGenerationTaskCommand(
+                        "project-alpha",
+                        specId,
+                        List.of(assetApiId),
+                        List.of(),
+                        List.of("SMOKE"),
+                        "FALLBACK_ONLY",
+                        1,
+                        "runner-async-cancel"
+                )
+        );
+        UUID bundleId = generated.scriptBundles().getFirst().id();
+        service.submitScriptBundleReview(bundleId, new ReviewApiAutomationScriptBundleCommand("ready"));
+        service.approveScriptBundle(bundleId, new ReviewApiAutomationScriptBundleCommand("approved"));
+
+        ApiAutomationRunDetailResponse created = service.createRun(new CreateApiAutomationRunCommand(
+                bundleId,
+                "staging",
+                "https://api.example.test/service",
+                List.of(generated.cases().getFirst().id()),
+                30,
+                null
+        ));
+
+        assertThat(created.run().status()).isEqualTo("RUNNING");
+        assertThat(created.results()).isEmpty();
+        assertThat(repository.run(created.run().id())).isPresent().get().satisfies(run -> {
+            assertThat(run.status()).isEqualTo("RUNNING");
+            assertThat(run.externalRunId()).isEqualTo("worker-run-001");
+            assertThat(run.completedAt()).isNull();
+        });
+        verify(notificationService, never()).notifyApiAutomationRunFinished(any(ApiAutomationRun.class));
+
+        ApiAutomationRunDetailResponse canceled = service.cancelRun(created.run().id());
+
+        assertThat(runner.cancelCalls).isEqualTo(1);
+        assertThat(runner.lastRunId).isEqualTo(created.run().id());
+        assertThat(runner.lastCancelRequest).isEqualTo(new ApiAutomationRunnerPort.RunnerCancelRequest(
+                created.run().id(),
+                "worker-run-001",
+                "EXTERNAL"
+        ));
+        assertThat(canceled.run().status()).isEqualTo("CANCELED");
+        assertThat(repository.run(created.run().id())).isPresent().get().satisfies(run -> {
+            assertThat(run.status()).isEqualTo("CANCELED");
+            assertThat(run.externalRunId()).isEqualTo("worker-run-001");
+        });
+        verify(notificationService).notifyApiAutomationRunFinished(argThat(run ->
+                created.run().id().equals(run.id()) && "CANCELED".equals(run.status())));
     }
 
     @Test
@@ -1398,11 +1507,18 @@ class ApiAutomationServiceTest {
     private static final class AcceptingCancelRunner implements ApiAutomationRunnerPort {
 
         private final RunnerCancelResult cancelResult;
+        private final RunnerRunResult runResult;
         private int cancelCalls;
         private UUID lastRunId;
+        private RunnerCancelRequest lastCancelRequest;
 
         private AcceptingCancelRunner(RunnerCancelResult cancelResult) {
+            this(cancelResult, new RunnerRunResult("PASSED", "MANAGED", null, null, List.of()));
+        }
+
+        private AcceptingCancelRunner(RunnerCancelResult cancelResult, RunnerRunResult runResult) {
             this.cancelResult = cancelResult;
+            this.runResult = runResult;
         }
 
         @Override
@@ -1412,14 +1528,20 @@ class ApiAutomationServiceTest {
 
         @Override
         public RunnerRunResult run(RunnerRunRequest request) {
-            return new RunnerRunResult("PASSED", "MANAGED", null, null, List.of());
+            return runResult;
+        }
+
+        @Override
+        public RunnerCancelResult cancel(RunnerCancelRequest request) {
+            cancelCalls++;
+            lastCancelRequest = request;
+            lastRunId = request == null ? null : request.runId();
+            return cancelResult;
         }
 
         @Override
         public RunnerCancelResult cancel(UUID runId) {
-            cancelCalls++;
-            lastRunId = runId;
-            return cancelResult;
+            return cancel(new RunnerCancelRequest(runId, null, null));
         }
     }
 

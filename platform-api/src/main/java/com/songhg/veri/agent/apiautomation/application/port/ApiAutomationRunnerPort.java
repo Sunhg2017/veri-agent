@@ -11,6 +11,10 @@ public interface ApiAutomationRunnerPort {
 
     RunnerRunResult run(RunnerRunRequest request);
 
+    default RunnerCancelResult cancel(RunnerCancelRequest request) {
+        return cancel(request == null ? null : request.runId());
+    }
+
     RunnerCancelResult cancel(UUID runId);
 
     record RunnerValidation(
@@ -48,8 +52,18 @@ public interface ApiAutomationRunnerPort {
             String runnerMode,
             String errorCode,
             String errorSummary,
-            List<RunnerCaseResult> caseResults
+            List<RunnerCaseResult> caseResults,
+            String externalRunId
     ) {
+        public RunnerRunResult(
+                String status,
+                String runnerMode,
+                String errorCode,
+                String errorSummary,
+                List<RunnerCaseResult> caseResults
+        ) {
+            this(status, runnerMode, errorCode, errorSummary, caseResults, null);
+        }
     }
 
     record RunnerCaseResult(
@@ -66,6 +80,13 @@ public interface ApiAutomationRunnerPort {
             boolean accepted,
             String errorCode,
             String errorSummary
+    ) {
+    }
+
+    record RunnerCancelRequest(
+            UUID runId,
+            String externalRunId,
+            String runnerMode
     ) {
     }
 }

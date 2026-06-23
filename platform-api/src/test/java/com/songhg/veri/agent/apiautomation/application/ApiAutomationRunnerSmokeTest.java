@@ -198,6 +198,11 @@ class ApiAutomationRunnerSmokeTest {
 
         assertThat(runnerPort.cancelCalls()).isEqualTo(1);
         assertThat(runnerPort.lastCanceledRunId()).isEqualTo(runId);
+        assertThat(runnerPort.lastCancelRequest()).isEqualTo(new ApiAutomationRunnerPort.RunnerCancelRequest(
+                runId,
+                "runner-smoke-external-run-001",
+                "EXTERNAL"
+        ));
         assertThat(response.run().status()).isEqualTo("CANCELED");
         assertThat(response.run().runnerMode()).isEqualTo("EXTERNAL");
         assertThat(response.run().errorCode()).isEqualTo("RUNNER_CANCELED");
@@ -294,6 +299,7 @@ class ApiAutomationRunnerSmokeTest {
                 1,
                 "trc_wp6_async_cancel",
                 "EXTERNAL",
+                "runner-smoke-external-run-001",
                 null,
                 null,
                 "wp6-runner-smoke",
@@ -380,6 +386,7 @@ class ApiAutomationRunnerSmokeTest {
         private List<String> lastSecretRefDigests = List.of();
         private List<RunnerSecret> lastSecrets = List.of();
         private UUID lastCanceledRunId;
+        private RunnerCancelRequest lastCancelRequest;
 
         private RecordingRunnerPort(RunnerScenario scenario) {
             this.scenario = scenario;
@@ -452,15 +459,17 @@ class ApiAutomationRunnerSmokeTest {
                         "EXTERNAL",
                         null,
                         null,
-                        List.of()
+                        List.of(),
+                        "runner-smoke-external-run-001"
                 );
             };
         }
 
         @Override
-        public RunnerCancelResult cancel(UUID runId) {
+        public RunnerCancelResult cancel(RunnerCancelRequest request) {
             cancelCalls.incrementAndGet();
-            lastCanceledRunId = runId;
+            lastCancelRequest = request;
+            lastCanceledRunId = request == null ? null : request.runId();
             if (scenario == RunnerScenario.ASYNC_CANCEL_ACCEPTED) {
                 return new RunnerCancelResult(
                         true,
@@ -469,6 +478,11 @@ class ApiAutomationRunnerSmokeTest {
                 );
             }
             return new RunnerCancelResult(false, "NOT_RUNNING", "runner smoke is synchronous");
+        }
+
+        @Override
+        public RunnerCancelResult cancel(UUID runId) {
+            return cancel(new RunnerCancelRequest(runId, null, null));
         }
 
         private int runCalls() {
@@ -489,6 +503,10 @@ class ApiAutomationRunnerSmokeTest {
 
         private UUID lastCanceledRunId() {
             return lastCanceledRunId;
+        }
+
+        private RunnerCancelRequest lastCancelRequest() {
+            return lastCancelRequest;
         }
     }
 

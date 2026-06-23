@@ -42,7 +42,8 @@ final class ApiAutomationRunnerResultSanitizer {
                     "NOOP",
                     "RUNNER_FAILED",
                     "runner returned no result",
-                    List.of()
+                    List.of(),
+                    null
             );
         }
         if (attempt.caseResults() == null || attempt.caseResults().isEmpty()) {
@@ -66,7 +67,8 @@ final class ApiAutomationRunnerResultSanitizer {
                 attempt.runnerMode(),
                 ARTIFACT_TOO_LARGE,
                 "runner artifact exceeded configured size limit",
-                admittedResults
+                admittedResults,
+                attempt.externalRunId()
         );
     }
 

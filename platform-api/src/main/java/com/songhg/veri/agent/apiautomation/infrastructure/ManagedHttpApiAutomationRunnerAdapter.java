@@ -80,8 +80,13 @@ public class ManagedHttpApiAutomationRunnerAdapter implements ApiAutomationRunne
      * The initial managed runner is synchronous; cancel requests cannot interrupt already dispatched HTTP calls.
      */
     @Override
-    public RunnerCancelResult cancel(UUID runId) {
+    public RunnerCancelResult cancel(RunnerCancelRequest request) {
         return new RunnerCancelResult(false, "RUNNER_CANCELED", "managed runner is synchronous; cancel is best effort only");
+    }
+
+    @Override
+    public RunnerCancelResult cancel(UUID runId) {
+        return cancel(new RunnerCancelRequest(runId, null, null));
     }
 
     private RunnerCaseResult executeCase(RunnerRunRequest request, ApiAutomationCase automationCase) {

@@ -89,6 +89,7 @@ final class ApiAutomationRunSupport {
             int timeoutSeconds,
             int caseCount,
             String runnerMode,
+            String externalRunId,
             String errorCode,
             String errorSummary,
             String actor,
@@ -108,6 +109,7 @@ final class ApiAutomationRunSupport {
                 caseCount,
                 TraceContext.getOrCreateTraceId(),
                 runnerMode,
+                SensitiveTextSanitizer.boundedNullableText(externalRunId, 128),
                 errorCode,
                 errorSummary,
                 actor,
@@ -203,6 +205,10 @@ final class ApiAutomationRunSupport {
         return Set.of("QUEUED", "RUNNING").contains(status);
     }
 
+    boolean activeRunStatus(String status) {
+        return Set.of("QUEUED", "RUNNING").contains(status);
+    }
+
     ApiAutomationRun runWithCancel(
             ApiAutomationRun run,
             String errorCode,
@@ -222,6 +228,7 @@ final class ApiAutomationRunSupport {
                 run.caseCount(),
                 run.traceId(),
                 run.runnerMode(),
+                run.externalRunId(),
                 StringUtils.hasText(errorCode) ? errorCode : "RUNNER_CANCELED",
                 errorSummary,
                 run.createdBy(),

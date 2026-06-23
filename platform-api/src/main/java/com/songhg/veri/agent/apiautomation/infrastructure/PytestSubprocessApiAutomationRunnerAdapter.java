@@ -177,8 +177,13 @@ public class PytestSubprocessApiAutomationRunnerAdapter implements ApiAutomation
     }
 
     @Override
+    public RunnerCancelResult cancel(RunnerCancelRequest request) {
+        return new RunnerCancelResult(false, "RUNNER_CANCELED", runnerLabel() + " runner is synchronous; cancel is best effort only");
+    }
+
+    @Override
     public RunnerCancelResult cancel(UUID runId) {
-            return new RunnerCancelResult(false, "RUNNER_CANCELED", runnerLabel() + " runner is synchronous; cancel is best effort only");
+        return cancel(new RunnerCancelRequest(runId, null, null));
     }
 
     private CommandExecutionPlan commandExecutionPlan(

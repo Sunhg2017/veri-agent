@@ -15,6 +15,7 @@ public record ApiAutomationRun(
         int caseCount,
         String traceId,
         String runnerMode,
+        String externalRunId,
         String errorCode,
         String errorSummary,
         String createdBy,
@@ -24,4 +25,49 @@ public record ApiAutomationRun(
         Instant createdAt,
         Instant updatedAt
 ) {
+
+    public ApiAutomationRun(
+            UUID id,
+            String projectId,
+            UUID bundleId,
+            String environmentId,
+            String baseUrlDigest,
+            String baseUrlHost,
+            String status,
+            int timeoutSeconds,
+            int caseCount,
+            String traceId,
+            String runnerMode,
+            String errorCode,
+            String errorSummary,
+            String createdBy,
+            String updatedBy,
+            Instant startedAt,
+            Instant completedAt,
+            Instant createdAt,
+            Instant updatedAt
+    ) {
+        this(
+                id,
+                projectId,
+                bundleId,
+                environmentId,
+                baseUrlDigest,
+                baseUrlHost,
+                status,
+                timeoutSeconds,
+                caseCount,
+                traceId,
+                runnerMode,
+                null,
+                errorCode,
+                errorSummary,
+                createdBy,
+                updatedBy,
+                startedAt,
+                completedAt,
+                createdAt,
+                updatedAt
+        );
+    }
 }
