@@ -450,6 +450,22 @@ class ReportControllerTest {
                 .andExpect(content().string(not(containsString(accountLeaseRef.toString()))))
                 .andExpect(content().string(not(containsString("Staging Admin"))));
 
+        mockMvc.perform(get("/api/v1/reports/{id}/export", reportId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + ownerToken)
+                        .param("exportType", "HTML"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.reportId").value(reportId.toString()))
+                .andExpect(jsonPath("$.data.exportType").value("HTML"))
+                .andExpect(jsonPath("$.data.status").value("CREATED"))
+                .andExpect(jsonPath("$.data.contentDigest").isString())
+                .andExpect(jsonPath("$.data.downloadReady").value(true))
+                .andExpect(jsonPath("$.data.downloadFileName", containsString(".html")))
+                .andExpect(jsonPath("$.data.downloadContentType").value("text/html;charset=UTF-8"))
+                .andExpect(jsonPath("$.data.content", containsString("<!doctype html>")))
+                .andExpect(jsonPath("$.data.content", containsString("WP10 Complete Report")))
+                .andExpect(content().string(not(containsString("Authorization"))))
+                .andExpect(content().string(not(containsString("secret://"))));
+
         MvcResult pdfExport = mockMvc.perform(get("/api/v1/reports/{id}/export", reportId)
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + ownerToken)
                         .param("exportType", "PDF"))
@@ -508,11 +524,51 @@ class ReportControllerTest {
                 .andExpect(header().string(HttpHeaders.CONTENT_DISPOSITION, containsString("export-" + wordExportId)))
                 .andExpect(result -> assertThat(result.getResponse().getContentAsByteArray()).isNotEmpty());
 
+        MvcResult excelExport = mockMvc.perform(get("/api/v1/reports/{id}/export", reportId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + ownerToken)
+                        .param("exportType", "EXCEL"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.reportId").value(reportId.toString()))
+                .andExpect(jsonPath("$.data.exportType").value("EXCEL"))
+                .andExpect(jsonPath("$.data.status").value("CREATED"))
+                .andExpect(jsonPath("$.data.contentDigest").isString())
+                .andExpect(jsonPath("$.data.downloadReady").value(true))
+                .andExpect(jsonPath("$.data.downloadFileName", containsString(".xlsx")))
+                .andExpect(jsonPath("$.data.downloadContentType")
+                        .value("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
+                .andExpect(jsonPath("$.data.content").doesNotExist())
+                .andReturn();
+
+        UUID excelExportId = UUID.fromString(JsonPath.read(
+                excelExport.getResponse().getContentAsString(),
+                "$.data.id"
+        ));
+
+        mockMvc.perform(get("/api/v1/reports/{id}/exports/{exportId}/download", reportId, excelExportId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + ownerToken))
+                .andExpect(status().isOk())
+                .andExpect(content().contentType(
+                        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
+                .andExpect(header().string(HttpHeaders.CONTENT_DISPOSITION, containsString("export-" + excelExportId)))
+                .andExpect(result -> assertThat(result.getResponse().getContentAsByteArray()).isNotEmpty());
+
+        mockMvc.perform(post("/api/v1/reports/exports/batch")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + ownerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "reportIds", List.of(reportId),
+                                "exportType", "HTML"
+                        ))))
+                .andExpect(status().isOk())
+                .andExpect(content().contentType("application/zip"))
+                .andExpect(header().string(HttpHeaders.CONTENT_DISPOSITION, containsString(".zip")))
+                .andExpect(result -> assertThat(result.getResponse().getContentAsByteArray()).isNotEmpty());
+
         mockMvc.perform(get("/api/v1/reports")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + ownerToken)
                         .param("projectId", "project-alpha"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.items[0].summary.exportManifestCount").value(4));
+                .andExpect(jsonPath("$.data.items[0].summary.exportManifestCount").value(7));
 
         mockMvc.perform(post("/api/v1/reports/{id}/archive", reportId)
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + ownerToken))
@@ -626,7 +682,7 @@ class ReportControllerTest {
 
         mockMvc.perform(get("/api/v1/reports/{id}/export", reportId)
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + ownerToken)
-                        .param("exportType", "HTML"))
+                        .param("exportType", "CSV"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.message").value("REPORT_EXPORT_TYPE_INVALID"));
     }

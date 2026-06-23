@@ -108,7 +108,7 @@ export interface ReportExport {
   createdAt?: string;
 }
 
-export type ReportExportType = 'JSON' | 'MARKDOWN' | 'PDF' | 'WORD';
+export type ReportExportType = 'JSON' | 'MARKDOWN' | 'HTML' | 'PDF' | 'WORD' | 'EXCEL';
 
 export interface ReportDetail extends ReportSummary {
   redactionPolicy: Record<string, unknown>;
@@ -176,6 +176,11 @@ export interface GenerateReportPayload {
   executionRunId: string;
   requestKey?: string;
   reason?: string;
+}
+
+export interface BatchReportExportPayload {
+  reportIds: string[];
+  exportType: ReportExportType;
 }
 
 export async function fetchReportingHealth(): Promise<ApiResponse<ReportingHealth>> {
@@ -270,6 +275,16 @@ export async function downloadReportExport(reportId: string, exportId: string): 
   return requestBinary(
     `${REPORTS_BASE}/${encodeURIComponent(reportId)}/exports/${encodeURIComponent(exportId)}/download`
   );
+}
+
+export async function batchExportReports(payload: BatchReportExportPayload): Promise<BinaryResponse> {
+  return requestBinary(`${REPORTS_BASE}/exports/batch`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify(payload)
+  });
 }
 
 export function normalizeReportingHealth(input: unknown): ReportingHealth {

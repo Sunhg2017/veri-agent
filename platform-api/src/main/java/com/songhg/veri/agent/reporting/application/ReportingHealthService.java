@@ -102,7 +102,7 @@ public class ReportingHealthService {
                                 "DISMISSED",
                                 "EXPORTED"
                         )),
-                        Map.entry("supportedExportTypes", List.of("JSON", "MARKDOWN"))
+                        Map.entry("supportedExportTypes", List.of("JSON", "MARKDOWN", "HTML", "PDF", "WORD", "EXCEL"))
                 )
         );
     }

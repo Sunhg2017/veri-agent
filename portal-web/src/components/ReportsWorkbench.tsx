@@ -4,8 +4,11 @@ import {
   Bug,
   CheckCircle2,
   Download,
+  FileCode,
   FileJson,
+  FileSpreadsheet,
   FileText,
+  Package,
   RefreshCw,
   Search,
   ShieldCheck,
@@ -15,6 +18,7 @@ import { useCallback, useEffect, useMemo, useState, type FormEvent, type ReactNo
 import type { CurrentUser } from '../api/auth';
 import {
   archiveReport,
+  batchExportReports,
   compareReport,
   createDefectDraft,
   diagnoseReport,
@@ -94,6 +98,7 @@ export function ReportsWorkbench(props: { signedIn: boolean; currentUser: Curren
   const [latestExport, setLatestExport] = useState<ReportExport | null>(null);
   const [compareResult, setCompareResult] = useState<ReportCompare | null>(null);
   const [baselineReportId, setBaselineReportId] = useState('');
+  const [selectedReportIds, setSelectedReportIds] = useState<string[]>([]);
   const [generateDraft, setGenerateDraft] = useState<GenerateDraft>(initialGenerateDraft);
   const [loadState, setLoadState] = useState<WorkState>({ loading: false });
   const [detailState, setDetailState] = useState<WorkState>({ loading: false });
@@ -116,6 +121,11 @@ export function ReportsWorkbench(props: { signedIn: boolean; currentUser: Curren
     return reports.filter((report) => report.id !== detail.id && report.projectId === detail.projectId);
   }, [detail, reports]);
 
+  const selectedReports = useMemo(
+    () => reports.filter((report) => selectedReportIds.includes(report.id)),
+    [reports, selectedReportIds]
+  );
+
   const refreshReports = useCallback(async () => {
     if (!props.signedIn || !canRead) {
       setHealth(null);
@@ -125,6 +135,7 @@ export function ReportsWorkbench(props: { signedIn: boolean; currentUser: Curren
       setLatestExport(null);
       setCompareResult(null);
       setBaselineReportId('');
+      setSelectedReportIds([]);
       return;
     }
     setLoadState({ loading: true });
@@ -141,6 +152,7 @@ export function ReportsWorkbench(props: { signedIn: boolean; currentUser: Curren
       setHealth(healthResult.data);
       setReports(reportResult.data.items);
       setSelectedReportId((current) => current || reportResult.data.items[0]?.id || '');
+      setSelectedReportIds((current) => current.filter((id) => reportResult.data.items.some((report) => report.id === id)));
       setLoadState({ loading: false, traceId: reportResult.trace_id });
     } catch (error: unknown) {
       setLoadState({ loading: false, error: error instanceof Error ? error.message : '加载报告失败' });
@@ -205,6 +217,7 @@ export function ReportsWorkbench(props: { signedIn: boolean; currentUser: Curren
       setCompareResult(null);
       setBaselineReportId('');
       setSelectedReportId(result.data.id);
+      setSelectedReportIds((current) => current.includes(result.data.id) ? current : [result.data.id, ...current]);
       setReports((current) => [summaryFromDetail(result.data), ...current.filter((report) => report.id !== result.data.id)]);
       setGenerateState({
         loading: false,
@@ -320,6 +333,32 @@ export function ReportsWorkbench(props: { signedIn: boolean; currentUser: Curren
     }
   }
 
+  async function onBatchExport(exportType: ReportExportType) {
+    if (!canExport || !selectedReportIds.length) {
+      return;
+    }
+    setExportState({ loading: true });
+    try {
+      const response = await batchExportReports({
+        reportIds: selectedReportIds,
+        exportType
+      });
+      const fallbackProject = selectedReports[0]?.projectId || 'reports';
+      downloadBlob(
+        response.blob,
+        response.filename || fallbackBatchExportFileName(fallbackProject, exportType),
+        response.contentType || 'application/zip'
+      );
+      setExportState({
+        loading: false,
+        success: `${selectedReportIds.length} 份 ${exportType} 报告已打包导出`,
+        traceId: response.traceId
+      });
+    } catch (error: unknown) {
+      setExportState({ loading: false, error: error instanceof Error ? error.message : '批量导出失败' });
+    }
+  }
+
   async function onDownloadLatestExport() {
     if (!detail || !latestExport?.downloadReady) return;
     setExportState({ loading: true });
@@ -362,6 +401,21 @@ export function ReportsWorkbench(props: { signedIn: boolean; currentUser: Curren
     setCompareResult(null);
     setReports((current) => current.map((report) => report.id === next.id ? summaryFromDetail(next) : report));
   }
+
+  function toggleReportSelection(reportId: string) {
+    setSelectedReportIds((current) => current.includes(reportId)
+      ? current.filter((id) => id !== reportId)
+      : [...current, reportId]);
+  }
+
+  function toggleReadySelection(checked: boolean) {
+    const readyIds = reports.filter((report) => report.status === 'READY').map((report) => report.id);
+    setSelectedReportIds(checked ? readyIds : []);
+  }
+
+  const readyReportCount = reports.filter((report) => report.status === 'READY').length;
+  const selectedReadyCount = selectedReports.filter((report) => report.status === 'READY').length;
+  const readySelectionFull = readyReportCount > 0 && selectedReadyCount === readyReportCount;
 
   return (
     <div className="reports-workbench" data-testid="reports-workbench">
@@ -439,23 +493,72 @@ export function ReportsWorkbench(props: { signedIn: boolean; currentUser: Curren
             </form>
           </Panel>
 
-          <Panel title="报告列表" desc={`当前页 ${reports.length} 条`} testId="reports-list">
+          <Panel
+            title="报告列表"
+            desc={`当前页 ${reports.length} 条`}
+            testId="reports-list"
+            action={reports.length ? (
+              <label className="field field-inline report-list-toggle">
+                <span className="field-inline-main">
+                  <input
+                    type="checkbox"
+                    checked={readySelectionFull}
+                    onChange={(event) => toggleReadySelection(event.target.checked)}
+                    disabled={loadState.loading || readyReportCount === 0}
+                  />
+                  <span>全选 READY</span>
+                </span>
+                <small>批量导出仅建议选择 READY 报告。</small>
+              </label>
+            ) : undefined}
+          >
+            {selectedReportIds.length ? (
+              <div className="report-selection-toolbar">
+                <div className="report-selection-summary">
+                  <strong>已选 {selectedReportIds.length} 条</strong>
+                  <span>{selectedReadyCount === selectedReportIds.length ? '全部为 READY，可直接批量导出。' : '包含非 READY 报告，批量导出时后端可能返回状态校验失败。'}</span>
+                </div>
+                <div className="report-actions-row compact">
+                  <button className="btn btn-secondary btn-sm" type="button" onClick={() => void onBatchExport('HTML')} disabled={!canExport || exportState.loading}>
+                    <FileCode size={15} />批量 HTML
+                  </button>
+                  <button className="btn btn-secondary btn-sm" type="button" onClick={() => void onBatchExport('EXCEL')} disabled={!canExport || exportState.loading}>
+                    <FileSpreadsheet size={15} />批量 Excel
+                  </button>
+                  <button className="btn btn-secondary btn-sm" type="button" onClick={() => void setSelectedReportIds([])} disabled={exportState.loading}>
+                    <Archive size={15} />清空选择
+                  </button>
+                </div>
+              </div>
+            ) : null}
             <div className="reports-list">
               {loadState.loading && reports.length === 0 ? (
                 <ListSkeleton />
               ) : reports.length ? (
                 reports.map((report) => (
-                  <button
+                  <div
                     key={report.id}
-                    type="button"
-                    className={`report-list-item${selectedReportId === report.id ? ' active' : ''}`}
-                    onClick={() => setSelectedReportId(report.id)}
+                    className={`report-list-item${selectedReportId === report.id ? ' active' : ''}${selectedReportIds.includes(report.id) ? ' selected' : ''}`}
                   >
-                    <span className={`badge badge-${statusTone(report.status)}`}>{report.status}</span>
-                    <strong>{shortId(report.executionRunId)}</strong>
-                    <span>{stringFrom(report.summary.runStatus, '-')} · {stringFrom(report.summary.diagnosisPrimaryCategory, 'UNKNOWN')}</span>
-                    <small>{report.generatedAt ? formatDateTime(report.generatedAt) : report.createdAt ? formatDateTime(report.createdAt) : report.id}</small>
-                  </button>
+                    <label className="report-list-selector" aria-label={`选择报告 ${report.id}`}>
+                      <input
+                        type="checkbox"
+                        checked={selectedReportIds.includes(report.id)}
+                        onChange={() => toggleReportSelection(report.id)}
+                        disabled={loadState.loading}
+                      />
+                    </label>
+                    <button
+                      type="button"
+                      className="report-list-button"
+                      onClick={() => setSelectedReportId(report.id)}
+                    >
+                      <span className={`badge badge-${statusTone(report.status)}`}>{report.status}</span>
+                      <strong>{shortId(report.executionRunId)}</strong>
+                      <span>{stringFrom(report.summary.runStatus, '-')} · {stringFrom(report.summary.diagnosisPrimaryCategory, 'UNKNOWN')}</span>
+                      <small>{report.generatedAt ? formatDateTime(report.generatedAt) : report.createdAt ? formatDateTime(report.createdAt) : report.id}</small>
+                    </button>
+                  </div>
                 ))
               ) : (
                 <div className="empty-state">
@@ -818,7 +921,7 @@ function ExportPanel(props: {
   return (
     <Panel
       title="导出报告"
-      desc="导出 aggregate-only 脱敏报告，支持 JSON、Markdown、PDF 和 Word。"
+      desc="导出 aggregate-only 脱敏报告，支持 JSON、Markdown、HTML、PDF、Word 和 Excel。"
       testId="report-export-panel"
       action={(
         <div className="report-actions-row compact">
@@ -828,15 +931,21 @@ function ExportPanel(props: {
           <button className="btn btn-secondary btn-sm" type="button" onClick={() => props.onExport('MARKDOWN')} disabled={!props.canExport || props.state.loading || props.detail.status !== 'READY'}>
             <FileText size={15} />导出 Markdown
           </button>
+          <button className="btn btn-secondary btn-sm" type="button" onClick={() => props.onExport('HTML')} disabled={!props.canExport || props.state.loading || props.detail.status !== 'READY'}>
+            <FileCode size={15} />导出 HTML
+          </button>
           <button className="btn btn-secondary btn-sm" type="button" onClick={() => props.onExport('PDF')} disabled={!props.canExport || props.state.loading || props.detail.status !== 'READY'}>
             <Download size={15} />导出 PDF
           </button>
           <button className="btn btn-secondary btn-sm" type="button" onClick={() => props.onExport('WORD')} disabled={!props.canExport || props.state.loading || props.detail.status !== 'READY'}>
             <FileText size={15} />导出 Word
           </button>
+          <button className="btn btn-secondary btn-sm" type="button" onClick={() => props.onExport('EXCEL')} disabled={!props.canExport || props.state.loading || props.detail.status !== 'READY'}>
+            <FileSpreadsheet size={15} />导出 Excel
+          </button>
           {props.latestExport?.downloadReady ? (
             <button className="btn btn-secondary btn-sm" type="button" onClick={props.onDownloadExport} disabled={!props.canExport || props.state.loading}>
-              <Download size={15} />下载文件
+              <Package size={15} />下载文件
             </button>
           ) : null}
         </div>
@@ -1104,10 +1213,19 @@ function downloadBlob(blob: Blob, filename: string, contentType: string) {
 function fallbackExportFileName(reportId: string, exportType: string) {
   const suffix = exportType === 'MARKDOWN'
     ? 'md'
+    : exportType === 'HTML'
+      ? 'html'
     : exportType === 'PDF'
       ? 'pdf'
       : exportType === 'WORD'
         ? 'docx'
+        : exportType === 'EXCEL'
+          ? 'xlsx'
         : 'json';
   return `report-${reportId}.${suffix}`;
+}
+
+function fallbackBatchExportFileName(projectId: string, exportType: string) {
+  const normalizedProjectId = projectId.trim().replace(/[^A-Za-z0-9_.-]+/g, '-').replace(/^-+|-+$/g, '') || 'reports';
+  return `report-batch-${normalizedProjectId}-${exportType.toLowerCase()}.zip`;
 }

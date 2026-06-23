@@ -99,6 +99,10 @@ class ReportingHealthControllerTest {
                 .andExpect(jsonPath("$.data.policy.supportedReportStatuses[2]").value("READY"))
                 .andExpect(jsonPath("$.data.policy.supportedDiagnosisStatuses[3]").value("AI_READY"))
                 .andExpect(jsonPath("$.data.policy.supportedDefectDraftStatuses[0]").value("DRAFT"))
-                .andExpect(jsonPath("$.data.policy.supportedExportTypes[1]").value("MARKDOWN"));
+                .andExpect(jsonPath("$.data.policy.supportedExportTypes[1]").value("MARKDOWN"))
+                .andExpect(jsonPath("$.data.policy.supportedExportTypes[2]").value("HTML"))
+                .andExpect(jsonPath("$.data.policy.supportedExportTypes[3]").value("PDF"))
+                .andExpect(jsonPath("$.data.policy.supportedExportTypes[4]").value("WORD"))
+                .andExpect(jsonPath("$.data.policy.supportedExportTypes[5]").value("EXCEL"));
     }
 }

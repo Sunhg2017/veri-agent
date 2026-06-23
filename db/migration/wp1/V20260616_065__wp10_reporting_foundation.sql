@@ -124,7 +124,7 @@ create table if not exists report_export_manifest (
     exported_at timestamptz,
     block_reason varchar(512),
     created_at timestamptz not null default now(),
-    constraint ck_report_export_manifest_type check (export_type in ('JSON','MARKDOWN')),
+    constraint ck_report_export_manifest_type check (export_type in ('JSON','MARKDOWN','HTML','PDF','WORD','EXCEL')),
     constraint ck_report_export_manifest_status check (status in ('CREATED','BLOCKED')),
     constraint ck_report_export_manifest_digest check (
         content_digest is null
@@ -357,7 +357,7 @@ comment on column report_defect_draft.updated_at is 'Draft update timestamp.';
 comment on table report_export_manifest is 'WP10 report export manifest and redaction evidence.';
 comment on column report_export_manifest.id is 'Export manifest ID.';
 comment on column report_export_manifest.report_id is 'Owning report ID.';
-comment on column report_export_manifest.export_type is 'Export type JSON or MARKDOWN.';
+comment on column report_export_manifest.export_type is 'Export type JSON, MARKDOWN, HTML, PDF, WORD or EXCEL.';
 comment on column report_export_manifest.status is 'Export manifest status.';
 comment on column report_export_manifest.schema_version is 'Export schema version.';
 comment on column report_export_manifest.field_set_version is 'Export field-set version.';

@@ -2396,12 +2396,30 @@ class DbProfileRepositoryContractTest {
                 "REPORT_EXPORT_REDACTION_BLOCKED",
                 now.plusSeconds(1)
         );
+        ReportExportManifest htmlManifest = exportManifest(
+                reportId,
+                "HTML",
+                "CREATED",
+                "e".repeat(64),
+                null,
+                now.plusSeconds(2)
+        );
+        ReportExportManifest excelManifest = exportManifest(
+                reportId,
+                "EXCEL",
+                "CREATED",
+                "f".repeat(64),
+                null,
+                now.plusSeconds(3)
+        );
 
         assertThat(reportingRepository.insertReportIfAbsent(report)).isTrue();
         reportingRepository.insertExportManifest(jsonManifest);
         reportingRepository.insertExportManifest(markdownManifest);
+        reportingRepository.insertExportManifest(htmlManifest);
+        reportingRepository.insertExportManifest(excelManifest);
 
-        assertThat(reportingRepository.countExportManifests(reportId)).isEqualTo(2L);
+        assertThat(reportingRepository.countExportManifests(reportId)).isEqualTo(4L);
         assertThat(reportingRepository.latestExportManifest(reportId, "MARKDOWN"))
                 .get()
                 .satisfies(manifest -> {
@@ -2414,6 +2432,14 @@ class DbProfileRepositoryContractTest {
                             .contains("\"aggregateOnly\": true")
                             .contains("\"contentStored\": false");
                     assertThat(manifest.blockReason()).isEqualTo("REPORT_EXPORT_REDACTION_BLOCKED");
+                });
+        assertThat(reportingRepository.latestExportManifest(reportId, "EXCEL"))
+                .get()
+                .satisfies(manifest -> {
+                    assertThat(manifest.id()).isEqualTo(excelManifest.id());
+                    assertThat(manifest.exportType()).isEqualTo("EXCEL");
+                    assertThat(manifest.status()).isEqualTo("CREATED");
+                    assertThat(manifest.contentDigest()).isEqualTo("f".repeat(64));
                 });
     }
 

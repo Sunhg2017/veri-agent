@@ -60,8 +60,10 @@ public class ReportExportFileStorage {
     private String fileName(ReportExportManifest manifest) {
         String suffix = switch (normalizedType(manifest.exportType())) {
             case "MARKDOWN" -> ".md";
+            case "HTML" -> ".html";
             case "PDF" -> ".pdf";
             case "WORD" -> ".docx";
+            case "EXCEL" -> ".xlsx";
             default -> ".json";
         };
         return "export-" + manifest.id() + suffix;
@@ -70,8 +72,10 @@ public class ReportExportFileStorage {
     private String contentType(String exportType) {
         return switch (normalizedType(exportType)) {
             case "MARKDOWN" -> "text/markdown;charset=UTF-8";
+            case "HTML" -> "text/html;charset=UTF-8";
             case "PDF" -> "application/pdf";
             case "WORD" -> "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+            case "EXCEL" -> "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
             default -> "application/json;charset=UTF-8";
         };
     }

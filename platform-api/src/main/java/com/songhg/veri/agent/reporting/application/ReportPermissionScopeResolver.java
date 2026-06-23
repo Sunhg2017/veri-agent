@@ -1,6 +1,7 @@
 package com.songhg.veri.agent.reporting.application;
 
 import com.songhg.veri.agent.authorization.application.ResourceScope;
+import com.songhg.veri.agent.reporting.application.command.BatchReportExportCommand;
 import com.songhg.veri.agent.execution.application.ExecutionRunService;
 import com.songhg.veri.agent.reporting.application.command.GenerateReportCommand;
 import com.songhg.veri.agent.reporting.application.query.ReportPageRequest;
@@ -55,6 +56,18 @@ public class ReportPermissionScopeResolver {
         }
         if (baselineReportId != null) {
             scopes.add(report(baselineReportId));
+        }
+        return scopes.isEmpty() ? List.of(ResourceScope.platform()) : List.copyOf(scopes);
+    }
+
+    public List<ResourceScope> reportBatchExport(BatchReportExportCommand command) {
+        List<ResourceScope> scopes = new ArrayList<>();
+        if (command != null && command.reportIds() != null) {
+            for (UUID reportId : command.reportIds()) {
+                if (reportId != null) {
+                    scopes.add(report(reportId));
+                }
+            }
         }
         return scopes.isEmpty() ? List.of(ResourceScope.platform()) : List.copyOf(scopes);
     }

@@ -10,6 +10,7 @@ import com.songhg.veri.agent.reporting.application.ReportDefectDraftService;
 import com.songhg.veri.agent.reporting.application.ReportExportService;
 import com.songhg.veri.agent.reporting.application.ReportCompareService;
 import com.songhg.veri.agent.reporting.application.ReportService;
+import com.songhg.veri.agent.reporting.application.command.BatchReportExportCommand;
 import com.songhg.veri.agent.reporting.application.command.GenerateReportCommand;
 import com.songhg.veri.agent.reporting.application.command.ReviewDefectDraftCommand;
 import com.songhg.veri.agent.reporting.application.query.ReportPageRequest;
@@ -149,6 +150,24 @@ public class ReportController {
             @PathVariable UUID exportId
     ) {
         ReportExportService.DownloadableExport export = exportService.downloadExport(id, exportId);
+        return ResponseEntity.ok()
+                .contentType(MediaType.parseMediaType(export.contentType()))
+                .header(
+                        HttpHeaders.CONTENT_DISPOSITION,
+                        ContentDisposition.attachment()
+                                .filename(export.fileName(), StandardCharsets.UTF_8)
+                                .build()
+                                .toString()
+                )
+                .body(export.content());
+    }
+
+    @PostMapping("/exports/batch")
+    @RequirePermission(value = PermissionCodes.REPORT_EXPORT, scope = ReportPermissionScopes.REPORT_BATCH_EXPORT)
+    public ResponseEntity<byte[]> batchDownloadExports(
+            @Valid @RequestBody BatchReportExportCommand command
+    ) {
+        ReportExportService.BatchDownloadableExport export = exportService.batchDownloadExports(command);
         return ResponseEntity.ok()
                 .contentType(MediaType.parseMediaType(export.contentType()))
                 .header(

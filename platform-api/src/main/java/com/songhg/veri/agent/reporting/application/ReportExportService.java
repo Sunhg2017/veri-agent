@@ -5,6 +5,7 @@ import com.songhg.veri.agent.common.error.BusinessException;
 import com.songhg.veri.agent.common.error.ErrorCode;
 import com.songhg.veri.agent.common.trace.TraceContext;
 import com.songhg.veri.agent.common.util.SensitiveTextSanitizer;
+import com.songhg.veri.agent.reporting.application.command.BatchReportExportCommand;
 import com.songhg.veri.agent.reporting.application.port.ReportingRepository;
 import com.songhg.veri.agent.reporting.application.view.ReportExportResponse;
 import com.songhg.veri.agent.reporting.config.ReportingProperties;
@@ -12,8 +13,9 @@ import com.songhg.veri.agent.reporting.domain.ReportEvidenceManifest;
 import com.songhg.veri.agent.reporting.domain.ReportExecutionReport;
 import com.songhg.veri.agent.reporting.domain.ReportExportManifest;
 import com.songhg.veri.agent.reporting.domain.ReportFailureDiagnosis;
-import java.nio.charset.StandardCharsets;
 import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -23,6 +25,8 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.regex.Pattern;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipOutputStream;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -30,7 +34,7 @@ import org.springframework.util.StringUtils;
 @Service
 public class ReportExportService {
 
-    private static final SetLike EXPORT_TYPES = new SetLike("JSON", "MARKDOWN", "PDF", "WORD");
+    private static final SetLike EXPORT_TYPES = new SetLike("JSON", "MARKDOWN", "HTML", "PDF", "WORD", "EXCEL");
     private static final Pattern UNSAFE_EXPORT_KEY_PATTERN = Pattern.compile(
             "(?i).*(authorization|cookie|password|passwd|secret|token|credential|payload|raw|prompt|response"
                     + "|stdout|stderr).*"
@@ -82,53 +86,8 @@ public class ReportExportService {
         if (!"READY".equals(report.status())) {
             throw new BusinessException(ErrorCode.INVALID_STATE, "REPORT_INVALID_STATE");
         }
-        List<ReportEvidenceManifest> evidenceManifests = repository.evidenceManifests(report.id());
-        Optional<ReportFailureDiagnosis> latestDiagnosis = repository.latestFailureDiagnosis(report.id());
-        List<Map<String, Object>> defectDrafts = repository.defectDrafts(report.id()).stream()
-                .map(this::defectDraftSnapshot)
-                .toList();
-        Map<String, Object> exportContent = exportContent(
-                report,
-                evidenceManifests,
-                latestDiagnosis,
-                defectDrafts,
-                normalizedType
-        );
-        RenderedReportExport renderedExport = renderedExport(exportContent, normalizedType);
-        Object renderedContent = renderedExport.responseContent();
-        Map<String, Object> redactionPolicy = exportRedactionPolicy(normalizedType, renderedContent);
-        Instant now = Instant.now();
-        String serializedContent = renderedExport.textForDigestAndScan();
-        if (FORBIDDEN_EXPORT_TEXT_PATTERN.matcher(serializedContent).find()) {
-            return blockedExport(report, normalizedType, redactionPolicy, now);
-        }
-        String contentDigest = SensitiveTextSanitizer.sha256Hex(serializedContent);
-        ReportExportManifest manifest = manifest(
-                report,
-                normalizedType,
-                "CREATED",
-                redactionPolicy,
-                contentDigest,
-                null,
-                now
-        );
-        ReportExportFileStorage.StoredExport storedExport = storeExportFile(manifest, renderedExport.fileContent());
-        repository.insertExportManifest(manifest);
-        repository.updateReport(withExportManifestCount(report, repository.countExportManifests(report.id())));
-        audit(report, "report.exported", "SUCCESS", Map.of(
-                "exportType", normalizedType,
-                "contentDigest", contentDigest,
-                "fieldSetVersion", manifest.fieldSetVersion(),
-                "aggregateOnly", true,
-                "downloadReady", true
-        ));
-        return response(
-                manifest,
-                redactionPolicy,
-                exportResponseManifest(manifest, redactionPolicy),
-                storedExport,
-                renderedContent
-        );
+        BuiltExport built = buildExport(report, normalizedType);
+        return toResponse(report, built, true);
     }
 
     private ReportExportResponse blockedExport(
@@ -188,6 +147,60 @@ public class ReportExportService {
             );
         } catch (IOException exception) {
             throw new BusinessException(ErrorCode.NOT_FOUND, "REPORT_EXPORT_DOWNLOAD_NOT_READY");
+        }
+    }
+
+    @Transactional(noRollbackFor = BusinessException.class)
+    public BatchDownloadableExport batchDownloadExports(BatchReportExportCommand command) {
+        requireExportEnabled();
+        if (command == null || command.reportIds() == null || command.reportIds().isEmpty()) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "REPORT_BATCH_EXPORT_EMPTY");
+        }
+        String normalizedType = normalizeExportType(command.exportType());
+        Instant now = Instant.now();
+        try (java.io.ByteArrayOutputStream output = new java.io.ByteArrayOutputStream();
+             ZipOutputStream zip = new ZipOutputStream(output, StandardCharsets.UTF_8)) {
+            List<Map<String, Object>> manifestRows = new ArrayList<>();
+            int completed = 0;
+            int blocked = 0;
+            for (UUID reportId : command.reportIds()) {
+                ReportExecutionReport report = requireReport(reportId);
+                if (!"READY".equals(report.status())) {
+                    throw new BusinessException(ErrorCode.INVALID_STATE, "REPORT_INVALID_STATE");
+                }
+                BuiltExport built = buildExport(report, normalizedType);
+                toResponse(report, built, true);
+                if ("CREATED".equals(built.manifest().status())) {
+                    addZipEntry(zip, built.storedExport().fileName(), built.renderedExport().fileContent());
+                    completed++;
+                } else {
+                    blocked++;
+                }
+                manifestRows.add(batchManifestRow(report, built));
+            }
+            addZipEntry(
+                    zip,
+                    "batch-export-summary.json",
+                    jsonSupport.json(Map.of(
+                            "schemaVersion", properties.effectiveSchemaVersion(),
+                            "fieldSetVersion", properties.effectiveFieldSetVersion(),
+                            "exportType", normalizedType,
+                            "requestedAt", now.toString(),
+                            "requestedCount", command.reportIds().size(),
+                            "completedCount", completed,
+                            "blockedCount", blocked,
+                            "items", manifestRows
+                    )).getBytes(StandardCharsets.UTF_8)
+            );
+            zip.finish();
+            return new BatchDownloadableExport(
+                    normalizedType,
+                    batchFileName(normalizedType, now),
+                    "application/zip",
+                    output.toByteArray()
+            );
+        } catch (IOException exception) {
+            throw new BusinessException(ErrorCode.INTERNAL_ERROR, "REPORT_BATCH_EXPORT_FAILED");
         }
     }
 
@@ -366,6 +379,14 @@ public class ReportExportService {
                         markdown
                 );
             }
+            case "HTML" -> {
+                String html = documentRenderer.renderHtml(exportContent);
+                yield new RenderedReportExport(
+                        html,
+                        html.getBytes(StandardCharsets.UTF_8),
+                        html
+                );
+            }
             case "PDF" -> {
                 byte[] pdf = documentRenderer.renderPdf(exportContent);
                 yield new RenderedReportExport(
@@ -379,6 +400,14 @@ public class ReportExportService {
                 yield new RenderedReportExport(
                         null,
                         word,
+                        markdownContent(exportContent)
+                );
+            }
+            case "EXCEL" -> {
+                byte[] workbook = documentRenderer.renderExcel(exportContent);
+                yield new RenderedReportExport(
+                        null,
+                        workbook,
                         markdownContent(exportContent)
                 );
             }
@@ -539,6 +568,93 @@ public class ReportExportService {
         );
     }
 
+    private BuiltExport buildExport(ReportExecutionReport report, String exportType) {
+        List<ReportEvidenceManifest> evidenceManifests = repository.evidenceManifests(report.id());
+        Optional<ReportFailureDiagnosis> latestDiagnosis = repository.latestFailureDiagnosis(report.id());
+        List<Map<String, Object>> defectDrafts = repository.defectDrafts(report.id()).stream()
+                .map(this::defectDraftSnapshot)
+                .toList();
+        Map<String, Object> exportContent = exportContent(
+                report,
+                evidenceManifests,
+                latestDiagnosis,
+                defectDrafts,
+                exportType
+        );
+        RenderedReportExport renderedExport = renderedExport(exportContent, exportType);
+        Object renderedContent = renderedExport.responseContent();
+        Map<String, Object> redactionPolicy = exportRedactionPolicy(exportType, renderedContent);
+        Instant now = Instant.now();
+        String serializedContent = renderedExport.textForDigestAndScan();
+        if (FORBIDDEN_EXPORT_TEXT_PATTERN.matcher(serializedContent).find()) {
+            return new BuiltExport(
+                    blockedManifest(report, exportType, redactionPolicy, now),
+                    redactionPolicy,
+                    renderedExport,
+                    null,
+                    null
+            );
+        }
+        String contentDigest = SensitiveTextSanitizer.sha256Hex(serializedContent);
+        ReportExportManifest manifest = manifest(
+                report,
+                exportType,
+                "CREATED",
+                redactionPolicy,
+                contentDigest,
+                null,
+                now
+        );
+        ReportExportFileStorage.StoredExport storedExport = storeExportFile(manifest, renderedExport.fileContent());
+        return new BuiltExport(manifest, redactionPolicy, renderedExport, storedExport, renderedContent);
+    }
+
+    private ReportExportResponse toResponse(ReportExecutionReport report, BuiltExport built, boolean persistManifestCount) {
+        repository.insertExportManifest(built.manifest());
+        if (persistManifestCount) {
+            repository.updateReport(withExportManifestCount(report, repository.countExportManifests(report.id())));
+        }
+        if ("CREATED".equals(built.manifest().status())) {
+            audit(report, "report.exported", "SUCCESS", Map.of(
+                    "exportType", built.manifest().exportType(),
+                    "contentDigest", built.manifest().contentDigest(),
+                    "fieldSetVersion", built.manifest().fieldSetVersion(),
+                    "aggregateOnly", true,
+                    "downloadReady", true
+            ));
+        } else {
+            audit(report, "report.export.blocked", "BLOCKED", Map.of(
+                    "exportType", built.manifest().exportType(),
+                    "blockedReason", built.manifest().blockReason(),
+                    "matchedPolicyCode", "WP10_EXPORT_FORBIDDEN_TEXT"
+            ));
+        }
+        return response(
+                built.manifest(),
+                built.redactionPolicy(),
+                exportResponseManifest(built.manifest(), built.redactionPolicy()),
+                built.storedExport(),
+                built.responseContent()
+        );
+    }
+
+    private ReportExportManifest blockedManifest(
+            ReportExecutionReport report,
+            String exportType,
+            Map<String, Object> redactionPolicy,
+            Instant now
+    ) {
+        return manifest(
+                report,
+                exportType,
+                "BLOCKED",
+                redactionPolicy,
+                null,
+                "REPORT_EXPORT_REDACTION_BLOCKED",
+                now
+        );
+    }
+
     private ReportExportFileStorage.StoredExport storeExportFile(
             ReportExportManifest manifest,
             byte[] content
@@ -619,6 +735,33 @@ public class ReportExportService {
         );
     }
 
+    private Map<String, Object> batchManifestRow(ReportExecutionReport report, BuiltExport built) {
+        Map<String, Object> row = new LinkedHashMap<>();
+        row.put("reportId", report.id());
+        row.put("projectId", report.projectId());
+        row.put("executionRunId", report.executionRunId());
+        row.put("exportId", built.manifest().id());
+        row.put("exportType", built.manifest().exportType());
+        row.put("status", built.manifest().status());
+        row.put("contentDigest", built.manifest().contentDigest());
+        row.put("blockReason", built.manifest().blockReason());
+        row.put("downloadFileName", built.storedExport() == null ? null : built.storedExport().fileName());
+        row.put("redactionPolicy", built.redactionPolicy());
+        return row;
+    }
+
+    private void addZipEntry(ZipOutputStream zip, String name, byte[] content) throws IOException {
+        ZipEntry entry = new ZipEntry(name);
+        zip.putNextEntry(entry);
+        zip.write(content == null ? new byte[0] : content);
+        zip.closeEntry();
+    }
+
+    private String batchFileName(String exportType, Instant now) {
+        String safeTimestamp = now.toString().replace(":", "-");
+        return "wp10-report-batch-" + exportType.toLowerCase(Locale.ROOT) + "-" + safeTimestamp + ".zip";
+    }
+
     private record SetLike(String... values) {
 
         private boolean contains(String value) {
@@ -638,6 +781,23 @@ public class ReportExportService {
             String fileName,
             String contentType,
             byte[] content
+    ) {
+    }
+
+    public record BatchDownloadableExport(
+            String exportType,
+            String fileName,
+            String contentType,
+            byte[] content
+    ) {
+    }
+
+    private record BuiltExport(
+            ReportExportManifest manifest,
+            Map<String, Object> redactionPolicy,
+            RenderedReportExport renderedExport,
+            ReportExportFileStorage.StoredExport storedExport,
+            Object responseContent
     ) {
     }
 }

@@ -33,7 +33,7 @@ public record ReportingProperties(
         @DefaultValue("true") boolean diagnosisEnabled,
         /** Allows platform-local defect draft creation. */
         @DefaultValue("true") boolean defectDraftEnabled,
-        /** Allows sanitized JSON/Markdown summary export. */
+        /** Allows sanitized JSON, Markdown, HTML, PDF, Word and Excel export. */
         @DefaultValue("true") boolean exportEnabled,
         /** Enables aggregate-only outbound report completion webhook delivery. */
         @DefaultValue("false") boolean webhookDeliveryEnabled,

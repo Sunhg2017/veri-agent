@@ -4,6 +4,7 @@ import com.songhg.veri.agent.common.util.SensitiveTextSanitizer;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -23,11 +24,21 @@ import org.apache.poi.xwpf.usermodel.ParagraphAlignment;
 import org.apache.poi.xwpf.usermodel.XWPFDocument;
 import org.apache.poi.xwpf.usermodel.XWPFParagraph;
 import org.apache.poi.xwpf.usermodel.XWPFRun;
+import org.apache.poi.ss.usermodel.BorderStyle;
+import org.apache.poi.ss.usermodel.Cell;
+import org.apache.poi.ss.usermodel.CellStyle;
+import org.apache.poi.ss.usermodel.FillPatternType;
+import org.apache.poi.ss.usermodel.HorizontalAlignment;
+import org.apache.poi.ss.usermodel.IndexedColors;
+import org.apache.poi.ss.usermodel.Sheet;
+import org.apache.poi.ss.usermodel.VerticalAlignment;
+import org.apache.poi.xssf.usermodel.XSSFFont;
+import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
 /**
- * Renders aggregate-only report snapshots into downloadable Word/PDF files.
+ * Renders aggregate-only report snapshots into downloadable HTML, Excel, Word and PDF files.
  *
  * <p>The renderer only consumes already-sanitized export content assembled by WP10. It never loads raw runner
  * artifacts, source evidence bodies, credentials, prompt/response bodies, or external files beyond an optional local
@@ -78,6 +89,65 @@ public class ReportDocumentRenderer {
         } catch (IOException exception) {
             throw new IllegalStateException("Failed to render PDF report export", exception);
         }
+    }
+
+    public byte[] renderExcel(Map<String, Object> exportContent) {
+        try (XSSFWorkbook workbook = new XSSFWorkbook();
+             ByteArrayOutputStream output = new ByteArrayOutputStream()) {
+            CellStyle headerStyle = excelHeaderStyle(workbook);
+            CellStyle valueStyle = excelValueStyle(workbook);
+            CellStyle wrappedStyle = excelWrappedStyle(workbook);
+
+            writeSummarySheet(workbook.createSheet("Summary"), exportContent, headerStyle, valueStyle);
+            writeEvidenceSheet(workbook.createSheet("Evidence"), exportContent, headerStyle, wrappedStyle);
+            writeDiagnosisSheet(workbook.createSheet("Diagnosis"), exportContent, headerStyle, wrappedStyle);
+            writeDefectDraftSheet(workbook.createSheet("DefectDrafts"), exportContent, headerStyle, wrappedStyle);
+            writePolicySheet(workbook.createSheet("RedactionPolicy"), exportContent, headerStyle, valueStyle);
+
+            workbook.write(output);
+            return output.toByteArray();
+        } catch (IOException exception) {
+            throw new IllegalStateException("Failed to render Excel report export", exception);
+        }
+    }
+
+    public String renderHtml(Map<String, Object> exportContent) {
+        StringBuilder builder = new StringBuilder();
+        builder.append("<!doctype html><html lang=\"zh-CN\"><head><meta charset=\"UTF-8\">")
+                .append("<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">")
+                .append("<title>WP10 Complete Report</title>")
+                .append("<style>")
+                .append("body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;margin:24px;background:#f5f7fb;color:#172033;}")
+                .append("h1,h2{margin:0 0 12px;}h2{margin-top:24px;font-size:18px;}")
+                .append(".meta,.card-grid{display:grid;gap:12px;}")
+                .append(".meta{grid-template-columns:repeat(auto-fit,minmax(220px,1fr));}")
+                .append(".card-grid{grid-template-columns:repeat(auto-fit,minmax(280px,1fr));}")
+                .append(".card{background:#fff;border:1px solid #d7deea;border-radius:8px;padding:14px;}")
+                .append(".label{display:block;font-size:12px;color:#5e6a84;margin-bottom:4px;}")
+                .append(".value{font-size:14px;font-weight:600;word-break:break-word;}")
+                .append("table{width:100%;border-collapse:collapse;background:#fff;border:1px solid #d7deea;border-radius:8px;overflow:hidden;}")
+                .append("th,td{padding:10px 12px;border-bottom:1px solid #e5eaf3;text-align:left;vertical-align:top;font-size:13px;word-break:break-word;}")
+                .append("th{background:#eef3fb;font-weight:700;color:#22304b;}tr:last-child td{border-bottom:0;}")
+                .append("ul{margin:0;padding-left:20px;}code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;}")
+                .append("</style></head><body>");
+        builder.append("<h1>WP10 Complete Report</h1>");
+        appendHtmlMeta(builder, "Report ID", mapValue(exportContent.get("report")).get("id"));
+        appendHtmlMeta(builder, "Project", mapValue(exportContent.get("report")).get("projectId"));
+        appendHtmlMeta(builder, "Execution Run", mapValue(exportContent.get("report")).get("executionRunId"));
+        appendHtmlMeta(builder, "Status", mapValue(exportContent.get("report")).get("status"));
+        appendHtmlMeta(builder, "Run Status", mapValue(exportContent.get("summary")).get("runStatus"));
+        appendHtmlMeta(builder, "Generated At", exportContent.get("exportedAt"));
+        appendHtmlMeta(builder, "Evidence Count", mapValue(exportContent.get("summary")).get("evidenceManifestCount"));
+        appendHtmlMeta(builder, "Diagnosis Status", mapValue(exportContent.get("latestDiagnosis")).get("status"));
+        builder.append("</div>");
+        appendHtmlKeyValueSection(builder, "Report", reportLines(exportContent));
+        appendHtmlTableSection(builder, "Evidence Manifests", List.of("Source WP", "Source Type", "Source Ref Digest", "Summary Keys", "Evidence Summary"),
+                evidenceRows(exportContent));
+        appendHtmlTableSection(builder, "Latest Diagnosis", List.of("Field", "Value"), twoColumnRows(diagnosisLines(exportContent)));
+        appendHtmlTableSection(builder, "Defect Drafts", List.of("Field", "Value"), twoColumnRows(defectDraftLines(exportContent)));
+        appendHtmlTableSection(builder, "Redaction Policy", List.of("Field", "Value"), twoColumnRows(redactionPolicyLines(exportContent)));
+        builder.append("</body></html>");
+        return builder.toString();
     }
 
     /**
@@ -437,5 +507,240 @@ public class ReportDocumentRenderer {
             builder.append(current <= 0x00FF ? current : '?');
         }
         return builder.toString();
+    }
+
+    private void writeSummarySheet(
+            Sheet sheet,
+            Map<String, Object> exportContent,
+            CellStyle headerStyle,
+            CellStyle valueStyle
+    ) {
+        int rowIndex = 0;
+        for (String line : summaryLines(exportContent)) {
+            rowIndex = writeKeyValueRow(sheet, rowIndex, splitLine(line), headerStyle, valueStyle);
+        }
+        rowIndex++;
+        for (String line : reportLines(exportContent)) {
+            writeKeyValueRow(sheet, rowIndex++, splitLine(line), headerStyle, valueStyle);
+        }
+        autoSize(sheet, 2);
+    }
+
+    private void writeEvidenceSheet(
+            Sheet sheet,
+            Map<String, Object> exportContent,
+            CellStyle headerStyle,
+            CellStyle wrappedStyle
+    ) {
+        writeHeaderRow(sheet, 0, headerStyle, "Source WP", "Source Type", "Source Ref Digest", "Summary Keys", "Evidence Summary");
+        int rowIndex = 1;
+        for (List<String> row : evidenceRows(exportContent)) {
+            writeRow(sheet, rowIndex++, wrappedStyle, row.toArray(String[]::new));
+        }
+        autoSize(sheet, 5);
+    }
+
+    private void writeDiagnosisSheet(
+            Sheet sheet,
+            Map<String, Object> exportContent,
+            CellStyle headerStyle,
+            CellStyle wrappedStyle
+    ) {
+        writeHeaderRow(sheet, 0, headerStyle, "Field", "Value");
+        int rowIndex = 1;
+        for (List<String> row : twoColumnRows(diagnosisLines(exportContent))) {
+            writeRow(sheet, rowIndex++, wrappedStyle, row.toArray(String[]::new));
+        }
+        autoSize(sheet, 2);
+    }
+
+    private void writeDefectDraftSheet(
+            Sheet sheet,
+            Map<String, Object> exportContent,
+            CellStyle headerStyle,
+            CellStyle wrappedStyle
+    ) {
+        writeHeaderRow(sheet, 0, headerStyle, "Field", "Value");
+        int rowIndex = 1;
+        for (List<String> row : twoColumnRows(defectDraftLines(exportContent))) {
+            writeRow(sheet, rowIndex++, wrappedStyle, row.toArray(String[]::new));
+        }
+        autoSize(sheet, 2);
+    }
+
+    private void writePolicySheet(
+            Sheet sheet,
+            Map<String, Object> exportContent,
+            CellStyle headerStyle,
+            CellStyle valueStyle
+    ) {
+        writeHeaderRow(sheet, 0, headerStyle, "Field", "Value");
+        int rowIndex = 1;
+        for (List<String> row : twoColumnRows(redactionPolicyLines(exportContent))) {
+            writeRow(sheet, rowIndex++, valueStyle, row.toArray(String[]::new));
+        }
+        autoSize(sheet, 2);
+    }
+
+    private int writeKeyValueRow(
+            Sheet sheet,
+            int rowIndex,
+            String[] values,
+            CellStyle headerStyle,
+            CellStyle valueStyle
+    ) {
+        org.apache.poi.ss.usermodel.Row row = sheet.createRow(rowIndex);
+        Cell left = row.createCell(0);
+        left.setCellStyle(headerStyle);
+        left.setCellValue(values[0]);
+        Cell right = row.createCell(1);
+        right.setCellStyle(valueStyle);
+        right.setCellValue(values[1]);
+        return rowIndex + 1;
+    }
+
+    private void writeHeaderRow(Sheet sheet, int rowIndex, CellStyle style, String... labels) {
+        writeRow(sheet, rowIndex, style, labels);
+    }
+
+    private void writeRow(Sheet sheet, int rowIndex, CellStyle style, String... values) {
+        org.apache.poi.ss.usermodel.Row row = sheet.createRow(rowIndex);
+        for (int index = 0; index < values.length; index++) {
+            Cell cell = row.createCell(index);
+            cell.setCellStyle(style);
+            cell.setCellValue(values[index]);
+        }
+    }
+
+    private void autoSize(Sheet sheet, int columns) {
+        for (int index = 0; index < columns; index++) {
+            sheet.autoSizeColumn(index);
+            int currentWidth = sheet.getColumnWidth(index);
+            sheet.setColumnWidth(index, Math.min(currentWidth + 512, 40 * 256));
+        }
+        sheet.createFreezePane(0, 1);
+    }
+
+    private CellStyle excelHeaderStyle(XSSFWorkbook workbook) {
+        CellStyle style = workbook.createCellStyle();
+        style.setFillForegroundColor(IndexedColors.GREY_25_PERCENT.getIndex());
+        style.setFillPattern(FillPatternType.SOLID_FOREGROUND);
+        style.setBorderBottom(BorderStyle.THIN);
+        style.setBorderTop(BorderStyle.THIN);
+        style.setBorderLeft(BorderStyle.THIN);
+        style.setBorderRight(BorderStyle.THIN);
+        style.setAlignment(HorizontalAlignment.LEFT);
+        style.setVerticalAlignment(VerticalAlignment.CENTER);
+        XSSFFont font = workbook.createFont();
+        font.setBold(true);
+        style.setFont(font);
+        return style;
+    }
+
+    private CellStyle excelValueStyle(XSSFWorkbook workbook) {
+        CellStyle style = workbook.createCellStyle();
+        style.setBorderBottom(BorderStyle.THIN);
+        style.setBorderTop(BorderStyle.THIN);
+        style.setBorderLeft(BorderStyle.THIN);
+        style.setBorderRight(BorderStyle.THIN);
+        style.setAlignment(HorizontalAlignment.LEFT);
+        style.setVerticalAlignment(VerticalAlignment.TOP);
+        return style;
+    }
+
+    private CellStyle excelWrappedStyle(XSSFWorkbook workbook) {
+        CellStyle style = excelValueStyle(workbook);
+        style.setWrapText(true);
+        return style;
+    }
+
+    private List<List<String>> evidenceRows(Map<String, Object> exportContent) {
+        Object evidence = exportContent.get("evidenceManifests");
+        if (!(evidence instanceof List<?> items) || items.isEmpty()) {
+            return List.of(List.of("-", "-", "-", "-", "-"));
+        }
+        List<List<String>> rows = new ArrayList<>();
+        for (Object item : items) {
+            Map<String, Object> manifest = mapValue(item);
+            rows.add(List.of(
+                    valueText(manifest.get("sourceWp")),
+                    valueText(manifest.get("sourceType")),
+                    valueText(manifest.get("sourceRefDigest")),
+                    compactList(manifest.get("summaryKeys")),
+                    compactMap(manifest.get("evidenceSummary"))
+            ));
+        }
+        return rows;
+    }
+
+    private List<List<String>> twoColumnRows(List<String> lines) {
+        List<List<String>> rows = new ArrayList<>();
+        for (String line : lines) {
+            rows.add(List.of(splitLine(line)));
+        }
+        return rows;
+    }
+
+    private String[] splitLine(String line) {
+        int separator = line.indexOf(':');
+        if (separator < 0) {
+            return new String[]{"Value", valueText(line)};
+        }
+        String left = line.substring(0, separator).trim();
+        String right = line.substring(separator + 1).trim();
+        return new String[]{StringUtils.hasText(left) ? left : "Field", StringUtils.hasText(right) ? right : "-"};
+    }
+
+    private void appendHtmlMeta(StringBuilder builder, String label, Object value) {
+        if (builder.indexOf("<div class=\"meta\">") < 0) {
+            builder.append("<div class=\"meta\">");
+        }
+        builder.append("<div class=\"card\"><span class=\"label\">")
+                .append(html(label))
+                .append("</span><span class=\"value\">")
+                .append(html(valueText(value)))
+                .append("</span></div>");
+    }
+
+    private void appendHtmlKeyValueSection(StringBuilder builder, String title, List<String> lines) {
+        builder.append("<h2>").append(html(title)).append("</h2><div class=\"card-grid\">");
+        for (String line : lines) {
+            String[] pair = splitLine(line);
+            builder.append("<div class=\"card\"><span class=\"label\">")
+                    .append(html(pair[0]))
+                    .append("</span><span class=\"value\">")
+                    .append(html(pair[1]))
+                    .append("</span></div>");
+        }
+        builder.append("</div>");
+    }
+
+    private void appendHtmlTableSection(
+            StringBuilder builder,
+            String title,
+            List<String> headers,
+            List<List<String>> rows
+    ) {
+        builder.append("<h2>").append(html(title)).append("</h2><table><thead><tr>");
+        for (String header : headers) {
+            builder.append("<th>").append(html(header)).append("</th>");
+        }
+        builder.append("</tr></thead><tbody>");
+        for (List<String> row : rows) {
+            builder.append("<tr>");
+            for (String value : row) {
+                builder.append("<td>").append(html(value)).append("</td>");
+            }
+            builder.append("</tr>");
+        }
+        builder.append("</tbody></table>");
+    }
+
+    private String html(String value) {
+        return value
+                .replace("&", "&amp;")
+                .replace("<", "&lt;")
+                .replace(">", "&gt;")
+                .replace("\"", "&quot;");
     }
 }

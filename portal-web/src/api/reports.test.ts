@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { requestBinary, requestJson } from './client';
 import {
   archiveReport,
+  batchExportReports,
   compareReport,
   createDefectDraft,
   diagnoseReport,
@@ -265,9 +266,12 @@ describe('WP10 report API helpers', () => {
     await createDefectDraft('report-1');
     await reviewDefectDraft('report-1', 'draft-1', 'REVIEWED');
     await exportReport('report-1', 'MARKDOWN');
+    await exportReport('report-1', 'HTML');
     await exportReport('report-1', 'PDF');
     await exportReport('report-1', 'WORD');
+    await exportReport('report-1', 'EXCEL');
     await downloadReportExport('report-1', 'export-1');
+    await batchExportReports({ reportIds: ['report-1', 'report-2'], exportType: 'HTML' });
 
     expect(requestJsonMock).toHaveBeenNthCalledWith(1, '/api/v1/reports/health');
     expect(requestJsonMock).toHaveBeenNthCalledWith(
@@ -290,8 +294,17 @@ describe('WP10 report API helpers', () => {
       body: JSON.stringify({ status: 'REVIEWED' })
     });
     expect(requestJsonMock).toHaveBeenNthCalledWith(12, '/api/v1/reports/report-1/export?exportType=MARKDOWN');
-    expect(requestJsonMock).toHaveBeenNthCalledWith(13, '/api/v1/reports/report-1/export?exportType=PDF');
-    expect(requestJsonMock).toHaveBeenNthCalledWith(14, '/api/v1/reports/report-1/export?exportType=WORD');
+    expect(requestJsonMock).toHaveBeenNthCalledWith(13, '/api/v1/reports/report-1/export?exportType=HTML');
+    expect(requestJsonMock).toHaveBeenNthCalledWith(14, '/api/v1/reports/report-1/export?exportType=PDF');
+    expect(requestJsonMock).toHaveBeenNthCalledWith(15, '/api/v1/reports/report-1/export?exportType=WORD');
+    expect(requestJsonMock).toHaveBeenNthCalledWith(16, '/api/v1/reports/report-1/export?exportType=EXCEL');
     expect(requestBinaryMock).toHaveBeenNthCalledWith(1, '/api/v1/reports/report-1/exports/export-1/download');
+    expect(requestBinaryMock).toHaveBeenNthCalledWith(2, '/api/v1/reports/exports/batch', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ reportIds: ['report-1', 'report-2'], exportType: 'HTML' })
+    });
   });
 });
