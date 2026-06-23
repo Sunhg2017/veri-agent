@@ -64,7 +64,8 @@ describe('ui e2e workbench state helpers', () => {
         actionSummaryText: '{"submitAction":"click"}',
         locatorStrategyText: '{"preferred":"testId"}',
         assertionSummaryText: '{"successSignal":"url contains /dashboard"}',
-        waitPolicyText: '{"timeoutSeconds":5}'
+        waitPolicyText: '{"timeoutSeconds":5}',
+        dataBindingText: '{"dataSetCode":"checkout-users","recordKey":"user-001","bindingAlias":"user"}'
       }]
     });
 
@@ -82,7 +83,8 @@ describe('ui e2e workbench state helpers', () => {
       steps: [{
         stepType: 'LOGIN',
         locatorStrategy: { preferred: 'testId' },
-        waitPolicy: { timeoutSeconds: 5 }
+        waitPolicy: { timeoutSeconds: 5 },
+        dataBinding: { dataSetCode: 'checkout-users', recordKey: 'user-001', bindingAlias: 'user' }
       }]
     });
   });
@@ -96,7 +98,8 @@ describe('ui e2e workbench state helpers', () => {
         actionSummaryText: '[]',
         locatorStrategyText: '{}',
         assertionSummaryText: '{}',
-        waitPolicyText: '{}'
+        waitPolicyText: '{}',
+        dataBindingText: '[]'
       }]
     });
 
@@ -106,6 +109,7 @@ describe('ui e2e workbench state helpers', () => {
     expect(result.issues).toContain('请填写 scene name');
     expect(result.issues).toContain('sourceSummary 不是合法 JSON');
     expect(result.issues).toContain('步骤 1 缺少 stepType');
+    expect(result.issues).toContain('steps[0].dataBinding 必须是 JSON object');
   });
 
   it('builds scene update payloads without requiring immutable keys', () => {
@@ -120,7 +124,8 @@ describe('ui e2e workbench state helpers', () => {
         actionSummaryText: '{"mode":"read"}',
         locatorStrategyText: '{"preferred":"text"}',
         assertionSummaryText: '{"successSignal":"toast visible"}',
-        waitPolicyText: '{"timeoutSeconds":8}'
+        waitPolicyText: '{"timeoutSeconds":8}',
+        dataBindingText: '{"dataSetCode":"checkout-users","recordKey":"user-002"}'
       }]
     });
 
@@ -130,7 +135,11 @@ describe('ui e2e workbench state helpers', () => {
       status: 'DISABLED',
       riskLevel: 'LOW',
       sourceSummary: { sourceType: 'WP3', assetId: 'asset-2' },
-      steps: [{ stepType: 'ASSERT', waitPolicy: { timeoutSeconds: 8 } }]
+      steps: [{
+        stepType: 'ASSERT',
+        waitPolicy: { timeoutSeconds: 8 },
+        dataBinding: { dataSetCode: 'checkout-users', recordKey: 'user-002' }
+      }]
     });
   });
 
@@ -1732,7 +1741,8 @@ describe('ui e2e workbench state helpers', () => {
         actionSummary: { submitAction: 'click' },
         locatorStrategy: { preferred: 'testId' },
         assertionSummary: { successSignal: 'dashboard visible' },
-        waitPolicy: { timeoutSeconds: 5 }
+        waitPolicy: { timeoutSeconds: 5 },
+        dataBinding: {}
       }]
     })).toMatchObject({
       projectId: 'project-alpha',
@@ -1761,7 +1771,8 @@ describe('ui e2e workbench state helpers', () => {
         actionSummary: { targetPath: '/login' },
         locatorStrategy: { preferred: 'path' },
         assertionSummary: {},
-        waitPolicy: { timeoutSeconds: 5 }
+        waitPolicy: { timeoutSeconds: 5 },
+        dataBinding: {}
       }]
     })).toMatchObject({
       projectId: 'project-alpha',

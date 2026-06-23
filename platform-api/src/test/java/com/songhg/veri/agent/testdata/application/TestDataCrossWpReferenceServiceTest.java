@@ -279,6 +279,63 @@ class TestDataCrossWpReferenceServiceTest {
                 assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.FORBIDDEN));
     }
 
+    @Test
+    void resolvesUiE2eStepDataBindingByDataSetCode() {
+        Fixture fixture = fixture(true);
+        var dataSet = fixture.dataSetService().createDataSet(dataSetCommand());
+        fixture.dataSetService().importRecords(dataSet.id(), new ImportTestDataRecordsCommand(List.of(
+                new ImportTestDataRecordsCommand.RecordItem(
+                        "record-001",
+                        sha256("record-001"),
+                        Map.of("usernameMasked", "masked-user-01", "emailMasked", "u***@example.test"),
+                        sha256("external-record-001"),
+                        List.of("SMOKE")
+                )
+        )));
+
+        var resolution = fixture.crossWpService().resolveUiE2eStepDataBinding("project-alpha", Map.of(
+                "dataSetCode", dataSet.code(),
+                "recordKey", "record-001",
+                "bindingAlias", "user"
+        ));
+
+        assertThat(resolution.dataSetId()).isEqualTo(dataSet.id());
+        assertThat(resolution.dataSetCode()).isEqualTo(dataSet.code());
+        assertThat(resolution.bindingAlias()).isEqualTo("user");
+        assertThat(resolution.recordKey()).isEqualTo("record-001");
+        assertThat(resolution.maskedSummary()).containsEntry("usernameMasked", "masked-user-01");
+    }
+
+    @Test
+    void rejectsUiE2eStepDataBindingWhenActiveRecordIsAmbiguous() {
+        Fixture fixture = fixture(true);
+        var dataSet = fixture.dataSetService().createDataSet(dataSetCommand());
+        fixture.dataSetService().importRecords(dataSet.id(), new ImportTestDataRecordsCommand(List.of(
+                new ImportTestDataRecordsCommand.RecordItem(
+                        "record-001",
+                        sha256("record-001"),
+                        Map.of("usernameMasked", "masked-user-01"),
+                        sha256("external-record-001"),
+                        List.of("SMOKE")
+                ),
+                new ImportTestDataRecordsCommand.RecordItem(
+                        "record-002",
+                        sha256("record-002"),
+                        Map.of("usernameMasked", "masked-user-02"),
+                        sha256("external-record-002"),
+                        List.of("REGRESSION")
+                )
+        )));
+
+        assertThatThrownBy(() -> fixture.crossWpService().resolveUiE2eStepDataBinding("project-alpha", Map.of(
+                "dataSetCode", dataSet.code(),
+                "bindingAlias", "user"
+        ))).isInstanceOfSatisfying(BusinessException.class, exception -> {
+            assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.INVALID_STATE);
+            assertThat(exception.getMessage()).isEqualTo("UI_E2E_TEST_DATA_RECORD_AMBIGUOUS");
+        });
+    }
+
     private Fixture fixture(boolean enabled) {
         return fixture(enabled, List.of(new AcceptingSecretProvider()));
     }

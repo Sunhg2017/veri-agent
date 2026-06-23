@@ -86,6 +86,11 @@ public class UiE2eBundleFactory {
         summary.put("sceneStatus", scene.status());
         summary.put("stepCount", steps.size());
         summary.put("stepTypes", steps.stream().map(UiE2eSceneStep::stepType).distinct().toList());
+        summary.put("dataBindingStepCount", steps.stream()
+                .map(UiE2eSceneStep::dataBindingJson)
+                .map(this::readMap)
+                .filter(item -> !item.isEmpty())
+                .count());
         summary.put("sourceSummaryDigest", SensitiveTextSanitizer.sha256Hex(scene.sourceSummaryJson()));
         summary.put("aggregateOnly", true);
         summary.put("rawDomSnapshotStored", false);
@@ -106,6 +111,10 @@ public class UiE2eBundleFactory {
         if (steps.stream().anyMatch(step -> "WAIT".equals(step.stepType()))) {
             requiredFixtures.add("boundedWaitPolicy");
         }
+        List<Map<String, Object>> dataBindings = dataBindingSummaries(steps);
+        if (!dataBindings.isEmpty()) {
+            requiredFixtures.add("wp8DataBinding");
+        }
         summary.put("requiredFixtures", List.copyOf(requiredFixtures));
         summary.put("tagCount", readTags(scene.tagsJson()).size());
         summary.put("tags", readTags(scene.tagsJson()));
@@ -113,6 +122,8 @@ public class UiE2eBundleFactory {
         summary.put("environmentIdPresent", StringUtils.hasText(scene.environmentId()));
         summary.put("networkAccessMode", "ALLOWLIST_ONLY");
         summary.put("credentialMode", "LEASE_INJECTION_ONLY");
+        summary.put("dataBindingStepCount", dataBindings.size());
+        summary.put("dataBindings", dataBindings);
         return Map.copyOf(summary);
     }
 
@@ -124,6 +135,7 @@ public class UiE2eBundleFactory {
             Map<String, Object> actionSummary = readMap(step.actionSummaryJson());
             Map<String, Object> locatorStrategy = readMap(step.locatorStrategyJson());
             Map<String, Object> waitPolicy = readMap(step.waitPolicyJson());
+            Map<String, Object> dataBinding = readMap(step.dataBindingJson());
 
             if (ACTION_STEP_TYPES.contains(step.stepType()) && locatorStrategy.isEmpty()) {
                 findings.add(finding(step, "MISSING_LOCATOR", "动作类步骤缺少 locator 策略摘要"));
@@ -136,6 +148,9 @@ public class UiE2eBundleFactory {
             }
             if (hasInfiniteWait(waitPolicy)) {
                 findings.add(finding(step, "INFINITE_WAIT", "等待策略必须是有限时长"));
+            }
+            if (!dataBinding.isEmpty()) {
+                warnings.add("WP8 dataset binding present on step " + step.stepOrder());
             }
             if ("CUSTOM".equals(step.stepType())) {
                 warnings.add("CUSTOM step requires runner-side guard before executable mode");
@@ -208,6 +223,44 @@ public class UiE2eBundleFactory {
         );
     }
 
+    private List<Map<String, Object>> dataBindingSummaries(List<UiE2eSceneStep> steps) {
+        List<Map<String, Object>> summaries = new ArrayList<>();
+        for (UiE2eSceneStep step : steps) {
+            Map<String, Object> binding = readMap(step.dataBindingJson());
+            if (binding.isEmpty()) {
+                continue;
+            }
+            LinkedHashMap<String, Object> item = new LinkedHashMap<>();
+            item.put("stepOrder", step.stepOrder());
+            putIfPresent(item, "bindingAlias", firstBoundedNullable(binding, 64, "bindingAlias", "alias"));
+            putIfPresent(item, "dataSetId", boundedNullable(binding.get("dataSetId"), 64));
+            putIfPresent(item, "dataSetCode", boundedNullable(binding.get("dataSetCode"), 128));
+            putIfPresent(item, "recordKey", boundedNullable(binding.get("recordKey"), 128));
+            summaries.add(Map.copyOf(item));
+        }
+        return List.copyOf(summaries);
+    }
+
+    private void putIfPresent(Map<String, Object> target, String key, Object value) {
+        if (target == null || !StringUtils.hasText(key) || value == null) {
+            return;
+        }
+        target.put(key, value);
+    }
+
+    private String firstBoundedNullable(Map<String, Object> value, int maxLength, String... keys) {
+        if (value == null || value.isEmpty() || keys == null) {
+            return null;
+        }
+        for (String key : keys) {
+            String text = boundedNullable(value.get(key), maxLength);
+            if (StringUtils.hasText(text)) {
+                return text;
+            }
+        }
+        return null;
+    }
+
     private List<String> readTags(String tagsJson) {
         try {
             if (!StringUtils.hasText(tagsJson)) {
@@ -236,6 +289,14 @@ public class UiE2eBundleFactory {
         } catch (JsonProcessingException exception) {
             throw new BusinessException(ErrorCode.INVALID_STATE, "UI/E2E bundle 摘要无法序列化");
         }
+    }
+
+    private String boundedNullable(Object value, int maxLength) {
+        if (value == null || !StringUtils.hasText(value.toString())) {
+            return null;
+        }
+        String text = value.toString().trim();
+        return text.length() > maxLength ? text.substring(0, maxLength) : text;
     }
 
     record StaticCheckResult(String status, Map<String, Object> summary) {

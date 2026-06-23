@@ -9,6 +9,7 @@ import com.songhg.veri.agent.common.error.ErrorCode;
 import com.songhg.veri.agent.common.util.SensitiveTextSanitizer;
 import com.songhg.veri.agent.testdata.application.TestDataCrossWpReferenceService;
 import com.songhg.veri.agent.testdata.application.TestDataRunnerCredentialResolver;
+import com.songhg.veri.agent.uie2e.application.UiE2eStepDataBindingSupport;
 import com.songhg.veri.agent.uie2e.application.port.UiE2eArtifactStorage;
 import com.songhg.veri.agent.uie2e.application.port.UiE2eRepository;
 import com.songhg.veri.agent.uie2e.application.port.UiE2eRunnerPort;
@@ -65,6 +66,7 @@ public class HttpWorkerUiE2eRunnerAdapter implements UiE2eRunnerPort {
     private final TestDataCrossWpReferenceService testDataCrossWpReferenceService;
     private final ObjectMapper objectMapper;
     private final UiE2eRunnerCredentialPlanSupport credentialPlanSupport;
+    private final UiE2eStepDataBindingSupport stepDataBindingSupport;
     private final UiE2eArtifactStorage artifactStorage;
     private final HttpClient httpClient;
 
@@ -99,6 +101,7 @@ public class HttpWorkerUiE2eRunnerAdapter implements UiE2eRunnerPort {
         this.testDataCrossWpReferenceService = testDataCrossWpReferenceService;
         this.objectMapper = objectMapper;
         this.credentialPlanSupport = new UiE2eRunnerCredentialPlanSupport(objectMapper);
+        this.stepDataBindingSupport = new UiE2eStepDataBindingSupport(objectMapper, testDataCrossWpReferenceService);
         this.artifactStorage = artifactStorage;
         this.httpClient = httpClient;
     }
@@ -174,7 +177,7 @@ public class HttpWorkerUiE2eRunnerAdapter implements UiE2eRunnerPort {
                     "BLOCKED",
                     validation.errorCode(),
                     validation.errorSummary(),
-                    blockedSteps(repository.sceneSteps(scene.id()), validation.errorCode(), primaryFailureBucket(validation.errorCode())),
+                    blockedSteps(fallbackResolvedSceneSteps(scene.id()), validation.errorCode(), primaryFailureBucket(validation.errorCode())),
                     blockedArtifacts("runnerPreparationFailed")
             );
         }
@@ -182,13 +185,14 @@ public class HttpWorkerUiE2eRunnerAdapter implements UiE2eRunnerPort {
         try {
             workspace = Files.createTempDirectory("wp7-http-worker-");
             RunnerCredentialInjectionPlan plan = credentialPlan(request);
-            HttpResponse<String> response = sendRunRequest(request, repository.sceneSteps(scene.id()), plan);
+            List<UiE2eSceneStep> resolvedSteps = resolvedSceneSteps(scene.id());
+            HttpResponse<String> response = sendRunRequest(request, resolvedSteps, plan);
             if (response.statusCode() / 100 != 2) {
                 return failure(
                         "FAILED",
                         WORKER_HTTP_FAILED,
                         "external runner worker returned HTTP " + response.statusCode(),
-                        failedSteps(repository.sceneSteps(scene.id()), "workerHttpFailed"),
+                        failedSteps(resolvedSteps, "workerHttpFailed"),
                         blockedArtifacts("workerHttpFailed")
                 );
             }
@@ -199,7 +203,7 @@ public class HttpWorkerUiE2eRunnerAdapter implements UiE2eRunnerPort {
                     "BLOCKED",
                     errorCode,
                     "runner preparation failed",
-                    blockedSteps(repository.sceneSteps(scene.id()), errorCode, primaryFailureBucket(errorCode)),
+                    blockedSteps(fallbackResolvedSceneSteps(scene.id()), errorCode, primaryFailureBucket(errorCode)),
                     blockedArtifacts("runnerPreparationFailed")
             );
         } catch (HttpTimeoutException exception) {
@@ -207,7 +211,7 @@ public class HttpWorkerUiE2eRunnerAdapter implements UiE2eRunnerPort {
                     "TIMEOUT",
                     RUNNER_TIMEOUT,
                     "external runner worker timed out",
-                    timeoutSteps(repository.sceneSteps(scene.id())),
+                    timeoutSteps(fallbackResolvedSceneSteps(scene.id())),
                     blockedArtifacts("workerTimedOut")
             );
         } catch (InterruptedException exception) {
@@ -216,7 +220,7 @@ public class HttpWorkerUiE2eRunnerAdapter implements UiE2eRunnerPort {
                     "CANCELED",
                     "UI_E2E_RUNNER_CANCELED",
                     "external runner worker was interrupted",
-                    blockedSteps(repository.sceneSteps(scene.id()), "UI_E2E_RUNNER_CANCELED", "RUNNER"),
+                    blockedSteps(fallbackResolvedSceneSteps(scene.id()), "UI_E2E_RUNNER_CANCELED", "RUNNER"),
                     blockedArtifacts("workerInterrupted")
             );
         } catch (IOException exception) {
@@ -224,7 +228,7 @@ public class HttpWorkerUiE2eRunnerAdapter implements UiE2eRunnerPort {
                     "FAILED",
                     RUNNER_FAILED,
                     "external runner worker call failed",
-                    failedSteps(repository.sceneSteps(scene.id()), "workerIoFailed"),
+                    failedSteps(fallbackResolvedSceneSteps(scene.id()), "workerIoFailed"),
                     blockedArtifacts("workerIoFailed")
             );
         } finally {
@@ -297,7 +301,7 @@ public class HttpWorkerUiE2eRunnerAdapter implements UiE2eRunnerPort {
         }
         try {
             credentialPlan(request);
-            return validateSteps(repository.sceneSteps(scene.id()));
+            return validateSteps(resolvedSceneSteps(scene.id()));
         } catch (BusinessException exception) {
             String code = StringUtils.hasText(exception.getMessage()) ? exception.getMessage() : RUNNER_FAILED;
             return new RunnerValidation(false, code, "runner preparation failed");
@@ -641,9 +645,27 @@ public class HttpWorkerUiE2eRunnerAdapter implements UiE2eRunnerPort {
             case "UI_E2E_ACCOUNT_LEASE_INVALID",
                     UiE2eRunnerCredentialPlanSupport.UNSUPPORTED_CREDENTIAL_FORMAT,
                     SECRET_PROVIDER_ERROR -> "ACCOUNT";
+            case "UI_E2E_TEST_DATA_BINDING_INVALID",
+                    "UI_E2E_TEST_DATA_SET_NOT_FOUND",
+                    "UI_E2E_TEST_DATA_SET_NOT_READY",
+                    "UI_E2E_TEST_DATA_RECORD_NOT_FOUND",
+                    "UI_E2E_TEST_DATA_RECORD_AMBIGUOUS",
+                    UiE2eStepDataBindingSupport.TEMPLATE_UNRESOLVED -> "TEST_DATA";
             case STEP_UNSUPPORTED, STEP_CONTRACT_INVALID -> "ASSERTION";
             default -> "RUNNER";
         };
+    }
+
+    private List<UiE2eSceneStep> resolvedSceneSteps(UUID sceneId) {
+        return stepDataBindingSupport.resolveSceneSteps(repository.sceneSteps(sceneId));
+    }
+
+    private List<UiE2eSceneStep> fallbackResolvedSceneSteps(UUID sceneId) {
+        try {
+            return resolvedSceneSteps(sceneId);
+        } catch (BusinessException exception) {
+            return repository.sceneSteps(sceneId);
+        }
     }
 
     private boolean credentialDigestPresent(Map<String, Object> accountSummary) {

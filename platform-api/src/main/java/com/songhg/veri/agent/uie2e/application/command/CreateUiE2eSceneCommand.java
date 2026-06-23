@@ -25,7 +25,18 @@ public record CreateUiE2eSceneCommand(
             Map<String, Object> actionSummary,
             Map<String, Object> locatorStrategy,
             Map<String, Object> assertionSummary,
-            Map<String, Object> waitPolicy
+            Map<String, Object> waitPolicy,
+            Map<String, Object> dataBinding
     ) {
+
+        public SceneStepPayload(
+                String stepType,
+                Map<String, Object> actionSummary,
+                Map<String, Object> locatorStrategy,
+                Map<String, Object> assertionSummary,
+                Map<String, Object> waitPolicy
+        ) {
+            this(stepType, actionSummary, locatorStrategy, assertionSummary, waitPolicy, null);
+        }
     }
 }

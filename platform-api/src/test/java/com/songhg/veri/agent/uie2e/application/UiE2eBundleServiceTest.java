@@ -2,6 +2,7 @@ package com.songhg.veri.agent.uie2e.application;
 
 import com.songhg.veri.agent.common.error.BusinessException;
 import com.songhg.veri.agent.common.error.ErrorCode;
+import com.songhg.veri.agent.testdata.application.command.ImportTestDataRecordsCommand;
 import com.songhg.veri.agent.uie2e.application.command.CreateUiE2eBundleCommand;
 import com.songhg.veri.agent.uie2e.application.command.CreateUiE2eSceneCommand;
 import com.songhg.veri.agent.uie2e.application.command.ReviewUiE2eBundleCommand;
@@ -60,6 +61,67 @@ class UiE2eBundleServiceTest {
         assertThat(approved.approvedBy()).isEqualTo("wp7-tester");
         assertThat(approved.reviews()).extracting(item -> item.reviewStatus())
                 .containsExactly("APPROVED", "SUBMITTED");
+    }
+
+    @Test
+    void bundleFixtureSummaryIncludesWp8DataBindingOverview() {
+        UiE2eSceneServiceTest.Fixture fixture = UiE2eSceneServiceTest.fixture(true);
+        UiE2eBundleService service = service(fixture);
+        var dataSet = UiE2eSceneServiceTest.seedWp8DataSet(
+                fixture,
+                "project-alpha",
+                "checkout-users-bundle",
+                List.of(new ImportTestDataRecordsCommand.RecordItem(
+                        "record-001",
+                        UiE2eSceneServiceTest.sha256("record-001"),
+                        Map.of("usernameMasked", "masked-user-01"),
+                        UiE2eSceneServiceTest.sha256("external-record-001"),
+                        List.of("SMOKE")
+                ))
+        );
+
+        var scene = fixture.service().createScene(new CreateUiE2eSceneCommand(
+                "project-alpha",
+                "app-alpha",
+                "env-staging",
+                "portal-admin-binding-review",
+                "后台管理员绑定测试数据集脚本包",
+                "APPROVED",
+                "HIGH",
+                List.of("wp8", "bundle"),
+                Map.of(),
+                List.of(
+                        UiE2eSceneServiceTest.step(
+                                "LOGIN",
+                                Map.of(
+                                        "principalField", "#username",
+                                        "credentialField", "#password",
+                                        "submitAction", "click",
+                                        "principalValue", "{{ user.usernameMasked }}"
+                                ),
+                                Map.of(
+                                        "dataSetCode", dataSet.code(),
+                                        "recordKey", "record-001",
+                                        "bindingAlias", "user"
+                                )
+                        )
+                )
+        ));
+
+        var generated = service.createOrRefreshBundle(new CreateUiE2eBundleCommand(scene.id()));
+
+        assertThat(generated.fixtureSummary()).containsEntry("dataBindingStepCount", 1);
+        assertThat(generated.fixtureSummary()).extractingByKey("requiredFixtures")
+                .asList()
+                .contains("wp8DataBinding");
+        assertThat(generated.fixtureSummary()).extractingByKey("dataBindings")
+                .asList()
+                .singleElement()
+                .asInstanceOf(org.assertj.core.api.InstanceOfAssertFactories.MAP)
+                .containsEntry("bindingAlias", "user")
+                .containsEntry("dataSetCode", dataSet.code())
+                .containsEntry("recordKey", "record-001");
+        assertThat(generated.specSummary()).containsEntry("dataBindingStepCount", 1);
     }
 
     @Test

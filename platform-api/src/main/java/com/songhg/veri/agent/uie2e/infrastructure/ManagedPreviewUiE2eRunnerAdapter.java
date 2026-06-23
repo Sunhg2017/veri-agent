@@ -8,6 +8,7 @@ import com.songhg.veri.agent.common.error.ErrorCode;
 import com.songhg.veri.agent.common.util.SensitiveTextSanitizer;
 import com.songhg.veri.agent.testdata.application.TestDataCrossWpReferenceService;
 import com.songhg.veri.agent.testdata.application.TestDataRunnerCredentialResolver;
+import com.songhg.veri.agent.uie2e.application.UiE2eStepDataBindingSupport;
 import com.songhg.veri.agent.uie2e.application.port.UiE2eRepository;
 import com.songhg.veri.agent.uie2e.application.port.UiE2eRunnerPort;
 import com.songhg.veri.agent.uie2e.config.UiE2eProperties;
@@ -38,6 +39,7 @@ public class ManagedPreviewUiE2eRunnerAdapter implements UiE2eRunnerPort {
     private final TestDataCrossWpReferenceService testDataCrossWpReferenceService;
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final UiE2eRunnerCredentialPlanSupport credentialPlanSupport = new UiE2eRunnerCredentialPlanSupport(objectMapper);
+    private final UiE2eStepDataBindingSupport stepDataBindingSupport;
 
     public ManagedPreviewUiE2eRunnerAdapter(
             UiE2eRepository repository,
@@ -47,6 +49,7 @@ public class ManagedPreviewUiE2eRunnerAdapter implements UiE2eRunnerPort {
         this.repository = repository;
         this.properties = properties;
         this.testDataCrossWpReferenceService = testDataCrossWpReferenceService;
+        this.stepDataBindingSupport = new UiE2eStepDataBindingSupport(objectMapper, testDataCrossWpReferenceService);
     }
 
     /**
@@ -76,7 +79,13 @@ public class ManagedPreviewUiE2eRunnerAdapter implements UiE2eRunnerPort {
         if (!credentialDigestPresent(request.accountSummary())) {
             return new RunnerValidation(false, "UI_E2E_ACCOUNT_LEASE_INVALID", "account contract is incomplete");
         }
-        return new RunnerValidation(true, null, null);
+        try {
+            resolveSceneSteps(scene.id());
+            return new RunnerValidation(true, null, null);
+        } catch (BusinessException exception) {
+            String code = StringUtils.hasText(exception.getMessage()) ? exception.getMessage() : EXECUTION_NOT_READY;
+            return new RunnerValidation(false, code, "runner preview preparation failed");
+        }
     }
 
     /**
@@ -105,7 +114,7 @@ public class ManagedPreviewUiE2eRunnerAdapter implements UiE2eRunnerPort {
                     credentialState.failureCode(),
                     credentialState.failureSummary(),
                     previewStepResults(
-                            repository.sceneSteps(scene.id()),
+                            rawSceneSteps(scene.id()),
                             request,
                             credentialState.ready(),
                             credentialState.resolution(),
@@ -116,7 +125,26 @@ public class ManagedPreviewUiE2eRunnerAdapter implements UiE2eRunnerPort {
                     request
             );
         }
-        List<UiE2eSceneStep> sceneSteps = repository.sceneSteps(scene.id());
+        List<UiE2eSceneStep> sceneSteps;
+        try {
+            sceneSteps = resolveSceneSteps(scene.id());
+        } catch (BusinessException exception) {
+            String errorCode = StringUtils.hasText(exception.getMessage()) ? exception.getMessage() : EXECUTION_NOT_READY;
+            return blockedResult(
+                    errorCode,
+                    "managed preview could not resolve WP8 step data binding",
+                    previewStepResults(
+                            rawSceneSteps(scene.id()),
+                            request,
+                            credentialState.ready(),
+                            credentialState.resolution(),
+                            credentialState.plan(),
+                            errorCode
+                    ),
+                    previewArtifacts(request),
+                    request
+            );
+        }
         List<RunnerStepResult> stepResults = previewStepResults(
                 sceneSteps,
                 request,
@@ -432,6 +460,14 @@ public class ManagedPreviewUiE2eRunnerAdapter implements UiE2eRunnerPort {
         }
         Object digest = accountSummary.get("secretRefDigest");
         return digest instanceof String text && StringUtils.hasText(text);
+    }
+
+    private List<UiE2eSceneStep> resolveSceneSteps(UUID sceneId) {
+        return stepDataBindingSupport.resolveSceneSteps(rawSceneSteps(sceneId));
+    }
+
+    private List<UiE2eSceneStep> rawSceneSteps(UUID sceneId) {
+        return repository.sceneSteps(sceneId);
     }
 
     private String normalizedStepType(String stepType) {

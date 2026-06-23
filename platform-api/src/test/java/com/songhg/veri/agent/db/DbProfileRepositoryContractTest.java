@@ -338,6 +338,7 @@ class DbProfileRepositoryContractTest {
                         "{\"preferred\":\"testId\"}",
                         "{\"successSignal\":\"/dashboard\"}",
                         "{\"timeoutSeconds\":5}",
+                        "{\"dataSetCode\":\"checkout-users\",\"recordKey\":\"record-001\",\"bindingAlias\":\"user\"}",
                         "db-tester",
                         "db-tester",
                         now,
@@ -352,8 +353,10 @@ class DbProfileRepositoryContractTest {
                 .isEqualTo("HIGH");
         assertThat(uiE2eRepository.sceneSteps(sceneId))
                 .singleElement()
-                .extracting(UiE2eSceneStep::stepType)
-                .isEqualTo("LOGIN");
+                .satisfies(step -> {
+                    assertThat(step.stepType()).isEqualTo("LOGIN");
+                    assertThat(step.dataBindingJson()).contains("checkout-users", "record-001", "bindingAlias");
+                });
 
         UiE2eScene approved = new UiE2eScene(
                 sceneId,
@@ -384,6 +387,7 @@ class DbProfileRepositoryContractTest {
                         "{\"preferred\":\"role\"}",
                         "{\"expected\":\"dashboard\"}",
                         "{\"timeoutSeconds\":3}",
+                        "{\"dataSetCode\":\"checkout-users\",\"recordKey\":\"record-002\",\"bindingAlias\":\"user\"}",
                         "db-updater",
                         "db-updater",
                         now.plusSeconds(1),
@@ -399,8 +403,10 @@ class DbProfileRepositoryContractTest {
                 .isEqualTo("Portal admin login approved");
         assertThat(uiE2eRepository.sceneSteps(sceneId))
                 .singleElement()
-                .extracting(UiE2eSceneStep::stepType)
-                .isEqualTo("ASSERT");
+                .satisfies(step -> {
+                    assertThat(step.stepType()).isEqualTo("ASSERT");
+                    assertThat(step.dataBindingJson()).contains("checkout-users", "record-002", "bindingAlias");
+                });
 
         uiE2eRepository.archiveScene(new UiE2eScene(
                 sceneId,

@@ -18,6 +18,7 @@ import com.songhg.veri.agent.testdata.application.view.TestDataReportEvidenceRes
 import com.songhg.veri.agent.testdata.application.view.TestDataRunnerAccountContractResponse;
 import com.songhg.veri.agent.testdata.application.view.TestPooledAccountResponse;
 import com.songhg.veri.agent.testdata.config.TestDataProperties;
+import com.songhg.veri.agent.testdata.domain.TestDataRecord;
 import com.songhg.veri.agent.testdata.domain.TestDataSet;
 import com.songhg.veri.agent.testdata.domain.TestDataTask;
 import java.nio.charset.StandardCharsets;
@@ -150,6 +151,66 @@ public class TestDataCrossWpReferenceService {
     @Transactional(readOnly = true)
     public boolean runnerCredentialInjectionReady() {
         return runnerCredentialResolver != null && runnerCredentialResolver.credentialInjectionReady();
+    }
+
+    /**
+     * Resolves one bounded WP8 dataset binding for a WP7 step. The returned shape contains only dataset metadata,
+     * record keys/digests and the stored masked summary so runtime placeholder injection stays aggregate-only.
+     */
+    @Transactional(readOnly = true)
+    public UiE2eStepDataBindingResolution resolveUiE2eStepDataBinding(
+            String projectId,
+            Map<String, Object> binding
+    ) {
+        assertEnabled();
+        BindingRequest request = bindingRequest(binding);
+        TestDataSet dataSet = resolveBindingDataSet(projectId, request);
+        if (!"READY".equals(dataSet.status())) {
+            throw new BusinessException(ErrorCode.INVALID_STATE, "UI_E2E_TEST_DATA_SET_NOT_READY");
+        }
+        List<TestDataRecord> activeRecords = repository.records(dataSet.id()).stream()
+                .filter(record -> "ACTIVE".equals(record.status()))
+                .toList();
+        TestDataRecord record = resolveBindingRecord(activeRecords, request.recordKey());
+        return new UiE2eStepDataBindingResolution(
+                dataSet.id(),
+                dataSet.code(),
+                dataSet.status(),
+                activeRecords.size(),
+                request.bindingAlias(),
+                record.recordKey(),
+                record.recordDigest(),
+                record.externalRefDigest(),
+                readMap(record.maskedSummaryJson())
+        );
+    }
+
+    /**
+     * Validates the binding shape during scene writes so operators get fast feedback before bundle generation or
+     * runtime execution.
+     */
+    @Transactional(readOnly = true)
+    public UiE2eStepDataBindingValidation validateUiE2eStepDataBinding(
+            String projectId,
+            Map<String, Object> binding
+    ) {
+        assertEnabled();
+        BindingRequest request = bindingRequest(binding);
+        TestDataSet dataSet = resolveBindingDataSet(projectId, request);
+        if (!"READY".equals(dataSet.status())) {
+            throw new BusinessException(ErrorCode.INVALID_STATE, "UI_E2E_TEST_DATA_SET_NOT_READY");
+        }
+        List<TestDataRecord> activeRecords = repository.records(dataSet.id()).stream()
+                .filter(record -> "ACTIVE".equals(record.status()))
+                .toList();
+        resolveBindingRecord(activeRecords, request.recordKey());
+        return new UiE2eStepDataBindingValidation(
+                dataSet.id(),
+                dataSet.code(),
+                dataSet.status(),
+                activeRecords.size(),
+                request.bindingAlias()
+        );
     }
 
     /**
@@ -319,6 +380,87 @@ public class TestDataCrossWpReferenceService {
         }
     }
 
+    private BindingRequest bindingRequest(Map<String, Object> binding) {
+        if (binding == null || binding.isEmpty()) {
+            throw new BusinessException(ErrorCode.INVALID_STATE, "UI_E2E_TEST_DATA_BINDING_INVALID");
+        }
+        UUID dataSetId = uuidOrNull(readText(binding, "dataSetId", "dataSetRef"));
+        String dataSetCode = boundedNullable(readText(binding, "dataSetCode"), 128);
+        if (dataSetId == null && !StringUtils.hasText(dataSetCode)) {
+            throw new BusinessException(ErrorCode.INVALID_STATE, "UI_E2E_TEST_DATA_BINDING_INVALID");
+        }
+        String bindingAlias = boundedNullable(readText(binding, "bindingAlias", "alias"), 64);
+        if (!StringUtils.hasText(bindingAlias)) {
+            bindingAlias = "data";
+        }
+        if (!bindingAlias.matches("^[A-Za-z][A-Za-z0-9_]{0,63}$")) {
+            throw new BusinessException(ErrorCode.INVALID_STATE, "UI_E2E_TEST_DATA_BINDING_INVALID");
+        }
+        String recordKey = boundedNullable(readText(binding, "recordKey"), 128);
+        return new BindingRequest(dataSetId, dataSetCode, recordKey, bindingAlias);
+    }
+
+    private TestDataSet resolveBindingDataSet(String projectId, BindingRequest request) {
+        String scopedProjectId = contextClient.projectContext(projectId).resourceId();
+        TestDataSet byId = request.dataSetId() == null
+                ? null
+                : repository.dataSet(request.dataSetId())
+                .orElseThrow(() -> new BusinessException(ErrorCode.INVALID_STATE, "UI_E2E_TEST_DATA_SET_NOT_FOUND"));
+        TestDataSet byCode = StringUtils.hasText(request.dataSetCode())
+                ? repository.dataSetByProjectAndCode(scopedProjectId, request.dataSetCode())
+                .orElseThrow(() -> new BusinessException(ErrorCode.INVALID_STATE, "UI_E2E_TEST_DATA_SET_NOT_FOUND"))
+                : null;
+        if (byId != null && byCode != null && !byId.id().equals(byCode.id())) {
+            throw new BusinessException(ErrorCode.INVALID_STATE, "UI_E2E_TEST_DATA_BINDING_INVALID");
+        }
+        TestDataSet dataSet = byId != null ? byId : byCode;
+        if (dataSet == null) {
+            throw new BusinessException(ErrorCode.INVALID_STATE, "UI_E2E_TEST_DATA_SET_NOT_FOUND");
+        }
+        assertSameProject(dataSet.projectId(), scopedProjectId);
+        return dataSet;
+    }
+
+    private TestDataRecord resolveBindingRecord(List<TestDataRecord> activeRecords, String recordKey) {
+        if (StringUtils.hasText(recordKey)) {
+            return activeRecords.stream()
+                    .filter(record -> recordKey.equals(record.recordKey()))
+                    .findFirst()
+                    .orElseThrow(() -> new BusinessException(ErrorCode.INVALID_STATE, "UI_E2E_TEST_DATA_RECORD_NOT_FOUND"));
+        }
+        if (activeRecords.isEmpty()) {
+            throw new BusinessException(ErrorCode.INVALID_STATE, "UI_E2E_TEST_DATA_RECORD_NOT_FOUND");
+        }
+        if (activeRecords.size() > 1) {
+            throw new BusinessException(ErrorCode.INVALID_STATE, "UI_E2E_TEST_DATA_RECORD_AMBIGUOUS");
+        }
+        return activeRecords.get(0);
+    }
+
+    private String readText(Map<String, Object> value, String... keys) {
+        if (value == null || value.isEmpty() || keys == null) {
+            return null;
+        }
+        for (String key : keys) {
+            Object raw = value.get(key);
+            if (raw != null && StringUtils.hasText(raw.toString())) {
+                return raw.toString().trim();
+            }
+        }
+        return null;
+    }
+
+    private UUID uuidOrNull(String value) {
+        if (!StringUtils.hasText(value)) {
+            return null;
+        }
+        try {
+            return UUID.fromString(value.trim());
+        } catch (IllegalArgumentException exception) {
+            throw new BusinessException(ErrorCode.INVALID_STATE, "UI_E2E_TEST_DATA_BINDING_INVALID");
+        }
+    }
+
     private String boundedNullable(String value, int maxLength) {
         if (!StringUtils.hasText(value)) {
             return null;
@@ -366,5 +508,35 @@ public class TestDataCrossWpReferenceService {
         } catch (NoSuchAlgorithmException exception) {
             throw new BusinessException(ErrorCode.INTERNAL_ERROR, "跨 WP 摘要算法不可用");
         }
+    }
+
+    private record BindingRequest(
+            UUID dataSetId,
+            String dataSetCode,
+            String recordKey,
+            String bindingAlias
+    ) {
+    }
+
+    public record UiE2eStepDataBindingValidation(
+            UUID dataSetId,
+            String dataSetCode,
+            String dataSetStatus,
+            long activeRecordCount,
+            String bindingAlias
+    ) {
+    }
+
+    public record UiE2eStepDataBindingResolution(
+            UUID dataSetId,
+            String dataSetCode,
+            String dataSetStatus,
+            long recordCount,
+            String bindingAlias,
+            String recordKey,
+            String recordDigest,
+            String externalRefDigest,
+            Map<String, Object> maskedSummary
+    ) {
     }
 }

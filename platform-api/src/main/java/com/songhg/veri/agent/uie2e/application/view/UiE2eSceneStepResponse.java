@@ -12,6 +12,7 @@ public record UiE2eSceneStepResponse(
         Map<String, Object> locatorStrategy,
         Map<String, Object> assertionSummary,
         Map<String, Object> waitPolicy,
+        Map<String, Object> dataBinding,
         Instant createdAt,
         Instant updatedAt
 ) {

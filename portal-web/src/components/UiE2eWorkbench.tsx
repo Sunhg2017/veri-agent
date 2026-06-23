@@ -1129,6 +1129,14 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
                       <Field label="waitPolicy">
                         <textarea value={step.waitPolicyText} onChange={(event) => updateSceneStep(index, 'waitPolicyText', event.target.value)} disabled={!canManage || sceneActionState.loading} />
                       </Field>
+                      <Field label="dataBinding">
+                        <textarea
+                          value={step.dataBindingText}
+                          onChange={(event) => updateSceneStep(index, 'dataBindingText', event.target.value)}
+                          placeholder={'{"dataSetCode":"checkout-users","recordKey":"user-001","bindingAlias":"user"}'}
+                          disabled={!canManage || sceneActionState.loading}
+                        />
+                      </Field>
                     </div>
                   </div>
                 ))}
@@ -1995,6 +2003,7 @@ function SceneDetailPanel(props: {
                 <InfoBlock title="locator" value={formatRecord(step.locatorStrategy)} />
                 <InfoBlock title="assertion" value={formatRecord(step.assertionSummary)} />
                 <InfoBlock title="waitPolicy" value={formatRecord(step.waitPolicy)} />
+                <InfoBlock title="dataBinding" value={formatRecord(step.dataBinding)} />
               </div>
             </div>
           ))}

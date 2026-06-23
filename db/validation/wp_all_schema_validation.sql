@@ -532,6 +532,7 @@ with expected(table_name, column_name) as (
         ('ui_e2e_scene_step','locator_strategy_json'),
         ('ui_e2e_scene_step','assertion_summary_json'),
         ('ui_e2e_scene_step','wait_policy_json'),
+        ('ui_e2e_scene_step','data_binding_json'),
         ('ui_e2e_bundle','id'), ('ui_e2e_bundle','scene_id'),
         ('ui_e2e_bundle','project_id'), ('ui_e2e_bundle','status'),
         ('ui_e2e_bundle','bundle_digest'),

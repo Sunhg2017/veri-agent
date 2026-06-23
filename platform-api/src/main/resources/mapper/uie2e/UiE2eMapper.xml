@@ -34,6 +34,7 @@
             <arg column="locator_strategy_json" javaType="java.lang.String"/>
             <arg column="assertion_summary_json" javaType="java.lang.String"/>
             <arg column="wait_policy_json" javaType="java.lang.String"/>
+            <arg column="data_binding_json" javaType="java.lang.String"/>
             <arg column="created_by" javaType="java.lang.String"/>
             <arg column="updated_by" javaType="java.lang.String"/>
             <arg column="created_at" javaType="java.time.Instant"/>
@@ -167,6 +168,7 @@
         locator_strategy_json::text as locator_strategy_json,
         assertion_summary_json::text as assertion_summary_json,
         wait_policy_json::text as wait_policy_json,
+        data_binding_json::text as data_binding_json,
         created_by, updated_by, created_at, updated_at
     </sql>
 
@@ -358,7 +360,7 @@
     <insert id="insertSceneStep">
         insert into ui_e2e_scene_step (
             id, scene_id, project_id, step_order, step_type,
-            action_summary_json, locator_strategy_json, assertion_summary_json, wait_policy_json,
+            action_summary_json, locator_strategy_json, assertion_summary_json, wait_policy_json, data_binding_json,
             created_by, updated_by, created_at, updated_at
         ) values (
             #{id}, #{sceneId}, #{projectId}, #{stepOrder}, #{stepType},
@@ -366,6 +368,7 @@
             cast(coalesce(#{locatorStrategyJson}, '{}') as jsonb),
             cast(coalesce(#{assertionSummaryJson}, '{}') as jsonb),
             cast(coalesce(#{waitPolicyJson}, '{}') as jsonb),
+            cast(coalesce(#{dataBindingJson}, '{}') as jsonb),
             #{createdBy}, #{updatedBy}, #{createdAt}, #{updatedAt}
         )
     </insert>

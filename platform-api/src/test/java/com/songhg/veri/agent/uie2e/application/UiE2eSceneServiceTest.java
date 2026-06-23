@@ -11,6 +11,15 @@ import com.songhg.veri.agent.asset.infrastructure.InMemoryAssetRepository;
 import com.songhg.veri.agent.common.error.BusinessException;
 import com.songhg.veri.agent.common.error.ErrorCode;
 import com.songhg.veri.agent.integration.application.view.PlatformContext;
+import com.songhg.veri.agent.testdata.application.TestAccountLeaseService;
+import com.songhg.veri.agent.testdata.application.TestDataActorResolver;
+import com.songhg.veri.agent.testdata.application.TestDataCrossWpReferenceService;
+import com.songhg.veri.agent.testdata.application.TestDataPlatformContextClient;
+import com.songhg.veri.agent.testdata.application.TestDataSetService;
+import com.songhg.veri.agent.testdata.application.command.CreateTestDataSetCommand;
+import com.songhg.veri.agent.testdata.application.command.ImportTestDataRecordsCommand;
+import com.songhg.veri.agent.testdata.config.TestDataProperties;
+import com.songhg.veri.agent.testdata.infrastructure.InMemoryTestDataRepository;
 import com.songhg.veri.agent.testdesign.application.TestDesignCrossWpReportEvidenceService;
 import com.songhg.veri.agent.testdesign.application.TestDesignPlatformContextClient;
 import com.songhg.veri.agent.testdesign.infrastructure.InMemoryTestDesignRepository;
@@ -27,6 +36,9 @@ import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.anyMap;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -142,6 +154,130 @@ class UiE2eSceneServiceTest {
                 List.of(step("LOGIN"))
         ))).isInstanceOfSatisfying(BusinessException.class, exception ->
                 assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.INVALID_STATE));
+    }
+
+    @Test
+    void createsSceneWithWp8StepDataBindingAndReturnsBinding() {
+        Fixture fixture = fixture(true);
+        var dataSet = seedWp8DataSet(
+                fixture,
+                "project-alpha",
+                "checkout-users-scene",
+                List.of(new ImportTestDataRecordsCommand.RecordItem(
+                        "record-001",
+                        sha256("record-001"),
+                        Map.of("usernameMasked", "masked-user-01", "emailMasked", "u***@example.test"),
+                        sha256("external-record-001"),
+                        List.of("SMOKE")
+                ))
+        );
+
+        var created = fixture.service().createScene(new CreateUiE2eSceneCommand(
+                "project-alpha",
+                "app-alpha",
+                "env-staging",
+                "portal-login-with-wp8-binding",
+                "后台管理员登录绑定测试数据集",
+                "DRAFT",
+                "HIGH",
+                List.of("login", "wp8"),
+                Map.of(),
+                List.of(step(
+                        "LOGIN",
+                        Map.of(
+                                "principalField", "#username",
+                                "credentialField", "#password",
+                                "submitAction", "click",
+                                "principalValue", "{{ user.usernameMasked }}"
+                        ),
+                        Map.of(
+                                "dataSetCode", dataSet.code(),
+                                "recordKey", "record-001",
+                                "bindingAlias", "user"
+                        )
+                ))
+        ));
+
+        assertThat(created.steps()).singleElement().satisfies(step -> {
+            assertThat(step.actionSummary()).containsEntry("principalValue", "{{ user.usernameMasked }}");
+            assertThat(step.dataBinding())
+                    .containsEntry("dataSetCode", dataSet.code())
+                    .containsEntry("recordKey", "record-001")
+                    .containsEntry("bindingAlias", "user");
+        });
+    }
+
+    @Test
+    void rejectsTemplatePlaceholderWhenWp8BindingMissing() {
+        Fixture fixture = fixture(true);
+
+        assertThatThrownBy(() -> fixture.service().createScene(new CreateUiE2eSceneCommand(
+                "project-alpha",
+                "app-alpha",
+                "env-staging",
+                "portal-login-missing-binding",
+                "后台管理员登录缺少绑定",
+                "DRAFT",
+                "MEDIUM",
+                List.of("login"),
+                Map.of(),
+                List.of(step(
+                        "ASSERT",
+                        Map.of("expectedText", "{{ user.usernameMasked }}"),
+                        Map.of()
+                ))
+        ))).isInstanceOfSatisfying(BusinessException.class, exception -> {
+            assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.VALIDATION_ERROR);
+            assertThat(exception.getMessage()).isEqualTo(UiE2eStepDataBindingSupport.TEMPLATE_UNRESOLVED);
+        });
+    }
+
+    @Test
+    void resolvesWp8BindingTemplatesIntoStepSummaries() {
+        Fixture fixture = fixture(true);
+        var dataSet = seedWp8DataSet(
+                fixture,
+                "project-alpha",
+                "checkout-users-runtime",
+                List.of(new ImportTestDataRecordsCommand.RecordItem(
+                        "record-001",
+                        sha256("record-001"),
+                        Map.of("usernameMasked", "masked-user-01", "emailMasked", "u***@example.test"),
+                        sha256("external-record-001"),
+                        List.of("SMOKE")
+                ))
+        );
+        UiE2eStepDataBindingSupport support = new UiE2eStepDataBindingSupport(
+                fixture.objectMapper(),
+                fixture.testDataCrossWpReferenceService()
+        );
+
+        var resolved = support.resolveSceneSteps(List.of(new com.songhg.veri.agent.uie2e.domain.UiE2eSceneStep(
+                UUID.randomUUID(),
+                UUID.randomUUID(),
+                "project-alpha",
+                1,
+                "ASSERT",
+                "{\"expectedText\":\"{{ user.usernameMasked }}\"}",
+                "{\"preferred\":\"text\"}",
+                "{\"note\":\"digest={{ user.recordDigest }}\"}",
+                "{\"timeoutSeconds\":5}",
+                fixture.objectMapper().valueToTree(Map.of(
+                        "dataSetCode", dataSet.code(),
+                        "recordKey", "record-001",
+                        "bindingAlias", "user"
+                )).toString(),
+                "tester",
+                "tester",
+                Instant.now(),
+                Instant.now()
+        )));
+
+        assertThat(resolved).singleElement().satisfies(step -> {
+            assertThat(step.actionSummaryJson()).contains("masked-user-01");
+            assertThat(step.assertionSummaryJson()).contains("digest=");
+            assertThat(step.assertionSummaryJson()).doesNotContain("{{ user.recordDigest }}");
+        });
     }
 
     @Test
@@ -301,6 +437,30 @@ class UiE2eSceneServiceTest {
                 assetEvidenceService,
                 testDesignEvidenceService
         );
+        InMemoryTestDataRepository testDataRepository = new InMemoryTestDataRepository();
+        TestDataPlatformContextClient testDataContextClient = mock(TestDataPlatformContextClient.class);
+        when(testDataContextClient.projectContext("project-alpha")).thenReturn(new PlatformContext(
+                "PROJECT",
+                "project-alpha",
+                "ACTIVE",
+                "INTERNAL",
+                false,
+                List.of("apps", "environments", "configs"),
+                Instant.now()
+        ));
+        when(testDataContextClient.projectContext("project-beta")).thenReturn(new PlatformContext(
+                "PROJECT",
+                "project-beta",
+                "ACTIVE",
+                "INTERNAL",
+                false,
+                List.of("apps", "environments", "configs"),
+                Instant.now()
+        ));
+        doNothing().when(testDataContextClient).writeAuditEvent(anyString(), anyString(), anyString(), anyString(), anyString(), anyMap());
+        TestDataActorResolver testDataActorResolver = mock(TestDataActorResolver.class);
+        when(testDataActorResolver.currentActor()).thenReturn("wp8-scene-tester");
+        TestDataProperties testDataProperties = new TestDataProperties(enabled, 10, 512, 60, 120, false, true);
         UiE2eProperties properties = new UiE2eProperties(
                 enabled,
                 false,
@@ -323,14 +483,35 @@ class UiE2eSceneServiceTest {
                 ""
         );
         ObjectMapper objectMapper = new ObjectMapper();
+        TestDataSetService testDataSetService = new TestDataSetService(
+                testDataRepository,
+                testDataContextClient,
+                testDataActorResolver,
+                testDataProperties,
+                objectMapper
+        );
+        TestDataCrossWpReferenceService testDataCrossWpReferenceService = new TestDataCrossWpReferenceService(
+                new TestAccountLeaseService(
+                        testDataRepository,
+                        testDataContextClient,
+                        testDataActorResolver,
+                        testDataProperties,
+                        objectMapper
+                ),
+                testDataRepository,
+                testDataContextClient,
+                testDataProperties,
+                objectMapper
+        );
         return new Fixture(new UiE2eSceneService(
                 repository,
                 contextClient,
                 actorResolver,
                 crossWpReferenceService,
+                testDataCrossWpReferenceService,
                 properties,
                 objectMapper
-        ), repository, assetRepository, contextClient, actorResolver, properties, objectMapper);
+        ), repository, assetRepository, contextClient, actorResolver, properties, objectMapper, testDataSetService, testDataCrossWpReferenceService);
     }
 
     static void seedWp3Refs(InMemoryAssetRepository repository, UUID pageRef, UUID flowRef, UUID caseRef, String projectId) {
@@ -406,6 +587,48 @@ class UiE2eSceneServiceTest {
         );
     }
 
+    static CreateUiE2eSceneCommand.SceneStepPayload step(
+            String stepType,
+            Map<String, Object> actionSummary,
+            Map<String, Object> dataBinding
+    ) {
+        return new CreateUiE2eSceneCommand.SceneStepPayload(
+                stepType,
+                actionSummary,
+                Map.of("preferred", "testId"),
+                Map.of("expected", "ok"),
+                Map.of("timeoutSeconds", 5),
+                dataBinding
+        );
+    }
+
+    static com.songhg.veri.agent.testdata.application.view.TestDataSetDetailResponse seedWp8DataSet(
+            Fixture fixture,
+            String projectId,
+            String code,
+            List<ImportTestDataRecordsCommand.RecordItem> records
+    ) {
+        var dataSet = fixture.testDataSetService().createDataSet(new CreateTestDataSetCommand(
+                projectId,
+                "app-alpha",
+                "env-staging",
+                code,
+                "Checkout users scene",
+                "READY",
+                Map.of("fields", List.of(Map.of("name", "usernameMasked", "type", "STRING", "sensitive", false))),
+                "INTERNAL",
+                Map.of("mode", "MANUAL_CONFIRM"),
+                "EXTERNAL_REF",
+                sha256("wp8-scene-" + code)
+        ));
+        fixture.testDataSetService().importRecords(dataSet.id(), new ImportTestDataRecordsCommand(records));
+        return dataSet;
+    }
+
+    static String sha256(String source) {
+        return com.songhg.veri.agent.common.util.SensitiveTextSanitizer.sha256Hex(source);
+    }
+
     private static class StaticAssetContextClient implements PlatformContextClient {
 
         @Override
@@ -425,7 +648,9 @@ class UiE2eSceneServiceTest {
             UiE2ePlatformContextClient contextClient,
             UiE2eActorResolver actorResolver,
             UiE2eProperties properties,
-            ObjectMapper objectMapper
+            ObjectMapper objectMapper,
+            TestDataSetService testDataSetService,
+            TestDataCrossWpReferenceService testDataCrossWpReferenceService
     ) {
     }
 }

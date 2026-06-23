@@ -26,6 +26,7 @@ export type UiE2eSceneStepDraft = {
   locatorStrategyText: string;
   assertionSummaryText: string;
   waitPolicyText: string;
+  dataBindingText: string;
 };
 
 export type UiE2eSceneDraft = {
@@ -288,7 +289,8 @@ export const initialUiE2eSceneStepDraft: UiE2eSceneStepDraft = {
   actionSummaryText: '{"submitAction":"click"}',
   locatorStrategyText: '{"preferred":"testId"}',
   assertionSummaryText: '{"successSignal":"url contains /dashboard"}',
-  waitPolicyText: '{"timeoutSeconds":5}'
+  waitPolicyText: '{"timeoutSeconds":5}',
+  dataBindingText: '{}'
 };
 
 export const initialUiE2eSceneDraft: UiE2eSceneDraft = {
@@ -2020,12 +2022,13 @@ export function sceneDraftFromDetail(detail: Pick<
     tagsText: detail.tags.join(' '),
     sourceSummaryText: prettyJson(detail.sourceSummary),
     steps: detail.steps.length
-      ? detail.steps.map((step) => ({
+        ? detail.steps.map((step) => ({
           stepType: step.stepType,
           actionSummaryText: prettyJson(step.actionSummary),
           locatorStrategyText: prettyJson(step.locatorStrategy),
           assertionSummaryText: prettyJson(step.assertionSummary),
-          waitPolicyText: prettyJson(step.waitPolicy)
+          waitPolicyText: prettyJson(step.waitPolicy),
+          dataBindingText: prettyJson(step.dataBinding)
         }))
       : [{ ...initialUiE2eSceneStepDraft }]
   };
@@ -2046,12 +2049,13 @@ export function sceneDraftFromImport(detail: Pick<
     tagsText: detail.tags.join(' '),
     sourceSummaryText: prettyJson(detail.sourceSummary),
     steps: detail.steps.length
-      ? detail.steps.map((step) => ({
+        ? detail.steps.map((step) => ({
           stepType: step.stepType,
           actionSummaryText: prettyJson(step.actionSummary),
           locatorStrategyText: prettyJson(step.locatorStrategy),
           assertionSummaryText: prettyJson(step.assertionSummary),
-          waitPolicyText: prettyJson(step.waitPolicy)
+          waitPolicyText: prettyJson(step.waitPolicy),
+          dataBindingText: prettyJson(step.dataBinding)
         }))
       : [{ ...initialUiE2eSceneStepDraft }]
   };
@@ -2204,16 +2208,22 @@ function buildUiE2eSceneStepPayload(
   index: number,
   issues: string[]
 ): UiE2eSceneStepPayload | undefined {
+  const actionSummary = parseObjectText(step.actionSummaryText, `steps[${index}].actionSummary`, issues);
+  const locatorStrategy = parseObjectText(step.locatorStrategyText, `steps[${index}].locatorStrategy`, issues);
+  const assertionSummary = parseObjectText(step.assertionSummaryText, `steps[${index}].assertionSummary`, issues);
+  const waitPolicy = parseObjectText(step.waitPolicyText, `steps[${index}].waitPolicy`, issues);
+  const dataBinding = parseObjectText(step.dataBindingText, `steps[${index}].dataBinding`, issues);
   if (!step.stepType.trim()) {
     issues.push(`步骤 ${index + 1} 缺少 stepType`);
     return undefined;
   }
   return {
     stepType: step.stepType.trim(),
-    actionSummary: parseObjectText(step.actionSummaryText, `steps[${index}].actionSummary`, issues),
-    locatorStrategy: parseObjectText(step.locatorStrategyText, `steps[${index}].locatorStrategy`, issues),
-    assertionSummary: parseObjectText(step.assertionSummaryText, `steps[${index}].assertionSummary`, issues),
-    waitPolicy: parseObjectText(step.waitPolicyText, `steps[${index}].waitPolicy`, issues)
+    actionSummary,
+    locatorStrategy,
+    assertionSummary,
+    waitPolicy,
+    dataBinding
   };
 }
 

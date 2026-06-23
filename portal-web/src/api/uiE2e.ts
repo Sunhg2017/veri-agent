@@ -30,6 +30,7 @@ export interface UiE2eSceneStep {
   locatorStrategy: Record<string, unknown>;
   assertionSummary: Record<string, unknown>;
   waitPolicy: Record<string, unknown>;
+  dataBinding: Record<string, unknown>;
   createdAt?: string;
   updatedAt?: string;
 }
@@ -63,6 +64,7 @@ export interface UiE2eSceneImportStep {
   locatorStrategy: Record<string, unknown>;
   assertionSummary: Record<string, unknown>;
   waitPolicy: Record<string, unknown>;
+  dataBinding: Record<string, unknown>;
 }
 
 export interface UiE2eSceneImport {
@@ -359,6 +361,7 @@ export interface UiE2eSceneStepPayload {
   locatorStrategy?: Record<string, unknown>;
   assertionSummary?: Record<string, unknown>;
   waitPolicy?: Record<string, unknown>;
+  dataBinding?: Record<string, unknown>;
 }
 
 export interface CreateUiE2eScenePayload {
@@ -683,6 +686,7 @@ export function normalizeUiE2eSceneStep(input: unknown): UiE2eSceneStep {
     locatorStrategy: objectValue(read(value, 'locatorStrategy', 'locator_strategy')),
     assertionSummary: objectValue(read(value, 'assertionSummary', 'assertion_summary')),
     waitPolicy: objectValue(read(value, 'waitPolicy', 'wait_policy')),
+    dataBinding: objectValue(read(value, 'dataBinding', 'data_binding')),
     createdAt: optionalString(read(value, 'createdAt', 'created_at')),
     updatedAt: optionalString(read(value, 'updatedAt', 'updated_at'))
   };
@@ -696,7 +700,8 @@ export function normalizeUiE2eSceneImportStep(input: unknown): UiE2eSceneImportS
     actionSummary: objectValue(read(value, 'actionSummary', 'action_summary')),
     locatorStrategy: objectValue(read(value, 'locatorStrategy', 'locator_strategy')),
     assertionSummary: objectValue(read(value, 'assertionSummary', 'assertion_summary')),
-    waitPolicy: objectValue(read(value, 'waitPolicy', 'wait_policy'))
+    waitPolicy: objectValue(read(value, 'waitPolicy', 'wait_policy')),
+    dataBinding: objectValue(read(value, 'dataBinding', 'data_binding'))
   };
 }
 

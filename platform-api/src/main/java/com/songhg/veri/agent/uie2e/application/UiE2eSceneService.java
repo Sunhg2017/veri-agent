@@ -7,6 +7,7 @@ import com.songhg.veri.agent.common.api.PageResponse;
 import com.songhg.veri.agent.common.error.BusinessException;
 import com.songhg.veri.agent.common.error.ErrorCode;
 import com.songhg.veri.agent.integration.application.view.PlatformContext;
+import com.songhg.veri.agent.testdata.application.TestDataCrossWpReferenceService;
 import com.songhg.veri.agent.uie2e.application.command.CreateUiE2eSceneCommand;
 import com.songhg.veri.agent.uie2e.application.command.UpdateUiE2eSceneCommand;
 import com.songhg.veri.agent.uie2e.application.port.UiE2eRepository;
@@ -28,6 +29,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.regex.Pattern;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -61,8 +63,30 @@ public class UiE2eSceneService {
     private final UiE2ePlatformContextClient contextClient;
     private final UiE2eActorResolver actorResolver;
     private final UiE2eCrossWpReferenceService crossWpReferenceService;
+    private final TestDataCrossWpReferenceService testDataCrossWpReferenceService;
     private final UiE2eProperties properties;
     private final ObjectMapper objectMapper;
+    private final UiE2eStepDataBindingSupport stepDataBindingSupport;
+
+    @Autowired
+    public UiE2eSceneService(
+            UiE2eRepository repository,
+            UiE2ePlatformContextClient contextClient,
+            UiE2eActorResolver actorResolver,
+            UiE2eCrossWpReferenceService crossWpReferenceService,
+            TestDataCrossWpReferenceService testDataCrossWpReferenceService,
+            UiE2eProperties properties,
+            ObjectMapper objectMapper
+    ) {
+        this.repository = repository;
+        this.contextClient = contextClient;
+        this.actorResolver = actorResolver;
+        this.crossWpReferenceService = crossWpReferenceService;
+        this.testDataCrossWpReferenceService = testDataCrossWpReferenceService;
+        this.properties = properties;
+        this.objectMapper = objectMapper;
+        this.stepDataBindingSupport = new UiE2eStepDataBindingSupport(objectMapper, testDataCrossWpReferenceService);
+    }
 
     public UiE2eSceneService(
             UiE2eRepository repository,
@@ -72,12 +96,7 @@ public class UiE2eSceneService {
             UiE2eProperties properties,
             ObjectMapper objectMapper
     ) {
-        this.repository = repository;
-        this.contextClient = contextClient;
-        this.actorResolver = actorResolver;
-        this.crossWpReferenceService = crossWpReferenceService;
-        this.properties = properties;
-        this.objectMapper = objectMapper;
+        this(repository, contextClient, actorResolver, crossWpReferenceService, null, properties, objectMapper);
     }
 
     /**
@@ -99,7 +118,7 @@ public class UiE2eSceneService {
         }
         Map<String, Object> sourceSummary = safeObject(command.sourceSummary());
         crossWpReferenceService.validateSceneSourceSummary(projectId, sourceSummary);
-        List<CreateUiE2eSceneCommand.SceneStepPayload> stepPayloads = validateSteps(command.steps());
+        List<CreateUiE2eSceneCommand.SceneStepPayload> stepPayloads = validateSteps(projectId, command.steps());
         Instant now = Instant.now();
         String actor = actorResolver.currentActor();
         UiE2eScene scene = new UiE2eScene(
@@ -162,7 +181,7 @@ public class UiE2eSceneService {
         List<UiE2eSceneStep> currentSteps = repository.sceneSteps(existing.id());
         List<CreateUiE2eSceneCommand.SceneStepPayload> stepPayloads = command.steps() == null
                 ? currentSteps.stream().map(this::payload).toList()
-                : validateSteps(command.steps());
+                : validateSteps(projectId, command.steps());
         Instant now = Instant.now();
         UiE2eScene updated = new UiE2eScene(
                 existing.id(),
@@ -298,6 +317,7 @@ public class UiE2eSceneService {
                 readMap(step.locatorStrategyJson()),
                 readMap(step.assertionSummaryJson()),
                 readMap(step.waitPolicyJson()),
+                readMap(step.dataBindingJson()),
                 step.createdAt(),
                 step.updatedAt()
         );
@@ -309,7 +329,8 @@ public class UiE2eSceneService {
                 readMap(step.actionSummaryJson()),
                 readMap(step.locatorStrategyJson()),
                 readMap(step.assertionSummaryJson()),
-                readMap(step.waitPolicyJson())
+                readMap(step.waitPolicyJson()),
+                readMap(step.dataBindingJson())
         );
     }
 
@@ -335,6 +356,7 @@ public class UiE2eSceneService {
                     json(safeObject(payload.locatorStrategy())),
                     json(safeObject(payload.assertionSummary())),
                     json(safeObject(payload.waitPolicy())),
+                    json(safeObject(payload.dataBinding())),
                     actor,
                     actor,
                     now,
@@ -345,6 +367,7 @@ public class UiE2eSceneService {
     }
 
     private List<CreateUiE2eSceneCommand.SceneStepPayload> validateSteps(
+            String projectId,
             List<CreateUiE2eSceneCommand.SceneStepPayload> steps
     ) {
         if (steps == null || steps.isEmpty()) {
@@ -355,15 +378,53 @@ public class UiE2eSceneService {
             if (step == null) {
                 throw new BusinessException(ErrorCode.VALIDATION_ERROR, "场景步骤不能为空");
             }
+            Map<String, Object> actionSummary = safeObject(step.actionSummary());
+            Map<String, Object> locatorStrategy = safeObject(step.locatorStrategy());
+            Map<String, Object> assertionSummary = safeObject(step.assertionSummary());
+            Map<String, Object> waitPolicy = safeObject(step.waitPolicy());
+            Map<String, Object> dataBinding = safeObject(step.dataBinding());
+            validateStepDataBinding(projectId, actionSummary, locatorStrategy, assertionSummary, waitPolicy, dataBinding);
             normalized.add(new CreateUiE2eSceneCommand.SceneStepPayload(
                     normalizeStepType(step.stepType()),
-                    safeObject(step.actionSummary()),
-                    safeObject(step.locatorStrategy()),
-                    safeObject(step.assertionSummary()),
-                    safeObject(step.waitPolicy())
+                    actionSummary,
+                    locatorStrategy,
+                    assertionSummary,
+                    waitPolicy,
+                    dataBinding
             ));
         }
         return List.copyOf(normalized);
+    }
+
+    /**
+     * Step templates may use WP8-backed placeholders only when a bounded dataset binding contract is present.
+     * This keeps authoring-time validation aligned with later bundle generation and runner execution semantics.
+     */
+    private void validateStepDataBinding(
+            String projectId,
+            Map<String, Object> actionSummary,
+            Map<String, Object> locatorStrategy,
+            Map<String, Object> assertionSummary,
+            Map<String, Object> waitPolicy,
+            Map<String, Object> dataBinding
+    ) {
+        boolean containsTemplate = stepDataBindingSupport.containsTemplatePlaceholder(actionSummary)
+                || stepDataBindingSupport.containsTemplatePlaceholder(locatorStrategy)
+                || stepDataBindingSupport.containsTemplatePlaceholder(assertionSummary)
+                || stepDataBindingSupport.containsTemplatePlaceholder(waitPolicy);
+        if (dataBinding.isEmpty()) {
+            if (containsTemplate) {
+                throw new BusinessException(ErrorCode.VALIDATION_ERROR, UiE2eStepDataBindingSupport.TEMPLATE_UNRESOLVED);
+            }
+            return;
+        }
+        if (!StringUtils.hasText(projectId)) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR, UiE2eStepDataBindingSupport.DATA_BINDING_INVALID);
+        }
+        if (testDataCrossWpReferenceService == null) {
+            throw new BusinessException(ErrorCode.INVALID_STATE, UiE2eStepDataBindingSupport.DATA_BINDING_INVALID);
+        }
+        testDataCrossWpReferenceService.validateUiE2eStepDataBinding(projectId, dataBinding);
     }
 
     private UiE2eSceneQuery normalizeQuery(UiE2eSceneQuery query) {

@@ -121,11 +121,17 @@ describe('WP7 ui e2e API helpers', () => {
         id: 'step-1',
         step_order: '1',
         step_type: 'LOGIN',
-        action_summary: { submitAction: 'click' }
+        action_summary: { submitAction: 'click' },
+        data_binding: { dataSetCode: 'checkout-users', recordKey: 'user-001', bindingAlias: 'user' }
       }],
       policy: { executable: true }
     })).toMatchObject({
-      steps: [{ stepOrder: 1, stepType: 'LOGIN', actionSummary: { submitAction: 'click' } }],
+      steps: [{
+        stepOrder: 1,
+        stepType: 'LOGIN',
+        actionSummary: { submitAction: 'click' },
+        dataBinding: { dataSetCode: 'checkout-users', recordKey: 'user-001', bindingAlias: 'user' }
+      }],
       policy: { executable: true }
     });
 
@@ -142,7 +148,8 @@ describe('WP7 ui e2e API helpers', () => {
       steps: [{
         step_order: '2',
         step_type: 'LOGIN',
-        action_summary: { submitAction: 'click' }
+        action_summary: { submitAction: 'click' },
+        data_binding: { dataSetCode: 'checkout-users', recordKey: 'user-001', bindingAlias: 'user' }
       }],
       warnings: ['unsupported'],
       import_summary: { editableDraft: true }
@@ -150,7 +157,12 @@ describe('WP7 ui e2e API helpers', () => {
       projectId: 'project-alpha',
       applicationId: 'app-alpha',
       environmentId: 'staging',
-      steps: [{ stepOrder: 2, stepType: 'LOGIN', actionSummary: { submitAction: 'click' } }],
+      steps: [{
+        stepOrder: 2,
+        stepType: 'LOGIN',
+        actionSummary: { submitAction: 'click' },
+        dataBinding: { dataSetCode: 'checkout-users', recordKey: 'user-001', bindingAlias: 'user' }
+      }],
       warnings: ['unsupported'],
       importSummary: { editableDraft: true }
     });
