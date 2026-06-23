@@ -16,7 +16,7 @@
 3. 场景、bundle、运行、artifact 和 Flaky 都必须写审计，且 payload 只保存摘要、计数、digest 和错误码。
 4. WP7 不直接读取 WP3/WP5/WP8/WP9/WP10 表；跨 WP 输入必须走应用服务、导出接口或明确 port。
 5. 账号凭据只以 `accountLeaseRef` 为句柄流转；控制面只接收账号摘要和 `secretRefDigest`，不持久化密码、token、cookie、`secret://` 原文或租借 token 明文。
-6. 原始 artifact 不进入当前 P0 主数据面；WP7 只保存 manifest、digest、size、storageRef 和 redaction flags，并允许从受控本地存储按权限下载。
+6. 原始 artifact 不进入当前 P0 主数据面；WP7 只保存 manifest、digest、size、storageRef 和 redaction flags，并允许通过受权下载端点按权限读取。按当前基线，底层存储可复用平台级统一存储抽象，但对外契约仍保持 opaque `storageRef` 边界。
 7. Runner 必须受 allowlist、超时、并发、artifact 大小、步骤数和网络策略限制；默认 disabled。
 
 ## 2. 模块划分
@@ -71,7 +71,7 @@
 | `veri-agent.ui-e2e.capture-trace-enabled` | `true` | 是否采集 trace 摘要。 |
 | `veri-agent.ui-e2e.capture-junit-xml-enabled` | `false` | 是否导出基于 step result 合成的 `JUnit XML`。 |
 | `veri-agent.ui-e2e.export-enabled` | `true` | 是否允许导出脱敏摘要。 |
-| `veri-agent.ui-e2e.artifact-storage-dir` | `${java.io.tmpdir}/veri-agent/ui-e2e-artifacts` | 受控原始 artifact 本地落盘根目录，仅通过 API 下载，不回显真实路径。 |
+| `veri-agent.ui-e2e.artifact-storage-dir` | `${java.io.tmpdir}/veri-agent/ui-e2e-artifacts` | 显式配置时使用的受控本地 artifact 根目录；未显式配置时可复用平台级统一存储抽象，始终仅通过 API 下载，不回显真实路径。 |
 
 ## 5. 跨 WP 依赖
 

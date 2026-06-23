@@ -12,7 +12,7 @@
 
 WP7 当前承诺范围已经形成可验收闭环。`platform-api` 已提供 scene/bundle/review/run/flaky 控制面、`/api/v1/ui-e2e/health`、Playwright 子进程真实浏览器 runner、WP8 `runnerAccountContract` 脱敏账号契约与凭据注入、受控 artifact 本地存储/下载、`HAR/JUnit XML` 真实采集、登录免凭据场景视频采集、运行脱敏导出、失败分类、权限、审计、DB validation 和 `scripts/wp7_quality_gate.sh`；`portal-web` 已提供 `#ui-e2e` 工作台，覆盖场景编辑、bundle 评审、运行详情、artifact 下载、Flaky 标记、DOM 禁止字段扫描和 390px 浏览器 smoke。
 
-当前准出口径不包含 SSE/WebSocket 实时日志推送、Docker/容器化隔离执行、对象存储/CDN/签名 URL、含 `LOGIN` 场景的视频脱敏留存、多场景批量运行、浏览器池或第三方登录复杂流程。这些均作为后续专项记录，不构成本轮 WP7 发布阻断。
+当前准出口径不包含 SSE/WebSocket 实时日志推送、Docker/容器化隔离执行、预签名 URL/CDN/外部分享链路、含 `LOGIN` 场景的视频脱敏留存、多场景批量运行、浏览器池或第三方登录复杂流程。这些均作为后续专项记录，不构成本轮 WP7 发布阻断。按当前基线，WP7 artifact 存储已可复用平台级对象存储抽象，但不改变本轮 WP7 对外准出边界。
 
 ## 2. 范围和非目标
 
@@ -27,7 +27,7 @@ WP7 当前承诺范围已经形成可验收闭环。`platform-api` 已提供 sce
 非目标：
 
 1. 不提供实时运行日志推送、会话级流式控制台或外部 runner 回调通道。
-2. 不提供 Docker/容器沙箱、浏览器池、远程宿主机执行或对象存储归档。
+2. 不提供 Docker/容器沙箱、浏览器池、远程宿主机执行，或预签名 URL/CDN/外部分享型下载链路。
 3. 不对含 `LOGIN` 的场景保留视频；此类场景只能返回 `VIDEO/BLOCKED`。
 4. 不开放任意 shell、自定义浏览器启动参数、未批准网络出口或任意文件下载。
 5. 不把原始 DOM、runner stdout/stderr、密码、token、cookie、`secret://` 原文或租借 token 明文暴露给控制面、导出或前端。
@@ -73,7 +73,7 @@ cd portal-web && npm run build
 
 未执行外部真实业务站点 smoke。原因是当前 WP7 release gate 以本地 managed/browser smoke 为准，外部站点执行需要额外评审 allowlist、测试账号、数据污染边界和破坏性动作风险。
 
-未执行容器化、对象存储或远程 runner 验证。原因是这些能力不在当前 WP7 准出口径内，且运行时代码也未实现对应执行形态。
+未执行容器化、远程 runner 或预签名 URL/CDN 外部分发验证。原因是这些能力不在当前 WP7 准出口径内；按当前基线，平台级对象存储抽象已由后续专题接入，但本轮准出仍按受权下载端点与受控存储边界验收。
 
 未执行含 `LOGIN` 场景的视频留存专项。原因是当前产品和安全边界明确要求这类场景强制阻断视频落盘，后续若要引入脱敏留存，需要单独立项并重新准出。
 

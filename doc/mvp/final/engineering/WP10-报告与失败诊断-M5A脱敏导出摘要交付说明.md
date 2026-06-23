@@ -24,9 +24,9 @@ M5A 目标是让 READY 报告可通过 `GET /api/v1/reports/{id}/export?exportTy
 
 1. 不实现缺陷草稿生成、审阅、dismiss 或外部缺陷 payload preview。
 2. 不写 Jira、禅道、飞书或其他外部缺陷系统。
-3. 不落库导出正文，不提供 PDF/Word/真实文件下载。
+3. 本切片交付时不落库导出正文，不提供 PDF/Word/真实文件下载；按当前基线，这些能力已由后续 M11/M12 里程碑承接交付，但不改变 M5A 当时“仅 JSON/Markdown 摘要导出”的验收边界。
 4. 不新增前端 `#reports` 工作台和 DOM redaction smoke；DOM 扫描随 M6 前端落地。
-5. 不新增 WP3/WP5 evidence adapter。
+5. 本切片交付时不新增 WP3/WP5 evidence adapter；按当前基线，该能力已由后续 M9 里程碑承接交付。
 
 ## 3. 安全和数据边界
 

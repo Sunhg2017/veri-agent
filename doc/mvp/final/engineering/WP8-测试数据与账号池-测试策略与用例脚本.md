@@ -323,7 +323,7 @@ M6E 定向测试矩阵：
 
 M6C 未执行项和风险边界：
 
-1. 不实现真实文件下载，当前导出为控制面 JSON 摘要视图。
+1. 本切片交付时不实现真实文件下载，当前导出为控制面 JSON 摘要视图；按当前基线，平台级真实文件下载能力已在后续对象存储专题落地，但 WP8 自身导出仍未切换为文件下载闭环。
 2. 不实现租借导出和清理审计导出；本轮只覆盖数据集导出摘要。
 3. 不启用真实 cleanup worker 或生产数据复制。
 4. 真实 HTTP 服务级并发压测仍由 release 外部环境后续补充；当前 release gate 使用 managed 并发 smoke。
@@ -380,7 +380,7 @@ M8I 未执行项和风险边界：
 
 1. 不修改运行时代码，因此不要求后端全量测试、DB validation、Java 行数门禁或完整 WP8 quality gate 作为本切片最小门禁。
 2. 发布目标环境若包含 Java、API、DB、权限、导出、安全或前端运行时变更，必须追加 `WP8_GATE_MODE=release WP8_LEASE_CONCURRENCY_SMOKE=managed bash scripts/wp8_quality_gate.sh` 和对应专项验证。
-3. 当前范围无剩余 P0 功能开发项不等于后续增强取消；真实文件下载、真实 cleanup worker、跨 WP 真实执行器和容量压测仍需独立准出。
+3. 当前范围无剩余 P0 功能开发项不等于后续增强取消；真实 cleanup worker、WP8 自身的文件下载闭环、跨 WP 真实执行器的进一步增强和容量压测仍需独立准出。
 
 ## 9. 准出标准
 

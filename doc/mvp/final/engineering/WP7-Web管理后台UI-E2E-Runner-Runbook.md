@@ -131,6 +131,6 @@ bash scripts/wp7_quality_gate.sh
 2. `cancel` 仅提供控制面 best-effort 语义，不保证真正中断同步子进程。
 3. 不提供 SSE/WebSocket 实时日志推送；当前只在运行完成后查看步骤结果、audit timeline 和受控 artifact。
 4. 不提供 Docker/容器化隔离执行；当前所有真实浏览器 runner 都在宿主机受控子进程内执行。
-5. 不提供对象存储、CDN、签名 URL 或外部下载分享链接。
+5. 按当前基线，artifact 可复用平台级统一存储抽象；但不提供预签名 URL、CDN 或外部下载分享链接。
 6. 不支持含 `LOGIN` 场景的视频脱敏后留存；此类视频必须阻断。
 7. 不持久化 runner stdout/stderr、原始 DOM、密码、token、cookie、`secret://` 原文或租借 token 明文。

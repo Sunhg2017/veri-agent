@@ -24,7 +24,7 @@ M8E 目标是在 M8D 剩余工作盘点之后，补充一次当前分支的本�
 1. 不修改 `platform-api` Java 生产代码、API 契约、DB migration、模型调用、脚本逻辑或运行时配置。
 2. 不修改 `portal-web` TypeScript、样式、路由、Playwright smoke 或构建配置。
 3. 不把本地准出执行记录等同于目标环境发布记录；预发、生产或其他目标环境仍需在对应环境重跑 release gate 并填写环境信息。
-4. 不实现 WP3/WP5 evidence adapter、真实 provider 质量评测看板、外部缺陷系统写入、PDF/Word 完整报告、原始 runner artifact 归档、趋势/BI、报告订阅或生产容量承诺。
+4. 本切片交付时不实现 WP3/WP5 evidence adapter、真实 provider 质量评测看板、外部缺陷系统写入、PDF/Word 完整报告、原始 runner artifact 归档、趋势/BI、报告订阅或生产容量承诺；按当前基线，WP3/WP5 evidence adapter 与 PDF/Word 完整报告已由后续里程碑承接交付。
 
 ## 3. 验证命令与结果
 

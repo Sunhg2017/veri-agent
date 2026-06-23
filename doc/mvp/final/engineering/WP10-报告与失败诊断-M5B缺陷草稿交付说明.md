@@ -26,7 +26,7 @@ M5B 目标是在 READY 报告基础上生成可人工确认的缺陷草稿。草
 2. 不提供外部发送、同步、回写或附件上传动作。
 3. 不保存 raw evidence、runner stdout/stderr、请求响应正文、raw prompt、raw response 或 provider payload。
 4. 不新增前端 `#reports` 草稿视图；M6 继续承接前端交互和 DOM redaction smoke。
-5. 不新增 WP3/WP5 evidence adapter。
+5. 本切片交付时不新增 WP3/WP5 evidence adapter；按当前基线，该能力已由后续 M9 里程碑承接交付。
 
 ## 3. 安全和数据边界
 

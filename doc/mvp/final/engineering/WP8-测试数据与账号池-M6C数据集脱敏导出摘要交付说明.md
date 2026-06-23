@@ -5,7 +5,7 @@
 | 工作包 | WP8 测试数据与账号池 |
 | 里程碑 | M6C 数据集脱敏导出摘要 |
 | 日期 | 2026-06-15 |
-| 当前口径 | 补齐数据集脱敏导出摘要后端接口、前端面板、API helper、Vitest 和 Playwright smoke；不实现真实文件下载、租借导出或真实 cleanup worker |
+| 当前口径 | 补齐数据集脱敏导出摘要后端接口、前端面板、API helper、Vitest 和 Playwright smoke；本切片交付时不实现真实文件下载、租借导出或真实 cleanup worker |
 
 ## 1. 目标、范围和非目标
 
@@ -25,7 +25,7 @@
 
 非目标：
 
-1. 不提供 CSV/JSON 文件下载。
+1. 本切片交付时不提供 CSV/JSON 文件下载；按当前基线，平台级真实文件下载能力已由后续对象存储专题提供，但 WP8 数据集导出仍维持摘要视图。
 2. 不导出租借摘要、清理审计摘要或跨 WP 报告证据。
 3. 不启动真实 HTTP 后端或生产数据库做外部并发压测。
 4. 不启用真实 cleanup worker 或破坏性清理 adapter。
@@ -52,13 +52,13 @@
 | 导出字段过宽导致敏感值暴露 | 后端使用专用 export view，不复用详情响应；前端只渲染 keys/digest/policy | 回滚 controller endpoint、service 方法和前端导出面板 |
 | 权限误配导致只读用户可导出 | 使用 `testData:export` 并复用数据集项目 scope；MVC 测试覆盖 read-only 拒绝 | 临时关闭 `veri-agent.test-data.export-enabled` |
 | 前端 policy 被 sanitizer 误删 | 单独 normalizer 保留布尔安全声明 | 回滚 normalizer 或隐藏导出 policy 面板 |
-| 与真实文件下载范围混淆 | 文档明确当前只提供控制面 JSON 摘要 | 后续单独拆分文件下载 story |
+| 与真实文件下载范围混淆 | 文档明确当前只提供控制面 JSON 摘要；按当前基线，平台级下载能力已存在，但 WP8 数据集导出未切换为文件闭环 | 后续单独拆分 WP8 文件下载 story |
 
 ## 5. 五角色结论
 
 | 角色 | 结论 | 说明 |
 |---|---|---|
-| 资深项目经理 | 通过 | 范围限定在数据集导出摘要，真实文件下载、租借导出和 cleanup worker 不纳入本轮；回滚可关闭 `export-enabled` 或回退导出切片。 |
+| 资深项目经理 | 通过 | 范围限定在数据集导出摘要；本切片交付时真实文件下载、租借导出和 cleanup worker 不纳入本轮，回滚可关闭 `export-enabled` 或回退导出切片。 |
 | 资深产品经理 | 通过 | 导出面板满足测试工程师查看摘要和 redaction policy 的核心诉求，不展示敏感原文、maskedSummary 值或完整记录正文。 |
 | 资深服务端架构师 | 通过 | 后端接口复用现有权限和数据集仓储，专用 view 避免复用详情响应造成值泄露，审计只写计数和策略。 |
 | 资深前端工程师 | 通过 | 导出按钮、结果面板、loading/error/traceId 和响应式布局沿用工作台现有模式，按钮受权限和 health 开关控制。 |

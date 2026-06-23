@@ -5,7 +5,7 @@
 | 交付阶段 | M8B 前端操作说明、M8C 运维 Runbook |
 | 交付日期 | 2026-06-15 |
 | 交付范围 | WP8 浏览器操作说明、WP8 运维 Runbook、README/研发拆解/前端设计/测试策略/技术设计/PRD/启动准备状态更新 |
-| 非目标 | 修改前端运行时代码、修改服务端接口、修改数据库结构、实现真实文件下载、启用真实 cleanup worker、接入 WP7/WP9 真实执行器 |
+| 非目标 | 修改前端运行时代码、修改服务端接口、修改数据库结构、实现 WP8 自身的真实文件下载闭环、启用真实 cleanup worker、接入 WP7/WP9 真实执行器（指本切片交付时范围；其中部分能力已在后续里程碑补齐） |
 | 涉及模块 | WP8 文档、README |
 | 回滚方式 | 回退本次文档 commit；既有 `platform-api`、`portal-web`、WP8 quality gate、Playwright smoke 和 DB validation 不受影响 |
 
@@ -46,7 +46,7 @@ cd portal-web && npm run build
 
 ## 4. 风险与后续
 
-1. 文档说明基于当前 `TestDataWorkbench` 能力；如果后续新增筛选栏、分页、详情抽屉、真实文件下载或 cleanup worker，需要同步更新操作说明和 Playwright smoke。
+1. 文档说明基于当前 `TestDataWorkbench` 能力；如果后续新增筛选栏、分页、详情抽屉、WP8 自身的真实文件下载闭环或 cleanup worker，需要同步更新操作说明和 Playwright smoke。
 2. 运维 Runbook 当前按 `cleanup-enabled=false` 默认安全边界编写；真实清理 adapter 启用前必须补 allowlist、dry-run、幂等、最大影响范围和回滚专项准出。
 3. 本说明不能替代服务端权限校验；前端按钮显隐只做体验优化，最终准入仍由后端权限、项目 scope、对象状态和全局开关控制。
 
@@ -85,7 +85,7 @@ cd portal-web && npm run build
 未执行项：
 
 1. 未运行 `mvn -B -pl platform-api test`、DB validation、Java 行数门禁和完整 WP8 quality gate：本切片只改文档和 README，不修改 Java、API、DB、脚本或前端运行时代码；前端定向测试与 build 已作为回归验证。
-2. 未启用真实 cleanup worker、未实现导出文件下载、未接入 WP7/WP9 真实执行器：均为本切片明确非目标。
+2. 本切片交付时未启用真实 cleanup worker、未实现 WP8 自身的导出文件下载、未接入 WP7/WP9 真实执行器；按当前基线，其中平台级真实文件下载与 WP7/WP9 执行器消费已在后续里程碑补齐。
 
 Java 准入说明：
 

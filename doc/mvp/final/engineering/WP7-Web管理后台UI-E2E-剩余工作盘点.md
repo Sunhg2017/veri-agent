@@ -37,7 +37,7 @@
 | SSE/WebSocket 实时运行日志推送 | 后续前后端协同专项 | 当前运行详情和 artifact 下载已经满足 P0 控制面闭环，实时推送不影响现有执行与审计。 |
 | Docker/容器化隔离执行 | 后续平台化专项 | 当前 Playwright subprocess 已在本地受控边界内可用，但不承诺隔离运行环境。 |
 | 含 `LOGIN` 场景的视频脱敏留存 | 后续安全专项 | 当前明确禁止凭据输入窗口落盘，阻断策略是安全优先的预期行为。 |
-| 对象存储/CDN/签名 URL 下载 | 后续存储专项 | 当前本地受控存储和 opaque `storageRef` 已满足下载闭环。 |
+| 预签名 URL/CDN/外部分享下载 | 后续存储分发专项 | 按当前基线，WP7 已接入平台级统一存储抽象并支持受权下载；剩余不在于“是否可存储/下载”，而在于预签名链接、CDN 分发和外部分享链路。 |
 | 实际进程级 cancel / 外部 runner 回送 | 后续异步执行专项 | 当前 cancel 已有稳定控制面语义，但同步 subprocess 只能 best-effort。 |
 | 多场景批量运行与浏览器池 | 后续规模化专项 | 当前 `maxScenesPerRun=1`，先保证单场景受控执行和审计边界稳定。 |
 | 第三方登录、SSO、复杂步骤模板 | 后续产品增强专项 | 当前真实浏览器 runner 只承诺 `LOGIN/NAVIGATE/ASSERT` 三类最小闭环。 |
@@ -68,7 +68,7 @@ git diff --check
 后续如出现以下任一变化，应重新打开 WP7 需求、技术设计、测试策略和发布准出说明：
 
 1. runner 从本地 subprocess 升级为 Docker/远程 worker/浏览器池；
-2. artifact 下载从本地受控目录升级为对象存储、签名 URL 或外部分发；
+2. artifact 下载从受权下载端点升级为预签名 URL、CDN 或外部分发；
 3. `LOGIN` 场景视频策略从“强制阻断”改为“脱敏后留存”；
 4. 新增 SSE/WebSocket 实时日志、流式控制台或 runner 事件推送；
 5. 支持 `LOGIN/NAVIGATE/ASSERT` 以外的大量复杂步骤模板或多场景批量执行；

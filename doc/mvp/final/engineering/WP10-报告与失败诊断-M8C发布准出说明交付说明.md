@@ -20,7 +20,7 @@ M8C 目标是完成 WP10-8.4 发布准出说明，把 M1-M8B 的功能交付、�
 
 1. 不修改 `platform-api` Java 生产代码、API 契约、DB migration、模型调用或脚本逻辑。
 2. 不修改 `portal-web` 运行时代码、样式、路由或 Playwright smoke。
-3. 不新增 WP3/WP5 evidence adapter、真实 provider 质量评测看板、外部缺陷系统写入、PDF/Word 完整报告、趋势报表或生产容量承诺。
+3. 本切片交付时不新增 WP3/WP5 evidence adapter、真实 provider 质量评测看板、外部缺陷系统写入、PDF/Word 完整报告、趋势报表或生产容量承诺；按当前基线，WP3/WP5 evidence adapter 与 PDF/Word 完整报告已由后续里程碑承接交付。
 4. 不替代 WP10 剩余工作盘点；WP10-8.5 已在后续 M8D 单独审计当前完成项和后续专项。
 
 ## 3. 涉及模块
@@ -69,7 +69,7 @@ cd portal-web && npm run build
 | 角色 | 结论 | 说明 |
 |---|---|---|
 | 资深项目经理 | 通过 | 范围限定为 WP10-8.4 发布准出说明和索引同步，回滚路径清晰，不引入运行时变更。 |
-| 资深产品经理 | 通过 | 发布说明明确当前用户主链路、非目标和后续专项，避免把外部缺陷写入或完整报告误标为完成。 |
+| 资深产品经理 | 通过 | 发布说明明确当时用户主链路、非目标和后续专项；按当前基线，完整报告已由后续里程碑承接交付，外部缺陷写入仍保持后续专项边界。 |
 | 资深服务端架构师 | 通过 | 准出口径对齐现有 API、DB、权限、审计、跨 WP aggregate-only 契约和 WP2 bounded context 边界。 |
 | 资深前端工程师 | 通过 | 准出口径引用既有 `#reports` 工作台、前端 smoke、DOM 扫描和操作说明，不改前端运行时代码。 |
 | 资深质量工程师 | 通过 | 文档检索、`git diff --check`、前端定向 Vitest 和 build 均已通过；本轮无 Java/DB/API 运行时影响。 |

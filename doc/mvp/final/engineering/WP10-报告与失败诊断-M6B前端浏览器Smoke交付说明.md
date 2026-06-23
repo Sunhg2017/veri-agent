@@ -22,8 +22,8 @@ M6B 目标是把 M6A 的浏览器主链路从人工 sanity check 升级为可重
 
 1. 不启动真实 `platform-api` 或真实 PostgreSQL 做浏览器 E2E。
 2. 不新增后端 API、DB migration 或 Java 生产逻辑。
-3. 不实现 WP3/WP5 evidence adapter。
-4. 不实现外部缺陷系统写入、PDF/Word 报告、趋势报表或真实敏感内容专项拦截评测。
+3. 本切片交付时不实现 WP3/WP5 evidence adapter；按当前基线，该能力已由后续 M9 里程碑承接交付。
+4. 本切片交付时不实现外部缺陷系统写入、PDF/Word 报告、趋势报表或真实敏感内容专项拦截评测；按当前基线，PDF/Word 报告已由后续 M12 里程碑承接交付。
 
 ## 3. 覆盖项
 

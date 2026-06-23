@@ -3,7 +3,7 @@
 | 项目 | 内容 |
 |---|---|
 | 里程碑 | M8F 顶层文档基线一致性收口 |
-| 当前口径 | 对齐启动准备、PRD、技术设计和前端设计的当前基线到 M8E，不修改运行时代码 |
+| 当前口径 | 对齐启动准备、PRD、技术设计和前端设计的当前基线到当时 M8E，不修改运行时代码；按当前基线，后续已继续推进至 M12 |
 | 日期 | 2026-06-17 |
 | 分支 | `codex/wp10-planning` |
 
@@ -24,7 +24,7 @@ M8F 目标是清理 WP10 顶层入口文档中的旧阶段口径，让后续发�
 1. 不修改 `platform-api` Java 生产代码、API 契约实现、DB migration、模型调用、脚本逻辑或运行时配置。
 2. 不修改 `portal-web` TypeScript、样式、路由、Playwright smoke 或构建配置。
 3. 不重写历史 M1-M7 切片交付说明中的阶段性非目标和当时结论；这些记录保留为过程证据。
-4. 不实现 WP3/WP5 evidence adapter、真实 provider 质量评测看板、外部缺陷系统写入、PDF/Word 完整报告、原始 runner artifact 归档、趋势/BI、报告订阅或生产容量承诺。
+4. 本切片交付时不实现 WP3/WP5 evidence adapter、真实 provider 质量评测看板、外部缺陷系统写入、PDF/Word 完整报告、原始 runner artifact 归档、趋势/BI、报告订阅或生产容量承诺；按当前基线，WP3/WP5 evidence adapter 与 PDF/Word 完整报告已由后续里程碑承接交付。
 
 ## 3. 涉及模块
 
@@ -63,7 +63,7 @@ cd portal-web && npm run build
 |---|---|
 | 历史交付说明被误改导致过程证据失真 | 本轮只更新顶层入口文档和索引，不重写 M1-M7 阶段性记录。 |
 | 文档-only 收口被误认为目标环境 release gate | 明确 M8F 不替代 M8E 本地准出执行记录，也不替代目标环境 release gate。 |
-| 后续专项被误读为当前 P0 缺口 | 顶层入口文档统一标注 WP3/WP5、外部缺陷写入、完整报告、趋势/BI 等为后续专项。 |
+| 后续专项被误读为当前 P0 缺口 | 顶层入口文档在当时统一标注 WP3/WP5、外部缺陷写入、完整报告、趋势/BI 等为后续专项；按当前基线，其中 WP3/WP5 与完整报告已承接交付。 |
 
 回滚方式：回退本次 M8F 文档 commit；既有 WP10 控制面、DB schema、脚本、前端工作台和 quality gate 不受影响。
 

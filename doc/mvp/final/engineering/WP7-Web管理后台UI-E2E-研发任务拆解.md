@@ -158,4 +158,4 @@
 
 ## 15. 当前启动结论
 
-截至 2026-06-20，WP7 已完成文档启动准备、PRD、技术设计、前端页面设计、测试策略、Runner Runbook、发布准出说明和剩余工作盘点，并落地 scene/bundle/run/flaky 控制面、`#ui-e2e` 前端工作台、Playwright 子进程真实浏览器 runner、WP8 凭据注入 adapter、artifact 受控存储/下载、`HAR/JUnit XML` 真实采集、登录免凭据场景视频采集、浏览器 smoke、runner smoke 和 quality gate。当前范围无剩余 P0 主链路缺口，后续专项主要为实时日志推送、容器化隔离执行、更细粒度的视频脱敏能力、对象存储归档、多场景批量运行和浏览器池。这些都应按本拆解后续里程碑继续推进，而不应再由 WP8/WP9/WP10 继续占位。
+截至 2026-06-20，WP7 已完成文档启动准备、PRD、技术设计、前端页面设计、测试策略、Runner Runbook、发布准出说明和剩余工作盘点，并落地 scene/bundle/run/flaky 控制面、`#ui-e2e` 前端工作台、Playwright 子进程真实浏览器 runner、WP8 凭据注入 adapter、artifact 受控存储/下载、`HAR/JUnit XML` 真实采集、登录免凭据场景视频采集、浏览器 smoke、runner smoke 和 quality gate。按当前基线，WP7 artifact 存储后续已接入平台级统一存储抽象与默认 OSS provider；当前范围无剩余 P0 主链路缺口，后续专项主要为实时日志推送、容器化隔离执行、更细粒度的视频脱敏能力、预签名 URL/CDN/外部分发、多场景批量运行和浏览器池。这些都应按本拆解后续里程碑继续推进，而不应再由 WP8/WP9/WP10 继续占位。
