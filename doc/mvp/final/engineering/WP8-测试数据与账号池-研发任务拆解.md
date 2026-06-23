@@ -95,7 +95,7 @@ M3 当前推进状态：`platform-api` 已推进账号池控制面后端切片�
 | WP8-4.5 Expire recovery | P1 | 服务端架构师、质量工程师 | 扫描过期 active lease 并收敛账号状态 | 过期可恢复和审计 | Scheduler smoke |
 | WP8-4.6 Cleanup task | P0 | 服务端架构师 | 创建、查询、重试清理任务 | 清理开关关闭时不执行破坏性动作 | Controller test |
 
-M4 当前推进状态：`platform-api` 已推进租借、释放和清理任务后端切片，覆盖 `POST/GET /api/v1/test-data/leases`、`GET/renew/release /api/v1/test-data/leases/{id}`、`POST/GET /api/v1/test-data/data-tasks`、`GET/retry /api/v1/test-data/data-tasks/{id}`。本轮实现 `requestKey` 幂等、角色标签匹配、条件更新抢占账号、active lease 唯一约束、续租 TTL 限制、释放终态幂等、过期回收服务方法、清理任务控制面记录、OpenAPI contract 和 DB profile 持久化验证。清理 worker、租借并发外部 smoke、WP7/WP9 adapter、脱敏导出和前端工作台仍按 M5-M7 推进。
+M4 当前推进状态：`platform-api` 已推进租借、释放和清理任务后端切片，覆盖 `POST/GET /api/v1/test-data/leases`、`GET/renew/release /api/v1/test-data/leases/{id}`、`POST/GET /api/v1/test-data/data-tasks`、`GET/retry /api/v1/test-data/data-tasks/{id}`。本轮实现 `requestKey` 幂等、角色标签匹配、条件更新抢占账号、active lease 唯一约束、续租 TTL 限制、释放终态幂等、过期回收服务方法、清理任务控制面记录、OpenAPI contract 和 DB profile 持久化验证；后续里程碑已继续补齐 WP7/WP9 adapter、脱敏导出和前端工作台。当前剩余增强项主要聚焦真实 cleanup worker、真实账号自动开通、前端体验增强和容量治理。
 
 ## 9. Epic 5：跨 WP 引用
 
@@ -105,7 +105,7 @@ M4 当前推进状态：`platform-api` 已推进租借、释放和清理任务�
 | WP8-5.2 WP7 runner contract | P1 | 服务端架构师、前端工程师 | 定义 UI runner 通过 lease 获取账号摘要和 secretRef 的契约 | runner 不接收密码明文 | 文档评审 |
 | WP8-5.3 WP10 summary contract | P1 | 产品经理、质量工程师 | 定义报告可读的准备/租借/清理摘要 | 报告不展示 secret 或数据正文 | Contract test |
 
-M5 当前推进状态：`platform-api` 已新增 `TestDataCrossWpReferenceService` 作为 WP8 跨 WP 应用层契约切片，WP9 lease adapter 通过该服务申请/释放租借并只保存 `accountLeaseRef`，WP7 runner contract 通过该服务读取账号摘要和 `secretRefDigest`，并可在受控 runner adapter 内部把解析后的凭据收敛成脱敏注入计划摘要，WP10 summary contract 通过该服务读取准备、租借和清理证据。当前实现不对外新增独立 HTTP 入口，不直连跨 WP 表，不执行 WP7 浏览器执行、不执行 WP9 调度和不生成 WP10 完整报告。
+M5 当前推进状态：`platform-api` 已新增 `TestDataCrossWpReferenceService` 作为 WP8 跨 WP 应用层契约切片，WP9 lease adapter 通过该服务申请/释放租借并只保存 `accountLeaseRef`，WP7 runner contract 通过该服务读取账号摘要和 `secretRefDigest`，并可在受控 runner adapter 内部把解析后的凭据收敛成脱敏注入计划摘要，WP10 summary contract 通过该服务读取准备、租借和清理证据。当前实现仍保持“不对外新增独立 HTTP 入口、不直连跨 WP 表”的约束；基于该契约的 WP7 runner 凭据注入、WP9 自动租借释放和 WP10 报告证据消费已在后续里程碑接入，而浏览器执行、调度编排和完整报告能力则分别在各自 WP 中继续演进。
 
 ## 10. Epic 6：前端工作台
 
@@ -123,9 +123,9 @@ M6A 当前推进状态：`portal-web` 已新增 `#test-data` 工作台基础闭�
 
 M6B/M7A 当前推进状态：已新增 `portal-web/e2e/wp8-test-data.smoke.playwright.ts`、`scripts/wp8_frontend_e2e_smoke.sh`、`scripts/wp8_account_lease_concurrency_smoke.sh` 和 `scripts/wp8_quality_gate.sh`。前端 smoke 覆盖桌面和 390px 视口下的数据集创建、记录摘要导入、账号池创建、账号 secretRef 写入后不回显、租借申请/续租/释放、清理任务创建/重试、DOM 不含输入 secretRef 原文和页面无横向溢出；quality gate 聚合脚本语法、Java 行数门禁、WP8 后端定向测试、DB repository contract、前端定向测试、Playwright smoke、前端 build、DB validation，并在 release 模式要求显式执行账号租借并发 smoke。
 
-M6C 当前推进状态：已补齐数据集脱敏导出摘要后端接口和前端导出面板。`portal-web/src/api/testData.ts` 新增 `exportTestDataSet` 和导出 normalizer，`TestDataWorkbench` 数据集 tab 新增“脱敏导出摘要”面板，按钮受 `testData:export` 和 `health.exportEnabled` 控制；Playwright smoke 点击导出并断言 DOM 不含 `secret://` 或敏感测试值。真实文件下载、租借导出和真实 cleanup worker 仍未完成，不纳入本轮完成定义。
+M6C 当前推进状态：已补齐数据集脱敏导出摘要后端接口和前端导出面板。`portal-web/src/api/testData.ts` 新增 `exportTestDataSet` 和导出 normalizer，`TestDataWorkbench` 数据集 tab 新增“脱敏导出摘要”面板，按钮受 `testData:export` 和 `health.exportEnabled` 控制；Playwright smoke 点击导出并断言 DOM 不含 `secret://` 或敏感测试值。该切片交付时尚未提供真实文件下载和真实 cleanup worker；按当前基线，平台级真实文件下载已在后续对象存储专题交付，真实 cleanup worker 仍不纳入本轮完成定义。
 
-M6D 当前推进状态：已补齐租借脱敏导出摘要后端接口和前端导出面板。`platform-api` 新增 `GET /api/v1/test-data/leases/{id}/export`、`TestAccountLeaseExportResponse` 和导出审计，`portal-web/src/api/testData.ts` 新增 `exportTestAccountLease`、导出 normalizer，`TestDataWorkbench` 租借 tab 新增“租借脱敏导出摘要”面板；Playwright smoke 进一步断言导出结果只展示 digest、keys 和 redaction policy，不回显释放原因、健康摘要原文或 secretRef 原文。真实文件下载、真实 cleanup worker 和 WP7/WP9 执行器集成仍未完成，不纳入本轮完成定义。
+M6D 当前推进状态：已补齐租借脱敏导出摘要后端接口和前端导出面板。`platform-api` 新增 `GET /api/v1/test-data/leases/{id}/export`、`TestAccountLeaseExportResponse` 和导出审计，`portal-web/src/api/testData.ts` 新增 `exportTestAccountLease`、导出 normalizer，`TestDataWorkbench` 租借 tab 新增“租借脱敏导出摘要”面板；Playwright smoke 进一步断言导出结果只展示 digest、keys 和 redaction policy，不回显释放原因、健康摘要原文或 secretRef 原文。该切片交付时尚未提供真实文件下载、真实 cleanup worker 和跨 WP 执行器消费；按当前基线，平台级真实文件下载与 WP7/WP9 执行器消费已在后续里程碑交付，真实 cleanup worker 仍不纳入本轮完成定义。
 
 ## 11. Epic 7：质量门禁和发布准出
 
@@ -149,9 +149,9 @@ M7A 当前推进状态：`scripts/wp8_quality_gate.sh` 已落地为 development/
 | WP8-8.3 Runbook | P1 | 质量工程师、服务端架构师 | 编写租借卡死、账号锁定、secretRef 轮换、清理失败排障 | 运维可按步骤处理 | 已完成：`WP8-测试数据与账号池-运维Runbook.md` |
 | WP8-8.4 发布准出说明 | P0 | 项目经理、质量工程师 | 记录验证命令、跳过项、风险、回滚和五角色准出 | 已完成：`WP8-测试数据与账号池-发布准出说明.md` | 文档评审 |
 
-M8B/M8C 当前推进状态：已新增 WP8 前端操作说明、运维 Runbook 和 M8B/M8C 交付说明。该切片只补用户操作路径和运维排障文档，不修改前端运行时代码、服务端接口、数据库结构，不实现真实文件下载、真实 cleanup worker 或 WP7/WP9 执行器接入。
+M8B/M8C 当前推进状态：已新增 WP8 前端操作说明、运维 Runbook 和 M8B/M8C 交付说明。该切片只补用户操作路径和运维排障文档，不修改前端运行时代码、服务端接口、数据库结构；当时未纳入真实文件下载、真实 cleanup worker 或 WP7/WP9 执行器接入，按当前基线其中真实文件下载和 WP7/WP9 执行器消费已在后续里程碑补齐。
 
-M8I 当前推进状态：已新增 WP8 发布准出说明、剩余工作盘点和 M8I 发布准出收口交付说明，并同步 README、PRD、技术设计、测试策略、正式启动准备和当前实现基线。当前 WP8 范围无剩余 P0 功能开发项；真实文件下载、真实 cleanup worker、WP7/WP9/WP10 真实执行器集成、真实账号自动开通、前端筛选分页详情增强和外部容量压测均作为后续专项，不构成本轮 WP8-8.4 发布阻断。
+M8I 当前推进状态：已新增 WP8 发布准出说明、剩余工作盘点和 M8I 发布准出收口交付说明，并同步 README、PRD、技术设计、测试策略、正式启动准备和当前实现基线。当前 WP8 范围无剩余 P0 功能开发项；M8I 当时标记为后续专项的事项中，平台级真实文件下载、WP7/WP9 执行器消费和 WP10 报告证据消费/完整报告已在后续里程碑承接交付，当前仍待独立推进的增强项聚焦真实 cleanup worker、真实账号自动开通、前端筛选分页详情增强和外部容量压测，不构成本轮 WP8-8.4 发布阻断。
 
 ## 13. P0 完成定义
 

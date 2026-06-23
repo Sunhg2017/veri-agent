@@ -10,9 +10,9 @@
 
 ## 1. 准出结论
 
-WP9 当前承诺范围已经形成可验收闭环。`platform-api` 已提供执行计划、DAG dryRun、运行状态机、内部队列认领、heartbeat/recovery、WP6 API_TEST dispatch、WP8 账号租借自动申请/释放、REPORT_HANDOFF、webhook/cron 触发控制面、生产 CRON scanner、run export、scheduler loop 和 release gate；`portal-web` 已提供 `#execution` 工作台，覆盖计划、DAG、运行、取消、重试、导出和触发配置主链路。
+WP9 当前承诺范围已经形成可验收闭环。`platform-api` 已提供执行计划、DAG dryRun、运行状态机、内部队列认领、heartbeat/recovery、WP6 API_TEST dispatch、WP7 UI_TEST dispatch、WP8 账号租借自动申请/释放、REPORT_HANDOFF、webhook/cron 触发控制面、生产 CRON scanner、run export、scheduler loop 和 release gate；`portal-web` 已提供 `#execution` 工作台，覆盖计划、DAG、运行、取消、重试、导出和触发配置主链路。
 
-当前准出口径不包含 WP7 UI/E2E runner 实现、WP8 账号池、WP10 完整报告生成、真实供应商 OAuth/App 上架、独立外部 worker 二进制或 CRON 生产压测容量承诺。这些均已作为后续专项记录，不构成本轮 WP9 发布阻断。
+当前准出口径不包含 WP8 账号池自身能力扩展、真实供应商 OAuth/App 上架、独立外部 worker 二进制或 CRON 生产压测容量承诺。这些均已作为后续专项记录，不构成本轮 WP9 发布阻断。
 
 ## 2. 范围和非目标
 
@@ -25,9 +25,9 @@ WP9 当前承诺范围已经形成可验收闭环。`platform-api` 已提供执�
 
 非目标：
 
-1. 不实现 WP7 UI_TEST 真实浏览器 runner；当前仅保留 `EXECUTION_RUNNER_NOT_READY` 占位语义。
+1. 不在 WP9 内自建浏览器执行器；`UI_TEST` 通过 WP7 应用服务 dispatch，浏览器执行能力本身仍由 WP7 独立演进和准出。
 2. 不实现真实 cleanup worker、破坏性清理 adapter 或账号池自动开通；WP8 账号租借应用层契约已由 WP9 调度接入。
-3. 不生成 WP10 完整报告正文、诊断页面或报告归档；WP9 只提供 handoff 摘要和脱敏 run export。
+3. 不生成 WP10 侧报告正文、诊断页面或报告归档；WP9 只提供 handoff 摘要和脱敏 run export，完整报告消费与展示由 WP10 控制面承接。
 4. 不申请真实供应商 OAuth/App 上架，不实现安装授权和卸载回收。
 5. 不承诺生产吞吐数值，不做 CRON 历史 backfill；已通过 capacity/backlog smoke 冻结当前限批和不补偿语义。
 6. 不新增独立 worker 进程或分布式锁；当前生产可用同一 `platform-api` 镜像按 web/scheduler-active/scheduler-standby env 角色部署。
@@ -70,7 +70,7 @@ release/preprod/prod 模式必须显式启用 managed scheduler smoke 和 webhoo
 
 未执行真实 CRON 生产压测。原因是当前 WP9 准出只冻结 missed-fire 不补偿、单次 materialize、tick batch 限批和后续 tick 接续处理的控制面语义；吞吐指标、容量看板和 backfill 限额需要独立压测环境。
 
-未执行 WP10 完整报告端到端消费。原因是 WP9 已提供 `REPORT_HANDOFF` 完成摘要和脱敏 run export，完整报告生成、诊断和归档属于 WP10。
+未执行跨 WP 联合发布级端到端回归。原因是 WP9 已提供 `REPORT_HANDOFF` 完成摘要和脱敏 run export，WP10 对完整报告的生成、诊断和归档由其自身工作包 release gate 覆盖。
 
 未执行独立 worker 进程、多活 leader election 或分布式锁验证。原因是当前托管策略通过同一 `platform-api` 镜像和 env 角色区分 web、scheduler-active、scheduler-standby；多活调度和锁租约是后续平台化增强。
 

@@ -70,12 +70,12 @@ AI 驱动的端到端企业级测试平台。WP1、WP2、WP3、WP4 是研发任�
 | `doc/mvp/final/engineering/WP9-执行编排与任务调度-发布准出说明.md` | WP9 发布准出总说明，覆盖当前范围结论、验证记录、跳过项、风险、回滚和五角色准出。 |
 | `doc/mvp/final/engineering/WP9-执行编排与任务调度-剩余工作盘点.md` | WP9 当前范围剩余工作审计，区分已完成项和后续专项。 |
 | `doc/mvp/final/engineering/WP10-报告与失败诊断-正式启动准备.md` | WP10 报告与失败诊断的范围冻结、依赖、里程碑、风险和启动准入。 |
-| `doc/mvp/final/engineering/WP10-报告与失败诊断-需求文档与PRD.md` | WP10 需求文档和产品 PRD，定义报告生成、失败诊断、缺陷草稿、导出摘要和验收标准。 |
+| `doc/mvp/final/engineering/WP10-报告与失败诊断-需求文档与PRD.md` | WP10 需求文档和产品 PRD，定义报告生成、失败诊断、缺陷草稿、脱敏导出/下载和验收标准。 |
 | `doc/mvp/final/engineering/WP10-报告与失败诊断-技术设计与接口契约.md` | WP10 服务端技术设计、数据模型、状态机、权限、审计、跨 WP port 和 API 契约草案。 |
-| `doc/mvp/final/engineering/WP10-报告与失败诊断-前端页面设计.md` | WP10 前端报告工作台、路由、权限、报告详情、失败诊断、缺陷草稿、导出和可测性设计。 |
-| `doc/mvp/final/engineering/WP10-报告与失败诊断-前端操作说明.md` | WP10 前端操作说明，覆盖报告诊断工作台入口、筛选、生成、详情、诊断、草稿、导出和脱敏边界。 |
+| `doc/mvp/final/engineering/WP10-报告与失败诊断-前端页面设计.md` | WP10 前端报告工作台、路由、权限、报告详情、失败诊断、缺陷草稿、导出/下载和可测性设计。 |
+| `doc/mvp/final/engineering/WP10-报告与失败诊断-前端操作说明.md` | WP10 前端操作说明，覆盖报告诊断工作台入口、筛选、生成、详情、诊断、草稿、导出/下载和脱敏边界。 |
 | `doc/mvp/final/engineering/WP10-报告与失败诊断-运维Runbook.md` | WP10 运维 Runbook，覆盖报告生成失败、AI 诊断降级、导出阻断、模型预算、敏感泄露和回滚。 |
-| `doc/mvp/final/engineering/WP10-报告与失败诊断-测试策略与用例脚本.md` | WP10 测试策略、报告/诊断/导出用例矩阵、脱敏扫描、AI 评测和质量门禁建议。 |
+| `doc/mvp/final/engineering/WP10-报告与失败诊断-测试策略与用例脚本.md` | WP10 测试策略、报告/诊断/导出下载用例矩阵、脱敏扫描、AI 评测和质量门禁建议。 |
 | `doc/mvp/final/engineering/WP10-报告与失败诊断-研发任务拆解.md` | WP10 Epic/Story/Task 研发拆解、实施顺序和 P0 完成定义。 |
 | `doc/mvp/final/engineering/WP10-报告与失败诊断-发布准出说明.md` | WP10 发布准出总说明，覆盖当前范围、验证记录、跳过项、风险、回滚和五角色准出。 |
 | `doc/mvp/final/engineering/WP10-报告与失败诊断-剩余工作盘点.md` | WP10 当前范围剩余工作盘点，区分已完成项、发布前必做和后续专项。 |
@@ -100,6 +100,8 @@ AI 驱动的端到端企业级测试平台。WP1、WP2、WP3、WP4 是研发任�
 | `doc/mvp/final/engineering/WP10-报告与失败诊断-M8F顶层文档基线一致性收口交付说明.md` | WP10 M8F 顶层入口文档基线一致性收口记录，覆盖启动准备、PRD、技术设计和前端设计当前口径同步。 |
 | `doc/mvp/final/engineering/WP10-报告与失败诊断-M9-WP3WP5证据Adapter交付说明.md` | WP10 M9 WP3/WP5 evidence adapter 交付记录，覆盖 aggregate-only 跨 WP 应用服务、manifest 摘要、脱敏边界和验证命令。 |
 | `doc/mvp/final/engineering/WP10-报告与失败诊断-M10异步生成Worker交付说明.md` | WP10 M10 异步生成 worker 交付记录，覆盖 `QUEUED/GENERATING` 后台执行器、条件认领、stale 恢复和验证命令。 |
+| `doc/mvp/final/engineering/WP10-报告与失败诊断-M11平台级真实文件下载与对象存储化专题交付说明.md` | WP10 M11 平台级真实文件下载与对象存储化专题交付记录，覆盖统一存储抽象、默认 OSS provider、WP7/WP10 下载链路接入和本地回退策略。 |
+| `doc/mvp/final/engineering/WP10-报告与失败诊断-M12-PDF-Word完整报告交付说明.md` | WP10 M12 PDF/Word 完整报告交付记录，覆盖 PDF/Word aggregate-only 导出、下载入口、文档渲染和相关测试。 |
 | `doc/mvp/final/engineering/WP9-执行编排与任务调度-M1基础控制面交付说明.md` | WP9 M1 基础控制面交付记录，覆盖权限、DB、validation、配置和 health API。 |
 | `doc/mvp/final/engineering/WP9-执行编排与任务调度-M2计划与DAG交付说明.md` | WP9 M2 计划与 DAG 交付记录，覆盖 plan CRUD、DAG validator、dry-run、状态保护和后端测试。 |
 | `doc/mvp/final/engineering/WP9-执行编排与任务调度-M3A手动触发与运行记录交付说明.md` | WP9 M3A 手动触发与运行记录交付记录，覆盖 run/node run 初始化、requestKey 幂等和运行查询。 |
@@ -157,7 +159,7 @@ AI 驱动的端到端企业级测试平台。WP1、WP2、WP3、WP4 是研发任�
 | `scripts/wp6_openapi_fixture_smoke.sh` | WP6 OpenAPI fixture 解析、脱敏和错误路径烟测脚本。 |
 | `scripts/wp6_runner_smoke.sh` | WP6 runner smoke，覆盖 Managed HTTP、Pytest 子进程、Docker 沙箱执行分支、allowlist、timeout 和脱敏回归。 |
 | `scripts/wp6_quality_gate.sh` | WP6 本地质量门禁入口，串联 OpenAPI fixture、后端、前端、构建、DB validation 和可选 runner smoke。 |
-| `scripts/wp10_frontend_e2e_smoke.sh` | WP10 报告诊断前端浏览器 smoke，覆盖报告生成、诊断、缺陷草稿、导出摘要、DOM 禁止字段扫描和 390px 响应式。 |
+| `scripts/wp10_frontend_e2e_smoke.sh` | WP10 报告诊断前端浏览器 smoke，覆盖报告生成、诊断、缺陷草稿、导出/下载、DOM 禁止字段扫描和 390px 响应式。 |
 | `scripts/wp10_diagnosis_quality_eval.sh` | WP10 诊断质量评测入口，离线覆盖 timeout、dependency blocked、runner disabled、账号锁定和 webhook 幂等冲突 fallback。 |
 | `scripts/wp10_diagnosis_redaction_eval.sh` | WP10 诊断上下文脱敏专项评测入口，离线扫描 WP2 bounded context 禁止字段和值。 |
 

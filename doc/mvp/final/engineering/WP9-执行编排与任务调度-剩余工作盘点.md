@@ -30,9 +30,8 @@
 
 | 后续项 | 当前判断 | 不阻断原因 |
 |---|---|---|
-| WP7 UI/E2E runner | 后续 WP7 | WP9 当前只保留 `UI_TEST` 占位和 `EXECUTION_RUNNER_NOT_READY` 语义。 |
 | 真实 cleanup worker / 破坏性 adapter | 后续安全专项 | 当前默认 `cleanup-enabled=false`，只记录任务，避免误删业务数据。 |
-| WP10 完整报告消费、生成和归档 | 后续 WP10 | WP9 已提供 `REPORT_HANDOFF` 摘要和脱敏 run export。 |
+| WP7/WP10 跨 WP 集成深化 | 已由对应 WP 接入，后续仅保留专项增强 | WP9 已支持 `UI_TEST` 通过 WP7 应用服务创建真实 run，并为 WP10 提供 `REPORT_HANDOFF` 摘要和脱敏 run export；剩余不在于“是否接入”，而在于外部 worker、容量和更深的端到端专项。 |
 | 真实供应商 OAuth/App 上架 | 后续供应商平台专项 | WP9 已提供 signed webhook helper、CI 样例和 marketplace 模板包。 |
 | 独立外部 worker 二进制、多活 leader election、分布式锁 | 后续平台化增强 | 当前可用同一 `platform-api` 镜像通过 env 区分 web/scheduler-active/scheduler-standby。 |
 | CRON 真实生产压测、容量看板、历史 backfill | 后续运维/容量专项 | 当前已通过 smoke 冻结不补偿、限批和接续处理语义，不承诺吞吐数值。 |
