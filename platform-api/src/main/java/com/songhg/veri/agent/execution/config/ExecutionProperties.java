@@ -36,7 +36,15 @@ public record ExecutionProperties(
         /** Default execution run timeout in seconds. */
         @DefaultValue("1800") int defaultRunTimeoutSeconds,
         /** Recovery scan batch size. */
-        @DefaultValue("50") int recoveryBatchSize
+        @DefaultValue("50") int recoveryBatchSize,
+        /** Enables a scheduler-level leader lock so multiple active workers do not run the same tick concurrently. */
+        @DefaultValue("true") boolean schedulerLeaderLockEnabled,
+        /** Distributed/local lock name for the WP9 scheduler tick. */
+        @DefaultValue("wp9:execution:scheduler:leader") String schedulerLeaderLockName,
+        /** Maximum time to wait for the scheduler leader lock before skipping this tick. */
+        @DefaultValue("0") int schedulerLeaderLockWaitMs,
+        /** Lock lease time; must be longer than a normal bounded tick but shorter than operator recovery windows. */
+        @DefaultValue("120000") int schedulerLeaderLockLeaseMs
 ) {
     private static final int DEFAULT_MAX_CONCURRENT_RUNS_PER_PROJECT = 2;
     private static final int MAX_CONCURRENT_RUNS_PER_PROJECT = 50;
@@ -58,9 +66,52 @@ public record ExecutionProperties(
     private static final int MAX_RUN_TIMEOUT_SECONDS = 604_800;
     private static final int DEFAULT_RECOVERY_BATCH_SIZE = 50;
     private static final int MAX_RECOVERY_BATCH_SIZE = 1_000;
+    private static final String DEFAULT_SCHEDULER_LEADER_LOCK_NAME = "wp9:execution:scheduler:leader";
+    private static final int DEFAULT_SCHEDULER_LEADER_LOCK_WAIT_MS = 0;
+    private static final int MAX_SCHEDULER_LEADER_LOCK_WAIT_MS = 60_000;
+    private static final int DEFAULT_SCHEDULER_LEADER_LOCK_LEASE_MS = 120_000;
+    private static final int MAX_SCHEDULER_LEADER_LOCK_LEASE_MS = 3_600_000;
 
     @ConstructorBinding
     public ExecutionProperties {
+    }
+
+    public ExecutionProperties(
+            boolean schedulerEnabled,
+            boolean webhookEnabled,
+            boolean cronEnabled,
+            long webhookClockSkewSeconds,
+            long webhookSecretCacheTtlSeconds,
+            int schedulerIntervalMs,
+            int schedulerInitialDelayMs,
+            String schedulerWorkerId,
+            int schedulerTickBatchSize,
+            int maxConcurrentRunsPerProject,
+            int maxConcurrentNodesPerRun,
+            int nodeHeartbeatTimeoutSeconds,
+            int defaultRunTimeoutSeconds,
+            int recoveryBatchSize
+    ) {
+        this(
+                schedulerEnabled,
+                webhookEnabled,
+                cronEnabled,
+                webhookClockSkewSeconds,
+                webhookSecretCacheTtlSeconds,
+                schedulerIntervalMs,
+                schedulerInitialDelayMs,
+                schedulerWorkerId,
+                schedulerTickBatchSize,
+                maxConcurrentRunsPerProject,
+                maxConcurrentNodesPerRun,
+                nodeHeartbeatTimeoutSeconds,
+                defaultRunTimeoutSeconds,
+                recoveryBatchSize,
+                true,
+                DEFAULT_SCHEDULER_LEADER_LOCK_NAME,
+                DEFAULT_SCHEDULER_LEADER_LOCK_WAIT_MS,
+                DEFAULT_SCHEDULER_LEADER_LOCK_LEASE_MS
+        );
     }
 
     public int effectiveMaxConcurrentRunsPerProject() {
@@ -139,8 +190,39 @@ public record ExecutionProperties(
         return boundedPositive(recoveryBatchSize, DEFAULT_RECOVERY_BATCH_SIZE, MAX_RECOVERY_BATCH_SIZE);
     }
 
+    public String effectiveSchedulerLeaderLockName() {
+        if (schedulerLeaderLockName == null || schedulerLeaderLockName.isBlank()) {
+            return DEFAULT_SCHEDULER_LEADER_LOCK_NAME;
+        }
+        String trimmed = schedulerLeaderLockName.trim().replaceAll("[^A-Za-z0-9_.:-]", "_");
+        return trimmed.length() > 160 ? trimmed.substring(0, 160) : trimmed;
+    }
+
+    public int effectiveSchedulerLeaderLockWaitMs() {
+        return boundedZeroOrPositive(
+                schedulerLeaderLockWaitMs,
+                DEFAULT_SCHEDULER_LEADER_LOCK_WAIT_MS,
+                MAX_SCHEDULER_LEADER_LOCK_WAIT_MS
+        );
+    }
+
+    public int effectiveSchedulerLeaderLockLeaseMs() {
+        return boundedPositive(
+                schedulerLeaderLockLeaseMs,
+                DEFAULT_SCHEDULER_LEADER_LOCK_LEASE_MS,
+                MAX_SCHEDULER_LEADER_LOCK_LEASE_MS
+        );
+    }
+
     private static int boundedPositive(int value, int defaultValue, int maxValue) {
         if (value <= 0) {
+            return defaultValue;
+        }
+        return Math.min(value, maxValue);
+    }
+
+    private static int boundedZeroOrPositive(int value, int defaultValue, int maxValue) {
+        if (value < 0) {
             return defaultValue;
         }
         return Math.min(value, maxValue);

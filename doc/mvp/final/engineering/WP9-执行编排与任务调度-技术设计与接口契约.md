@@ -89,7 +89,7 @@ M8B 增加 Scheduler 与 Trigger Runbook，不改变运行时契约。`WP9-Sched
 
 M8C 增加供应商 marketplace 接入包，不改变服务端接口契约。`integrations/wp9-webhook-marketplace/manifest.json` 声明 signed webhook 安装变量、签名算法、Header、幂等策略、模板和 payload 示例；GitHub/GitLab/Jenkins 模板均使用 `timestamp.eventId.rawBody` HMAC-SHA256 小写 hex，并通过 `--data-binary` 发送 raw body；`scripts/wp9_marketplace_package_smoke.sh` 离线校验 manifest、模板、payload、secretRef 不外泄和确定性签名。
 
-M8D 增加 worker 托管 readiness，不改变 scheduler Java 契约。`integrations/wp9-worker-hosting/` 定义 `web`、`scheduler-active`、`scheduler-standby` 三类 env 示例；`scripts/wp9_worker_hosting_readiness.sh` 离线校验 role、`PLATFORM_XXL_JOB_ENABLED`、scheduler/webhook/cron 开关、workerId、interval、initialDelay、batch、heartbeat timeout、recovery batch 和 release smoke 证据。生产仍使用 `platform-api` 内置 scheduler loop，专用 worker 通过环境变量禁用 webhook ingress 并启用 scheduler。health policy 额外区分 `schedulerManagedByXxlJob`、`schedulerRuntimeReady` 和 `cronRuntimeReady`，避免把业务开关误判为真实调度接入。
+M8D/M8J 增加 worker 托管 readiness 和 scheduler leader lock。`integrations/wp9-worker-hosting/` 定义 `web`、`scheduler-active`、`scheduler-standby` 三类 env 示例；`scripts/wp9_worker_hosting_readiness.sh` 离线校验 role、`PLATFORM_XXL_JOB_ENABLED`、scheduler/webhook/cron 开关、workerId、interval、initialDelay、batch、heartbeat timeout、recovery batch、Redis profile、leader lock 租约和 release smoke 证据。生产仍使用 `platform-api` 镜像和 `executionSchedulerJob` XXL-JOB handler 承载专用 worker，通过环境变量禁用 webhook ingress 并启用 scheduler；真正拆分独立 worker 二进制或 Maven 模块仍是后续平台化封装。scheduler tick 在 CRON scan、recovery 和 queue claim 前先获取 leader lock：`redis` profile 下使用 Redisson 分布式锁，非 redis profile 使用本地 JVM 锁作为开发兜底；锁竞争失败时 tick 只返回 `LEADER_LOCK_BUSY`，不触碰触发器或队列。health policy 额外区分 `schedulerManagedByXxlJob`、`schedulerRuntimeReady`、`cronRuntimeReady`、`schedulerLeaderLockProvider`、`schedulerLeaderLockDistributed` 和 `schedulerMultiActiveReady`，避免把业务开关误判为真实多活调度接入。
 
 M8E 增加 WP10 report handoff 准出 smoke，不改变服务端接口契约。`scripts/wp9_report_handoff_smoke.sh` 定向验证 scheduler tick 可完成 `REPORT_HANDOFF` 节点并输出 `reportHandoffReady=true`、`rawReportStored=false` 摘要，同时验证 run export 只返回脱敏 run detail、节点状态计数和 redaction policy。该 smoke 不启动 WP10 服务、不生成报告正文，也不读取 runner 原始产物。
 
@@ -99,7 +99,7 @@ M8G 增加 CRON backlog 批次准出 smoke，不改变服务端接口契约。`s
 
 M8H 增加前端操作说明，不改变服务端接口契约。`WP9-执行编排与任务调度-前端操作说明.md` 将当前 `#execution` 工作台能力整理为浏览器操作路径，覆盖权限入口、计划新建/编辑/归档、DAG dryRun、手动运行、取消、重试、脱敏摘要导出、WEBHOOK/CRON trigger dryRun/启停和事件查看；前端按钮显隐仍只做体验优化，最终准入继续由后端权限、项目 scope、计划状态和全局开关控制。
 
-M8I 增加发布准出说明和剩余工作盘点，不改变服务端接口契约。`WP9-执行编排与任务调度-发布准出说明.md` 汇总当前范围、非目标、验证记录、跳过项、风险、回滚和五角色准出；`WP9-执行编排与任务调度-剩余工作盘点.md` 明确当前 WP9 范围无剩余功能开发项。按当前基线，WP7 `UI_TEST` dispatch、WP8 自动租借释放和 WP10 `REPORT_HANDOFF`/完整报告消费均已承接交付，后续仅保留真实供应商 OAuth/App、独立 worker 多活和 CRON 生产容量等专项。
+M8I 增加发布准出说明和剩余工作盘点，不改变服务端接口契约。`WP9-执行编排与任务调度-发布准出说明.md` 汇总当前范围、非目标、验证记录、跳过项、风险、回滚和五角色准出；`WP9-执行编排与任务调度-剩余工作盘点.md` 明确当前 WP9 范围无剩余功能开发项。按当前基线，WP7 `UI_TEST` dispatch、WP8 自动租借释放、WP10 `REPORT_HANDOFF`/完整报告消费和 scheduler leader lock 均已承接交付，后续仅保留真实供应商 OAuth/App、真正独立 worker 二进制、锁指标/故障切换演练和 CRON 生产容量等专项。
 
 ## 3. 状态机
 
@@ -465,16 +465,16 @@ FAILED -> QUEUED   (retry attempt)
 
 ## 12. 当前实现切片建议
 
-M1、M2、M3A、M3B、M3C、M3D、M4A、M4B、M4C、M5、M6A、M6B、M6C、M7A、M7B、M7C、M7D、M8A、M8B、M8C、M8D、M8E、M8F、M8G、M8H 和 M8I 已完成：
+M1、M2、M3A、M3B、M3C、M3D、M4A、M4B、M4C、M5、M6A、M6B、M6C、M7A、M7B、M7C、M7D、M8A、M8B、M8C、M8D、M8E、M8F、M8G、M8H、M8I 和 M8J 已完成：
 
-1. 权限、DB、health、plan CRUD、DAG validator、plan dry-run、手动触发、run/node run 初始化、取消、控制面重试、内部 queue claim、claim heartbeat、过期 claim recovery、节点完成回传、`API_TEST` 到 WP6 应用服务 dispatch、`UI_TEST` 到 WP7 应用服务 dispatch/follow-up、`baseUrlRef` 环境解析、计划 `runtimeSecretRefs` 安全中继、后台 scheduler loop、webhook/cron 触发控制面、生产 CRON scanner、run export、WP10 report handoff 准出 smoke、CRON 容量 smoke、CRON backlog 批次 smoke、前端主链路、前端操作说明、Playwright smoke、managed scheduler smoke、webhook HTTP smoke、CI webhook 签名样例、scheduler/trigger runbook、供应商 marketplace 接入包、worker 托管 readiness、发布准出说明、剩余工作盘点、依赖推进和 run 聚合。
+1. 权限、DB、health、plan CRUD、DAG validator、plan dry-run、手动触发、run/node run 初始化、取消、控制面重试、内部 queue claim、claim heartbeat、过期 claim recovery、节点完成回传、`API_TEST` 到 WP6 应用服务 dispatch、`UI_TEST` 到 WP7 应用服务 dispatch/follow-up、`baseUrlRef` 环境解析、计划 `runtimeSecretRefs` 安全中继、后台 scheduler loop、scheduler leader lock、webhook/cron 触发控制面、生产 CRON scanner、run export、WP10 report handoff 准出 smoke、CRON 容量 smoke、CRON backlog 批次 smoke、前端主链路、前端操作说明、Playwright smoke、managed scheduler smoke、webhook HTTP smoke、CI webhook 签名样例、scheduler/trigger runbook、供应商 marketplace 接入包、worker 托管 readiness、发布准出说明、剩余工作盘点、依赖推进和 run 聚合。
 2. `API_TEST` 资源 scope 校验通过 WP6 应用服务端口，不直读 WP6 表。
 3. 状态保护覆盖 `DRAFT/READY/DISABLED/ARCHIVED`，归档必须走专用 endpoint。
 4. dry-run 不创建 run；手动触发只创建 orchestration 记录；内部 dispatch 只通过 WP6/WP7 应用服务，不直连 runner adapter，不保存 secret、变量明文、raw baseUrl 或 runner 原始输出。
 
 当前 WP9 范围无剩余功能开发项。后续专项继续推进：
 
-1. 独立外部 worker 进程、分布式锁/leader election 和多活调度指标增强。
+1. 真正拆分的独立外部 worker 二进制、跨实例锁指标看板和多活故障切换演练。
 2. 真实供应商 OAuth/App 上架、安装授权、卸载回收和平台审核材料。
 3. CRON 真实生产压测、容量指标看板，以及未来如需历史 backfill 时的限额和速率控制专项设计。
 4. WP10 报告消费的跨 WP 能力已接入；后续仅保留完整联合发布准出、外部 worker/容量协同和更深层端到端运维专项。

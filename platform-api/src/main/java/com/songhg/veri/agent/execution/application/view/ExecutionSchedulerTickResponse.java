@@ -30,6 +30,14 @@ public record ExecutionSchedulerTickResponse(
         int completedNodeCount,
         @Schema(description = "Claims closed as failed after dispatch or unsupported-runner errors")
         int failedNodeCount,
+        @Schema(description = "Whether this tick acquired the scheduler leader lock")
+        boolean leaderLockAcquired,
+        @Schema(description = "Scheduler lock provider")
+        String leaderLockProvider,
+        @Schema(description = "Whether the scheduler lock is distributed")
+        boolean leaderLockDistributed,
+        @Schema(description = "Reason this tick skipped work")
+        String skipReason,
         @Schema(description = "True when recovery found no work and no node was claimed")
         boolean noop,
         @Schema(description = "Tick trace ID")

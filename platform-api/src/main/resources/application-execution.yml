@@ -14,3 +14,7 @@ veri-agent:
     node-heartbeat-timeout-seconds: ${WP9_NODE_HEARTBEAT_TIMEOUT_SECONDS:180}
     default-run-timeout-seconds: ${WP9_DEFAULT_RUN_TIMEOUT_SECONDS:1800}
     recovery-batch-size: ${WP9_RECOVERY_BATCH_SIZE:50}
+    scheduler-leader-lock-enabled: ${WP9_SCHEDULER_LEADER_LOCK_ENABLED:true}
+    scheduler-leader-lock-name: ${WP9_SCHEDULER_LEADER_LOCK_NAME:wp9:execution:scheduler:leader}
+    scheduler-leader-lock-wait-ms: ${WP9_SCHEDULER_LEADER_LOCK_WAIT_MS:0}
+    scheduler-leader-lock-lease-ms: ${WP9_SCHEDULER_LEADER_LOCK_LEASE_MS:120000}

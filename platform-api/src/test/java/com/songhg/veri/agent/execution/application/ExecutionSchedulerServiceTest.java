@@ -114,6 +114,10 @@ class ExecutionSchedulerServiceTest {
         assertThat(tick.dispatchedNodeCount()).isEqualTo(1);
         assertThat(tick.completedNodeCount()).isEqualTo(1);
         assertThat(tick.failedNodeCount()).isZero();
+        assertThat(tick.leaderLockAcquired()).isTrue();
+        assertThat(tick.leaderLockProvider()).isEqualTo("LOCAL_JVM");
+        assertThat(tick.leaderLockDistributed()).isFalse();
+        assertThat(tick.skipReason()).isNull();
         assertThat(tick.noop()).isFalse();
         assertThat(tick.traceId()).startsWith("trc_");
 
@@ -372,9 +376,135 @@ class ExecutionSchedulerServiceTest {
         assertThat(tick.schedulerEnabled()).isFalse();
         assertThat(tick.workerId()).isEqualTo("disabled-worker");
         assertThat(tick.claimedNodeCount()).isZero();
+        assertThat(tick.leaderLockAcquired()).isFalse();
+        assertThat(tick.leaderLockProvider()).isEqualTo("LOCAL_JVM");
+        assertThat(tick.leaderLockDistributed()).isFalse();
+        assertThat(tick.skipReason()).isEqualTo("SCHEDULER_DISABLED");
         assertThat(tick.noop()).isTrue();
         verifyNoInteractions(runService);
         verifyNoInteractions(triggerService);
+    }
+
+    @Test
+    void runOnceSkipsWorkWhenLeaderLockIsBusy() {
+        ExecutionRunService runService = mock(ExecutionRunService.class);
+        ExecutionTriggerService triggerService = mock(ExecutionTriggerService.class);
+        ExecutionSchedulerLock skippedLock = new ExecutionSchedulerLock() {
+            @Override
+            public LockAttempt tryAcquire(String lockName, Duration waitTime, Duration leaseTime) {
+                return LockAttempt.skipped(provider(), true, "LEADER_LOCK_BUSY");
+            }
+
+            @Override
+            public String provider() {
+                return "TEST_DISTRIBUTED_LOCK";
+            }
+
+            @Override
+            public boolean distributed() {
+                return true;
+            }
+        };
+        ExecutionSchedulerService scheduler = new ExecutionSchedulerService(
+                runService,
+                triggerService,
+                new ExecutionProperties(
+                        true,
+                        false,
+                        false,
+                        300,
+                        60,
+                        5_000,
+                        30_000,
+                        "lock-busy-worker",
+                        2,
+                        2,
+                        4,
+                        180,
+                        1_800,
+                        50
+                ),
+                skippedLock
+        );
+
+        ExecutionSchedulerTickResponse tick = scheduler.runOnce();
+
+        assertThat(tick.schedulerEnabled()).isTrue();
+        assertThat(tick.workerId()).isEqualTo("lock-busy-worker");
+        assertThat(tick.leaderLockAcquired()).isFalse();
+        assertThat(tick.leaderLockProvider()).isEqualTo("TEST_DISTRIBUTED_LOCK");
+        assertThat(tick.leaderLockDistributed()).isTrue();
+        assertThat(tick.skipReason()).isEqualTo("LEADER_LOCK_BUSY");
+        assertThat(tick.noop()).isTrue();
+        verifyNoInteractions(runService);
+        verifyNoInteractions(triggerService);
+    }
+
+    @Test
+    void runOnceCanBypassLeaderLockWhenExplicitlyDisabled() {
+        ExecutionRunService runService = mock(ExecutionRunService.class);
+        ExecutionTriggerService triggerService = mock(ExecutionTriggerService.class);
+        ExecutionSchedulerLock failingLock = new ExecutionSchedulerLock() {
+            @Override
+            public LockAttempt tryAcquire(String lockName, Duration waitTime, Duration leaseTime) {
+                throw new AssertionError("leader lock should not be acquired when disabled");
+            }
+
+            @Override
+            public String provider() {
+                return "SHOULD_NOT_USE";
+            }
+
+            @Override
+            public boolean distributed() {
+                return true;
+            }
+        };
+        ExecutionSchedulerService scheduler = new ExecutionSchedulerService(
+                runService,
+                triggerService,
+                new ExecutionProperties(
+                        true,
+                        false,
+                        false,
+                        300,
+                        60,
+                        5_000,
+                        30_000,
+                        "lock-disabled-worker",
+                        1,
+                        2,
+                        4,
+                        180,
+                        1_800,
+                        50,
+                        false,
+                        "ignored",
+                        0,
+                        120_000
+                ),
+                failingLock
+        );
+        when(runService.recoverExpiredQueueClaims()).thenReturn(new ExecutionQueueRecoveryResponse(
+                0,
+                0,
+                0,
+                0,
+                Instant.now()
+        ));
+        when(runService.claimNextQueuedNode("lock-disabled-worker")).thenReturn(Optional.empty());
+
+        ExecutionSchedulerTickResponse tick = scheduler.runOnce();
+
+        assertThat(tick.schedulerEnabled()).isTrue();
+        assertThat(tick.leaderLockAcquired()).isTrue();
+        assertThat(tick.leaderLockProvider()).isEqualTo("DISABLED");
+        assertThat(tick.leaderLockDistributed()).isFalse();
+        assertThat(tick.skipReason()).isNull();
+        assertThat(tick.noop()).isTrue();
+        verify(triggerService).scanDueCronTriggers(1);
+        verify(runService).recoverExpiredQueueClaims();
+        verify(runService).claimNextQueuedNode("lock-disabled-worker");
     }
 
     @Test

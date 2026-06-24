@@ -167,4 +167,4 @@ M7A 已新增 `scripts/wp9_quality_gate.sh` 与 `scripts/wp9_scheduler_smoke.sh`
 
 ## 15. 当前范围完成结论
 
-WP9 当前承诺范围已经完成：M1-M8I 覆盖控制面、状态机、调度、触发、前端、quality gate、运维样例、发布准出和剩余工作盘点。后续只剩 WP7/WP8/WP10、真实供应商 OAuth/App、独立 worker 多活和 CRON 生产容量等专项，不构成本轮 WP9 发布阻断。
+WP9 当前承诺范围已经完成：M1-M8J 覆盖控制面、状态机、调度、触发、scheduler leader lock、前端、quality gate、运维样例、发布准出和剩余工作盘点。后续只剩 WP7/WP8/WP10、真实供应商 OAuth/App、真正独立 worker 二进制、锁指标/故障切换演练和 CRON 生产容量等专项，不构成本轮 WP9 发布阻断。

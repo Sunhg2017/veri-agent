@@ -44,6 +44,10 @@ is_positive_int() {
   [[ "${1:-}" =~ ^[1-9][0-9]*$ ]]
 }
 
+is_zero_or_positive_int() {
+  [[ "${1:-}" =~ ^[0-9]+$ ]]
+}
+
 fail() {
   echo "FAIL $1" >&2
   exit 1
@@ -66,6 +70,19 @@ assert_positive_range() {
   fi
 }
 
+assert_zero_positive_range() {
+  local name="$1"
+  local value="$2"
+  local min="$3"
+  local max="$4"
+  if ! is_zero_or_positive_int "$value"; then
+    fail "$name must be a zero-or-positive integer, got '${value:-unset}'"
+  fi
+  if (( value < min || value > max )); then
+    fail "$name must be in [$min,$max], got $value"
+  fi
+}
+
 assert_worker_id() {
   local value="$1"
   if [[ -z "$value" ]]; then
@@ -77,6 +94,25 @@ assert_worker_id() {
   if [[ ! "$value" =~ ^[A-Za-z0-9_.:-]+$ ]]; then
     fail "WP9_SCHEDULER_WORKER_ID contains unsupported characters"
   fi
+}
+
+assert_lock_name() {
+  local value="$1"
+  if [[ -z "$value" ]]; then
+    fail "WP9_SCHEDULER_LEADER_LOCK_NAME is required when leader lock is enabled"
+  fi
+  if (( ${#value} > 160 )); then
+    fail "WP9_SCHEDULER_LEADER_LOCK_NAME must be <=160 chars"
+  fi
+  if [[ ! "$value" =~ ^[A-Za-z0-9_.:-]+$ ]]; then
+    fail "WP9_SCHEDULER_LEADER_LOCK_NAME contains unsupported characters"
+  fi
+}
+
+profile_has_redis() {
+  local profiles="${1:-}"
+  local normalized=",${profiles// /,},"
+  [[ "$normalized" == *",redis,"* ]]
 }
 
 is_release_gate() {
@@ -133,6 +169,15 @@ validate_role_switches() {
       if ! is_truthy "$SCHEDULER_ENABLED"; then
         fail "scheduler-active role requires WP9_SCHEDULER_ENABLED=true"
       fi
+      if ! is_truthy "$LEADER_LOCK_ENABLED"; then
+        fail "scheduler-active role requires WP9_SCHEDULER_LEADER_LOCK_ENABLED=true"
+      fi
+      if ! profile_has_redis "$SPRING_PROFILES_ACTIVE_VALUE"; then
+        fail "scheduler-active role requires SPRING_PROFILES_ACTIVE to include redis for distributed leader election"
+      fi
+      if [[ -z "$REDIS_ADDRESS" ]]; then
+        fail "scheduler-active role requires PLATFORM_REDIS_ADDRESS for distributed leader election"
+      fi
       if is_truthy "$WEBHOOK_ENABLED"; then
         fail "scheduler-active role must keep WP9_WEBHOOK_ENABLED=false; use web instances for ingress"
       fi
@@ -155,6 +200,21 @@ validate_role_switches() {
       fail "Unsupported WP9_WORKER_HOSTING_ROLE=$ROLE; use web, scheduler-active, or scheduler-standby"
       ;;
   esac
+}
+
+validate_leader_lock() {
+  if is_truthy "$LEADER_LOCK_ENABLED"; then
+    assert_lock_name "$LEADER_LOCK_NAME"
+  fi
+  assert_zero_positive_range "WP9_SCHEDULER_LEADER_LOCK_WAIT_MS" "$LEADER_LOCK_WAIT_MS" 0 60000
+  assert_positive_range "WP9_SCHEDULER_LEADER_LOCK_LEASE_MS" "$LEADER_LOCK_LEASE_MS" 1 3600000
+  if (( LEADER_LOCK_LEASE_MS <= SCHEDULER_INTERVAL_MS )); then
+    fail "WP9_SCHEDULER_LEADER_LOCK_LEASE_MS must be greater than WP9_SCHEDULER_INTERVAL_MS"
+  fi
+  if [[ "$ROLE" == "scheduler-standby" ]] && is_truthy "$LEADER_LOCK_ENABLED" \
+      && [[ -n "$SPRING_PROFILES_ACTIVE_VALUE" ]] && ! profile_has_redis "$SPRING_PROFILES_ACTIVE_VALUE"; then
+    warn "standby leader lock is enabled without redis profile; failover to multi-active will require redis"
+  fi
 }
 
 validate_timing() {
@@ -185,6 +245,12 @@ workerId=$SCHEDULER_WORKER_ID
 schedulerIntervalMs=$SCHEDULER_INTERVAL_MS
 schedulerTickBatchSize=$SCHEDULER_TICK_BATCH_SIZE
 nodeHeartbeatTimeoutSeconds=$NODE_HEARTBEAT_TIMEOUT_SECONDS
+springProfilesActive=${SPRING_PROFILES_ACTIVE_VALUE:-<unset>}
+redisAddress=${REDIS_ADDRESS:-<unset>}
+leaderLockEnabled=$LEADER_LOCK_ENABLED
+leaderLockName=$LEADER_LOCK_NAME
+leaderLockWaitMs=$LEADER_LOCK_WAIT_MS
+leaderLockLeaseMs=$LEADER_LOCK_LEASE_MS
 envFile=${ENV_FILE:-<current-shell>}
 EOF
 }
@@ -196,6 +262,8 @@ main() {
   SCHEDULER_ENABLED="${WP9_SCHEDULER_ENABLED:-false}"
   CRON_ENABLED="${WP9_CRON_ENABLED:-false}"
   WEBHOOK_ENABLED="${WP9_WEBHOOK_ENABLED:-false}"
+  SPRING_PROFILES_ACTIVE_VALUE="${SPRING_PROFILES_ACTIVE:-}"
+  REDIS_ADDRESS="${PLATFORM_REDIS_ADDRESS:-}"
   SCHEDULER_WORKER_ID="${WP9_SCHEDULER_WORKER_ID:-wp9-managed-worker}"
   SCHEDULER_INTERVAL_MS="${WP9_SCHEDULER_INTERVAL_MS:-5000}"
   SCHEDULER_INITIAL_DELAY_MS="${WP9_SCHEDULER_INITIAL_DELAY_MS:-30000}"
@@ -203,10 +271,15 @@ main() {
   MAX_CONCURRENT_NODES_PER_RUN="${WP9_MAX_CONCURRENT_NODES_PER_RUN:-4}"
   NODE_HEARTBEAT_TIMEOUT_SECONDS="${WP9_NODE_HEARTBEAT_TIMEOUT_SECONDS:-180}"
   RECOVERY_BATCH_SIZE="${WP9_RECOVERY_BATCH_SIZE:-50}"
+  LEADER_LOCK_ENABLED="${WP9_SCHEDULER_LEADER_LOCK_ENABLED:-true}"
+  LEADER_LOCK_NAME="${WP9_SCHEDULER_LEADER_LOCK_NAME:-wp9:execution:scheduler:leader}"
+  LEADER_LOCK_WAIT_MS="${WP9_SCHEDULER_LEADER_LOCK_WAIT_MS:-0}"
+  LEADER_LOCK_LEASE_MS="${WP9_SCHEDULER_LEADER_LOCK_LEASE_MS:-120000}"
 
   assert_worker_id "$SCHEDULER_WORKER_ID"
   validate_role_switches
   validate_timing
+  validate_leader_lock
   validate_release_evidence
   print_summary
 }

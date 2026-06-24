@@ -32,6 +32,20 @@ public record ExecutionHealthResponse(
         int defaultRunTimeoutSeconds,
         @Schema(description = "恢复扫描批量")
         int recoveryBatchSize,
+        @Schema(description = "后台调度 leader lock 是否启用")
+        boolean schedulerLeaderLockEnabled,
+        @Schema(description = "后台调度 leader lock 名称")
+        String schedulerLeaderLockName,
+        @Schema(description = "后台调度 leader lock 等待毫秒")
+        int schedulerLeaderLockWaitMs,
+        @Schema(description = "后台调度 leader lock 租约毫秒")
+        int schedulerLeaderLockLeaseMs,
+        @Schema(description = "后台调度 leader lock provider")
+        String schedulerLeaderLockProvider,
+        @Schema(description = "后台调度 leader lock 是否为分布式锁")
+        boolean schedulerLeaderLockDistributed,
+        @Schema(description = "后台调度 leader lock 当前配置是否可用于运行")
+        boolean schedulerLeaderLockReady,
         @Schema(description = "当前 WP9 功能边界")
         Map<String, Object> policy
 ) {

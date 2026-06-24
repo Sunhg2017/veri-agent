@@ -48,10 +48,20 @@ class ExecutionHealthServiceTest {
 
         assertThat(response.schedulerEnabled()).isTrue();
         assertThat(response.cronEnabled()).isTrue();
+        assertThat(response.schedulerLeaderLockEnabled()).isTrue();
+        assertThat(response.schedulerLeaderLockName()).isEqualTo("wp9:execution:scheduler:leader");
+        assertThat(response.schedulerLeaderLockProvider()).isEqualTo("LOCAL_JVM");
+        assertThat(response.schedulerLeaderLockDistributed()).isFalse();
+        assertThat(response.schedulerLeaderLockReady()).isTrue();
         assertThat(response.policy())
                 .containsEntry("schedulerManagedByXxlJob", true)
                 .containsEntry("schedulerRuntimeReady", true)
-                .containsEntry("cronRuntimeReady", true);
+                .containsEntry("cronRuntimeReady", true)
+                .containsEntry("schedulerLeaderLockEnabled", true)
+                .containsEntry("schedulerLeaderLockProvider", "LOCAL_JVM")
+                .containsEntry("schedulerLeaderLockDistributed", false)
+                .containsEntry("schedulerLeaderLockReady", true)
+                .containsEntry("schedulerMultiActiveReady", false);
     }
 
     @Test
@@ -94,6 +104,9 @@ class ExecutionHealthServiceTest {
         assertThat(response.policy())
                 .containsEntry("schedulerManagedByXxlJob", false)
                 .containsEntry("schedulerRuntimeReady", false)
-                .containsEntry("cronRuntimeReady", false);
+                .containsEntry("cronRuntimeReady", false)
+                .containsEntry("schedulerLeaderLockEnabled", true)
+                .containsEntry("schedulerLeaderLockProvider", "LOCAL_JVM")
+                .containsEntry("schedulerMultiActiveReady", false);
     }
 }

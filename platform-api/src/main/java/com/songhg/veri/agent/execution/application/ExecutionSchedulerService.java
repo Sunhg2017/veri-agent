@@ -16,6 +16,7 @@ import java.util.Map;
 import java.util.Optional;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -28,15 +29,27 @@ public class ExecutionSchedulerService {
     private final ExecutionRunService executionRunService;
     private final ExecutionTriggerService executionTriggerService;
     private final ExecutionProperties properties;
+    private final ExecutionSchedulerLock schedulerLock;
+
+    @Autowired
+    public ExecutionSchedulerService(
+            ExecutionRunService executionRunService,
+            ExecutionTriggerService executionTriggerService,
+            ExecutionProperties properties,
+            ExecutionSchedulerLock schedulerLock
+    ) {
+        this.executionRunService = executionRunService;
+        this.executionTriggerService = executionTriggerService;
+        this.properties = properties;
+        this.schedulerLock = schedulerLock;
+    }
 
     public ExecutionSchedulerService(
             ExecutionRunService executionRunService,
             ExecutionTriggerService executionTriggerService,
             ExecutionProperties properties
     ) {
-        this.executionRunService = executionRunService;
-        this.executionTriggerService = executionTriggerService;
-        this.properties = properties;
+        this(executionRunService, executionTriggerService, properties, new LocalExecutionSchedulerLock());
     }
 
     /**
@@ -82,38 +95,96 @@ public class ExecutionSchedulerService {
         String workerId = properties.effectiveSchedulerWorkerId();
         int tickBatchSize = properties.effectiveSchedulerTickBatchSize();
         if (!properties.schedulerEnabled()) {
-            return newTickResponse(false, workerId, tickBatchSize, null, null, 0, 0, 0, 0, traceId, tickedAt);
+            return newTickResponse(
+                    false,
+                    workerId,
+                    tickBatchSize,
+                    null,
+                    null,
+                    0,
+                    0,
+                    0,
+                    0,
+                    false,
+                    schedulerLock.provider(),
+                    schedulerLock.distributed(),
+                    "SCHEDULER_DISABLED",
+                    traceId,
+                    tickedAt
+            );
         }
 
-        ExecutionCronScanResponse cronScan = executionTriggerService.scanDueCronTriggers(tickBatchSize);
-        ExecutionQueueRecoveryResponse recovery = executionRunService.recoverExpiredQueueClaims();
-        int claimedNodeCount = 0;
-        int dispatchedNodeCount = 0;
-        int completedNodeCount = 0;
-        int failedNodeCount = 0;
-        for (int index = 0; index < tickBatchSize; index++) {
-            Optional<ExecutionQueueClaimResponse> claim = executionRunService.claimNextQueuedNode(workerId);
-            if (claim.isEmpty()) {
-                break;
-            }
-            claimedNodeCount++;
-            ClaimOutcome outcome = handleClaim(claim.get());
-            dispatchedNodeCount += outcome.dispatchedNodeCount();
-            completedNodeCount += outcome.completedNodeCount();
-            failedNodeCount += outcome.failedNodeCount();
+        ExecutionSchedulerLock.LockAttempt lockAttempt = acquireLeaderLock();
+        if (!lockAttempt.acquired()) {
+            return newTickResponse(
+                    true,
+                    workerId,
+                    tickBatchSize,
+                    null,
+                    null,
+                    0,
+                    0,
+                    0,
+                    0,
+                    false,
+                    lockAttempt.provider(),
+                    lockAttempt.distributed(),
+                    lockAttempt.skipReason(),
+                    traceId,
+                    tickedAt
+            );
         }
-        return newTickResponse(
-                true,
-                workerId,
-                tickBatchSize,
-                cronScan,
-                recovery,
-                claimedNodeCount,
-                dispatchedNodeCount,
-                completedNodeCount,
-                failedNodeCount,
-                traceId,
-                tickedAt
+        try (lockAttempt) {
+            ExecutionCronScanResponse cronScan = executionTriggerService.scanDueCronTriggers(tickBatchSize);
+            ExecutionQueueRecoveryResponse recovery = executionRunService.recoverExpiredQueueClaims();
+            int claimedNodeCount = 0;
+            int dispatchedNodeCount = 0;
+            int completedNodeCount = 0;
+            int failedNodeCount = 0;
+            for (int index = 0; index < tickBatchSize; index++) {
+                Optional<ExecutionQueueClaimResponse> claim = executionRunService.claimNextQueuedNode(workerId);
+                if (claim.isEmpty()) {
+                    break;
+                }
+                claimedNodeCount++;
+                ClaimOutcome outcome = handleClaim(claim.get());
+                dispatchedNodeCount += outcome.dispatchedNodeCount();
+                completedNodeCount += outcome.completedNodeCount();
+                failedNodeCount += outcome.failedNodeCount();
+            }
+            return newTickResponse(
+                    true,
+                    workerId,
+                    tickBatchSize,
+                    cronScan,
+                    recovery,
+                    claimedNodeCount,
+                    dispatchedNodeCount,
+                    completedNodeCount,
+                    failedNodeCount,
+                    true,
+                    lockAttempt.provider(),
+                    lockAttempt.distributed(),
+                    null,
+                    traceId,
+                    tickedAt
+            );
+        }
+    }
+
+    private ExecutionSchedulerLock.LockAttempt acquireLeaderLock() {
+        if (!properties.schedulerLeaderLockEnabled()) {
+            return ExecutionSchedulerLock.LockAttempt.acquired(
+                    "DISABLED",
+                    false,
+                    () -> {
+                    }
+            );
+        }
+        return schedulerLock.tryAcquire(
+                properties.effectiveSchedulerLeaderLockName(),
+                Duration.ofMillis(properties.effectiveSchedulerLeaderLockWaitMs()),
+                Duration.ofMillis(properties.effectiveSchedulerLeaderLockLeaseMs())
         );
     }
 
@@ -219,6 +290,10 @@ public class ExecutionSchedulerService {
             int dispatchedNodeCount,
             int completedNodeCount,
             int failedNodeCount,
+            boolean leaderLockAcquired,
+            String leaderLockProvider,
+            boolean leaderLockDistributed,
+            String skipReason,
             String traceId,
             Instant tickedAt
     ) {
@@ -247,6 +322,10 @@ public class ExecutionSchedulerService {
                 dispatchedNodeCount,
                 completedNodeCount,
                 failedNodeCount,
+                leaderLockAcquired,
+                leaderLockProvider,
+                leaderLockDistributed,
+                skipReason,
                 noop,
                 traceId,
                 tickedAt

@@ -10,9 +10,9 @@
 
 ## 1. 准出结论
 
-WP9 当前承诺范围已经形成可验收闭环。`platform-api` 已提供执行计划、DAG dryRun、运行状态机、内部队列认领、heartbeat/recovery、WP6 API_TEST dispatch、WP7 UI_TEST dispatch、WP8 账号租借自动申请/释放、REPORT_HANDOFF、webhook/cron 触发控制面、生产 CRON scanner、run export、scheduler loop 和 release gate；`portal-web` 已提供 `#execution` 工作台，覆盖计划、DAG、运行、取消、重试、导出和触发配置主链路。
+WP9 当前承诺范围已经形成可验收闭环。`platform-api` 已提供执行计划、DAG dryRun、运行状态机、内部队列认领、heartbeat/recovery、WP6 API_TEST dispatch、WP7 UI_TEST dispatch、WP8 账号租借自动申请/释放、REPORT_HANDOFF、webhook/cron 触发控制面、生产 CRON scanner、run export、scheduler loop、scheduler leader lock 和 release gate；`portal-web` 已提供 `#execution` 工作台，覆盖计划、DAG、运行、取消、重试、导出和触发配置主链路。
 
-当前准出口径不包含 WP8 账号池自身能力扩展、真实供应商 OAuth/App 上架、独立外部 worker 二进制或 CRON 生产压测容量承诺。这些均已作为后续专项记录，不构成本轮 WP9 发布阻断。
+当前准出口径不包含 WP8 账号池自身能力扩展、真实供应商 OAuth/App 上架、真正独立外部 worker 二进制、Redis 多节点故障切换演练、锁指标看板或 CRON 生产压测容量承诺。这些均已作为后续专项记录，不构成本轮 WP9 发布阻断。
 
 ## 2. 范围和非目标
 
@@ -30,7 +30,7 @@ WP9 当前承诺范围已经形成可验收闭环。`platform-api` 已提供执�
 3. 不生成 WP10 侧报告正文、诊断页面或报告归档；WP9 只提供 handoff 摘要和脱敏 run export，完整报告消费与展示由 WP10 控制面承接。
 4. 不申请真实供应商 OAuth/App 上架，不实现安装授权和卸载回收。
 5. 不承诺生产吞吐数值，不做 CRON 历史 backfill；已通过 capacity/backlog smoke 冻结当前限批和不补偿语义。
-6. 不新增独立 worker 进程或分布式锁；当前生产可用同一 `platform-api` 镜像按 web/scheduler-active/scheduler-standby env 角色部署。
+6. 不新增独立 worker 二进制或 Maven 模块；当前生产可用同一 `platform-api` 镜像按 web/scheduler-active/scheduler-standby env 角色部署，多活 scheduler 由 Redis/Redisson leader lock 保护。
 
 ## 3. 验证记录
 
@@ -72,13 +72,14 @@ release/preprod/prod 模式必须显式启用 managed scheduler smoke 和 webhoo
 
 未执行跨 WP 联合发布级端到端回归。原因是 WP9 已提供 `REPORT_HANDOFF` 完成摘要和脱敏 run export，WP10 对完整报告的生成、诊断和归档由其自身工作包 release gate 覆盖。
 
-未执行独立 worker 进程、多活 leader election 或分布式锁验证。原因是当前托管策略通过同一 `platform-api` 镜像和 env 角色区分 web、scheduler-active、scheduler-standby；多活调度和锁租约是后续平台化增强。
+未执行真正拆分独立 worker 二进制、真实 Redis 多节点故障切换演练和锁指标看板验证。原因是当前托管策略通过同一 `platform-api` 镜像和 env 角色区分 web、scheduler-active、scheduler-standby；多活 leader election 已接入 Redisson 分布式锁并由 readiness/单测覆盖控制面，生产级故障演练和可观测性仍属后续平台化增强。
 
 ## 5. 发布风险
 
 | 风险 | 准出控制 | 处置 |
 |---|---|---|
-| scheduler 误在 web 实例启用 | `wp9_worker_hosting_readiness.sh` 校验 web/scheduler-active/scheduler-standby env | 关闭误启实例的 `WP9_SCHEDULER_ENABLED` 和 `WP9_CRON_ENABLED`，保留 queue claim 证据 |
+| scheduler 误在 web 实例启用 | `wp9_worker_hosting_readiness.sh` 校验 web/scheduler-active/scheduler-standby env、Redis profile 和 leader lock 租约 | 关闭误启实例的 `WP9_SCHEDULER_ENABLED` 和 `WP9_CRON_ENABLED`，保留 queue claim 和 leader lock 证据 |
+| 多活 active worker 同时执行 tick | Redisson leader lock；锁竞争失败 tick 返回 `LEADER_LOCK_BUSY` 且不触碰 trigger/queue | 确认 `SPRING_PROFILES_ACTIVE` 包含 `redis`，检查 `schedulerLeaderLockProvider`，必要时缩容到单 active 并保留 traceId |
 | webhook 误触发或重复触发 | HMAC、timestamp、sourceEventId 幂等、trigger event 证据和 webhook HTTP smoke | 禁用 trigger，撤销或轮换 secret，复用 eventId 重放核验证据 |
 | CRON 积压造成突发 run | `schedulerTickBatchSize` 限批、capacity/backlog smoke、Runbook 容量保护 | 下调 trigger 频率、扩容 scheduler worker 或暂停高风险 trigger |
 | run export 泄露敏感内容 | run export 只复用脱敏 detail，quality gate 覆盖 export 证据 | 阻断发布，修复 redaction 后重跑 WP9 quality gate |

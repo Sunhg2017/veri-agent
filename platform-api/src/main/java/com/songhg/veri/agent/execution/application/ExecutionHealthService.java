@@ -5,6 +5,7 @@ import com.songhg.veri.agent.execution.config.ExecutionProperties;
 import com.songhg.veri.agent.scheduling.config.XxlJobProperties;
 import java.util.List;
 import java.util.Map;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -12,10 +13,21 @@ public class ExecutionHealthService {
 
     private final ExecutionProperties properties;
     private final XxlJobProperties xxlJobProperties;
+    private final ExecutionSchedulerLock schedulerLock;
 
-    public ExecutionHealthService(ExecutionProperties properties, XxlJobProperties xxlJobProperties) {
+    @Autowired
+    public ExecutionHealthService(
+            ExecutionProperties properties,
+            XxlJobProperties xxlJobProperties,
+            ExecutionSchedulerLock schedulerLock
+    ) {
         this.properties = properties;
         this.xxlJobProperties = xxlJobProperties;
+        this.schedulerLock = schedulerLock;
+    }
+
+    public ExecutionHealthService(ExecutionProperties properties, XxlJobProperties xxlJobProperties) {
+        this(properties, xxlJobProperties, new LocalExecutionSchedulerLock());
     }
 
     /**
@@ -23,7 +35,11 @@ public class ExecutionHealthService {
      */
     public ExecutionHealthResponse health() {
         boolean schedulerManagedByXxlJob = xxlJobProperties != null && xxlJobProperties.enabled();
-        boolean schedulerRuntimeReady = properties.schedulerEnabled() && schedulerManagedByXxlJob;
+        boolean schedulerLeaderLockReady = schedulerLeaderLockReady();
+        boolean schedulerLeaderLockDistributed = properties.schedulerLeaderLockEnabled() && schedulerLock.distributed();
+        boolean schedulerRuntimeReady = properties.schedulerEnabled()
+                && schedulerManagedByXxlJob
+                && schedulerLeaderLockReady;
         boolean cronRuntimeReady = properties.cronEnabled() && schedulerRuntimeReady;
         return new ExecutionHealthResponse(
                 "execution",
@@ -40,6 +56,13 @@ public class ExecutionHealthService {
                 properties.effectiveNodeHeartbeatTimeoutSeconds(),
                 properties.effectiveDefaultRunTimeoutSeconds(),
                 properties.effectiveRecoveryBatchSize(),
+                properties.schedulerLeaderLockEnabled(),
+                effectiveSchedulerLeaderLockName(),
+                properties.effectiveSchedulerLeaderLockWaitMs(),
+                properties.effectiveSchedulerLeaderLockLeaseMs(),
+                effectiveSchedulerLeaderLockProvider(),
+                schedulerLeaderLockDistributed,
+                schedulerLeaderLockReady,
                 Map.ofEntries(
                         Map.entry("controlPlaneReady", true),
                         Map.entry("planCrudReady", true),
@@ -62,6 +85,14 @@ public class ExecutionHealthService {
                         Map.entry("schedulerManagedByXxlJob", schedulerManagedByXxlJob),
                         Map.entry("schedulerRuntimeReady", schedulerRuntimeReady),
                         Map.entry("schedulerUsesQueueClaim", true),
+                        Map.entry("schedulerLeaderLockEnabled", properties.schedulerLeaderLockEnabled()),
+                        Map.entry("schedulerLeaderLockName", effectiveSchedulerLeaderLockName()),
+                        Map.entry("schedulerLeaderLockWaitMs", properties.effectiveSchedulerLeaderLockWaitMs()),
+                        Map.entry("schedulerLeaderLockLeaseMs", properties.effectiveSchedulerLeaderLockLeaseMs()),
+                        Map.entry("schedulerLeaderLockProvider", effectiveSchedulerLeaderLockProvider()),
+                        Map.entry("schedulerLeaderLockDistributed", schedulerLeaderLockDistributed),
+                        Map.entry("schedulerLeaderLockReady", schedulerLeaderLockReady),
+                        Map.entry("schedulerMultiActiveReady", schedulerLeaderLockDistributed),
                         Map.entry("triggerControlPlaneReady", true),
                         Map.entry("webhookSignatureReady", true),
                         Map.entry("triggerEventIdempotencyReady", true),
@@ -85,5 +116,26 @@ public class ExecutionHealthService {
                         Map.entry("p0ExecutableNodeTypes", List.of("API_TEST", "UI_TEST", "REPORT_HANDOFF"))
                 )
         );
+    }
+
+    private String effectiveSchedulerLeaderLockName() {
+        return properties.schedulerLeaderLockEnabled()
+                ? properties.effectiveSchedulerLeaderLockName()
+                : "DISABLED";
+    }
+
+    private String effectiveSchedulerLeaderLockProvider() {
+        if (!properties.schedulerLeaderLockEnabled()) {
+            return "DISABLED";
+        }
+        String provider = schedulerLock.provider();
+        return provider == null ? "UNKNOWN" : provider;
+    }
+
+    private boolean schedulerLeaderLockReady() {
+        if (!properties.schedulerEnabled()) {
+            return true;
+        }
+        return properties.schedulerLeaderLockEnabled() && schedulerLock.provider() != null;
     }
 }

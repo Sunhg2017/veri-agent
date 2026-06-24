@@ -21,6 +21,7 @@
 | WP6 dispatch | `API_TEST` 只通过 WP6 应用服务创建 run，保留 allowlist、secretRef 和脱敏边界。 |
 | WP10 handoff | `REPORT_HANDOFF` 输出 handoff 摘要，run export 提供脱敏证据，不生成完整报告。 |
 | Trigger | WEBHOOK/CRON trigger 管理、dryRun、签名校验、sourceEventId 幂等、trigger event 和 CRON scanner。 |
+| 外部 worker / 多活锁 | 同一 `platform-api` 镜像通过 web/scheduler-active/scheduler-standby env 角色独立承载 worker，scheduler tick 已接入 Redisson leader lock，health/readiness 暴露分布式锁状态。 |
 | CRON 容量 | missed-fire 不补偿、单次 materialize、`nextFireAt` 推进、backlog batch 限批和后续 tick 接续处理。 |
 | Frontend | `#execution` 工作台覆盖计划、DAG、运行、取消、重试、导出、触发配置和移动端 smoke。 |
 | Quality gate | `scripts/wp9_quality_gate.sh` 聚合后端、前端、Playwright、build、DB validation、scheduler/webhook release smoke 和专项 smoke。 |
@@ -33,7 +34,7 @@
 | 真实 cleanup worker / 破坏性 adapter | 后续安全专项 | 当前默认 `cleanup-enabled=false`，只记录任务，避免误删业务数据。 |
 | WP7/WP10 跨 WP 集成深化 | 已由对应 WP 接入，后续仅保留专项增强 | WP9 已支持 `UI_TEST` 通过 WP7 应用服务创建真实 run，并为 WP10 提供 `REPORT_HANDOFF` 摘要和脱敏 run export；剩余不在于“是否接入”，而在于外部 worker、容量和更深的端到端专项。 |
 | 真实供应商 OAuth/App 上架 | 后续供应商平台专项 | WP9 已提供 signed webhook helper、CI 样例和 marketplace 模板包。 |
-| 独立外部 worker 二进制、多活 leader election、分布式锁 | 后续平台化增强 | 当前可用同一 `platform-api` 镜像通过 env 区分 web/scheduler-active/scheduler-standby。 |
+| 真正独立外部 worker 二进制、锁指标看板和故障切换演练 | 后续平台化增强 | 当前可用同一 `platform-api` 镜像通过 env 区分 web/scheduler-active/scheduler-standby；多活 leader election 已通过 Redis/Redisson 锁接入，剩余是封装形态和生产演练。 |
 | CRON 真实生产压测、容量看板、历史 backfill | 后续运维/容量专项 | 当前已通过 smoke 冻结不补偿、限批和接续处理语义，不承诺吞吐数值。 |
 
 ## 4. 发布前必做
