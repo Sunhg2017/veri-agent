@@ -27,6 +27,8 @@ import {
   createTestDataSet,
   createTestDataTask,
   disableTestAccountPool,
+  downloadTestAccountLeaseExport,
+  downloadTestDataSetExport,
   exportTestAccountLease,
   exportTestDataSet,
   fetchTestAccountLease,
@@ -514,6 +516,18 @@ export function TestDataWorkbench(props: { signedIn: boolean; currentUser: Curre
     }
   }
 
+  async function onDownloadDataSetExport() {
+    if (!selectedDataSetId || !canExport || !health?.exportEnabled) return;
+    setDataSetExportState({ loading: true });
+    try {
+      const result = await downloadTestDataSetExport(selectedDataSetId);
+      triggerBrowserDownload(result.blob, result.filename ?? 'wp8-data-set-export.json');
+      setDataSetExportState({ loading: false, success: `导出文件已下载 ${result.filename ?? ''}`.trim(), traceId: result.traceId });
+    } catch (error: unknown) {
+      setDataSetExportState(errorState(error, '脱敏导出文件下载失败'));
+    }
+  }
+
   async function onGenerateRecords(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!selectedDataSetId || !canManage) return;
@@ -541,6 +555,18 @@ export function TestDataWorkbench(props: { signedIn: boolean; currentUser: Curre
       setLeaseExportState({ loading: false, success: '租借脱敏导出摘要已生成', traceId: result.trace_id });
     } catch (error: unknown) {
       setLeaseExportState(errorState(error, '租借脱敏导出失败'));
+    }
+  }
+
+  async function onDownloadLeaseExport() {
+    if (!selectedLeaseId || !canExport || !health?.exportEnabled) return;
+    setLeaseExportState({ loading: true });
+    try {
+      const result = await downloadTestAccountLeaseExport(selectedLeaseId);
+      triggerBrowserDownload(result.blob, result.filename ?? 'wp8-account-lease-export.json');
+      setLeaseExportState({ loading: false, success: `租借导出文件已下载 ${result.filename ?? ''}`.trim(), traceId: result.traceId });
+    } catch (error: unknown) {
+      setLeaseExportState(errorState(error, '租借导出文件下载失败'));
     }
   }
 
@@ -1241,15 +1267,26 @@ export function TestDataWorkbench(props: { signedIn: boolean; currentUser: Curre
       <div className="test-data-subform" data-testid="test-data-export-panel">
         <div className="test-data-subheader">
           <strong>脱敏导出摘要</strong>
-          <button
-            className="btn btn-secondary btn-sm"
-            type="button"
-            onClick={() => void onExportDataSet()}
-            disabled={!selectedDataSetId || !canExport || !health?.exportEnabled || dataSetExportState.loading}
-          >
-            <Download size={15} />
-            导出摘要
-          </button>
+          <div className="test-data-panel-actions">
+            <button
+              className="btn btn-secondary btn-sm"
+              type="button"
+              onClick={() => void onExportDataSet()}
+              disabled={!selectedDataSetId || !canExport || !health?.exportEnabled || dataSetExportState.loading}
+            >
+              <Download size={15} />
+              导出摘要
+            </button>
+            <button
+              className="btn btn-ghost btn-sm"
+              type="button"
+              onClick={() => void onDownloadDataSetExport()}
+              disabled={!selectedDataSetId || !canExport || !health?.exportEnabled || dataSetExportState.loading}
+            >
+              <Download size={15} />
+              下载文件
+            </button>
+          </div>
         </div>
         <StateLine state={dataSetExportState} />
         {dataSetExport ? (
@@ -1289,15 +1326,26 @@ export function TestDataWorkbench(props: { signedIn: boolean; currentUser: Curre
       <div className="test-data-subform" data-testid="test-lease-export-panel">
         <div className="test-data-subheader">
           <strong>租借脱敏导出摘要</strong>
-          <button
-            className="btn btn-secondary btn-sm"
-            type="button"
-            onClick={() => void onExportLease()}
-            disabled={!selectedLeaseId || !canExport || !health?.exportEnabled || leaseExportState.loading}
-          >
-            <Download size={15} />
-            导出摘要
-          </button>
+          <div className="test-data-panel-actions">
+            <button
+              className="btn btn-secondary btn-sm"
+              type="button"
+              onClick={() => void onExportLease()}
+              disabled={!selectedLeaseId || !canExport || !health?.exportEnabled || leaseExportState.loading}
+            >
+              <Download size={15} />
+              导出摘要
+            </button>
+            <button
+              className="btn btn-ghost btn-sm"
+              type="button"
+              onClick={() => void onDownloadLeaseExport()}
+              disabled={!selectedLeaseId || !canExport || !health?.exportEnabled || leaseExportState.loading}
+            >
+              <Download size={15} />
+              下载文件
+            </button>
+          </div>
         </div>
         <StateLine state={leaseExportState} />
         {leaseExport ? (
@@ -1607,4 +1655,15 @@ function shortId(value?: string) {
 
 function formatDateTime(value?: string) {
   return value ? value.replace('T', ' ').replace('Z', '') : '-';
+}
+
+function triggerBrowserDownload(blob: Blob, filename: string) {
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement('a');
+  anchor.href = url;
+  anchor.download = filename;
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  URL.revokeObjectURL(url);
 }

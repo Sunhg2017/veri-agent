@@ -5,9 +5,9 @@
 | 工作包 | WP8 测试数据与账号池 |
 | 角色产出 | 资深产品经理 |
 | 文档性质 | 需求文档、产品边界和验收标准 |
-| 当前口径 | `platform-api` 承载 WP8 控制面；账号密钥只保存 `secretRef`；不直接复制生产数据、不自动接管被测系统账号生命周期 |
+| 当前口径 | `platform-api` 承载 WP8 控制面；账号密钥只保存 `secretRef`；已支持脱敏导出文件下载、受控 cleanup adapter 和可选业务账号自动开通，破坏性能力默认关闭 |
 | 版本 | v0.1 |
-| 日期 | 2026-06-15 |
+| 日期 | 2026-06-24 |
 
 ## 1. 背景
 
@@ -32,6 +32,8 @@ WP6 已具备 OpenAPI 接口自动化能力，WP9 已具备执行编排和任务
 4. 支持测试数据准备和清理任务控制面，记录幂等 key、执行状态、影响范围、失败摘要和审计证据。
 5. 为 WP7/WP9 提供引用契约：`dataSetRef`、`accountPoolRef`、`accountLeaseRef`、`cleanupTaskRef`。
 6. 提供前端工作台，让测试工程师无需直接改数据库即可维护数据集、账号池、租借记录和清理任务。
+7. 支持数据集和租借脱敏导出摘要的文件级下载，沿用导出权限、开关和字段白名单。
+8. 支持显式配置的 cleanup HTTP adapter 与账号自动开通 adapter，默认保持安全关闭或本地 secretRef 指针模式。
 
 ## 4. 范围
 
@@ -44,15 +46,17 @@ WP6 已具备 OpenAPI 接口自动化能力，WP9 已具备执行编排和任务
 | 密钥引用 | 账号密码、token、cookie 等凭据只通过 `secretRef` 引用，不在 WP8 表或前端响应中展示明文。 |
 | 租借状态机 | 支持 `AVAILABLE/LEASED/LOCKED/EXPIRED/DISABLED` 和租借记录 `ACTIVE/RELEASED/EXPIRED/REVOKED`。 |
 | 清理任务 | 支持数据准备、数据回滚、账号释放后的清理任务记录和幂等重试。 |
+| 破坏性清理 adapter | `cleanup-enabled=true` 且 HTTP adapter 就绪后，worker 可调用受控外部清理适配器；默认关闭，失败可审计。 |
+| 账号自动开通 | 根据账号池 `leasePolicy.provisioning` 可选补齐业务账号，支持 `LOCAL_SECRET_REF` 和 HTTP adapter。 |
 | 权限和审计 | 新增 `testData:read/manage/lease/cleanup/export` 权限点，所有变更、租借、释放和导出写审计。 |
-| 前端工作台 | 数据集、账号池、租借记录、清理任务和策略摘要的可视化管理。 |
+| 前端工作台 | 数据集、账号池、租借记录、清理任务、脱敏导出摘要和导出文件下载的可视化管理。 |
 | 跨 WP 引用 | WP7/WP9 只通过稳定引用使用账号和数据，不直接读取 secret 或完整数据正文。 |
 
 ## 5. 非目标
 
 | 非目标 | 原因 | 后续承接 |
 |---|---|---|
-| 自动创建真实业务系统账号 | 不同被测系统注册、审批、验证码和权限模型差异大，首期风险高。 | 具体应用接入适配器 |
+| 未经适配器审查的业务账号批量开通 | 不同被测系统注册、审批、验证码和权限模型差异大；只能通过显式 provisioning policy 和受控 adapter 接入。 | 具体应用接入适配器 |
 | 复制生产数据库或生产用户数据 | 涉及合规、安全和脱敏治理，不适合作为 P0。 | 数据治理专项 |
 | 执行 UI/E2E 脚本 | WP8 只提供账号和数据引用，不运行浏览器自动化。 | WP7 |
 | 调度任务 DAG | WP8 记录准备/清理任务，执行编排由 WP9 承接。 | WP9 |
@@ -88,6 +92,7 @@ WP6 已具备 OpenAPI 接口自动化能力，WP9 已具备执行编排和任务
 2. 新增账号时只填写账号标识、展示名、角色标签和 `secretRef`。
 3. 平台对 `secretRef` 做格式校验和 digest 展示，不解析或回显明文。
 4. 账号健康检查首期只记录人工或外部脚本写入结果，不强制登录真实系统。
+5. 如账号池 `leasePolicy.provisioning.enabled=true`，worker 可按 `minAvailable/maxAccounts` 通过配置化 adapter 自动补齐账号摘要和 `secretRef` 指针。
 
 ### 7.3 执行前租借
 
@@ -100,7 +105,7 @@ WP6 已具备 OpenAPI 接口自动化能力，WP9 已具备执行编排和任务
 
 1. 执行完成或用户手动释放账号租借。
 2. 平台记录释放结果和需要清理的数据/账号副作用。
-3. 清理任务按幂等 key 创建，可由 WP9 调度或人工触发。
+3. 清理任务按幂等 key 创建，可由 WP9 调度或人工触发；当清理开关和 adapter 均就绪时由 WP8 worker 调用受控清理 adapter。
 4. 任务完成后账号回到 `AVAILABLE`，失败则进入 `LOCKED` 或 `NEEDS_REVIEW`。
 
 ## 8. 权限模型
@@ -145,7 +150,9 @@ WP6 已具备 OpenAPI 接口自动化能力，WP9 已具备执行编排和任务
 4. 前端无权限时隐藏入口和操作按钮，直达路由展示无权限态。
 5. 任何响应、导出、审计 payload 均不包含账号密码、token、cookie 或敏感数据原文。
 6. WP7/WP9 可通过引用字段使用 WP8 能力，不需要直连 WP8 表。
-7. P0 验证包含后端测试、前端测试、构建、DB validation 和 WP8 quality gate。
+7. 数据集和租借导出文件下载受 `testData:export` 与 `export-enabled` 共同控制，下载内容与在线摘要一致。
+8. cleanup adapter 和账号自动开通默认可关闭、可观测、失败可审计，不泄露 adapter token 或 secretRef 明文。
+9. P0 验证包含后端测试、前端测试、构建、DB validation 和 WP8 quality gate。
 
 ## 11. 当前产品口径
 
@@ -171,8 +178,8 @@ M4 已推进租借、释放和清理任务后端切片：测试工程师或后�
 2. 租借只选择 `READY` 账号池中的 `AVAILABLE` 账号，并按角色标签匹配；服务端通过条件更新和 active lease 唯一约束防止同一账号并发重复占用。
 3. 租借响应只返回账号摘要、`secretRefDigest` 和 `leaseTokenDigest`，不返回账号凭据、租借 token 明文或 `secret://` 原文。
 4. active 租借可续租，TTL 受平台最大值限制；释放后账号默认回到 `AVAILABLE`，也可按失败策略转入 `LOCKED`。
-5. 过期回收、待处理任务执行和账号健康检查已由 `platform-api` 内置受控 worker 管理；health 中 `cleanupWorkerReady/taskExecutionWorkerReady/leaseRecoveryWorkerReady/accountHealthCheckWorkerReady=true`，但该 worker 仅运行控制面状态推进，不调用破坏性清理 adapter。
-6. 清理任务 API 仍默认以控制面记录和审计为主；`cleanupEnabled=false` 时直接返回 `CLEANUP_TASK_NOT_ALLOWED`，即使显式打开开关，当前也只确认 adapter 尚未准出，不执行真实破坏性清理。
+5. 过期回收、待处理任务执行和账号健康检查已由 `platform-api` 内置受控 worker 管理；health 中 `cleanupWorkerReady/taskExecutionWorkerReady/leaseRecoveryWorkerReady/accountHealthCheckWorkerReady=true`。
+6. 清理任务 API 默认以控制面记录和审计为主；`cleanupEnabled=false` 时返回 `CLEANUP_TASK_NOT_ALLOWED`，显式打开开关且 HTTP cleanup adapter 就绪后才执行受控破坏性清理。
 
 M5 已推进跨 WP 引用契约后端切片：WP9 可通过 `TestDataCrossWpReferenceService` 申请和释放账号租借引用，WP7 可通过同一服务读取账号摘要和 `secretRefDigest`，WP10 可读取准备、租借和清理证据。产品边界如下：
 
@@ -189,13 +196,13 @@ M6A 已推进前端工作台基础闭环：测试工程师可通过 `#test-data`
 2. 前端 `testData` API helper 兼容后端 camelCase/snake_case 响应，并对 `schema/cleanupPolicy/maskedSummary/scopeSummary/resultSummary` 做敏感键过滤，保留 digest 字段。
 3. 账号 `secretRef` 只在新增或替换账号摘要时作为写入输入；保存成功后前端表单清空，列表、详情、状态提示和摘要只展示 `secretRefDigest`。
 4. 工作台已覆盖四个基础面板的 loading/empty/error、traceId 展示和 `cleanupEnabled=false` 解释。
-5. M6B 已补 Playwright 桌面/390px smoke、DOM secretRef 原文扫描脚本和 WP8 聚合 quality gate；M6C 已补数据集脱敏导出结果面板，M6D 已补租借脱敏导出结果面板。分页筛选增强、导出文件下载和真实 cleanup worker 仍是后续范围。
+5. M6B 已补 Playwright 桌面/390px smoke、DOM secretRef 原文扫描脚本和 WP8 聚合 quality gate；M6C 已补数据集脱敏导出结果面板，M6D 已补租借脱敏导出结果面板，后续切片已补齐导出文件下载。分页筛选增强仍按体验增强承接。
 
 M6C 已推进数据集脱敏导出摘要：测试工程师可通过 `#test-data` 工作台的数据集 tab 点击“导出摘要”，查看 schema version、记录/字段/敏感字段计数、redaction policy、record digest、tags 和 `maskedSummaryKeys`。产品边界如下：
 
 1. 导出入口同时受 `testData:export` 权限和 `veri-agent.test-data.export-enabled` 控制。
 2. 导出摘要不展示 maskedSummary 值、完整记录正文、`secretRef` 原文、token、cookie 或 Authorization header。
-3. 当前不提供 WP8 自身的文件下载闭环，不导出租借摘要或清理审计摘要；按当前基线，平台级真实文件下载能力已由后续对象存储专题提供，但这些能力在 WP8 侧仍按后续增强独立准出。
+3. 后续切片已提供 `GET /data-sets/{id}/export/download` 文件级下载，下载内容沿用当前脱敏摘要 schema 和 redaction policy；清理审计摘要导出仍不作为当前前端主链路。
 
 M6E 已推进模拟数据生成：测试工程师可对 `sourceType=GENERATED` 的数据集通过 `POST /api/v1/test-data/data-sets/{id}/generate-records` 或 `#test-data` 工作台“自动造数”入口，按 schema 自动生成一批脱敏记录摘要。产品边界如下：
 
@@ -208,16 +215,23 @@ M6D 已推进租借脱敏导出摘要：测试工程师可通过 `#test-data` �
 
 1. 导出入口同时受 `testData:export` 权限和 `veri-agent.test-data.export-enabled` 控制。
 2. 导出摘要不展示 secretRef 原文、租借 token 明文、释放原因原文、账号健康摘要原文、scopeSummary 值、leasePolicy 值、token、cookie 或 Authorization header。
-3. 当前不提供文件下载，不触发 cleanup worker，不接入 WP7 真实执行器；WP9 调度自动申请/释放已由 WP9 工作包通过 M5 应用层契约接入。
+3. 后续切片已提供 `GET /leases/{id}/export/download` 文件级下载，并接入受控 cleanup worker；WP9 调度自动申请/释放已由 WP9 工作包通过 M5 应用层契约接入。
 
 M8B/M8C 已推进操作说明与运维 Runbook：用户可按 `WP8-测试数据与账号池-前端操作说明.md` 在浏览器内完成数据集、账号池、账号摘要、租借、释放、清理任务和脱敏导出摘要主链路；运维可按 `WP8-测试数据与账号池-运维Runbook.md` 处理租借卡死、账号锁定、SecretRef 轮换、清理失败和脱敏导出异常。产品边界如下：
 
-1. 操作说明只描述当前 `#test-data` 工作台已落地能力，不承诺筛选栏、分页、详情抽屉、真实文件下载或真实 cleanup worker。
-2. Runbook 坚持 `cleanup-enabled=false` 默认安全边界，真实清理 adapter 必须后续专项准出。
+1. 操作说明只描述当前 `#test-data` 工作台已落地能力，包含数据集/租借导出摘要和文件下载，不承诺筛选栏、分页或详情抽屉。
+2. Runbook 坚持 `cleanup-enabled=false` 默认安全边界，真实清理 adapter 必须显式配置并保留可回滚开关。
 3. 前端按钮显隐只做体验控制，最终准入仍由后端权限、项目 scope、对象状态和 WP8 开关决定。
 
 M8I 已推进发布准出收口：产品验收口径确认当前 WP8 范围无剩余 P0 功能开发项，用户主链路已由 `#test-data` 工作台、前端操作说明、运维 Runbook、发布准出说明和剩余工作盘点形成闭环。产品边界如下：
 
 1. 当前发布范围覆盖数据集、账号池、租借、释放、清理任务控制面、两类脱敏导出摘要、跨 WP 引用契约和前端工作台主链路。
-2. 当前发布范围不承诺 WP8 自身的真实文件下载闭环、真实 cleanup worker、真实账号自动开通或外部容量压测；WP7 runner 凭据注入、WP9 调度自动申请/释放和 WP10 报告证据消费已属于对应 WP 对 WP8 应用层契约的已接入能力，不改变 WP8 账号池控制面边界。
-3. 后续增强必须重新补充 PRD、技术设计、测试策略和发布准出说明，不得在当前 M8I 口径下直接扩大范围。
+2. M8I 当时不承诺 WP8 自身真实文件下载闭环、真实 cleanup worker、真实账号自动开通或外部容量压测；其中前三项已由后续切片补齐，外部容量压测仍按运维专项承接。
+3. 后续增强必须重新补充 PRD、技术设计、测试策略和发布准出说明，不得在当前口径下直接扩大范围。
+
+M8J 已推进 WP8 文件下载、受控清理和账号自动开通切片：用户可在 `#test-data` 下载数据集/租借脱敏导出 JSON 文件，worker 可在 `cleanup-enabled=true` 且 HTTP adapter ready 时调用真实清理适配器，账号池可通过 `leasePolicy.provisioning` 触发自动补齐。产品边界如下：
+
+1. 文件下载与在线导出共用 `testData:export`、`export-enabled`、schema 和脱敏白名单，不新增敏感字段。
+2. 破坏性清理默认关闭；adapter 未 ready 时任务失败为 `CLEANUP_ADAPTER_NOT_READY`，ready 后才记录 `externalCleanupId/affectedResourceCount/provider` 等摘要。
+3. 账号自动开通默认关闭；启用后仍受 `minAvailable/maxAccounts`、账号池状态、角色标签、scope 摘要和 `secretRef` 指针约束。
+4. 后续剩余增强聚焦更细粒度筛选分页、容量压测、真实外部系统演练和多实例运维策略。

@@ -5,9 +5,9 @@
 | 工作包 | WP8 测试数据与账号池 |
 | 角色产出 | 资深服务端架构师 |
 | 文档性质 | 技术设计、数据模型、接口契约和服务端质量约束 |
-| 当前口径 | 在 `platform-api` 内新增 WP8 领域模块，复用 WP1 项目/应用/环境、RBAC、SecretProvider、审计和 traceId |
+| 当前口径 | 在 `platform-api` 内承载 WP8 领域模块，复用 WP1 项目/应用/环境、RBAC、SecretProvider、审计和 traceId；已补齐脱敏导出文件下载、受控 cleanup adapter 和账号自动开通 adapter |
 | 版本 | v0.1 |
-| 日期 | 2026-06-15 |
+| 日期 | 2026-06-24 |
 
 ## 1. 架构原则
 
@@ -16,7 +16,7 @@
 3. 账号凭据只保存 `secretRef` 和 digest，不在数据库、日志、审计、API 响应或导出中出现明文。
 4. 数据记录只保存脱敏摘要、schema、外部引用和有限样本，不复制生产敏感数据。
 5. 账号租借必须使用条件更新或唯一约束保证并发安全，不能依赖前端防重。
-6. 清理任务必须幂等，失败证据可审计，但不能保存敏感原文。
+6. 清理任务必须幂等，失败证据可审计；破坏性 adapter 只能在显式配置、开关开启和 adapter ready 后执行，且不能保存敏感原文。
 7. WP7/WP9 通过应用服务或 API 引用 WP8，不直接读写 WP8 表。
 
 ## 2. 模块划分
@@ -24,10 +24,10 @@
 | 包 | 职责 |
 |---|---|
 | `testdata.api` | Controller、request/response DTO、OpenAPI contract 注解。 |
-| `testdata.application` | 数据集、账号池、租借、清理任务、导出和审计应用服务。 |
+| `testdata.application` | 数据集、账号池、租借、清理任务、导出、账号自动开通和审计应用服务。 |
 | `testdata.domain` | 数据集、账号池、账号、租借、任务状态机和值对象。 |
-| `testdata.infrastructure` | MyBatis mapper、SecretProvider adapter、WP1 context adapter、租借并发 repository。 |
-| `testdata.config` | 数据大小、租借 TTL、过期回收、导出脱敏和清理任务开关。 |
+| `testdata.infrastructure` | MyBatis mapper、SecretProvider adapter、WP1 context adapter、租借并发 repository、配置型 HTTP cleanup/provisioning adapter。 |
+| `testdata.config` | 数据大小、租借 TTL、worker、导出脱敏、清理任务和账号开通 adapter 开关。 |
 
 ## 3. 数据模型草案
 
@@ -67,6 +67,16 @@
 | `veri-agent.test-data.lease-recovery-batch-size` | `50` | 单个 worker tick 可回收的过期租约上限。 |
 | `veri-agent.test-data.account-health-check-batch-size` | `100` | 单个 worker tick 可扫描的账号健康检查上限。 |
 | `veri-agent.test-data.cleanup-enabled` | `false` | 默认不执行破坏性清理，只记录任务。 |
+| `veri-agent.test-data.cleanup-adapter-mode` | `DISABLED` | 清理 adapter 模式；当前支持 `DISABLED/HTTP`。 |
+| `veri-agent.test-data.cleanup-adapter-url` | 空 | HTTP cleanup adapter 地址；仅 mode=HTTP 且 URL 非空时 ready。 |
+| `veri-agent.test-data.cleanup-adapter-token` | 空 | 调用 cleanup adapter 的 Bearer token，不出现在 health、审计或前端。 |
+| `veri-agent.test-data.cleanup-adapter-timeout-ms` | `5000` | cleanup adapter HTTP 超时。 |
+| `veri-agent.test-data.account-provisioning-enabled` | `false` | 是否允许 worker 按账号池策略自动补齐业务账号。 |
+| `veri-agent.test-data.account-provisioning-adapter-mode` | `LOCAL_SECRET_REF` | 账号开通 adapter 模式；当前支持 `LOCAL_SECRET_REF/HTTP`。 |
+| `veri-agent.test-data.account-provisioning-adapter-url` | 空 | HTTP provisioning adapter 地址；mode=HTTP 时必须配置。 |
+| `veri-agent.test-data.account-provisioning-adapter-token` | 空 | 调用 provisioning adapter 的 Bearer token，不出现在 health、审计或前端。 |
+| `veri-agent.test-data.account-provisioning-adapter-timeout-ms` | `5000` | provisioning adapter HTTP 超时。 |
+| `veri-agent.test-data.account-provisioning-batch-size` | `20` | 单个 worker tick 扫描自动开通账号池上限。 |
 | `veri-agent.test-data.export-enabled` | `true` | 允许导出脱敏摘要。 |
 
 ## 5. 接口契约草案
@@ -84,6 +94,7 @@
 | `POST` | `/data-sets/{id}/records` | `testData:manage` | 批量写入脱敏记录摘要或外部引用。 |
 | `POST` | `/data-sets/{id}/generate-records` | `testData:manage` | 对 `GENERATED` 数据集按 schema 自动生成脱敏记录摘要。 |
 | `GET` | `/data-sets/{id}/export` | `testData:export` | 导出数据集脱敏摘要、字段计数、摘要键名和 redaction policy。 |
+| `GET` | `/data-sets/{id}/export/download` | `testData:export` | 下载数据集脱敏导出 JSON 文件，内容与 `/export` 摘要一致。 |
 | `POST` | `/data-tasks` | `testData:cleanup` | 创建准备、刷新、清理或回滚任务。 |
 | `GET` | `/data-tasks` | `testData:read` | 查询任务列表。 |
 | `POST` | `/account-pools` | `testData:manage` | 创建账号池。 |
@@ -99,6 +110,7 @@
 | `POST` | `/leases/{id}/renew` | `testData:lease` | 续租 active lease。 |
 | `POST` | `/leases/{id}/release` | `testData:lease` | 释放账号并可创建清理任务。 |
 | `GET` | `/leases/{id}/export` | `testData:export` | 导出租借脱敏摘要。 |
+| `GET` | `/leases/{id}/export/download` | `testData:export` | 下载租借脱敏导出 JSON 文件，内容与 `/export` 摘要一致。 |
 
 ### M2 已落地切片
 
@@ -112,6 +124,7 @@
 - `POST /api/v1/test-data/data-sets/{id}/records`
 - `POST /api/v1/test-data/data-sets/{id}/generate-records`
 - `GET /api/v1/test-data/data-sets/{id}/export`
+- `GET /api/v1/test-data/data-sets/{id}/export/download`
 
 实现约束：
 
@@ -123,6 +136,7 @@
 6. 控制面总开关 `veri-agent.test-data.enabled=false` 时，业务 API 返回 `INVALID_STATE`，health API 保持可观测。
 7. 数据集脱敏导出受 `testData:export` 和 `veri-agent.test-data.export-enabled` 控制，只返回 `schemaVersion/exportedAt/dataSet/recordCount/schemaFieldCount/sensitiveFieldCount/records/redactionPolicy`；其中 records 只包含 `recordKey/recordDigest/externalRefDigest/tags/maskedSummaryKeys/createdAt/updatedAt`，不返回 maskedSummary 值、完整 record payload、secretRef 原文、token、cookie 或 Authorization header。
 8. `POST /data-sets/{id}/generate-records` 仅允许 `sourceType=GENERATED` 且状态为 `DRAFT/READY` 的数据集调用；生成逻辑只基于 schema 字段类型构造规则化样本摘要，生成后仍通过既有 `test_data_record` 摘要模型持久化，不新增敏感字段存储面。
+9. `/data-sets/{id}/export/download` 复用同一 export view，经 `application/json` attachment 返回，不新增对象存储或敏感字段面。
 
 ### M3 已落地切片
 
@@ -155,6 +169,7 @@
 - `GET /api/v1/test-data/leases`
 - `GET /api/v1/test-data/leases/{id}`
 - `GET /api/v1/test-data/leases/{id}/export`
+- `GET /api/v1/test-data/leases/{id}/export/download`
 - `POST /api/v1/test-data/leases/{id}/renew`
 - `POST /api/v1/test-data/leases/{id}/release`
 - `POST /api/v1/test-data/data-tasks`
@@ -170,10 +185,55 @@
 4. 租借响应只返回 `leaseTokenDigest`、账号摘要和 `secretRefDigest`；不返回凭据明文、租借 token 明文或 `secret_ref_cipher`。
 5. `POST /leases/{id}/renew` 只允许未过期 `ACTIVE` 租借续租，TTL 不得超过 `max-lease-ttl-seconds`。
 6. `POST /leases/{id}/release` 为终态幂等；账号释放后默认回到 `AVAILABLE`，失败场景可转入 `LOCKED`。
-7. `TestDataWorkerService` 以进程内 fixed-delay 方式运行单 JVM 受控 worker，单次 tick 顺序执行过期租约回收、账号健康检查和待处理任务认领；方法级同步与 repository 条件更新共同避免同 JVM 重入和重复认领。
-8. `data-tasks` 当前由 worker 推进准备、刷新、回滚和清理任务的控制面终态；`PREPARE/REFRESH` 仅校验数据集为 `READY` 并写入摘要，`ROLLBACK` 只记录控制面成功，`CLEANUP` 无论开关是否打开都不会触发破坏性 adapter，而是以 `CLEANUP_TASK_NOT_ALLOWED` 失败并保留审计证据。
+7. `TestDataWorkerService` 以进程内 fixed-delay 方式运行单 JVM 受控 worker，单次 tick 顺序执行过期租约回收、账号自动开通、账号健康检查和待处理任务认领；方法级同步与 repository 条件更新共同避免同 JVM 重入和重复认领。
+8. `data-tasks` 当前由 worker 推进准备、刷新、回滚和清理任务终态；`PREPARE/REFRESH` 校验数据集为 `READY` 并写入摘要，`ROLLBACK` 记录控制面成功，`CLEANUP` 在 `cleanupEnabled=false` 时以 `CLEANUP_TASK_NOT_ALLOWED` 失败，在 adapter 未 ready 时以 `CLEANUP_ADAPTER_NOT_READY` 失败，adapter ready 后调用受控清理 adapter 并记录 provider、externalCleanupId、影响数量和安全摘要。
 9. 账号健康检查只做控制面一致性修复，不登录外部系统、不读取凭据：无 active lease 的 `LEASED/EXPIRED` 账号会被收敛到 `LOCKED`，存在 active lease 的 `AVAILABLE` 账号会被修正回 `LEASED`。
 10. 租借脱敏导出受 `testData:export` 和 `veri-agent.test-data.export-enabled` 控制，只返回 `schemaVersion/exportedAt/lease/pool/account/lifecycleSummary/redactionPolicy`；其中 lease 只包含 holder、状态、时间戳、`requestDigest`、`leaseTokenDigest`、释放原因存在标记和释放原因 digest，pool/account 只包含摘要、digest、安全 key 名和健康状态，不返回 secretRef 原文、租借 token 明文、释放原因原文、健康摘要原文、scope/lease policy 值、token、cookie 或 Authorization header。
+11. `/leases/{id}/export/download` 复用同一 export view，经 `application/json` attachment 返回，不暴露租借 token 明文、释放原因原文或 `secretRef` 原文。
+
+### M8J 已落地切片：文件下载、cleanup adapter 和账号自动开通
+
+新增应用层 port：
+
+- `TestDataCleanupAdapter`：提供 `ready/provider/cleanup`，当前实现 `ConfiguredTestDataCleanupAdapter` 支持 HTTP POST JSON。
+- `TestAccountProvisioningAdapter`：提供 `ready/provider/provision`，当前实现 `ConfiguredTestAccountProvisioningAdapter` 支持 `LOCAL_SECRET_REF` 和 HTTP POST JSON。
+
+cleanup adapter 请求字段只包含任务和数据集摘要：`taskId/projectId/dataSetId/dataSetCode/dataSetStatus/recordCount/cleanupPolicyKeys/taskType/requestKey/targetRef/attempt/workerId/requestedAt`。成功响应可返回：
+
+```json
+{
+  "success": true,
+  "externalCleanupId": "cleanup-20260624-001",
+  "affectedResourceCount": 3,
+  "summary": {
+    "deletedRows": 3,
+    "adapter": "sandbox-cleaner"
+  }
+}
+```
+
+失败响应可返回 `success=false/errorCode/errorSummary`；非 2xx 响应也按失败处理。`summary` 只保留安全 key 和标量值，过滤 secret、token、password、cookie、credential、authorization 等敏感 key。
+
+账号池 `leasePolicy.provisioning` 示例：
+
+```json
+{
+  "provisioning": {
+    "enabled": true,
+    "minAvailable": 2,
+    "maxAccounts": 3,
+    "accountKeyPrefix": "auto-admin",
+    "displayNamePrefix": "Auto admin",
+    "secretRefPrefix": "secret://wp8/provisioned/admin",
+    "roleTags": ["admin"],
+    "scopeSummary": {
+      "tenant": "alpha"
+    }
+  }
+}
+```
+
+自动开通只扫描 `READY` 账号池，并受 `account-provisioning-enabled`、adapter ready、`minAvailable/maxAccounts` 和 batch size 共同限制。HTTP adapter 响应中的 `scopeSummary/summary` 同样过滤敏感 key；返回的 `secretRef` 只用于服务端写入和 digest/cipher 处理，不在响应、前端或审计中回显原文。
 
 ## 6. 关键请求体
 
@@ -416,7 +476,7 @@ WP9 可持久化字段白名单：`accountLeaseRef`、执行 run ref、`requestK
 
 1. 所有租借查询必须按项目 scope 和权限过滤，禁止通过 ID 枚举跨项目账号。
 2. 账号租借使用数据库条件更新或唯一 active lease 索引，后续可引入 Redis 锁但不能作为唯一一致性来源。
-3. 清理任务默认只记录，不执行破坏性动作；执行动作必须由后续 adapter 明确 allowlist。
+3. 清理任务默认只记录；执行动作必须显式开启 `cleanup-enabled`，且由 HTTP adapter 明确 allowlist、幂等和影响范围。
 4. 列表接口分页最大 100，记录摘要批量写入需要限制条数和大小。
 5. 导出 API 必须按字段白名单生成，禁止导出完整 record payload 或 secretRef 原文。
 
@@ -438,7 +498,7 @@ bash scripts/platform_api_java_line_guard.sh
 bash db/validation/run_wp1_db_validation.sh
 ```
 
-租借并发、跨 WP adapter 和前端页面验证不属于 M3 后端账号池切片完成定义，已按 M4-M6 分阶段承接；数据集脱敏导出摘要已在 M6C 补齐，租借脱敏导出摘要已在 M6D 补齐。真实 cleanup worker、导出文件下载、外部 HTTP 并发压测和更细粒度前端筛选分页仍按后续增强推进。
+租借并发、跨 WP adapter 和前端页面验证不属于 M3 后端账号池切片完成定义，已按 M4-M6 分阶段承接；数据集脱敏导出摘要已在 M6C 补齐，租借脱敏导出摘要已在 M6D 补齐，真实 cleanup worker 与导出文件下载已在 M8J 补齐。外部 HTTP 并发压测和更细粒度前端筛选分页仍按后续增强推进。
 
 ### M8B/M8C 文档化运维边界
 
@@ -452,9 +512,9 @@ M8B/M8C 不改变本技术契约的 API、DB、权限或状态机实现，只补
 
 ### M8I 发布准出收口边界
 
-M8I 不改变本技术契约的 API、DB、权限、状态机、配置项或跨 WP 应用层契约，只把当前实现能力和后续专项边界集中同步到发布准出说明、剩余工作盘点、README 和当前实现基线。服务端准出口径保持：
+M8I 当时不改变本技术契约的 API、DB、权限、状态机、配置项或跨 WP 应用层契约，只把当时实现能力和后续专项边界集中同步到发布准出说明、剩余工作盘点、README 和当前实现基线。M8J 已在该基线后补齐文件下载、cleanup adapter 和账号自动开通。服务端准出口径调整为：
 
 1. 当前 WP8 范围无剩余 P0 服务端功能开发项；目标环境发布前仍需按 release gate 执行实际验证。
-2. 真实文件下载、真实 cleanup worker、外部 HTTP 并发压测和生产容量指标不属于本轮服务端完成定义。
+2. 真实文件下载、受控 cleanup worker 和真实业务账号自动开通已经提供配置化实现；外部 HTTP 并发压测、生产容量指标和多实例运维演练仍不属于本轮服务端完成定义。
 3. WP7 runner 凭据注入、WP9 调度自动申请/释放和 WP10 报告证据消费均已消费 WP8 已提供的引用与摘要契约；后续只在对应 WP 内继续扩展真实执行、报告和运维能力，不再作为 WP8 当前缺口。
-4. 本切片不修改 Java 生产代码，因此 Java 行数门禁和阿里巴巴 Java 代码规范自查不作为文档收口的新增阻断；后续触达 Java 核心逻辑时必须重新执行。
+4. 本切片触达 Java 生产代码，必须执行 Java 行数门禁和阿里巴巴 Java 开发手册自查；核心逻辑已在 worker、adapter 和下载方法附近补充必要注释。

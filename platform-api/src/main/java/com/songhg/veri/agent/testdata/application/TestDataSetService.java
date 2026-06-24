@@ -344,6 +344,15 @@ public class TestDataSetService {
         return response;
     }
 
+    @Transactional(noRollbackFor = BusinessException.class)
+    public DownloadableExport exportDataSetFile(UUID id) {
+        TestDataSetExportResponse response = exportDataSet(id);
+        return downloadableExport(
+                "wp8-data-set-" + safeFileToken(response.dataSet().code()) + "-" + response.dataSet().id() + ".json",
+                response
+        );
+    }
+
     public String dataSetProjectScopeId(UUID id) {
         return repository.dataSetProjectScopeId(id)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "测试数据集不存在"));
@@ -794,6 +803,25 @@ public class TestDataSetService {
         }
     }
 
+    private DownloadableExport downloadableExport(String fileName, Object value) {
+        try {
+            return new DownloadableExport(
+                    fileName,
+                    "application/json",
+                    objectMapper.writerWithDefaultPrettyPrinter().writeValueAsBytes(value)
+            );
+        } catch (JsonProcessingException exception) {
+            throw new BusinessException(ErrorCode.INTERNAL_ERROR, "WP8 导出文件无法生成");
+        }
+    }
+
+    private String safeFileToken(String value) {
+        if (!StringUtils.hasText(value)) {
+            return "dataset";
+        }
+        return value.trim().replaceAll("[^A-Za-z0-9_.-]", "_");
+    }
+
     private String sha256(String value) {
         try {
             MessageDigest digest = MessageDigest.getInstance("SHA-256");
@@ -823,5 +851,8 @@ public class TestDataSetService {
         } catch (JsonProcessingException exception) {
             throw new BusinessException(ErrorCode.INTERNAL_ERROR, "测试数据 tags 读取失败");
         }
+    }
+
+    public record DownloadableExport(String fileName, String contentType, byte[] content) {
     }
 }

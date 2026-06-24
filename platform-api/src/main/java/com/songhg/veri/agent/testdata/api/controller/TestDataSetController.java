@@ -17,7 +17,11 @@ import com.songhg.veri.agent.testdata.application.view.TestDataSetExportResponse
 import com.songhg.veri.agent.testdata.application.view.TestDataSetSummaryResponse;
 import jakarta.validation.Valid;
 import java.util.UUID;
+import org.springframework.http.ContentDisposition;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -94,5 +98,21 @@ public class TestDataSetController {
     @RequirePermission(value = PermissionCodes.TEST_DATA_EXPORT, scope = TestDataPermissionScopes.DATA_SET)
     public TestDataSetExportResponse exportDataSet(@PathVariable UUID id) {
         return service.exportDataSet(id);
+    }
+
+    @GetMapping("/{id}/export/download")
+    @RequirePermission(value = PermissionCodes.TEST_DATA_EXPORT, scope = TestDataPermissionScopes.DATA_SET)
+    public ResponseEntity<byte[]> downloadDataSetExport(@PathVariable UUID id) {
+        TestDataSetService.DownloadableExport export = service.exportDataSetFile(id);
+        return ResponseEntity.ok()
+                .contentType(MediaType.parseMediaType(export.contentType()))
+                .header(
+                        HttpHeaders.CONTENT_DISPOSITION,
+                        ContentDisposition.attachment()
+                                .filename(export.fileName(), java.nio.charset.StandardCharsets.UTF_8)
+                                .build()
+                                .toString()
+                )
+                .body(export.content());
     }
 }

@@ -72,6 +72,10 @@ async function runWp8MainFlow(page: Page, assertResponsive: boolean) {
   await expect(exportPanel.getByText('maskedSummaryValuesExported')).toBeVisible();
   await expect(exportPanel.getByText('keys username')).toBeVisible();
   expect(mock.exportSeen).toBe(true);
+  const dataSetDownload = page.waitForEvent('download');
+  await exportPanel.getByRole('button', { name: '下载文件' }).click();
+  await dataSetDownload;
+  expect(mock.exportDownloadSeen).toBe(true);
   await expect(page.locator('body')).not.toContainText('secret://');
   await expect(page.locator('body')).not.toContainText('must-not-render');
 
@@ -143,6 +147,10 @@ async function runWp8MainFlow(page: Page, assertResponsive: boolean) {
   await expect(leaseExportPanel.getByText('healthSummary')).toBeVisible();
   await expect(leaseExportPanel.getByText('digest only')).toBeVisible();
   expect(mock.leaseExportSeen).toBe(true);
+  const leaseDownload = page.waitForEvent('download');
+  await leaseExportPanel.getByRole('button', { name: '下载文件' }).click();
+  await leaseDownload;
+  expect(mock.leaseExportDownloadSeen).toBe(true);
   await expect(leaseExportPanel).not.toContainText(rawReleaseReason);
   await expect(leaseExportPanel).not.toContainText(rawHealthSummary);
 
@@ -207,7 +215,9 @@ class Wp8TestDataMock {
   taskPayload: Record<string, unknown> | undefined;
   retryPayload: Record<string, unknown> | undefined;
   exportSeen = false;
+  exportDownloadSeen = false;
   leaseExportSeen = false;
+  leaseExportDownloadSeen = false;
 
   private dataSets: Array<Record<string, unknown>> = [this.dataSetSummary('ds-ui-1', 'Baseline WP8 smoke data set', 'baseline-users')];
   private dataSetDetails = new Map<string, Record<string, unknown>>([
@@ -335,6 +345,17 @@ class Wp8TestDataMock {
       return this.fulfill(route, this.dataSetExport(dataSetExportMatch[1]), 'trace-data-set-export');
     }
 
+    const dataSetExportDownloadMatch = path.match(/^\/api\/v1\/test-data\/data-sets\/([^/]+)\/export\/download$/);
+    if (dataSetExportDownloadMatch && method === 'GET') {
+      this.exportDownloadSeen = true;
+      return this.fulfillDownload(
+        route,
+        this.dataSetExport(dataSetExportDownloadMatch[1]),
+        'wp8-data-set-export.json',
+        'trace-data-set-export-download'
+      );
+    }
+
     if (path === '/api/v1/test-data/account-pools' && method === 'GET') {
       return this.fulfill(route, this.page(this.accountPools), 'trace-pool-list');
     }
@@ -417,6 +438,17 @@ class Wp8TestDataMock {
       return this.fulfill(route, this.leaseExport(leaseExportMatch[1]), 'trace-lease-export');
     }
 
+    const leaseExportDownloadMatch = path.match(/^\/api\/v1\/test-data\/leases\/([^/]+)\/export\/download$/);
+    if (leaseExportDownloadMatch && method === 'GET') {
+      this.leaseExportDownloadSeen = true;
+      return this.fulfillDownload(
+        route,
+        this.leaseExport(leaseExportDownloadMatch[1]),
+        'wp8-account-lease-export.json',
+        'trace-lease-export-download'
+      );
+    }
+
     const renewMatch = path.match(/^\/api\/v1\/test-data\/leases\/([^/]+)\/renew$/);
     if (renewMatch && method === 'POST') {
       const current = this.leaseDetails.get(renewMatch[1]) ?? this.leaseDetail(renewMatch[1], 'ACTIVE');
@@ -496,6 +528,18 @@ class Wp8TestDataMock {
     this.poolDetails.set(id, detail);
     this.accountPools = this.accountPools.map((item) => item.id === detail.id ? this.poolSummaryFromDetail(detail) : item);
     return this.fulfill(route, detail, traceId);
+  }
+
+  private fulfillDownload(route: Route, data: Record<string, unknown>, filename: string, traceId: string) {
+    return route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      headers: {
+        'X-Trace-Id': traceId,
+        'Content-Disposition': `attachment; filename="${filename}"`
+      },
+      body: JSON.stringify(data)
+    });
   }
 
   private dataSetSummary(id: string, name: string, code: string) {

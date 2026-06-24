@@ -1,18 +1,34 @@
 package com.songhg.veri.agent.testdata.application;
 
+import com.songhg.veri.agent.testdata.application.port.TestAccountProvisioningAdapter;
+import com.songhg.veri.agent.testdata.application.port.TestDataCleanupAdapter;
 import com.songhg.veri.agent.testdata.application.view.TestDataHealthResponse;
 import com.songhg.veri.agent.testdata.config.TestDataProperties;
 import java.util.List;
 import java.util.Map;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 @Service
 public class TestDataHealthService {
 
     private final TestDataProperties properties;
+    private final TestDataCleanupAdapter cleanupAdapter;
+    private final TestAccountProvisioningAdapter provisioningAdapter;
+
+    @Autowired
+    public TestDataHealthService(
+            TestDataProperties properties,
+            TestDataCleanupAdapter cleanupAdapter,
+            TestAccountProvisioningAdapter provisioningAdapter
+    ) {
+        this.properties = properties;
+        this.cleanupAdapter = cleanupAdapter;
+        this.provisioningAdapter = provisioningAdapter;
+    }
 
     public TestDataHealthService(TestDataProperties properties) {
-        this.properties = properties;
+        this(properties, TestDataCleanupAdapter.disabled(), TestAccountProvisioningAdapter.disabled());
     }
 
     /**
@@ -52,13 +68,18 @@ public class TestDataHealthService {
                         Map.entry("taskExecutionWorkerReady", true),
                         Map.entry("leaseRecoveryWorkerReady", true),
                         Map.entry("accountHealthCheckWorkerReady", true),
-                        Map.entry("destructiveCleanupAdapterReady", false),
+                        Map.entry("wp8FileDownloadReady", true),
+                        Map.entry("destructiveCleanupAdapterReady", cleanupAdapter.ready()),
+                        Map.entry("destructiveCleanupAdapterProvider", cleanupAdapter.provider()),
                         Map.entry("destructiveCleanupDefaultDisabled", !properties.cleanupEnabled()),
                         Map.entry("secretPlaintextStored", false),
                         Map.entry("secretRefPlaintextExported", false),
                         Map.entry("rawRecordPayloadStored", false),
                         Map.entry("productionDataCopyAllowed", false),
-                        Map.entry("automaticBusinessAccountProvisioningReady", false),
+                        Map.entry("automaticBusinessAccountProvisioningEnabled", properties.accountProvisioningEnabled()),
+                        Map.entry("automaticBusinessAccountProvisioningReady", properties.accountProvisioningEnabled()
+                                && provisioningAdapter.ready()),
+                        Map.entry("accountProvisioningAdapterProvider", provisioningAdapter.provider()),
                         Map.entry("supportedDataSetStatuses", List.of("DRAFT", "READY", "DISABLED", "ARCHIVED")),
                         Map.entry("supportedAccountStatuses", List.of(
                                 "AVAILABLE",

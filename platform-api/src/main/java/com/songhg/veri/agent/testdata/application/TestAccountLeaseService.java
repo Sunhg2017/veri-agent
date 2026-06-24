@@ -138,6 +138,15 @@ public class TestAccountLeaseService {
     }
 
     @Transactional(noRollbackFor = BusinessException.class)
+    public DownloadableExport exportLeaseFile(UUID id) {
+        TestAccountLeaseExportResponse response = exportLease(id);
+        return downloadableExport(
+                "wp8-account-lease-" + response.lease().id() + ".json",
+                response
+        );
+    }
+
+    @Transactional(noRollbackFor = BusinessException.class)
     public TestAccountLeaseResponse renewLease(UUID id, RenewTestAccountLeaseCommand command) {
         assertEnabled();
         TestAccountLease existing = requireLease(id);
@@ -628,6 +637,18 @@ public class TestAccountLeaseService {
         }
     }
 
+    private DownloadableExport downloadableExport(String fileName, Object value) {
+        try {
+            return new DownloadableExport(
+                    fileName,
+                    "application/json",
+                    objectMapper.writerWithDefaultPrettyPrinter().writeValueAsBytes(value)
+            );
+        } catch (JsonProcessingException exception) {
+            throw new BusinessException(ErrorCode.INTERNAL_ERROR, "WP8 租借导出文件无法生成");
+        }
+    }
+
     private Map<String, Object> readMap(String json) {
         if (!StringUtils.hasText(json)) {
             return Map.of();
@@ -655,5 +676,8 @@ public class TestAccountLeaseService {
         } catch (JsonProcessingException exception) {
             throw new BusinessException(ErrorCode.INTERNAL_ERROR, "账号角色标签读取失败");
         }
+    }
+
+    public record DownloadableExport(String fileName, String contentType, byte[] content) {
     }
 }

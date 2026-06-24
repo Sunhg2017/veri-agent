@@ -7,6 +7,7 @@ import com.songhg.veri.agent.testdata.config.TestDataProperties;
 import com.songhg.veri.agent.testdata.domain.TestDataTask;
 import java.time.Instant;
 import java.util.Optional;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -19,8 +20,24 @@ public class TestDataWorkerService {
 
     private final TestDataTaskService taskService;
     private final TestAccountLeaseService leaseService;
+    private final TestAccountPoolService poolService;
     private final TestAccountHealthCheckService accountHealthCheckService;
     private final TestDataProperties properties;
+
+    @Autowired
+    public TestDataWorkerService(
+            TestDataTaskService taskService,
+            TestAccountLeaseService leaseService,
+            TestAccountPoolService poolService,
+            TestAccountHealthCheckService accountHealthCheckService,
+            TestDataProperties properties
+    ) {
+        this.taskService = taskService;
+        this.leaseService = leaseService;
+        this.poolService = poolService;
+        this.accountHealthCheckService = accountHealthCheckService;
+        this.properties = properties;
+    }
 
     public TestDataWorkerService(
             TestDataTaskService taskService,
@@ -28,10 +45,7 @@ public class TestDataWorkerService {
             TestAccountHealthCheckService accountHealthCheckService,
             TestDataProperties properties
     ) {
-        this.taskService = taskService;
-        this.leaseService = leaseService;
-        this.accountHealthCheckService = accountHealthCheckService;
-        this.properties = properties;
+        this(taskService, leaseService, null, accountHealthCheckService, properties);
     }
 
     /**
@@ -79,6 +93,7 @@ public class TestDataWorkerService {
         int taskBatchSize = properties.effectiveWorkerTaskBatchSize();
         int leaseRecoveryBatchSize = properties.effectiveLeaseRecoveryBatchSize();
         int accountHealthCheckBatchSize = properties.effectiveAccountHealthCheckBatchSize();
+        int accountProvisioningBatchSize = properties.effectiveAccountProvisioningBatchSize();
         if (!properties.workerEnabled()) {
             return new TestDataWorkerTickResponse(
                     false,
@@ -86,6 +101,11 @@ public class TestDataWorkerService {
                     taskBatchSize,
                     leaseRecoveryBatchSize,
                     accountHealthCheckBatchSize,
+                    accountProvisioningBatchSize,
+                    0,
+                    0,
+                    0,
+                    0,
                     0,
                     0,
                     0,
@@ -102,6 +122,18 @@ public class TestDataWorkerService {
         }
 
         int recoveredExpiredLeaseCount = leaseService.expireActiveLeases(tickedAt, leaseRecoveryBatchSize);
+        TestAccountPoolService.AccountProvisioningTickResult provisioningResult = poolService == null
+                ? new TestAccountPoolService.AccountProvisioningTickResult(
+                        properties.accountProvisioningEnabled(),
+                        false,
+                        "DISABLED",
+                        accountProvisioningBatchSize,
+                        0,
+                        0,
+                        0,
+                        0
+                )
+                : poolService.provisionAccounts(tickedAt, accountProvisioningBatchSize, workerId);
         TestAccountHealthCheckService.AccountHealthCheckResult healthCheckResult =
                 accountHealthCheckService.runManagedChecks(tickedAt, accountHealthCheckBatchSize, workerId);
         int claimedTaskCount = 0;
@@ -123,6 +155,8 @@ public class TestDataWorkerService {
         }
         boolean noop = recoveredExpiredLeaseCount == 0
                 && claimedTaskCount == 0
+                && provisioningResult.provisionedAccountCount() == 0
+                && provisioningResult.failedProvisioningCount() == 0
                 && healthCheckResult.updatedAccountCount() == 0
                 && skippedTaskCount == 0;
         return new TestDataWorkerTickResponse(
@@ -131,6 +165,7 @@ public class TestDataWorkerService {
                 taskBatchSize,
                 leaseRecoveryBatchSize,
                 accountHealthCheckBatchSize,
+                accountProvisioningBatchSize,
                 recoveredExpiredLeaseCount,
                 claimedTaskCount,
                 succeededTaskCount,
@@ -140,6 +175,10 @@ public class TestDataWorkerService {
                 healthCheckResult.updatedAccountCount(),
                 healthCheckResult.lockedAccountCount(),
                 healthCheckResult.leasedAccountCount(),
+                provisioningResult.scannedPoolCount(),
+                provisioningResult.provisionedAccountCount(),
+                provisioningResult.skippedPoolCount(),
+                provisioningResult.failedProvisioningCount(),
                 noop,
                 traceId,
                 tickedAt

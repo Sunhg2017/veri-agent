@@ -35,6 +35,26 @@ public record TestDataProperties(
         @DefaultValue("14400") int maxLeaseTtlSeconds,
         /** Allows destructive cleanup adapters; default stays off until dedicated release smoke exists. */
         @DefaultValue("false") boolean cleanupEnabled,
+        /** Cleanup adapter mode. Supported values: DISABLED, HTTP. */
+        @DefaultValue("DISABLED") String cleanupAdapterMode,
+        /** HTTP endpoint used by the destructive cleanup adapter. */
+        @DefaultValue("") String cleanupAdapterUrl,
+        /** Bearer token used only when calling the cleanup adapter. */
+        @DefaultValue("") String cleanupAdapterToken,
+        /** Cleanup adapter HTTP timeout in milliseconds. */
+        @DefaultValue("5000") int cleanupAdapterTimeoutMs,
+        /** Enables managed business account provisioning from account-pool leasePolicy. */
+        @DefaultValue("false") boolean accountProvisioningEnabled,
+        /** Account provisioning adapter mode. Supported values: LOCAL_SECRET_REF, HTTP. */
+        @DefaultValue("LOCAL_SECRET_REF") String accountProvisioningAdapterMode,
+        /** HTTP endpoint used by the account provisioning adapter. */
+        @DefaultValue("") String accountProvisioningAdapterUrl,
+        /** Bearer token used only when calling the account provisioning adapter. */
+        @DefaultValue("") String accountProvisioningAdapterToken,
+        /** Account provisioning adapter HTTP timeout in milliseconds. */
+        @DefaultValue("5000") int accountProvisioningAdapterTimeoutMs,
+        /** Maximum READY account pools scanned for provisioning by one worker tick. */
+        @DefaultValue("20") int accountProvisioningBatchSize,
         /** Allows redacted summary export. */
         @DefaultValue("true") boolean exportEnabled
 ) {
@@ -55,6 +75,10 @@ public record TestDataProperties(
     private static final int MAX_RECORD_SUMMARY_MAX_BYTES = 65_536;
     private static final int DEFAULT_LEASE_TTL_SECONDS = 1_800;
     private static final int MAX_LEASE_TTL_SECONDS = 86_400;
+    private static final int DEFAULT_ADAPTER_TIMEOUT_MS = 5_000;
+    private static final int MAX_ADAPTER_TIMEOUT_MS = 60_000;
+    private static final int DEFAULT_ACCOUNT_PROVISIONING_BATCH_SIZE = 20;
+    private static final int MAX_ACCOUNT_PROVISIONING_BATCH_SIZE = 500;
 
     @ConstructorBinding
     public TestDataProperties {
@@ -83,6 +107,60 @@ public record TestDataProperties(
                 defaultLeaseTtlSeconds,
                 maxLeaseTtlSeconds,
                 cleanupEnabled,
+                "DISABLED",
+                "",
+                "",
+                DEFAULT_ADAPTER_TIMEOUT_MS,
+                false,
+                "LOCAL_SECRET_REF",
+                "",
+                "",
+                DEFAULT_ADAPTER_TIMEOUT_MS,
+                DEFAULT_ACCOUNT_PROVISIONING_BATCH_SIZE,
+                exportEnabled
+        );
+    }
+
+    public TestDataProperties(
+            boolean enabled,
+            boolean workerEnabled,
+            int workerIntervalMs,
+            int workerInitialDelayMs,
+            String workerId,
+            int workerTaskBatchSize,
+            int leaseRecoveryBatchSize,
+            int accountHealthCheckBatchSize,
+            int recordMaxCount,
+            int recordSummaryMaxBytes,
+            int defaultLeaseTtlSeconds,
+            int maxLeaseTtlSeconds,
+            boolean cleanupEnabled,
+            boolean exportEnabled
+    ) {
+        this(
+                enabled,
+                workerEnabled,
+                workerIntervalMs,
+                workerInitialDelayMs,
+                workerId,
+                workerTaskBatchSize,
+                leaseRecoveryBatchSize,
+                accountHealthCheckBatchSize,
+                recordMaxCount,
+                recordSummaryMaxBytes,
+                defaultLeaseTtlSeconds,
+                maxLeaseTtlSeconds,
+                cleanupEnabled,
+                "DISABLED",
+                "",
+                "",
+                DEFAULT_ADAPTER_TIMEOUT_MS,
+                false,
+                "LOCAL_SECRET_REF",
+                "",
+                "",
+                DEFAULT_ADAPTER_TIMEOUT_MS,
+                DEFAULT_ACCOUNT_PROVISIONING_BATCH_SIZE,
                 exportEnabled
         );
     }
@@ -150,6 +228,46 @@ public record TestDataProperties(
         return boundedPositive(maxLeaseTtlSeconds, DEFAULT_LEASE_TTL_SECONDS, MAX_LEASE_TTL_SECONDS);
     }
 
+    public String effectiveCleanupAdapterMode() {
+        return boundedText(cleanupAdapterMode, "DISABLED", 32).toUpperCase(java.util.Locale.ROOT);
+    }
+
+    public String effectiveCleanupAdapterUrl() {
+        return boundedNullableText(cleanupAdapterUrl, 2048);
+    }
+
+    public String effectiveCleanupAdapterToken() {
+        return boundedNullableText(cleanupAdapterToken, 2048);
+    }
+
+    public int effectiveCleanupAdapterTimeoutMs() {
+        return boundedPositive(cleanupAdapterTimeoutMs, DEFAULT_ADAPTER_TIMEOUT_MS, MAX_ADAPTER_TIMEOUT_MS);
+    }
+
+    public String effectiveAccountProvisioningAdapterMode() {
+        return boundedText(accountProvisioningAdapterMode, "LOCAL_SECRET_REF", 32).toUpperCase(java.util.Locale.ROOT);
+    }
+
+    public String effectiveAccountProvisioningAdapterUrl() {
+        return boundedNullableText(accountProvisioningAdapterUrl, 2048);
+    }
+
+    public String effectiveAccountProvisioningAdapterToken() {
+        return boundedNullableText(accountProvisioningAdapterToken, 2048);
+    }
+
+    public int effectiveAccountProvisioningAdapterTimeoutMs() {
+        return boundedPositive(accountProvisioningAdapterTimeoutMs, DEFAULT_ADAPTER_TIMEOUT_MS, MAX_ADAPTER_TIMEOUT_MS);
+    }
+
+    public int effectiveAccountProvisioningBatchSize() {
+        return boundedPositive(
+                accountProvisioningBatchSize,
+                DEFAULT_ACCOUNT_PROVISIONING_BATCH_SIZE,
+                MAX_ACCOUNT_PROVISIONING_BATCH_SIZE
+        );
+    }
+
     private static int boundedPositive(int value, int defaultValue, int maxValue) {
         if (value <= 0) {
             return defaultValue;
@@ -160,6 +278,14 @@ public record TestDataProperties(
     private static String boundedText(String value, String defaultValue, int maxLength) {
         if (value == null || value.isBlank()) {
             return defaultValue;
+        }
+        String trimmed = value.trim();
+        return trimmed.length() > maxLength ? trimmed.substring(0, maxLength) : trimmed;
+    }
+
+    private static String boundedNullableText(String value, int maxLength) {
+        if (value == null || value.isBlank()) {
+            return "";
         }
         String trimmed = value.trim();
         return trimmed.length() > maxLength ? trimmed.substring(0, maxLength) : trimmed;

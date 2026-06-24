@@ -8,6 +8,7 @@ import com.songhg.veri.agent.integration.application.view.PlatformContext;
 import com.songhg.veri.agent.testdata.application.command.CreateTestAccountPoolCommand;
 import com.songhg.veri.agent.testdata.application.command.UpdateTestPooledAccountCommand;
 import com.songhg.veri.agent.testdata.application.command.UpsertTestPooledAccountCommand;
+import com.songhg.veri.agent.testdata.application.port.TestAccountProvisioningAdapter;
 import com.songhg.veri.agent.testdata.application.query.TestAccountPoolPageRequest;
 import com.songhg.veri.agent.testdata.config.TestDataProperties;
 import com.songhg.veri.agent.testdata.infrastructure.InMemoryTestDataRepository;
@@ -276,6 +277,52 @@ class TestAccountPoolServiceTest {
         assertThat(repository.pooledAccountSecretRefCipher(account.id())).isEmpty();
     }
 
+    @Test
+    void provisionsBusinessAccountsFromPoolPolicyWithoutSecretEcho() throws Exception {
+        InMemoryTestDataRepository repository = new InMemoryTestDataRepository();
+        TestDataPlatformContextClient contextClient = contextClient();
+        TestAccountPoolService service = provisioningService(repository, contextClient);
+        var pool = service.createAccountPool(new CreateTestAccountPoolCommand(
+                "project-alpha",
+                "app-alpha",
+                "env-staging",
+                "pool-alpha",
+                "Pool alpha",
+                "READY",
+                Map.of("provisioning", Map.of(
+                        "enabled", true,
+                        "minAvailable", 2,
+                        "maxAccounts", 3,
+                        "accountKeyPrefix", "auto-admin",
+                        "displayNamePrefix", "Auto admin",
+                        "secretRefPrefix", "secret://wp8/provisioned/admin",
+                        "roleTags", List.of("admin"),
+                        "scopeSummary", Map.of("tenant", "alpha", "token", "raw-token")
+                )),
+                90
+        ));
+
+        TestAccountPoolService.AccountProvisioningTickResult result =
+                service.provisionAccounts(Instant.now(), 10, "wp8-worker");
+
+        assertThat(result.enabled()).isTrue();
+        assertThat(result.adapterReady()).isTrue();
+        assertThat(result.provisionedAccountCount()).isEqualTo(2);
+        assertThat(service.accountPool(pool.id()).accounts()).hasSize(2);
+        assertThat(service.accountPool(pool.id()).accounts())
+                .allSatisfy(account -> {
+                    assertThat(account.accountKey()).startsWith("auto-admin-");
+                    assertThat(account.roleTags()).containsExactly("ADMIN");
+                    assertThat(account.scopeSummary()).containsEntry("tenant", "alpha");
+                    assertThat(account.scopeSummary()).doesNotContainKey("token");
+                    assertThat(account.secretRefDigest()).isNotBlank();
+                    assertThat(account.toString()).doesNotContain("secret://wp8/provisioned/admin");
+                });
+        assertThat(repository.pooledAccounts(pool.id())).hasSize(2);
+        assertThat(repository.pooledAccountSecretRefCipher(repository.pooledAccounts(pool.id()).get(0).id()))
+                .isPresent();
+    }
+
     private TestAccountPoolService service(boolean enabled, int defaultTtlSeconds, int maxTtlSeconds) {
         return service(enabled, defaultTtlSeconds, maxTtlSeconds, contextClient());
     }
@@ -323,6 +370,73 @@ class TestAccountPoolServiceTest {
                 new TestDataProperties(enabled, 10, 512, defaultTtlSeconds, maxTtlSeconds, false, true),
                 secretProviderProperties,
                 new ObjectMapper()
+        );
+    }
+
+    private TestAccountPoolService provisioningService(
+            InMemoryTestDataRepository repository,
+            TestDataPlatformContextClient contextClient
+    ) {
+        TestDataActorResolver actorResolver = mock(TestDataActorResolver.class);
+        when(actorResolver.currentActor()).thenReturn("wp8-provisioner");
+        return new TestAccountPoolService(
+                repository,
+                contextClient,
+                actorResolver,
+                new TestDataProperties(
+                        true,
+                        true,
+                        5_000,
+                        30_000,
+                        "wp8-worker",
+                        10,
+                        50,
+                        100,
+                        10,
+                        512,
+                        60,
+                        120,
+                        false,
+                        "DISABLED",
+                        "",
+                        "",
+                        5_000,
+                        true,
+                        "LOCAL_SECRET_REF",
+                        "",
+                        "",
+                        5_000,
+                        10,
+                        true
+                ),
+                new SecretProviderProperties(
+                        "0123456789abcdef0123456789abcdef",
+                        "v1",
+                        "",
+                        "",
+                        3,
+                        1,
+                        "",
+                        "",
+                        ""
+                ),
+                new ObjectMapper(),
+                new TestAccountProvisioningAdapter() {
+                    @Override
+                    public boolean ready() {
+                        return true;
+                    }
+
+                    @Override
+                    public String provider() {
+                        return "LOCAL_SECRET_REF";
+                    }
+
+                    @Override
+                    public ProvisionedAccount provision(ProvisioningRequest request) {
+                        return ProvisionedAccount.fromRequest(request);
+                    }
+                }
         );
     }
 

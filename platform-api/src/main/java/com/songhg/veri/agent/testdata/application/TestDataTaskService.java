@@ -11,6 +11,7 @@ import com.songhg.veri.agent.common.util.SensitiveTextSanitizer;
 import com.songhg.veri.agent.notification.application.AsyncTaskNotificationService;
 import com.songhg.veri.agent.testdata.application.command.CreateTestDataTaskCommand;
 import com.songhg.veri.agent.testdata.application.command.RetryTestDataTaskCommand;
+import com.songhg.veri.agent.testdata.application.port.TestDataCleanupAdapter;
 import com.songhg.veri.agent.testdata.application.port.TestDataRepository;
 import com.songhg.veri.agent.testdata.application.query.TestDataTaskPageRequest;
 import com.songhg.veri.agent.testdata.application.query.TestDataTaskQuery;
@@ -20,6 +21,7 @@ import com.songhg.veri.agent.testdata.domain.TestDataSet;
 import com.songhg.veri.agent.testdata.domain.TestDataTask;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -28,6 +30,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.regex.Pattern;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -43,9 +46,12 @@ public class TestDataTaskService {
     );
     private static final int MAX_ERROR_SUMMARY_LENGTH = 512;
     private static final String TASK_EXECUTION_MODE = "CONTROL_PLANE_ONLY";
+    private static final String CLEANUP_EXECUTION_MODE = "DESTRUCTIVE_ADAPTER";
     private static final String TASK_ERROR_DATA_SET_REQUIRED = "TEST_DATA_TASK_DATA_SET_REQUIRED";
     private static final String TASK_ERROR_DATA_SET_NOT_READY = "TEST_DATA_SET_NOT_READY";
     private static final String TASK_ERROR_CLEANUP_NOT_ALLOWED = "CLEANUP_TASK_NOT_ALLOWED";
+    private static final String TASK_ERROR_CLEANUP_ADAPTER_NOT_READY = "CLEANUP_ADAPTER_NOT_READY";
+    private static final String TASK_ERROR_CLEANUP_ADAPTER_FAILED = "CLEANUP_ADAPTER_FAILED";
     private static final String TASK_ERROR_EXECUTION_FAILED = "TEST_DATA_TASK_EXECUTION_FAILED";
     private static final TypeReference<Map<String, Object>> MAP_TYPE = new TypeReference<>() {
     };
@@ -56,6 +62,26 @@ public class TestDataTaskService {
     private final TestDataProperties properties;
     private final AsyncTaskNotificationService notificationService;
     private final ObjectMapper objectMapper;
+    private final TestDataCleanupAdapter cleanupAdapter;
+
+    @Autowired
+    public TestDataTaskService(
+            TestDataRepository repository,
+            TestDataPlatformContextClient contextClient,
+            TestDataActorResolver actorResolver,
+            TestDataProperties properties,
+            AsyncTaskNotificationService notificationService,
+            ObjectMapper objectMapper,
+            TestDataCleanupAdapter cleanupAdapter
+    ) {
+        this.repository = repository;
+        this.contextClient = contextClient;
+        this.actorResolver = actorResolver;
+        this.properties = properties;
+        this.notificationService = notificationService;
+        this.objectMapper = objectMapper;
+        this.cleanupAdapter = cleanupAdapter;
+    }
 
     public TestDataTaskService(
             TestDataRepository repository,
@@ -65,12 +91,15 @@ public class TestDataTaskService {
             AsyncTaskNotificationService notificationService,
             ObjectMapper objectMapper
     ) {
-        this.repository = repository;
-        this.contextClient = contextClient;
-        this.actorResolver = actorResolver;
-        this.properties = properties;
-        this.notificationService = notificationService;
-        this.objectMapper = objectMapper;
+        this(
+                repository,
+                contextClient,
+                actorResolver,
+                properties,
+                notificationService,
+                objectMapper,
+                TestDataCleanupAdapter.disabled()
+        );
     }
 
     @Transactional(noRollbackFor = BusinessException.class)
@@ -301,7 +330,8 @@ public class TestDataTaskService {
                 "cleanupEnabled", properties.cleanupEnabled(),
                 "workerEnabled", properties.workerEnabled(),
                 "destructiveCleanupTriggered", false,
-                "destructiveCleanupAdapterReady", false,
+                "destructiveCleanupAdapterReady", cleanupAdapter.ready(),
+                "destructiveCleanupAdapterProvider", cleanupAdapter.provider(),
                 "workerReady", true,
                 "rawRecordPayloadStored", false
         );
@@ -402,10 +432,37 @@ public class TestDataTaskService {
     }
 
     private TaskExecutionOutcome executeCleanupTask(TestDataTask running, String workerId) {
-        String reason = properties.cleanupEnabled()
-                ? "破坏性清理 adapter 尚未启用，任务仅完成控制面校验"
-                : "清理开关未启用，任务只记录控制面状态";
-        return failedOutcome(running, TASK_ERROR_CLEANUP_NOT_ALLOWED, reason, workerId, null);
+        if (!properties.cleanupEnabled()) {
+            return failedOutcome(running, TASK_ERROR_CLEANUP_NOT_ALLOWED, "清理开关未启用，任务只记录控制面状态", workerId, null);
+        }
+        if (!cleanupAdapter.ready()) {
+            return failedOutcome(running, TASK_ERROR_CLEANUP_ADAPTER_NOT_READY, "破坏性清理 adapter 尚未配置或不可用", workerId, null);
+        }
+        TestDataSet dataSet = running.dataSetId() == null ? null : requireDataSet(running.dataSetId());
+        if (dataSet != null && !running.projectId().equals(dataSet.projectId())) {
+            return failedOutcome(running, TASK_ERROR_DATA_SET_NOT_READY, "清理任务数据集不属于当前项目", workerId, dataSet);
+        }
+        Map<String, Object> summary = workerSummary(running, workerId);
+        summary.put("executionMode", CLEANUP_EXECUTION_MODE);
+        summary.put("destructiveCleanupTriggered", true);
+        summary.put("destructiveCleanupAdapterReady", true);
+        summary.put("destructiveCleanupAdapterProvider", cleanupAdapter.provider());
+        if (dataSet != null) {
+            appendDataSetSignals(summary, dataSet);
+        }
+        TestDataCleanupAdapter.CleanupResult result = cleanupAdapter.cleanup(cleanupRequest(running, dataSet, workerId));
+        summary.put("adapterAffectedResourceCount", result.affectedResourceCount());
+        if (StringUtils.hasText(result.externalCleanupId())) {
+            summary.put("externalCleanupId", boundedNullable(result.externalCleanupId(), 128));
+        }
+        result.summary().forEach((key, value) -> summary.put("adapter_" + key, value));
+        if (result.success()) {
+            return succeededOutcome(running, summary, workerId);
+        }
+        String errorCode = StringUtils.hasText(result.errorCode())
+                ? boundedNullable(result.errorCode(), 64)
+                : TASK_ERROR_CLEANUP_ADAPTER_FAILED;
+        return failedOutcome(running, errorCode, result.errorSummary(), workerId, dataSet, summary);
     }
 
     private TaskExecutionOutcome succeededOutcome(TestDataTask running, Map<String, Object> summary, String workerId) {
@@ -443,8 +500,22 @@ public class TestDataTaskService {
             String workerId,
             TestDataSet dataSet
     ) {
-        Instant finishedAt = Instant.now();
         Map<String, Object> summary = workerSummary(running, workerId);
+        if (dataSet != null) {
+            appendDataSetSignals(summary, dataSet);
+        }
+        return failedOutcome(running, errorCode, errorSummary, workerId, dataSet, summary);
+    }
+
+    private TaskExecutionOutcome failedOutcome(
+            TestDataTask running,
+            String errorCode,
+            String errorSummary,
+            String workerId,
+            TestDataSet dataSet,
+            Map<String, Object> summary
+    ) {
+        Instant finishedAt = Instant.now();
         if (dataSet != null) {
             appendDataSetSignals(summary, dataSet);
         }
@@ -484,7 +555,8 @@ public class TestDataTaskService {
         summary.put("executionMode", TASK_EXECUTION_MODE);
         summary.put("cleanupEnabled", properties.cleanupEnabled());
         summary.put("destructiveCleanupTriggered", false);
-        summary.put("destructiveCleanupAdapterReady", false);
+        summary.put("destructiveCleanupAdapterReady", cleanupAdapter.ready());
+        summary.put("destructiveCleanupAdapterProvider", cleanupAdapter.provider());
         return summary;
     }
 
@@ -494,6 +566,40 @@ public class TestDataTaskService {
         summary.put("dataSetStatus", dataSet.status());
         summary.put("recordCount", repository.countRecords(dataSet.id()));
         summary.put("sourceType", dataSet.sourceType());
+    }
+
+    private TestDataCleanupAdapter.CleanupRequest cleanupRequest(
+            TestDataTask running,
+            TestDataSet dataSet,
+            String workerId
+    ) {
+        return new TestDataCleanupAdapter.CleanupRequest(
+                running.id(),
+                running.projectId(),
+                dataSet == null ? null : dataSet.id(),
+                dataSet == null ? null : dataSet.code(),
+                dataSet == null ? null : dataSet.status(),
+                dataSet == null ? 0 : repository.countRecords(dataSet.id()),
+                dataSet == null ? List.of() : sortedSafeKeys(readMap(dataSet.cleanupPolicyJson())),
+                running.taskType(),
+                running.requestKey(),
+                running.targetRef(),
+                running.attempt(),
+                boundedNullable(workerId, 128),
+                Instant.now()
+        );
+    }
+
+    private List<String> sortedSafeKeys(Map<String, Object> value) {
+        List<String> keys = new ArrayList<>();
+        value.keySet().stream()
+                .filter(key -> {
+                    String normalized = key.toLowerCase(Locale.ROOT);
+                    return SENSITIVE_KEYWORDS.stream().noneMatch(normalized::contains);
+                })
+                .sorted()
+                .forEach(keys::add);
+        return keys;
     }
 
     private void persistTerminalTask(TestDataTask task) {
@@ -506,7 +612,9 @@ public class TestDataTaskService {
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("taskType", task.taskType());
         payload.put("status", task.status());
-        payload.put("destructiveCleanupTriggered", false);
+        payload.put("destructiveCleanupTriggered", Boolean.TRUE.equals(readMap(task.resultSummaryJson())
+                .get("destructiveCleanupTriggered")));
+        payload.put("destructiveCleanupAdapterProvider", cleanupAdapter.provider());
         if (StringUtils.hasText(workerId)) {
             payload.put("workerId", boundedNullable(workerId, 128));
         }

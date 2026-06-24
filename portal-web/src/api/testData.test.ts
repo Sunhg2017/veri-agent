@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { requestJson } from './client';
+import { requestBinary, requestJson } from './client';
 import {
   acquireTestAccountLease,
   addTestPooledAccount,
@@ -9,6 +9,8 @@ import {
   createTestDataSet,
   createTestDataTask,
   disableTestAccountPool,
+  downloadTestAccountLeaseExport,
+  downloadTestDataSetExport,
   exportTestAccountLease,
   exportTestDataSet,
   fetchTestAccountLease,
@@ -39,14 +41,23 @@ import {
 } from './testData';
 
 vi.mock('./client', () => ({
+  requestBinary: vi.fn(),
   requestJson: vi.fn()
 }));
 
 const requestJsonMock = vi.mocked(requestJson);
+const requestBinaryMock = vi.mocked(requestBinary);
 
 describe('WP8 test data API helpers', () => {
   beforeEach(() => {
     requestJsonMock.mockReset();
+    requestBinaryMock.mockReset();
+    requestBinaryMock.mockResolvedValue({
+      blob: new Blob(['{}'], { type: 'application/json' }),
+      traceId: 'trc-binary',
+      contentType: 'application/json',
+      filename: 'wp8-export.json'
+    });
   });
 
   it('normalizes data set, account pool, lease and task responses without sensitive fields', () => {
@@ -322,12 +333,14 @@ describe('WP8 test data API helpers', () => {
     await fetchTestDataSets({ projectId: 'project-alpha', status: 'ACTIVE', keyword: 'login', size: 10 });
     await fetchTestDataSet('ds-1');
     await exportTestDataSet('ds-1');
+    await downloadTestDataSetExport('ds-1');
     await generateTestDataRecords('ds-1', { count: 2, recordKeyPrefix: 'generated', tags: ['smoke'] });
     await fetchTestAccountPools({ projectId: 'project-alpha', environmentId: 'staging' });
     await fetchTestAccountPool('pool-1');
     await fetchTestAccountLeases({ projectId: 'project-alpha', poolId: 'pool-1', status: 'ACTIVE' });
     await fetchTestAccountLease('lease-1');
     await exportTestAccountLease('lease-1');
+    await downloadTestAccountLeaseExport('lease-1');
     await fetchTestDataTasks({ projectId: 'project-alpha', taskType: 'CLEANUP', status: 'FAILED' });
     await fetchTestDataTask('task-1');
 
@@ -338,6 +351,7 @@ describe('WP8 test data API helpers', () => {
     );
     expect(requestJsonMock).toHaveBeenNthCalledWith(3, '/api/v1/test-data/data-sets/ds-1');
     expect(requestJsonMock).toHaveBeenNthCalledWith(4, '/api/v1/test-data/data-sets/ds-1/export');
+    expect(requestBinaryMock).toHaveBeenNthCalledWith(1, '/api/v1/test-data/data-sets/ds-1/export/download');
     expect(requestJsonMock).toHaveBeenNthCalledWith(5, '/api/v1/test-data/data-sets/ds-1/generate-records', {
       method: 'POST',
       body: JSON.stringify({ count: 2, recordKeyPrefix: 'generated', tags: ['smoke'] })
@@ -353,6 +367,7 @@ describe('WP8 test data API helpers', () => {
     );
     expect(requestJsonMock).toHaveBeenNthCalledWith(9, '/api/v1/test-data/leases/lease-1');
     expect(requestJsonMock).toHaveBeenNthCalledWith(10, '/api/v1/test-data/leases/lease-1/export');
+    expect(requestBinaryMock).toHaveBeenNthCalledWith(2, '/api/v1/test-data/leases/lease-1/export/download');
     expect(requestJsonMock).toHaveBeenNthCalledWith(
       11,
       '/api/v1/test-data/data-tasks?projectId=project-alpha&taskType=CLEANUP&status=FAILED'

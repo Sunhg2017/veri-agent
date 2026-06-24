@@ -26,6 +26,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -134,6 +135,17 @@ class TestDataSetControllerTest {
                 .andExpect(jsonPath("$.data.records[0].maskedSummaryKeys", hasSize(2)))
                 .andExpect(jsonPath("$.data.redactionPolicy.rawRecordPayloadExported").value(false))
                 .andExpect(jsonPath("$.data.redactionPolicy.maskedSummaryValuesExported").value(false))
+                .andExpect(content().string(not(containsString("secret://wp8/raw-source"))))
+                .andExpect(content().string(not(containsString("raw-ssn-1234"))))
+                .andExpect(content().string(not(containsString("c***@example.test"))));
+
+        mockMvc.perform(get("/api/v1/test-data/data-sets/{id}/export/download", dataSetId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+                .andExpect(header().string(HttpHeaders.CONTENT_DISPOSITION, containsString("attachment")))
+                .andExpect(header().string(HttpHeaders.CONTENT_DISPOSITION, containsString("wp8-data-set-dataset-alpha")))
+                .andExpect(content().string(containsString("\"schemaVersion\"")))
                 .andExpect(content().string(not(containsString("secret://wp8/raw-source"))))
                 .andExpect(content().string(not(containsString("raw-ssn-1234"))))
                 .andExpect(content().string(not(containsString("c***@example.test"))));

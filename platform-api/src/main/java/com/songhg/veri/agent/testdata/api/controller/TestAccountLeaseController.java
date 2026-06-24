@@ -13,6 +13,10 @@ import com.songhg.veri.agent.testdata.application.view.TestAccountLeaseExportRes
 import com.songhg.veri.agent.testdata.application.view.TestAccountLeaseResponse;
 import jakarta.validation.Valid;
 import java.util.UUID;
+import org.springframework.http.ContentDisposition;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -53,6 +57,22 @@ public class TestAccountLeaseController {
     @RequirePermission(value = PermissionCodes.TEST_DATA_EXPORT, scope = TestDataPermissionScopes.LEASE)
     public TestAccountLeaseExportResponse exportLease(@PathVariable UUID id) {
         return service.exportLease(id);
+    }
+
+    @GetMapping("/{id}/export/download")
+    @RequirePermission(value = PermissionCodes.TEST_DATA_EXPORT, scope = TestDataPermissionScopes.LEASE)
+    public ResponseEntity<byte[]> downloadLeaseExport(@PathVariable UUID id) {
+        TestAccountLeaseService.DownloadableExport export = service.exportLeaseFile(id);
+        return ResponseEntity.ok()
+                .contentType(MediaType.parseMediaType(export.contentType()))
+                .header(
+                        HttpHeaders.CONTENT_DISPOSITION,
+                        ContentDisposition.attachment()
+                                .filename(export.fileName(), java.nio.charset.StandardCharsets.UTF_8)
+                                .build()
+                                .toString()
+                )
+                .body(export.content());
     }
 
     @PostMapping("/{id}/renew")

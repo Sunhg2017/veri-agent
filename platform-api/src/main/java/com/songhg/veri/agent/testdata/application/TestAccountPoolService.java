@@ -8,11 +8,13 @@ import com.songhg.veri.agent.common.error.BusinessException;
 import com.songhg.veri.agent.common.error.ErrorCode;
 import com.songhg.veri.agent.common.secret.LocalSecretCipher;
 import com.songhg.veri.agent.common.secret.SecretProviderProperties;
+import com.songhg.veri.agent.common.util.SensitiveTextSanitizer;
 import com.songhg.veri.agent.integration.application.view.PlatformContext;
 import com.songhg.veri.agent.testdata.application.command.CreateTestAccountPoolCommand;
 import com.songhg.veri.agent.testdata.application.command.UpdateTestAccountPoolCommand;
 import com.songhg.veri.agent.testdata.application.command.UpdateTestPooledAccountCommand;
 import com.songhg.veri.agent.testdata.application.command.UpsertTestPooledAccountCommand;
+import com.songhg.veri.agent.testdata.application.port.TestAccountProvisioningAdapter;
 import com.songhg.veri.agent.testdata.application.port.TestDataRepository;
 import com.songhg.veri.agent.testdata.application.query.TestAccountPoolPageRequest;
 import com.songhg.veri.agent.testdata.application.query.TestAccountPoolQuery;
@@ -77,6 +79,7 @@ public class TestAccountPoolService {
     private final TestDataProperties properties;
     private final SecretProviderProperties secretProviderProperties;
     private final ObjectMapper objectMapper;
+    private final TestAccountProvisioningAdapter provisioningAdapter;
 
     @Autowired
     public TestAccountPoolService(
@@ -85,7 +88,8 @@ public class TestAccountPoolService {
             TestDataActorResolver actorResolver,
             TestDataProperties properties,
             SecretProviderProperties secretProviderProperties,
-            ObjectMapper objectMapper
+            ObjectMapper objectMapper,
+            TestAccountProvisioningAdapter provisioningAdapter
     ) {
         this.repository = repository;
         this.contextClient = contextClient;
@@ -93,6 +97,26 @@ public class TestAccountPoolService {
         this.properties = properties;
         this.secretProviderProperties = secretProviderProperties;
         this.objectMapper = objectMapper;
+        this.provisioningAdapter = provisioningAdapter;
+    }
+
+    public TestAccountPoolService(
+            TestDataRepository repository,
+            TestDataPlatformContextClient contextClient,
+            TestDataActorResolver actorResolver,
+            TestDataProperties properties,
+            SecretProviderProperties secretProviderProperties,
+            ObjectMapper objectMapper
+    ) {
+        this(
+                repository,
+                contextClient,
+                actorResolver,
+                properties,
+                secretProviderProperties,
+                objectMapper,
+                TestAccountProvisioningAdapter.disabled()
+        );
     }
 
     public TestAccountPoolService(
@@ -118,7 +142,8 @@ public class TestAccountPoolService {
                         "",
                         ""
                 ),
-                objectMapper
+                objectMapper,
+                TestAccountProvisioningAdapter.disabled()
         );
     }
 
@@ -361,6 +386,86 @@ public class TestAccountPoolService {
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "账号不存在"));
     }
 
+    /**
+     * Reconciles READY pools that explicitly request provisioning in leasePolicy.provisioning.
+     * The worker stores only the adapter-returned secretRef digest/encrypted pointer, never business credentials.
+     */
+    @Transactional(noRollbackFor = BusinessException.class)
+    public AccountProvisioningTickResult provisionAccounts(Instant now, int limit, String workerId) {
+        assertEnabled();
+        int boundedLimit = Math.max(1, Math.min(limit, properties.effectiveAccountProvisioningBatchSize()));
+        if (!properties.accountProvisioningEnabled() || !provisioningAdapter.ready()) {
+            return new AccountProvisioningTickResult(
+                    properties.accountProvisioningEnabled(),
+                    provisioningAdapter.ready(),
+                    provisioningAdapter.provider(),
+                    boundedLimit,
+                    0,
+                    0,
+                    0,
+                    0
+            );
+        }
+        int scannedPoolCount = 0;
+        int provisionedAccountCount = 0;
+        int skippedPoolCount = 0;
+        int failedProvisioningCount = 0;
+        List<TestAccountPool> pools = repository.accountPools(new TestAccountPoolQuery(
+                null,
+                null,
+                null,
+                "READY",
+                null,
+                0,
+                boundedLimit
+        ));
+        for (TestAccountPool pool : pools) {
+            scannedPoolCount++;
+            ProvisioningPolicy policy;
+            try {
+                policy = provisioningPolicy(pool);
+            } catch (BusinessException exception) {
+                failedProvisioningCount++;
+                continue;
+            }
+            if (!policy.enabled()) {
+                skippedPoolCount++;
+                continue;
+            }
+            long totalAccounts = repository.countPooledAccounts(pool.id(), null);
+            long availableAccounts = repository.countPooledAccounts(pool.id(), "AVAILABLE");
+            int desiredCreates = desiredProvisioningCount(policy, totalAccounts, availableAccounts);
+            if (desiredCreates == 0) {
+                continue;
+            }
+            for (int index = 0; index < desiredCreates && provisionedAccountCount < boundedLimit; index++) {
+                int sequence = (int) totalAccounts + index + 1;
+                try {
+                    provisionOneAccount(pool, policy, sequence, workerId, now);
+                    provisionedAccountCount++;
+                } catch (BusinessException exception) {
+                    if (exception.getErrorCode() == ErrorCode.CONFLICT) {
+                        skippedPoolCount++;
+                    } else {
+                        failedProvisioningCount++;
+                    }
+                } catch (RuntimeException exception) {
+                    failedProvisioningCount++;
+                }
+            }
+        }
+        return new AccountProvisioningTickResult(
+                true,
+                true,
+                provisioningAdapter.provider(),
+                boundedLimit,
+                scannedPoolCount,
+                provisionedAccountCount,
+                skippedPoolCount,
+                failedProvisioningCount
+        );
+    }
+
     private TestAccountPool requirePool(UUID id) {
         return repository.accountPool(id)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "账号池不存在"));
@@ -480,9 +585,164 @@ public class TestAccountPoolService {
                 "secretRefPlaintextReturned", false,
                 "secretRefDigestAlgorithm", "SHA-256",
                 "leaseApiReady", false,
+                "automaticBusinessAccountProvisioningEnabled", properties.accountProvisioningEnabled(),
+                "automaticBusinessAccountProvisioningReady", properties.accountProvisioningEnabled()
+                        && provisioningAdapter.ready(),
+                "accountProvisioningAdapterProvider", provisioningAdapter.provider(),
                 "allowedPoolStatuses", POOL_STATUS_VALUES,
                 "managedAccountStatuses", ACCOUNT_MANAGED_STATUSES
         );
+    }
+
+    private void provisionOneAccount(
+            TestAccountPool pool,
+            ProvisioningPolicy policy,
+            int sequence,
+            String workerId,
+            Instant now
+    ) {
+        String accountKey = policy.accountKey(sequence);
+        TestAccountProvisioningAdapter.ProvisioningRequest request =
+                new TestAccountProvisioningAdapter.ProvisioningRequest(
+                        pool.id(),
+                        pool.projectId(),
+                        pool.applicationId(),
+                        pool.environmentId(),
+                        pool.code(),
+                        accountKey,
+                        policy.displayName(sequence),
+                        policy.roleTags(),
+                        policy.scopeSummary(pool),
+                        policy.secretRef(accountKey),
+                        boundedNullable(workerId, 128),
+                        now
+                );
+        TestAccountProvisioningAdapter.ProvisionedAccount provisioned = provisioningAdapter.provision(request);
+        TestPooledAccountResponse account = addAccount(pool.id(), new UpsertTestPooledAccountCommand(
+                fallbackText(provisioned.accountKey(), request.accountKey()),
+                fallbackText(provisioned.displayName(), request.displayName()),
+                "AVAILABLE",
+                provisioned.roleTags() == null || provisioned.roleTags().isEmpty()
+                        ? request.roleTags()
+                        : provisioned.roleTags(),
+                provisioned.scopeSummary() == null || provisioned.scopeSummary().isEmpty()
+                        ? request.scopeSummary()
+                        : provisioned.scopeSummary(),
+                fallbackText(provisioned.secretRef(), request.secretRef()),
+                fallbackText(provisioned.healthStatus(), "HEALTHY"),
+                SensitiveTextSanitizer.sanitizedEvidenceText(
+                        fallbackText(provisioned.healthSummary(), "provisioned by WP8 adapter"),
+                        512
+                )
+        ));
+        contextClient.writeAuditEvent(
+                "test_data.account.provisioned",
+                "TEST_POOLED_ACCOUNT",
+                account.id().toString(),
+                pool.projectId(),
+                "SUCCESS",
+                Map.of(
+                        "poolId", pool.id().toString(),
+                        "accountKey", account.accountKey(),
+                        "adapterProvider", provisioningAdapter.provider(),
+                        "secretRefPlaintextStored", false
+                )
+        );
+    }
+
+    private int desiredProvisioningCount(ProvisioningPolicy policy, long totalAccounts, long availableAccounts) {
+        int neededAvailable = Math.max(0, policy.minAvailable() - (int) Math.min(Integer.MAX_VALUE, availableAccounts));
+        int remainingCapacity = Math.max(0, policy.maxAccounts() - (int) Math.min(Integer.MAX_VALUE, totalAccounts));
+        return Math.min(neededAvailable, remainingCapacity);
+    }
+
+    private ProvisioningPolicy provisioningPolicy(TestAccountPool pool) {
+        Map<String, Object> leasePolicy = readMap(pool.leasePolicyJson());
+        Object provisioning = leasePolicy.get("provisioning");
+        if (!(provisioning instanceof Map<?, ?> provisioningMap)) {
+            return ProvisioningPolicy.disabled(pool);
+        }
+        Map<String, Object> value = new LinkedHashMap<>();
+        provisioningMap.forEach((key, item) -> {
+            if (key instanceof String textKey) {
+                value.put(textKey, item);
+            }
+        });
+        boolean enabled = booleanValue(value.get("enabled"), false);
+        int minAvailable = boundedPolicyInt(value.get("minAvailable"), 0, 0, 1_000);
+        int maxAccounts = boundedPolicyInt(value.get("maxAccounts"), Math.max(1, minAvailable), 1, 10_000);
+        if (maxAccounts < minAvailable) {
+            maxAccounts = minAvailable;
+        }
+        return new ProvisioningPolicy(
+                enabled,
+                minAvailable,
+                maxAccounts,
+                boundedPolicyText(value.get("accountKeyPrefix"), pool.code(), 96),
+                boundedPolicyText(value.get("displayNamePrefix"), pool.name(), 96),
+                boundedPolicyText(
+                        value.get("secretRefPrefix"),
+                        "secret://wp8/account-provisioning/" + pool.code(),
+                        192
+                ),
+                normalizedRoleTags(policyStringList(value.get("roleTags"))),
+                safeProvisioningScope(value.get("scopeSummary"))
+        );
+    }
+
+    private List<String> policyStringList(Object value) {
+        if (!(value instanceof List<?> list)) {
+            return List.of();
+        }
+        return list.stream()
+                .filter(String.class::isInstance)
+                .map(String.class::cast)
+                .toList();
+    }
+
+    private Map<String, Object> safeProvisioningScope(Object value) {
+        if (!(value instanceof Map<?, ?> map)) {
+            return Map.of();
+        }
+        Map<String, Object> safe = new LinkedHashMap<>();
+        map.forEach((rawKey, rawValue) -> {
+            if (rawKey instanceof String key && !containsSensitiveKey(key)) {
+                safe.put(key, rawValue instanceof Number || rawValue instanceof Boolean
+                        ? rawValue
+                        : SensitiveTextSanitizer.sanitizedEvidenceText(String.valueOf(rawValue), 256));
+            }
+        });
+        return safe;
+    }
+
+    private boolean containsSensitiveKey(String key) {
+        String normalized = key.toLowerCase(Locale.ROOT);
+        return normalized.contains("secret")
+                || normalized.contains("token")
+                || normalized.contains("password")
+                || normalized.contains("cookie")
+                || normalized.contains("credential")
+                || normalized.contains("authorization");
+    }
+
+    private boolean booleanValue(Object value, boolean defaultValue) {
+        return value instanceof Boolean bool ? bool : defaultValue;
+    }
+
+    private int boundedPolicyInt(Object value, int defaultValue, int minValue, int maxValue) {
+        int number = value instanceof Number numeric ? numeric.intValue() : defaultValue;
+        return Math.max(minValue, Math.min(number, maxValue));
+    }
+
+    private String boundedPolicyText(Object value, String defaultValue, int maxLength) {
+        if (value instanceof String text && StringUtils.hasText(text)) {
+            return SensitiveTextSanitizer.boundedText(text, maxLength);
+        }
+        return SensitiveTextSanitizer.boundedText(defaultValue, maxLength);
+    }
+
+    private String fallbackText(String value, String fallback) {
+        return StringUtils.hasText(value) ? value : fallback;
     }
 
     private Map<String, Object> poolAuditPayload(TestAccountPool pool) {
@@ -691,6 +951,66 @@ public class TestAccountPoolService {
             return objectMapper.readValue(json, STRING_LIST_TYPE);
         } catch (JsonProcessingException exception) {
             throw new BusinessException(ErrorCode.INTERNAL_ERROR, "账号角色标签读取失败");
+        }
+    }
+
+    public record AccountProvisioningTickResult(
+            boolean enabled,
+            boolean adapterReady,
+            String adapterProvider,
+            int batchSize,
+            int scannedPoolCount,
+            int provisionedAccountCount,
+            int skippedPoolCount,
+            int failedProvisioningCount
+    ) {
+    }
+
+    private record ProvisioningPolicy(
+            boolean enabled,
+            int minAvailable,
+            int maxAccounts,
+            String accountKeyPrefix,
+            String displayNamePrefix,
+            String secretRefPrefix,
+            List<String> roleTags,
+            Map<String, Object> scopeSummary
+    ) {
+        static ProvisioningPolicy disabled(TestAccountPool pool) {
+            return new ProvisioningPolicy(
+                    false,
+                    0,
+                    0,
+                    pool.code(),
+                    pool.name(),
+                    "secret://wp8/account-provisioning/" + pool.code(),
+                    List.of(),
+                    Map.of()
+            );
+        }
+
+        String accountKey(int sequence) {
+            return accountKeyPrefix + "-" + String.format(Locale.ROOT, "%03d", sequence);
+        }
+
+        String displayName(int sequence) {
+            return displayNamePrefix + " " + String.format(Locale.ROOT, "%03d", sequence);
+        }
+
+        String secretRef(String accountKey) {
+            return secretRefPrefix.endsWith("/") ? secretRefPrefix + accountKey : secretRefPrefix + "/" + accountKey;
+        }
+
+        Map<String, Object> scopeSummary(TestAccountPool pool) {
+            Map<String, Object> summary = new LinkedHashMap<>(scopeSummary);
+            if (StringUtils.hasText(pool.applicationId())) {
+                summary.putIfAbsent("applicationId", pool.applicationId());
+            }
+            if (StringUtils.hasText(pool.environmentId())) {
+                summary.putIfAbsent("environmentId", pool.environmentId());
+            }
+            summary.putIfAbsent("poolCode", pool.code());
+            return summary;
         }
     }
 }

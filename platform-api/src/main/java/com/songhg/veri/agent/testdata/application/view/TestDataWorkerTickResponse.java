@@ -14,6 +14,8 @@ public record TestDataWorkerTickResponse(
         int leaseRecoveryBatchSize,
         @Schema(description = "Maximum pooled accounts checked by this tick")
         int accountHealthCheckBatchSize,
+        @Schema(description = "Maximum account pools scanned for automatic provisioning by this tick")
+        int accountProvisioningBatchSize,
         @Schema(description = "Expired active leases recovered to EXPIRED")
         int recoveredExpiredLeaseCount,
         @Schema(description = "Pending tasks claimed by this tick")
@@ -32,6 +34,14 @@ public record TestDataWorkerTickResponse(
         int lockedAccountCount,
         @Schema(description = "Accounts reconciled back to LEASED by the health checker")
         int leasedAccountCount,
+        @Schema(description = "READY account pools scanned for automatic provisioning")
+        int scannedProvisioningPoolCount,
+        @Schema(description = "Business accounts automatically provisioned")
+        int provisionedAccountCount,
+        @Schema(description = "Provisioning pools skipped because no action was needed or policy was disabled")
+        int skippedProvisioningPoolCount,
+        @Schema(description = "Account provisioning attempts failed")
+        int failedProvisioningCount,
         @Schema(description = "Whether this tick found no useful work")
         boolean noop,
         @Schema(description = "Trace ID opened for the worker tick")

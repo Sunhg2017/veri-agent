@@ -26,6 +26,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -99,6 +100,16 @@ class TestAccountLeaseControllerTest {
                 .andExpect(jsonPath("$.data.account.scopeSummaryKeys", hasSize(1)))
                 .andExpect(jsonPath("$.data.redactionPolicy.secretRefPlaintextExported").value(false))
                 .andExpect(jsonPath("$.data.redactionPolicy.leaseTokenPlaintextExported").value(false))
+                .andExpect(content().string(not(containsString(SECRET_REF))))
+                .andExpect(content().string(not(containsString("secret://"))));
+
+        mockMvc.perform(get("/api/v1/test-data/leases/{id}/export/download", leaseId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+                .andExpect(header().string(HttpHeaders.CONTENT_DISPOSITION, containsString("attachment")))
+                .andExpect(header().string(HttpHeaders.CONTENT_DISPOSITION, containsString("wp8-account-lease")))
+                .andExpect(content().string(containsString("\"schemaVersion\"")))
                 .andExpect(content().string(not(containsString(SECRET_REF))))
                 .andExpect(content().string(not(containsString("secret://"))));
 

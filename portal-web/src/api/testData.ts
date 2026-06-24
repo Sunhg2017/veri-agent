@@ -1,4 +1,4 @@
-import { requestJson, type ApiResponse } from './client';
+import { requestBinary, requestJson, type ApiResponse, type BinaryResponse } from './client';
 
 const TEST_DATA_BASE = '/api/v1/test-data';
 
@@ -398,6 +398,10 @@ export async function exportTestDataSet(id: string): Promise<ApiResponse<TestDat
   return { ...response, data: normalizeTestDataSetExport(response.data) };
 }
 
+export async function downloadTestDataSetExport(id: string): Promise<BinaryResponse> {
+  return requestBinary(`${TEST_DATA_BASE}/data-sets/${encodeURIComponent(id)}/export/download`);
+}
+
 export async function importTestDataRecords(
   dataSetId: string,
   payload: ImportTestDataRecordsPayload
@@ -498,6 +502,10 @@ export async function fetchTestAccountLease(id: string): Promise<ApiResponse<Tes
 export async function exportTestAccountLease(id: string): Promise<ApiResponse<TestAccountLeaseExport>> {
   const response = await requestJson<unknown>(`${TEST_DATA_BASE}/leases/${encodeURIComponent(id)}/export`);
   return { ...response, data: normalizeTestAccountLeaseExport(response.data) };
+}
+
+export async function downloadTestAccountLeaseExport(id: string): Promise<BinaryResponse> {
+  return requestBinary(`${TEST_DATA_BASE}/leases/${encodeURIComponent(id)}/export/download`);
 }
 
 export async function acquireTestAccountLease(payload: AcquireTestAccountLeasePayload): Promise<ApiResponse<TestAccountLease>> {

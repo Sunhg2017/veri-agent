@@ -7,6 +7,7 @@ import com.songhg.veri.agent.integration.application.view.PlatformContext;
 import com.songhg.veri.agent.notification.application.AsyncTaskNotificationService;
 import com.songhg.veri.agent.testdata.application.command.CreateTestDataTaskCommand;
 import com.songhg.veri.agent.testdata.application.command.RetryTestDataTaskCommand;
+import com.songhg.veri.agent.testdata.application.port.TestDataCleanupAdapter;
 import com.songhg.veri.agent.testdata.application.query.TestDataTaskPageRequest;
 import com.songhg.veri.agent.testdata.domain.TestDataSet;
 import com.songhg.veri.agent.testdata.config.TestDataProperties;
@@ -217,6 +218,55 @@ class TestDataTaskServiceTest {
     }
 
     @Test
+    void processesCleanupTaskThroughDestructiveAdapterWhenEnabled() {
+        ServiceFixture fixture = fixture(true, true, 2048, new TestDataCleanupAdapter() {
+            @Override
+            public boolean ready() {
+                return true;
+            }
+
+            @Override
+            public String provider() {
+                return "TEST_HTTP";
+            }
+
+            @Override
+            public CleanupResult cleanup(CleanupRequest request) {
+                return CleanupResult.success(
+                        "cleanup-ext-001",
+                        3,
+                        Map.of("status", "deleted", "resourceCount", 3)
+                );
+            }
+        });
+        TestDataSet dataSet = readyDataSet();
+        fixture.repository().insertDataSet(dataSet);
+        var task = fixture.service().createTask(new CreateTestDataTaskCommand(
+                "project-alpha",
+                dataSet.id(),
+                "CLEANUP",
+                "cleanup-adapter-001",
+                "data-set:" + dataSet.code(),
+                Map.of("reason", "release")
+        ));
+
+        var outcome = fixture.service().processPendingTask(task.id(), "wp8-test-worker");
+        var processed = fixture.service().task(task.id());
+
+        assertThat(outcome).contains("SUCCEEDED");
+        assertThat(processed.status()).isEqualTo("SUCCEEDED");
+        assertThat(processed.resultSummary()).containsEntry("executionMode", "DESTRUCTIVE_ADAPTER");
+        assertThat(processed.resultSummary()).containsEntry("destructiveCleanupTriggered", true);
+        assertThat(processed.resultSummary()).containsEntry("destructiveCleanupAdapterProvider", "TEST_HTTP");
+        assertThat(processed.resultSummary()).containsEntry("externalCleanupId", "cleanup-ext-001");
+        assertThat(processed.resultSummary()).containsEntry("adapterAffectedResourceCount", 3);
+        assertThat(processed.resultSummary()).containsEntry("adapter_status", "deleted");
+        verify(fixture.notificationService()).notifyTestDataTaskFinished(org.mockito.ArgumentMatchers.argThat(
+                value -> "SUCCEEDED".equals(value.status()) && task.id().equals(value.id())
+        ));
+    }
+
+    @Test
     void rejectsRetryWhenRequestKeyConflictsWithAnotherTask() {
         ServiceFixture fixture = fixture(true);
         fixture.service().createTask(new CreateTestDataTaskCommand(
@@ -277,6 +327,19 @@ class TestDataTaskServiceTest {
     }
 
     private ServiceFixture fixture(boolean enabled) {
+        return fixture(enabled, false, TestDataCleanupAdapter.disabled());
+    }
+
+    private ServiceFixture fixture(boolean enabled, boolean cleanupEnabled, TestDataCleanupAdapter cleanupAdapter) {
+        return fixture(enabled, cleanupEnabled, 512, cleanupAdapter);
+    }
+
+    private ServiceFixture fixture(
+            boolean enabled,
+            boolean cleanupEnabled,
+            int recordSummaryMaxBytes,
+            TestDataCleanupAdapter cleanupAdapter
+    ) {
         TestDataPlatformContextClient contextClient = mock(TestDataPlatformContextClient.class);
         when(contextClient.projectContext("project-alpha")).thenReturn(new PlatformContext(
                 "PROJECT",
@@ -295,9 +358,10 @@ class TestDataTaskServiceTest {
                 repository,
                 contextClient,
                 actorResolver,
-                new TestDataProperties(enabled, 10, 512, 60, 120, false, true),
+                new TestDataProperties(enabled, 10, recordSummaryMaxBytes, 60, 120, cleanupEnabled, true),
                 notificationService,
-                new ObjectMapper()
+                new ObjectMapper(),
+                cleanupAdapter
         ), repository, notificationService);
     }
 

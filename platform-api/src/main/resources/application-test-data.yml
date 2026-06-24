@@ -13,4 +13,14 @@ veri-agent:
     default-lease-ttl-seconds: ${WP8_DEFAULT_LEASE_TTL_SECONDS:1800}
     max-lease-ttl-seconds: ${WP8_MAX_LEASE_TTL_SECONDS:14400}
     cleanup-enabled: ${WP8_CLEANUP_ENABLED:false}
+    cleanup-adapter-mode: ${WP8_CLEANUP_ADAPTER_MODE:DISABLED}
+    cleanup-adapter-url: ${WP8_CLEANUP_ADAPTER_URL:}
+    cleanup-adapter-token: ${WP8_CLEANUP_ADAPTER_TOKEN:}
+    cleanup-adapter-timeout-ms: ${WP8_CLEANUP_ADAPTER_TIMEOUT_MS:5000}
+    account-provisioning-enabled: ${WP8_ACCOUNT_PROVISIONING_ENABLED:false}
+    account-provisioning-adapter-mode: ${WP8_ACCOUNT_PROVISIONING_ADAPTER_MODE:LOCAL_SECRET_REF}
+    account-provisioning-adapter-url: ${WP8_ACCOUNT_PROVISIONING_ADAPTER_URL:}
+    account-provisioning-adapter-token: ${WP8_ACCOUNT_PROVISIONING_ADAPTER_TOKEN:}
+    account-provisioning-adapter-timeout-ms: ${WP8_ACCOUNT_PROVISIONING_ADAPTER_TIMEOUT_MS:5000}
+    account-provisioning-batch-size: ${WP8_ACCOUNT_PROVISIONING_BATCH_SIZE:20}
     export-enabled: ${WP8_EXPORT_ENABLED:true}
