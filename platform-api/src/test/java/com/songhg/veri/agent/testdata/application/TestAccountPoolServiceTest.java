@@ -281,7 +281,7 @@ class TestAccountPoolServiceTest {
     void provisionsBusinessAccountsFromPoolPolicyWithoutSecretEcho() throws Exception {
         InMemoryTestDataRepository repository = new InMemoryTestDataRepository();
         TestDataPlatformContextClient contextClient = contextClient();
-        TestAccountPoolService service = provisioningService(repository, contextClient);
+        TestAccountPoolService service = provisioningService(repository, contextClient, "HTTP");
         var pool = service.createAccountPool(new CreateTestAccountPoolCommand(
                 "project-alpha",
                 "app-alpha",
@@ -321,6 +321,41 @@ class TestAccountPoolServiceTest {
         assertThat(repository.pooledAccounts(pool.id())).hasSize(2);
         assertThat(repository.pooledAccountSecretRefCipher(repository.pooledAccounts(pool.id()).get(0).id()))
                 .isPresent();
+    }
+
+    @Test
+    void localSecretRefProvisioningModeDoesNotCountAsRealBusinessAccountOpening() {
+        InMemoryTestDataRepository repository = new InMemoryTestDataRepository();
+        TestDataPlatformContextClient contextClient = contextClient();
+        TestAccountPoolService service = provisioningService(repository, contextClient, "LOCAL_SECRET_REF");
+        var pool = service.createAccountPool(new CreateTestAccountPoolCommand(
+                "project-alpha",
+                "app-alpha",
+                "env-staging",
+                "pool-alpha",
+                "Pool alpha",
+                "READY",
+                Map.of("provisioning", Map.of(
+                        "enabled", true,
+                        "minAvailable", 1,
+                        "maxAccounts", 1,
+                        "accountKeyPrefix", "auto-admin",
+                        "secretRefPrefix", "secret://wp8/provisioned/admin"
+                )),
+                90
+        ));
+
+        TestAccountPoolService.AccountProvisioningTickResult result =
+                service.provisionAccounts(Instant.now(), 10, "wp8-worker");
+
+        assertThat(result.enabled()).isTrue();
+        assertThat(result.adapterReady()).isFalse();
+        assertThat(result.adapterProvider()).isEqualTo("LOCAL_SECRET_REF");
+        assertThat(result.provisionedAccountCount()).isZero();
+        assertThat(service.accountPool(pool.id()).policy())
+                .containsEntry("automaticBusinessAccountProvisioningReady", false)
+                .containsEntry("accountProvisioningLocalSecretRefMode", true);
+        assertThat(repository.pooledAccounts(pool.id())).isEmpty();
     }
 
     private TestAccountPoolService service(boolean enabled, int defaultTtlSeconds, int maxTtlSeconds) {
@@ -375,7 +410,8 @@ class TestAccountPoolServiceTest {
 
     private TestAccountPoolService provisioningService(
             InMemoryTestDataRepository repository,
-            TestDataPlatformContextClient contextClient
+            TestDataPlatformContextClient contextClient,
+            String adapterMode
     ) {
         TestDataActorResolver actorResolver = mock(TestDataActorResolver.class);
         when(actorResolver.currentActor()).thenReturn("wp8-provisioner");
@@ -402,8 +438,8 @@ class TestAccountPoolServiceTest {
                         "",
                         5_000,
                         true,
-                        "LOCAL_SECRET_REF",
-                        "",
+                        adapterMode,
+                        "HTTP".equals(adapterMode) ? "http://account-provisioner.example.test/provision" : "",
                         "",
                         5_000,
                         10,
@@ -429,7 +465,7 @@ class TestAccountPoolServiceTest {
 
                     @Override
                     public String provider() {
-                        return "LOCAL_SECRET_REF";
+                        return adapterMode;
                     }
 
                     @Override

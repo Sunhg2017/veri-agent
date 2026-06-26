@@ -59,7 +59,7 @@ public class ConfiguredTestAccountProvisioningAdapter implements TestAccountProv
 
     @Override
     public String provider() {
-        return ready() ? properties.effectiveAccountProvisioningAdapterMode() : "DISABLED";
+        return properties.effectiveAccountProvisioningAdapterMode();
     }
 
     @Override

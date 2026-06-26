@@ -5,9 +5,9 @@
 | 工作包 | WP8 测试数据与账号池 |
 | 角色产出 | 资深服务端架构师 |
 | 文档性质 | 技术设计、数据模型、接口契约和服务端质量约束 |
-| 当前口径 | 在 `platform-api` 内承载 WP8 领域模块，复用 WP1 项目/应用/环境、RBAC、SecretProvider、审计和 traceId；已补齐脱敏导出文件下载、受控 cleanup adapter 和账号自动开通 adapter |
+| 当前口径 | 在 `platform-api` 内承载 WP8 领域模块，复用 WP1 项目/应用/环境、RBAC、SecretProvider、审计和 traceId；已补齐脱敏导出文件下载、XXL-JOB 触发的受控 cleanup worker/HTTP adapter 和真实业务账号自动开通 HTTP adapter |
 | 版本 | v0.1 |
-| 日期 | 2026-06-24 |
+| 日期 | 2026-06-26 |
 
 ## 1. 架构原则
 
@@ -59,9 +59,9 @@
 | `veri-agent.test-data.record-summary-max-bytes` | `2048` | 单条记录脱敏摘要大小上限。 |
 | `veri-agent.test-data.default-lease-ttl-seconds` | `1800` | 默认租借 TTL。 |
 | `veri-agent.test-data.max-lease-ttl-seconds` | `14400` | 最大租借 TTL。 |
-| `veri-agent.test-data.worker-enabled` | `true` | 是否启用 WP8 内置后台 worker。 |
-| `veri-agent.test-data.worker-interval-ms` | `5000` | worker 固定延迟轮询间隔。 |
-| `veri-agent.test-data.worker-initial-delay-ms` | `30000` | worker 启动延迟。 |
+| `veri-agent.test-data.worker-enabled` | `true` | 是否允许 WP8 worker 执行；生产运行时仍需 `veri-agent.xxl-job.enabled=true` 并配置 `testDataWorkerJob`。 |
+| `veri-agent.test-data.worker-interval-ms` | `5000` | worker 建议轮询间隔，供外部调度配置和 health 展示使用。 |
+| `veri-agent.test-data.worker-initial-delay-ms` | `30000` | worker 建议启动延迟，供外部调度配置和 health 展示使用。 |
 | `veri-agent.test-data.worker-id` | `wp8-test-data-worker` | 记录在 worker tick、审计和任务摘要中的 worker 标识。 |
 | `veri-agent.test-data.worker-task-batch-size` | `10` | 单个 worker tick 可认领的待处理任务上限。 |
 | `veri-agent.test-data.lease-recovery-batch-size` | `50` | 单个 worker tick 可回收的过期租约上限。 |
@@ -72,8 +72,8 @@
 | `veri-agent.test-data.cleanup-adapter-token` | 空 | 调用 cleanup adapter 的 Bearer token，不出现在 health、审计或前端。 |
 | `veri-agent.test-data.cleanup-adapter-timeout-ms` | `5000` | cleanup adapter HTTP 超时。 |
 | `veri-agent.test-data.account-provisioning-enabled` | `false` | 是否允许 worker 按账号池策略自动补齐业务账号。 |
-| `veri-agent.test-data.account-provisioning-adapter-mode` | `LOCAL_SECRET_REF` | 账号开通 adapter 模式；当前支持 `LOCAL_SECRET_REF/HTTP`。 |
-| `veri-agent.test-data.account-provisioning-adapter-url` | 空 | HTTP provisioning adapter 地址；mode=HTTP 时必须配置。 |
+| `veri-agent.test-data.account-provisioning-adapter-mode` | `DISABLED` | 账号开通 adapter 模式；真实业务开通要求 `HTTP`，`LOCAL_SECRET_REF` 仅作本地指针演练。 |
+| `veri-agent.test-data.account-provisioning-adapter-url` | 空 | HTTP provisioning adapter 地址；mode=HTTP 时必须配置，且 URL 非空才进入真实 ready。 |
 | `veri-agent.test-data.account-provisioning-adapter-token` | 空 | 调用 provisioning adapter 的 Bearer token，不出现在 health、审计或前端。 |
 | `veri-agent.test-data.account-provisioning-adapter-timeout-ms` | `5000` | provisioning adapter HTTP 超时。 |
 | `veri-agent.test-data.account-provisioning-batch-size` | `20` | 单个 worker tick 扫描自动开通账号池上限。 |
@@ -185,18 +185,18 @@
 4. 租借响应只返回 `leaseTokenDigest`、账号摘要和 `secretRefDigest`；不返回凭据明文、租借 token 明文或 `secret_ref_cipher`。
 5. `POST /leases/{id}/renew` 只允许未过期 `ACTIVE` 租借续租，TTL 不得超过 `max-lease-ttl-seconds`。
 6. `POST /leases/{id}/release` 为终态幂等；账号释放后默认回到 `AVAILABLE`，失败场景可转入 `LOCKED`。
-7. `TestDataWorkerService` 以进程内 fixed-delay 方式运行单 JVM 受控 worker，单次 tick 顺序执行过期租约回收、账号自动开通、账号健康检查和待处理任务认领；方法级同步与 repository 条件更新共同避免同 JVM 重入和重复认领。
+7. `TestDataWorkerService` 由外部 XXL-JOB handler `testDataWorkerJob` 触发，保留 `runOnce()` 作为手工维护和测试入口；单次 tick 顺序执行过期租约回收、真实账号自动开通、账号健康检查和待处理任务认领；方法级同步与 repository 条件更新共同避免同 JVM 重入和重复认领。
 8. `data-tasks` 当前由 worker 推进准备、刷新、回滚和清理任务终态；`PREPARE/REFRESH` 校验数据集为 `READY` 并写入摘要，`ROLLBACK` 记录控制面成功，`CLEANUP` 在 `cleanupEnabled=false` 时以 `CLEANUP_TASK_NOT_ALLOWED` 失败，在 adapter 未 ready 时以 `CLEANUP_ADAPTER_NOT_READY` 失败，adapter ready 后调用受控清理 adapter 并记录 provider、externalCleanupId、影响数量和安全摘要。
 9. 账号健康检查只做控制面一致性修复，不登录外部系统、不读取凭据：无 active lease 的 `LEASED/EXPIRED` 账号会被收敛到 `LOCKED`，存在 active lease 的 `AVAILABLE` 账号会被修正回 `LEASED`。
 10. 租借脱敏导出受 `testData:export` 和 `veri-agent.test-data.export-enabled` 控制，只返回 `schemaVersion/exportedAt/lease/pool/account/lifecycleSummary/redactionPolicy`；其中 lease 只包含 holder、状态、时间戳、`requestDigest`、`leaseTokenDigest`、释放原因存在标记和释放原因 digest，pool/account 只包含摘要、digest、安全 key 名和健康状态，不返回 secretRef 原文、租借 token 明文、释放原因原文、健康摘要原文、scope/lease policy 值、token、cookie 或 Authorization header。
 11. `/leases/{id}/export/download` 复用同一 export view，经 `application/json` attachment 返回，不暴露租借 token 明文、释放原因原文或 `secretRef` 原文。
 
-### M8J 已落地切片：文件下载、cleanup adapter 和账号自动开通
+### M8J/M8K 已落地切片：文件下载、cleanup adapter 和真实账号自动开通
 
 新增应用层 port：
 
 - `TestDataCleanupAdapter`：提供 `ready/provider/cleanup`，当前实现 `ConfiguredTestDataCleanupAdapter` 支持 HTTP POST JSON。
-- `TestAccountProvisioningAdapter`：提供 `ready/provider/provision`，当前实现 `ConfiguredTestAccountProvisioningAdapter` 支持 `LOCAL_SECRET_REF` 和 HTTP POST JSON。
+- `TestAccountProvisioningAdapter`：提供 `ready/provider/provision`，当前实现 `ConfiguredTestAccountProvisioningAdapter` 支持 `LOCAL_SECRET_REF` 和 HTTP POST JSON；其中只有 HTTP mode + URL + 全局开关 + XXL-JOB worker runtime ready 计入真实业务账号自动开通 ready。
 
 cleanup adapter 请求字段只包含任务和数据集摘要：`taskId/projectId/dataSetId/dataSetCode/dataSetStatus/recordCount/cleanupPolicyKeys/taskType/requestKey/targetRef/attempt/workerId/requestedAt`。成功响应可返回：
 
@@ -233,7 +233,7 @@ cleanup adapter 请求字段只包含任务和数据集摘要：`taskId/projectI
 }
 ```
 
-自动开通只扫描 `READY` 账号池，并受 `account-provisioning-enabled`、adapter ready、`minAvailable/maxAccounts` 和 batch size 共同限制。HTTP adapter 响应中的 `scopeSummary/summary` 同样过滤敏感 key；返回的 `secretRef` 只用于服务端写入和 digest/cipher 处理，不在响应、前端或审计中回显原文。
+自动开通只扫描 `READY` 账号池，并受 `account-provisioning-enabled`、XXL-JOB worker runtime、HTTP adapter ready、`minAvailable/maxAccounts` 和 batch size 共同限制。`LOCAL_SECRET_REF` 不调用真实业务系统，不会被 health 标记为真实 ready。HTTP adapter 请求中的 `accountKey` 同时作为外部开户幂等键，adapter 必须对重复请求返回同一账号或可审计冲突；响应中的 `scopeSummary/summary` 同样过滤敏感 key；返回的 `secretRef` 只用于服务端写入和 digest/cipher 处理，不在响应、前端或审计中回显原文。
 
 ## 6. 关键请求体
 
@@ -498,7 +498,7 @@ bash scripts/platform_api_java_line_guard.sh
 bash db/validation/run_wp1_db_validation.sh
 ```
 
-租借并发、跨 WP adapter 和前端页面验证不属于 M3 后端账号池切片完成定义，已按 M4-M6 分阶段承接；数据集脱敏导出摘要已在 M6C 补齐，租借脱敏导出摘要已在 M6D 补齐，真实 cleanup worker 与导出文件下载已在 M8J 补齐。外部 HTTP 并发压测和更细粒度前端筛选分页仍按后续增强推进。
+租借并发、跨 WP adapter 和前端页面验证不属于 M3 后端账号池切片完成定义，已按 M4-M6 分阶段承接；数据集脱敏导出摘要已在 M6C 补齐，租借脱敏导出摘要已在 M6D 补齐，真实 cleanup worker、导出文件下载和真实业务账号自动开通 HTTP adapter 已在 M8J/M8K 补齐。外部 HTTP 并发压测和更细粒度前端筛选分页仍按后续增强推进。
 
 ### M8B/M8C 文档化运维边界
 
@@ -512,9 +512,9 @@ M8B/M8C 不改变本技术契约的 API、DB、权限或状态机实现，只补
 
 ### M8I 发布准出收口边界
 
-M8I 当时不改变本技术契约的 API、DB、权限、状态机、配置项或跨 WP 应用层契约，只把当时实现能力和后续专项边界集中同步到发布准出说明、剩余工作盘点、README 和当前实现基线。M8J 已在该基线后补齐文件下载、cleanup adapter 和账号自动开通。服务端准出口径调整为：
+M8I 当时不改变本技术契约的 API、DB、权限、状态机、配置项或跨 WP 应用层契约，只把当时实现能力和后续专项边界集中同步到发布准出说明、剩余工作盘点、README 和当前实现基线。M8J/M8K 已在该基线后补齐文件下载、cleanup worker/HTTP adapter 和真实业务账号自动开通 HTTP adapter。服务端准出口径调整为：
 
 1. 当前 WP8 范围无剩余 P0 服务端功能开发项；目标环境发布前仍需按 release gate 执行实际验证。
-2. 真实文件下载、受控 cleanup worker 和真实业务账号自动开通已经提供配置化实现；外部 HTTP 并发压测、生产容量指标和多实例运维演练仍不属于本轮服务端完成定义。
+2. 真实文件下载、受控 cleanup worker 和真实业务账号自动开通已经提供配置化实现；真实账号开通要求 HTTP provisioning adapter，不把 `LOCAL_SECRET_REF` 演练模式计入生产 ready；外部 HTTP 并发压测、生产容量指标和多实例运维演练仍不属于本轮服务端完成定义。
 3. WP7 runner 凭据注入、WP9 调度自动申请/释放和 WP10 报告证据消费均已消费 WP8 已提供的引用与摘要契约；后续只在对应 WP 内继续扩展真实执行、报告和运维能力，不再作为 WP8 当前缺口。
 4. 本切片触达 Java 生产代码，必须执行 Java 行数门禁和阿里巴巴 Java 开发手册自查；核心逻辑已在 worker、adapter 和下载方法附近补充必要注释。

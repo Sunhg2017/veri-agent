@@ -104,7 +104,7 @@ main() {
     bash "$ROOT_DIR/scripts/platform_api_java_line_guard.sh"
 
   run_step "wp8 backend tests" \
-    mvn -B -pl platform-api -Dtest=TestDataHealthControllerTest,TestDataSetControllerTest,TestDataSetServiceTest,TestAccountPoolControllerTest,TestAccountPoolServiceTest,TestAccountLeaseControllerTest,TestAccountLeaseServiceTest,TestDataTaskControllerTest,TestDataTaskServiceTest,TestDataCrossWpReferenceServiceTest,TestDataOpenApiContractTest,OpenApiContractTest,PermissionCodeUsageTest test
+    mvn -B -pl platform-api -Dtest=TestDataHealthControllerTest,TestDataHealthServiceTest,TestDataSetControllerTest,TestDataSetServiceTest,TestAccountPoolControllerTest,TestAccountPoolServiceTest,TestAccountLeaseControllerTest,TestAccountLeaseServiceTest,TestDataTaskControllerTest,TestDataTaskServiceTest,TestDataWorkerServiceTest,TestDataCrossWpReferenceServiceTest,ConfiguredTestDataAdaptersTest,WorkerJobHandlerTest,TestDataOpenApiContractTest,OpenApiContractTest,PermissionCodeUsageTest test
 
   run_step "wp8 database repository contract" \
     mvn -B -pl platform-api -Dtest=DbProfileRepositoryContractTest test

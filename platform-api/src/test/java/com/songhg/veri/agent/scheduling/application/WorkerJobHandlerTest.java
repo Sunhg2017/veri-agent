@@ -42,6 +42,24 @@ class WorkerJobHandlerTest {
     }
 
     @Test
+    void testDataWorkerJobDelegatesToWp8Worker() throws Exception {
+        TestDataWorkerService testDataWorkerService = mock(TestDataWorkerService.class);
+        WorkerJobHandler handler = new WorkerJobHandler(
+                mock(ExecutionSchedulerService.class),
+                testDataWorkerService,
+                mock(ReportGenerationWorkerService.class)
+        );
+        XxlJobContext context = new XxlJobContext(1003L, "", logFileName("wp8-worker-success"), 0, 1);
+        XxlJobContext.setXxlJobContext(context);
+
+        handler.testDataWorkerJob();
+
+        verify(testDataWorkerService).runOnce();
+        assertThat(context.getHandleCode()).isEqualTo(XxlJobContext.HANDLE_CODE_SUCCESS);
+        assertThat(context.getHandleMsg()).contains("traceId=");
+    }
+
+    @Test
     void reportGenerationWorkerJobMarksFailureWhenWorkerThrows() throws Exception {
         ReportGenerationWorkerService reportGenerationWorkerService = mock(ReportGenerationWorkerService.class);
         doThrow(new IllegalStateException("failed secret://wp10 token=abc123"))

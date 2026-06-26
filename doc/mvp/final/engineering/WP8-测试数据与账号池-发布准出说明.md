@@ -6,19 +6,19 @@
 | 文档性质 | 发布准出、验证记录、风险、回滚和五角色结论 |
 | 当前分支 | `codex/wp10-planning` |
 | 远端 | `origin/codex/wp10-planning` |
-| 日期 | 2026-06-24 |
+| 日期 | 2026-06-26 |
 
 ## 1. 准出结论
 
-WP8 当前承诺范围已经形成可验收闭环。`platform-api` 已提供数据集、账号池、账号摘要、租借、续租、释放、清理任务、跨 WP 引用契约、数据集/租借脱敏导出摘要、文件级下载、受控 cleanup adapter 和账号自动开通 adapter；`portal-web` 已提供 `#test-data` 工作台，覆盖数据集、账号池、租借、释放、清理任务、两类脱敏导出摘要、下载按钮和响应式 smoke。WP7 凭据注入、WP9 调度自动申请/释放和 WP10 报告证据消费均已消费 WP8 应用层契约，但不改变 WP8 自身准出边界。
+WP8 当前承诺范围已经形成可验收闭环。`platform-api` 已提供数据集、账号池、账号摘要、租借、续租、释放、清理任务、跨 WP 引用契约、数据集/租借脱敏导出摘要、文件级下载、XXL-JOB 触发的受控 cleanup worker/HTTP adapter 和真实业务账号自动开通 HTTP adapter；`portal-web` 已提供 `#test-data` 工作台，覆盖数据集、账号池、租借、释放、清理任务、两类脱敏导出摘要、下载按钮和响应式 smoke。WP7 凭据注入、WP9 调度自动申请/释放和 WP10 报告证据消费均已消费 WP8 应用层契约，但不改变 WP8 自身准出边界。
 
-当前准出口径已补齐 WP8 自身文件级下载、真实 cleanup worker/破坏性 adapter 的受控实现，以及真实业务账号自动开通的配置化实现。外部容量压测、多实例运维演练和更细粒度前端体验增强仍作为后续专项记录，不构成本轮发布阻断。
+当前准出口径已补齐 WP8 自身文件级下载、真实 cleanup worker/破坏性 adapter 的受控实现，以及真实业务账号自动开通的 HTTP adapter 实现。外部容量压测、多实例运维演练和更细粒度前端体验增强仍作为后续专项记录，不构成本轮发布阻断。
 
 ## 2. 范围和非目标
 
 本次准出范围：
 
-1. WP8 后端控制面：health、data set CRUD/record import/export/download、account pool CRUD/account manage/provisioning、lease API、lease export/download、cleanup task worker/adapter、cross-WP reference contract、权限、审计和 traceId。
+1. WP8 后端控制面：health、data set CRUD/record import/export/download、account pool CRUD/account manage/HTTP provisioning、lease API、lease export/download、cleanup task worker/adapter、cross-WP reference contract、权限、审计和 traceId。
 2. WP8 前端工作台：入口权限、策略摘要、数据集、账号池、租借、清理任务、脱敏导出摘要、下载按钮、按钮显隐和移动端 smoke。
 3. WP8 准出脚本：`platform_api` 定向测试、`npm test`、`npm run build`、Playwright smoke、quality gate、DB validation、Java 行数门禁和并发 smoke。
 4. WP8 交付文档：PRD、技术设计、前端页面设计、前端操作说明、测试策略、研发拆解、正式启动准备、运维 Runbook、M8B/M8C 交付说明、本发布准出说明、剩余工作盘点和 M8I 发布准出收口交付说明。
@@ -63,7 +63,7 @@ cd portal-web && npm run build
 | secretRef 或账号健康摘要泄露 | 白名单响应、前端 DOM smoke、导出脱敏和 Runbook 边界 | 关闭 `export-enabled`，保留证据并轮换 secret |
 | 账号被重复租借 | DB 唯一 active lease 约束和并发 smoke | 暂停租借入口，锁定冲突账号，人工释放 lease |
 | 清理误删业务数据 | 默认 `cleanup-enabled=false`，adapter ready 才允许执行，Runbook 明确 allowlist/dry-run/回滚 | 关闭清理执行，保留任务记录和 adapter 日志 |
-| 自动开通账号过量 | 默认 `account-provisioning-enabled=false`，受 `minAvailable/maxAccounts/batchSize` 限制 | 关闭账号自动开通，锁定或禁用异常账号 |
+| 自动开通账号过量 | 默认 `account-provisioning-enabled=false`，HTTP adapter 才计入真实 ready，并受 `minAvailable/maxAccounts/batchSize` 限制 | 关闭账号自动开通，锁定或禁用异常账号 |
 | 任务或租借状态不可解释 | traceId、错误码、状态解释和排障 Runbook | 按 holderRef/requestKey/leaseId/taskId 回溯 |
 | 与 WP7/WP9 范围混淆 | 文档明确只提供引用和 lease，不执行浏览器或 DAG | 隐藏跨 WP 操作入口，保留只读引用 |
 
@@ -88,5 +88,5 @@ cd portal-web && npm run build
 ## 8. 后续边界
 
 1. 后续若新增筛选栏、分页、详情抽屉、外部容量压测或多实例运维演练，需要重新补充 PRD、技术设计、测试策略和发布准出说明。
-2. 当前 WP8 已提供配置化业务账号自动开通，但真实业务系统接入仍需目标环境 adapter 准出。
+2. 当前 WP8 已提供 HTTP 业务账号自动开通 adapter；真实业务系统接入仍需目标环境 URL、token、allowlist、幂等和回滚准出，`LOCAL_SECRET_REF` 不计入生产 ready。
 3. 若变更会触及 Java、API、DB、adapter 或前端运行时代码，必须按仓库默认验证入口扩大验证范围。

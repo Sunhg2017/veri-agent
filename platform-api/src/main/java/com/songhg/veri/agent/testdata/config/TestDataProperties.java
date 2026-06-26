@@ -45,8 +45,8 @@ public record TestDataProperties(
         @DefaultValue("5000") int cleanupAdapterTimeoutMs,
         /** Enables managed business account provisioning from account-pool leasePolicy. */
         @DefaultValue("false") boolean accountProvisioningEnabled,
-        /** Account provisioning adapter mode. Supported values: LOCAL_SECRET_REF, HTTP. */
-        @DefaultValue("LOCAL_SECRET_REF") String accountProvisioningAdapterMode,
+        /** Account provisioning adapter mode. Supported values: DISABLED, LOCAL_SECRET_REF, HTTP. */
+        @DefaultValue("DISABLED") String accountProvisioningAdapterMode,
         /** HTTP endpoint used by the account provisioning adapter. */
         @DefaultValue("") String accountProvisioningAdapterUrl,
         /** Bearer token used only when calling the account provisioning adapter. */
@@ -112,7 +112,7 @@ public record TestDataProperties(
                 "",
                 DEFAULT_ADAPTER_TIMEOUT_MS,
                 false,
-                "LOCAL_SECRET_REF",
+                "DISABLED",
                 "",
                 "",
                 DEFAULT_ADAPTER_TIMEOUT_MS,
@@ -156,7 +156,7 @@ public record TestDataProperties(
                 "",
                 DEFAULT_ADAPTER_TIMEOUT_MS,
                 false,
-                "LOCAL_SECRET_REF",
+                "DISABLED",
                 "",
                 "",
                 DEFAULT_ADAPTER_TIMEOUT_MS,
@@ -245,7 +245,7 @@ public record TestDataProperties(
     }
 
     public String effectiveAccountProvisioningAdapterMode() {
-        return boundedText(accountProvisioningAdapterMode, "LOCAL_SECRET_REF", 32).toUpperCase(java.util.Locale.ROOT);
+        return boundedText(accountProvisioningAdapterMode, "DISABLED", 32).toUpperCase(java.util.Locale.ROOT);
     }
 
     public String effectiveAccountProvisioningAdapterUrl() {
@@ -266,6 +266,12 @@ public record TestDataProperties(
                 DEFAULT_ACCOUNT_PROVISIONING_BATCH_SIZE,
                 MAX_ACCOUNT_PROVISIONING_BATCH_SIZE
         );
+    }
+
+    public boolean accountProvisioningRealAdapterReady() {
+        return accountProvisioningEnabled()
+                && "HTTP".equals(effectiveAccountProvisioningAdapterMode())
+                && !effectiveAccountProvisioningAdapterUrl().isBlank();
     }
 
     private static int boundedPositive(int value, int defaultValue, int maxValue) {

@@ -5,9 +5,9 @@
 | 工作包 | WP8 测试数据与账号池 |
 | 角色产出 | 资深质量工程师 |
 | 文档性质 | 测试策略、用例矩阵、脚本门禁和准出要求 |
-| 当前口径 | WP8 已完成前端工作台、浏览器 smoke、数据集/租借脱敏导出摘要、导出文件下载、受控 cleanup adapter 和账号自动开通 adapter；破坏性能力默认关闭并需显式验证 |
+| 当前口径 | WP8 已完成前端工作台、浏览器 smoke、数据集/租借脱敏导出摘要、导出文件下载、XXL-JOB 触发的受控 cleanup worker/HTTP adapter 和真实业务账号自动开通 HTTP adapter；破坏性能力默认关闭并需显式验证 |
 | 版本 | v0.1 |
-| 日期 | 2026-06-24 |
+| 日期 | 2026-06-26 |
 
 ## 1. 测试目标
 
@@ -17,7 +17,7 @@
 4. 验证清理任务默认安全、失败可追踪、重试幂等。
 5. 验证导出摘要和文件下载使用同一脱敏白名单，不新增敏感泄露面。
 6. 验证 cleanup adapter 未开启、未 ready、ready 成功和失败响应的任务状态与摘要。
-7. 验证账号自动开通受全局开关、账号池 policy、adapter ready、`minAvailable/maxAccounts` 和 batch size 约束。
+7. 验证账号自动开通受全局开关、账号池 policy、XXL-JOB worker runtime、HTTP adapter ready、`minAvailable/maxAccounts` 和 batch size 约束。
 8. 验证前端权限、状态、错误提示、响应式和脱敏展示。
 9. 验证 WP7/WP9 引用契约可用，但不要求 WP7/WP9 同步开发完成。
 
@@ -29,7 +29,7 @@
 | 账号池 | CRUD、账号新增/更新、secretRef 替换、角色标签、健康状态。 |
 | 租借 | 申请、并发冲突、requestKey 幂等、续租、释放、过期、撤销。 |
 | 清理任务 | 创建、状态流、失败、重试、清理开关关闭、adapter 未 ready、HTTP adapter 成功/失败。 |
-| 账号自动开通 | `leasePolicy.provisioning`、minAvailable、maxAccounts、LOCAL_SECRET_REF、HTTP adapter、失败摘要。 |
+| 账号自动开通 | `leasePolicy.provisioning`、minAvailable、maxAccounts、LOCAL_SECRET_REF 演练模式、HTTP 真实 adapter、失败摘要。 |
 | 权限 | read/manage/lease/cleanup/export 分权和项目 scope。 |
 | 安全脱敏 | API 响应、审计、日志、前端 DOM、导出摘要和下载文件不出现 secret 或敏感原文。 |
 | 前端 | helper、payload、按钮权限、loading/empty/error、390px 响应式。 |
@@ -70,7 +70,8 @@
 | cleanup adapter 失败 | HTTP 非 2xx 或 `success=false` 后任务进入 `FAILED`，错误摘要脱敏且可重试。 |
 | 清理任务失败重试 | 失败摘要保留，重试使用相同 target 和新 attempt。 |
 | 账号自动开通 disabled | 全局开关关闭时 worker tick 不创建账号。 |
-| 账号自动开通补齐 | 可用账号低于 `minAvailable` 且未超 `maxAccounts` 时创建账号摘要，只保存 secretRef digest/cipher。 |
+| LOCAL_SECRET_REF 演练模式 | 即使全局开关开启也不计入真实 adapter ready，不调用真实业务系统、不创建业务账号。 |
+| HTTP 账号自动开通补齐 | 可用账号低于 `minAvailable` 且未超 `maxAccounts` 时创建账号摘要，只保存 secretRef digest/cipher。 |
 | 账号自动开通上限 | 达到 `maxAccounts` 时跳过并记录 skipped 计数。 |
 | 越权项目访问 | 403，不泄露资源存在性。 |
 | 导出摘要 | 只含白名单字段和 redaction policy。 |
@@ -250,7 +251,7 @@ git diff --check
 2. 未执行 WP9 scheduler/DAG 自动申请和释放；本轮只验证 WP8 应用层 lease adapter，真实调度编排由 WP9 后续任务接入。
 3. 未执行 WP10 完整报告生成；本轮只验证报告证据字段白名单，报告页面、Allure/AI 诊断由 WP10 承接。
 4. 未新增 `portal-web` 工作台；前端只运行既有 Vitest 和 build，M6 再补 API helper、权限入口和 Playwright smoke。
-5. 未启用 cleanup worker 或破坏性清理；`cleanupEnabled=false` 仍是默认安全边界。
+5. 未启用 cleanup worker 或破坏性清理；`cleanupEnabled=false` 仍是默认安全边界。真实账号自动开通必须使用 HTTP adapter，`LOCAL_SECRET_REF` 仅作为本地演练。
 
 ### M6A 前端工作台基础闭环最小门禁
 
@@ -339,7 +340,7 @@ M6C 未执行项和风险边界：
 
 1. M6C 交付当时不实现真实文件下载；该缺口已由 M8J 的 `/export/download` 补齐。
 2. M6C 交付当时不实现租借导出和清理审计导出；租借导出摘要和文件下载已在后续切片补齐，清理审计摘要仍不作为当前前端主链路。
-3. M6C 交付当时不启用真实 cleanup worker 或生产数据复制；cleanup worker/adapter 已在 M8J 以默认关闭、显式配置方式补齐。
+3. M6C 交付当时不启用真实 cleanup worker 或生产数据复制；cleanup worker/adapter 已在 M8J/M8K 以默认关闭、XXL-JOB 触发、HTTP adapter 显式配置方式补齐。
 4. 真实 HTTP 服务级并发压测仍由 release 外部环境后续补充；当前 release gate 使用 managed 并发 smoke。
 
 ### M8B/M8C 操作说明与运维 Runbook 最小门禁
@@ -366,7 +367,7 @@ M8B/M8C 定向检查矩阵：
 M8B/M8C 未执行项和风险边界：
 
 1. 不修改运行时代码，因此不要求后端全量测试作为本切片最小门禁；后续若文档伴随代码变更，需按影响面追加 WP8 quality gate。
-2. M8B/M8C 当时不启用真实 cleanup worker；M8J 已补齐默认关闭、显式配置的 cleanup adapter。
+2. M8B/M8C 当时不启用真实 cleanup worker；M8J/M8K 已补齐默认关闭、XXL-JOB 触发、显式配置的 cleanup adapter。
 3. M8B/M8C 当时不实现导出文件下载；M8J 已补齐数据集/租借下载按钮与 smoke 覆盖。
 
 ### M8I 发布准出收口最小门禁

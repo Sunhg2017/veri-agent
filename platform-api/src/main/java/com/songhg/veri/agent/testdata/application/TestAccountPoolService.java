@@ -394,10 +394,11 @@ public class TestAccountPoolService {
     public AccountProvisioningTickResult provisionAccounts(Instant now, int limit, String workerId) {
         assertEnabled();
         int boundedLimit = Math.max(1, Math.min(limit, properties.effectiveAccountProvisioningBatchSize()));
-        if (!properties.accountProvisioningEnabled() || !provisioningAdapter.ready()) {
+        if (!properties.accountProvisioningEnabled() || !properties.accountProvisioningRealAdapterReady()
+                || !provisioningAdapter.ready()) {
             return new AccountProvisioningTickResult(
                     properties.accountProvisioningEnabled(),
-                    provisioningAdapter.ready(),
+                    properties.accountProvisioningRealAdapterReady() && provisioningAdapter.ready(),
                     provisioningAdapter.provider(),
                     boundedLimit,
                     0,
@@ -580,17 +581,20 @@ public class TestAccountPoolService {
     }
 
     private Map<String, Object> policy() {
-        return Map.of(
-                "secretPlaintextStored", false,
-                "secretRefPlaintextReturned", false,
-                "secretRefDigestAlgorithm", "SHA-256",
-                "leaseApiReady", false,
-                "automaticBusinessAccountProvisioningEnabled", properties.accountProvisioningEnabled(),
-                "automaticBusinessAccountProvisioningReady", properties.accountProvisioningEnabled()
-                        && provisioningAdapter.ready(),
-                "accountProvisioningAdapterProvider", provisioningAdapter.provider(),
-                "allowedPoolStatuses", POOL_STATUS_VALUES,
-                "managedAccountStatuses", ACCOUNT_MANAGED_STATUSES
+        return Map.ofEntries(
+                Map.entry("secretPlaintextStored", false),
+                Map.entry("secretRefPlaintextReturned", false),
+                Map.entry("secretRefDigestAlgorithm", "SHA-256"),
+                Map.entry("leaseApiReady", false),
+                Map.entry("automaticBusinessAccountProvisioningEnabled", properties.accountProvisioningEnabled()),
+                Map.entry("automaticBusinessAccountProvisioningReady", properties.accountProvisioningRealAdapterReady()
+                        && provisioningAdapter.ready()),
+                Map.entry("accountProvisioningRealAdapterRequired", true),
+                Map.entry("accountProvisioningLocalSecretRefMode", "LOCAL_SECRET_REF".equals(
+                        properties.effectiveAccountProvisioningAdapterMode())),
+                Map.entry("accountProvisioningAdapterProvider", provisioningAdapter.provider()),
+                Map.entry("allowedPoolStatuses", POOL_STATUS_VALUES),
+                Map.entry("managedAccountStatuses", ACCOUNT_MANAGED_STATUSES)
         );
     }
 
@@ -617,6 +621,8 @@ public class TestAccountPoolService {
                         boundedNullable(workerId, 128),
                         now
                 );
+        // The externally visible accountKey is also the provisioning idempotency key; HTTP adapters must replay the
+        // same account or return a conflict for duplicate requests so multi-worker retries do not create extra users.
         TestAccountProvisioningAdapter.ProvisionedAccount provisioned = provisioningAdapter.provision(request);
         TestPooledAccountResponse account = addAccount(pool.id(), new UpsertTestPooledAccountCommand(
                 fallbackText(provisioned.accountKey(), request.accountKey()),

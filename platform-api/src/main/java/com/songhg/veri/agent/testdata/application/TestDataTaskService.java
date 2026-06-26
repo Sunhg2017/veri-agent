@@ -228,9 +228,9 @@ public class TestDataTaskService {
     /**
      * Claims one pending task into RUNNING and closes it with an explicit terminal status.
      *
-     * <p>The worker currently manages control-plane-only execution: it validates references, records bounded result
-     * summaries, and applies policy failures like `CLEANUP_TASK_NOT_ALLOWED`, but it still never runs a destructive
-     * cleanup adapter or persists raw payload values.</p>
+     * <p>The worker validates references and records bounded result summaries for all task types. `CLEANUP` stays
+     * blocked until both the destructive cleanup switch and reviewed adapter are ready, then calls the adapter without
+     * persisting raw payload values.</p>
      */
     @Transactional(noRollbackFor = BusinessException.class)
     Optional<String> processPendingTask(UUID id, String workerId) {

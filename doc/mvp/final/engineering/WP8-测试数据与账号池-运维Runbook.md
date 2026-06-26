@@ -4,8 +4,8 @@
 |---|---|
 | 工作包 | WP8 测试数据与账号池 |
 | 文档性质 | 租借、账号、SecretRef、清理任务、脱敏导出和发布准出 Runbook |
-| 当前口径 | WP8 当前提供控制面、租借并发保护、清理任务、脱敏导出摘要、文件下载、受控 cleanup adapter 和账号自动开通 adapter；破坏性清理默认关闭 |
-| 日期 | 2026-06-24 |
+| 当前口径 | WP8 当前提供控制面、租借并发保护、清理任务、脱敏导出摘要、文件下载、XXL-JOB 触发的受控 cleanup worker/HTTP adapter 和真实业务账号自动开通 HTTP adapter；破坏性清理与账号开通默认关闭 |
+| 日期 | 2026-06-26 |
 
 ## 1. 适用范围
 
@@ -22,7 +22,7 @@
 | `veri-agent.test-data.cleanup-adapter-token` | 空 | cleanup adapter Bearer token，只用于出站调用，不允许进入日志、health 或审计。 |
 | `veri-agent.test-data.cleanup-adapter-timeout-ms` | `5000` | cleanup adapter 超时。 |
 | `veri-agent.test-data.account-provisioning-enabled` | `false` | 是否允许 worker 根据账号池 policy 自动补齐账号。 |
-| `veri-agent.test-data.account-provisioning-adapter-mode` | `LOCAL_SECRET_REF` | 账号开通 adapter 模式；可用 `LOCAL_SECRET_REF` 或 `HTTP`。 |
+| `veri-agent.test-data.account-provisioning-adapter-mode` | `DISABLED` | 账号开通 adapter 模式；真实业务开通必须使用 `HTTP`，`LOCAL_SECRET_REF` 仅用于本地 secretRef 指针演练。 |
 | `veri-agent.test-data.account-provisioning-adapter-url` | 空 | HTTP provisioning adapter 地址。 |
 | `veri-agent.test-data.account-provisioning-adapter-token` | 空 | provisioning adapter Bearer token，只用于出站调用。 |
 | `veri-agent.test-data.account-provisioning-batch-size` | `20` | 单次 worker tick 扫描可自动开通账号池上限。 |
@@ -37,7 +37,7 @@
 1. 首次发布先保持 `cleanup-enabled=false`，确认控制面、租借、导出和下载稳定后，再对真实清理 adapter 做低风险环境准出。
 2. 若发现导出或页面泄露风险，优先设置 `export-enabled=false` 或撤销 `testData:export` 权限。
 3. 若发现租借状态异常但仍需保留证据，优先禁用对应账号池或将账号置为 `LOCKED`，不要直接删库。
-4. 账号自动开通先使用 `LOCAL_SECRET_REF` 或沙箱 HTTP adapter 演练，确认 `minAvailable/maxAccounts` 和 secretRef 前缀后再接真实业务系统。
+4. 账号自动开通先使用沙箱 HTTP adapter 演练，确认 `minAvailable/maxAccounts`、外部幂等键和 secretRef 前缀后再接真实业务系统；`LOCAL_SECRET_REF` 只验证 WP8 本地摘要和指针写入，不代表真实业务开户。
 
 ## 3. 日常验证
 
@@ -78,14 +78,14 @@ git diff --check
 6. 数据集导出摘要和下载文件不得包含完整 record payload、maskedSummary 值、`secretRef` 原文、token、cookie 或 Authorization header。
 7. 租借导出摘要和下载文件不得包含租借 token 明文、释放原因原文、健康摘要原文、scopeSummary 值、leasePolicy 值或敏感 key。
 8. release gate 必须记录 WP8 quality gate、DB validation、前端 smoke、并发 smoke 和任何跳过项。
-9. 账号自动开通必须记录目标账号池、policy、adapter provider、创建数量、失败数量和回滚动作。
+9. 账号自动开通必须记录目标账号池、policy、adapter provider、创建数量、失败数量、外部幂等键和回滚动作；health 需显示 `workerRuntimeReady=true` 且 `automaticBusinessAccountProvisioningReady=true`。
 
 ## 5. 租借卡死处理
 
 | 场景 | 推荐操作 | 证据 |
 |---|---|---|
 | 账号长期 `LEASED`，lease 仍为 `ACTIVE` | 先确认 holderRef 是否仍在执行；若执行已结束，使用释放控制面释放，并选择账号回到 `AVAILABLE` 或 `LOCKED`。 | lease id、holderRef、expiresAt、traceId、释放审计。 |
-| lease 已过期但账号未回收 | 运行后端过期回收相关验证或等待后续 scheduler；当前无独立 scheduler worker 时按人工释放处理。 | lease status、expiresAt、账号 status、操作人。 |
+| lease 已过期但账号未回收 | 确认 `veri-agent.xxl-job.enabled=true` 且 `testDataWorkerJob` 正常触发，必要时手动执行一次 WP8 worker tick；调度不可用时按人工释放处理。 | lease status、expiresAt、账号 status、操作人。 |
 | 同一账号疑似重复占用 | 立即停止新租借，运行 managed 并发 smoke 和 DB repository contract，检查 active lease 唯一约束。 | 账号 id、active lease 列表、quality gate 结果。 |
 | requestKey 重试结果异常 | 比对同一 `projectId + requestKey` 的 payload；payload 不一致应按冲突处理。 | requestKey、requestDigest、holderRef、错误码。 |
 | 释放后账号仍不可用 | 查看释放时 `accountStatus` 是否选择 `LOCKED/DISABLED`，再决定人工解锁或继续隔离。 | releaseReason、releasedAt、账号 status、审计记录。 |
@@ -144,7 +144,8 @@ git diff --check
 
 | 场景 | 推荐操作 | 证据 |
 |---|---|---|
-| 自动开通未发生 | 确认 `account-provisioning-enabled=true`、worker enabled、账号池 `READY`、`leasePolicy.provisioning.enabled=true`，且可用账号数低于 `minAvailable`。 | health policy、worker tick、pool id。 |
+| 自动开通未发生 | 确认 `account-provisioning-enabled=true`、`veri-agent.xxl-job.enabled=true`、`testDataWorkerJob` 正常触发、`account-provisioning-adapter-mode=HTTP`、adapter URL 非空、账号池 `READY`、`leasePolicy.provisioning.enabled=true`，且可用账号数低于 `minAvailable`。 | health policy、worker tick、pool id。 |
+| `LOCAL_SECRET_REF` 模式未开户 | 这是预期行为；该模式只做本地 secretRef 指针演练，不调用真实业务系统，也不会被 health 标记为真实 ready。 | health `accountProvisioningLocalSecretRefMode=true`。 |
 | 达到上限后不再开通 | 检查 `maxAccounts` 与当前账号总数；这是预期保护，不应直接调大到无界。 | pool policy、账号数量。 |
 | HTTP provisioning 失败 | 检查 adapter URL/token/超时和返回 errorSummary；修复后等待下次 worker tick。 | adapter 日志、failedProvisioningCount。 |
 | 新账号 secretRef 异常 | 立即锁定或禁用新账号，修复 `secretRefPrefix` 或 HTTP adapter 返回值后重新开通。 | account id、secretRefDigest、policy。 |
