@@ -269,8 +269,8 @@ const qualityTaskTypeOptions = ['ALL', 'case-design', 'defect-triage', 'requirem
 
 const tabs: Array<{ key: TabKey; label: string; icon: LucideIcon }> = [
   { key: 'providers', label: translate('auto.k0905'), icon: ServerCog },
-  { key: 'prompts', label: 'Prompt', icon: FileDiff },
-  { key: 'playground', label: 'Playground', icon: PlayCircle },
+  { key: 'prompts', label: translate('auto.k2610'), icon: FileDiff },
+  { key: 'playground', label: translate('auto.k2611'), icon: PlayCircle },
   { key: 'quality', label: translate('auto.k0906'), icon: Eye },
   { key: 'policies', label: translate('auto.k0907'), icon: SlidersHorizontal },
   { key: 'logs', label: translate('auto.k0908'), icon: Activity }
@@ -1065,12 +1065,12 @@ export function ModelAccessConsole(props: { signedIn: boolean; currentUser: Curr
             <Activity size={16} />
           </div>
           <div className="document-health-grid">
-            <StatusMetric label={translate('auto.k0427')} value={health?.status ?? 'UNKNOWN'} tone={health?.status === 'UP' ? 'positive' : 'negative'} />
+            <StatusMetric label={translate('auto.k0427')} value={statusText(health?.status ?? 'UNKNOWN')} tone={health?.status === 'UP' ? 'positive' : 'negative'} />
             <StatusMetric label={translate('auto.k0962')} value={health?.enabledProviders ?? providers.filter((item) => item.status === 'ENABLED').length} />
-            <StatusMetric label="Active Prompt" value={health?.activePrompts ?? prompts.filter((item) => item.status === 'ACTIVE').length} />
+            <StatusMetric label={translate('auto.k2612')} value={health?.activePrompts ?? prompts.filter((item) => item.status === 'ACTIVE').length} />
             <StatusMetric label={translate('auto.k0963')} value={health?.openCircuitProviders ?? 0} tone={(health?.openCircuitProviders ?? 0) > 0 ? 'negative' : 'positive'} />
-            <StatusMetric label={translate('auto.k0964')} value={health?.providerRateLimitEnabled ? health.providerRateLimitMaxRequests : 'OFF'} />
-            <StatusMetric label={translate('auto.k0965')} value={health?.providerConcurrencyLimitEnabled ? health.providerMaxConcurrentRequests : 'OFF'} />
+            <StatusMetric label={translate('auto.k0964')} value={health?.providerRateLimitEnabled ? health.providerRateLimitMaxRequests : translate('auto.k2616')} />
+            <StatusMetric label={translate('auto.k0965')} value={health?.providerConcurrencyLimitEnabled ? health.providerMaxConcurrentRequests : translate('auto.k2616')} />
           </div>
         </div>
 
@@ -1131,11 +1131,11 @@ function ProviderTab(props: {
             <input value={props.draft.capabilities} placeholder="CHAT,TEXT,JSON" disabled={!props.canManage} onChange={(event) => props.onChangeDraft('capabilities', event.target.value)} />
           </label>
           <label className="field">
-            <span>Base URL</span>
+            <span>{translate('auto.k2613')}</span>
             <input value={props.draft.baseUrl} placeholder="https://api.example.com" disabled={!props.canManage} onChange={(event) => props.onChangeDraft('baseUrl', event.target.value)} />
           </label>
           <label className="field">
-            <span>SecretRef / apiKeyRef</span>
+            <span>{translate('auto.k2614')}</span>
             <input value={props.draft.apiKeyRef} placeholder="env:MODEL_API_KEY" disabled={!props.canManage} onChange={(event) => props.onChangeDraft('apiKeyRef', event.target.value)} />
             <small>{translate('auto.k0974')}</small>
           </label>
@@ -1169,13 +1169,13 @@ function ProviderTab(props: {
       </form>
 
       <div className="table-wrap model-access-table-wrap">
-        <table>
+        <table className="model-access-provider-table">
           <thead>
             <tr>
               <th>{translate('auto.k0905')}</th>
               <th>{translate('auto.k0182')}</th>
               <th>{translate('auto.k0980')}</th>
-              <th>SecretRef</th>
+              <th>{translate('auto.k2614')}</th>
               <th>{translate('auto.k0981')}</th>
               <th>{translate('auto.k0982')}</th>
               <th>{translate('auto.k0983')}</th>
@@ -1202,7 +1202,7 @@ function ProviderTab(props: {
                     {check ? (
                       <>
                         <StatusPill value={check.status} />
-                        <span className="table-secondary">{check.cached ? 'cached' : `${check.latencyMs}ms`}</span>
+                        <span className="table-secondary">{check.cached ? translate('auto.k2615') : `${check.latencyMs}ms`}</span>
                       </>
                     ) : <span className="table-secondary">-</span>}
                   </td>
@@ -1210,13 +1210,13 @@ function ProviderTab(props: {
                     {resilience ? (
                       <>
                         <StatusPill value={resilience.circuitOpen ? 'OPEN' : 'CLOSED'} />
-                        <span className="table-secondary">fail {resilience.consecutiveFailures}</span>
+                        <span className="table-secondary">{translate('auto.k2617', { value0: resilience.consecutiveFailures })}</span>
                       </>
                     ) : <span className="table-secondary">-</span>}
                   </td>
                   <td>
                     <span className="table-primary">{formatMoney(provider.inputCostPer1kTokens)} / {formatMoney(provider.outputCostPer1kTokens)}</span>
-                    <span className="table-secondary">input / output</span>
+                    <span className="table-secondary">{translate('auto.k2618')}</span>
                   </td>
                   <td>
                     <div className="model-access-row-actions">
@@ -1274,7 +1274,7 @@ function PolicyTab(props: {
               </select>
             </label>
             <label className="field">
-              <span>Scope key<b>*</b></span>
+              <span>{translate('auto.k2619')}<b>*</b></span>
               <input value={props.draft.scopeKey} disabled={!props.canManage || props.draft.scopeType === 'PLATFORM'} onChange={(event) => props.onChangeDraft('scopeKey', event.target.value)} />
             </label>
             <label className="field model-access-checkbox-field">
@@ -1336,16 +1336,16 @@ function PolicyTab(props: {
             <Eye size={16} />
           </div>
           <div className="document-form-grid model-access-effective-grid">
-            <label className="field"><span>Project ID</span><input value={props.previewDraft.projectId} onChange={(event) => props.onChangePreview('projectId', event.target.value)} /></label>
-            <label className="field"><span>Environment ID</span><input value={props.previewDraft.environmentId} onChange={(event) => props.onChangePreview('environmentId', event.target.value)} /></label>
+            <label className="field"><span>{translate('auto.k2620')}</span><input value={props.previewDraft.projectId} onChange={(event) => props.onChangePreview('projectId', event.target.value)} /></label>
+            <label className="field"><span>{translate('auto.k2621')}</span><input value={props.previewDraft.environmentId} onChange={(event) => props.onChangePreview('environmentId', event.target.value)} /></label>
             <label className="field"><span>{translate('auto.k0247')}</span><input value={props.previewDraft.roles} placeholder="SuperAdmin,Auditor" onChange={(event) => props.onChangePreview('roles', event.target.value)} /></label>
           </div>
           <div className="document-actions">
             <button className="secondary-button" type="submit" disabled={props.state.loading}><RefreshCw size={15} /> {translate('auto.k1004')}</button>
           </div>
           <div className="model-access-summary-grid">
-            <StatusMetric label={translate('auto.k1005')} value={props.effectivePolicy?.modelInvocationEnabled ? 'ON' : 'OFF'} tone={props.effectivePolicy?.modelInvocationEnabled ? 'positive' : 'negative'} />
-            <StatusMetric label={translate('auto.k0995')} value={props.effectivePolicy?.publicModelAllowed ? 'ON' : 'OFF'} tone={props.effectivePolicy?.publicModelAllowed ? 'positive' : 'pending'} />
+            <StatusMetric label={translate('auto.k1005')} value={switchText(props.effectivePolicy?.modelInvocationEnabled)} tone={props.effectivePolicy?.modelInvocationEnabled ? 'positive' : 'negative'} />
+            <StatusMetric label={translate('auto.k0995')} value={switchText(props.effectivePolicy?.publicModelAllowed)} tone={props.effectivePolicy?.publicModelAllowed ? 'positive' : 'pending'} />
             <StatusMetric label={translate('auto.k1006')} value={props.effectivePolicy?.dailyBudgetLimit === undefined ? '-' : formatMoney(props.effectivePolicy.dailyBudgetLimit)} />
             <StatusMetric label={translate('auto.k0363')} value={props.effectivePolicy?.budgetOverrunAction ?? '-'} />
             <StatusMetric label={translate('auto.k0972')} value={props.effectivePolicy?.routingGroup ?? '-'} />
@@ -1435,7 +1435,7 @@ function PromptTab(props: {
         <form className="model-access-form" onSubmit={props.onSubmit}>
           <div className="document-form-grid model-access-prompt-form-grid">
             <label className="field">
-              <span>Prompt key<b>*</b></span>
+              <span>{translate('auto.k2622')}<b>*</b></span>
               <input value={props.draft.promptKey} disabled={!props.canManage} onChange={(event) => props.onChangeDraft('promptKey', event.target.value)} />
             </label>
             <label className="field">
@@ -1502,7 +1502,7 @@ function PromptTab(props: {
         void props.onFilter(props.promptFilter);
       }}>
         <label className="field">
-          <span>Prompt key</span>
+          <span>{translate('auto.k2622')}</span>
           <input value={props.promptFilter} list="model-access-prompt-keys" onChange={(event) => void props.onFilter(event.target.value)} />
           <datalist id="model-access-prompt-keys">
             {props.promptKeys.map((key) => <option key={key} value={key} />)}
@@ -1517,7 +1517,7 @@ function PromptTab(props: {
         <table>
           <thead>
             <tr>
-              <th>Prompt</th>
+              <th>{translate('auto.k2610')}</th>
               <th>{translate('auto.k0178')}</th>
               <th>{translate('auto.k0182')}</th>
               <th>{translate('auto.k0213')}</th>
@@ -1591,33 +1591,33 @@ function PlaygroundTab(props: {
         <form className="model-access-form" onSubmit={(event) => event.preventDefault()}>
           <div className="document-form-grid model-access-playground-form-grid">
             <label className="field">
-              <span>Project ID<b>*</b></span>
+              <span>{translate('auto.k2620')}<b>*</b></span>
               <input value={props.draft.projectId} disabled={!props.canManage} onChange={(event) => props.onChangeDraft('projectId', event.target.value)} />
             </label>
             <label className="field">
-              <span>Application ID</span>
+              <span>{translate('auto.k2623')}</span>
               <input value={props.draft.applicationId} disabled={!props.canManage} onChange={(event) => props.onChangeDraft('applicationId', event.target.value)} />
             </label>
             <label className="field">
-              <span>Environment ID</span>
+              <span>{translate('auto.k2621')}</span>
               <input value={props.draft.environmentId} disabled={!props.canManage} onChange={(event) => props.onChangeDraft('environmentId', event.target.value)} />
             </label>
             <label className="field">
-              <span>Prompt key</span>
+              <span>{translate('auto.k2622')}</span>
               <input value={props.draft.promptKey} list="model-access-playground-prompt-keys" disabled={!props.canManage} onChange={(event) => props.onChangeDraft('promptKey', event.target.value)} />
               <datalist id="model-access-playground-prompt-keys">
                 {Array.from(new Set(props.prompts.map((item) => item.promptKey))).map((key) => <option key={key} value={key} />)}
               </datalist>
             </label>
             <label className="field">
-              <span>Provider</span>
+              <span>{translate('auto.k0905')}</span>
               <select value={props.draft.providerId} disabled={!props.canManage} onChange={(event) => props.onChangeDraft('providerId', event.target.value)}>
                 <option value="">{translate('auto.k1024')}</option>
                 {props.providers.map((provider) => <option key={provider.id} value={provider.id}>{provider.name}</option>)}
               </select>
             </label>
             <label className="field">
-              <span>Model Name</span>
+              <span>{translate('auto.k2624')}</span>
               <input value={props.draft.modelName} disabled={!props.canManage} onChange={(event) => props.onChangeDraft('modelName', event.target.value)} />
             </label>
             <label className="field">
@@ -1639,13 +1639,13 @@ function PlaygroundTab(props: {
             </label>
           </div>
           <label className="field document-content-field">
-            <span>Prompt Variables JSON</span>
+            <span>{translate('auto.k2625')}</span>
             <textarea value={props.draft.promptVariablesText} disabled={!props.canManage} onChange={(event) => props.onChangeDraft('promptVariablesText', event.target.value)} />
           </label>
 
           <div className="model-access-message-editor">
             <div className="panel-title-row">
-              <h2>Messages</h2>
+              <h2>{translate('auto.k2626')}</h2>
               <button className="mini-button" type="button" disabled={!props.canManage} onClick={props.onAddMessage}>
                 <Plus size={14} /> {translate('auto.k1026')}</button>
             </div>
@@ -1688,11 +1688,11 @@ function PlaygroundTab(props: {
             <span className="table-secondary">{props.result.mode ? translate('auto.k1031', { value0: props.result.mode }) : translate('auto.k1032')}</span>
           </div>
           <div className="model-access-summary-grid">
-            <StatusMetric label="Invocation" value={props.result.response?.invocationId ?? props.result.job?.invocationId ?? '-'} />
-            <StatusMetric label="Provider" value={props.result.response?.providerName ?? '-'} />
-            <StatusMetric label="Model" value={props.result.response?.modelName ?? '-'} />
-            <StatusMetric label="Fallback" value={props.result.response?.fallbackUsed ? 'YES' : 'NO'} tone={props.result.response?.fallbackUsed ? 'pending' : 'neutral'} />
-            <StatusMetric label="Tokens" value={props.result.response ? `${props.result.response.inputTokens}/${props.result.response.outputTokens}` : '-'} />
+            <StatusMetric label={translate('auto.k2627')} value={props.result.response?.invocationId ?? props.result.job?.invocationId ?? '-'} />
+            <StatusMetric label={translate('auto.k0905')} value={props.result.response?.providerName ?? '-'} />
+            <StatusMetric label={translate('auto.k2624')} value={props.result.response?.modelName ?? '-'} />
+            <StatusMetric label={translate('auto.k2628')} value={props.result.response?.fallbackUsed ? translate('auto.k2630') : translate('auto.k2631')} tone={props.result.response?.fallbackUsed ? 'pending' : 'neutral'} />
+            <StatusMetric label={translate('auto.k2629')} value={props.result.response ? `${props.result.response.inputTokens}/${props.result.response.outputTokens}` : '-'} />
             <StatusMetric label={translate('auto.k0983')} value={props.result.response ? formatMoney(props.result.response.totalCost) : '-'} />
           </div>
 
@@ -1789,8 +1789,8 @@ function QualityTab(props: {
         <StatusMetric label={translate('auto.k1038')} value={props.summary?.corpusVersion ?? '-'} />
         <StatusMetric label={translate('auto.k1039')} value={props.summary?.scenarioCount ?? 0} />
         <StatusMetric label={translate('auto.k1040')} value={formatPercent(props.summary?.totalStats.scenarioPassRate)} tone={props.summary?.totalStats.passed ? 'positive' : 'negative'} />
-        <StatusMetric label="Recall" value={formatPercent(props.summary?.totalStats.requiredTermRecall)} tone={props.summary?.totalStats.passed ? 'positive' : 'pending'} />
-        <StatusMetric label="Clean Rate" value={formatPercent(props.summary?.totalStats.forbiddenTermCleanRate)} tone={props.summary?.totalStats.passed ? 'positive' : 'negative'} />
+        <StatusMetric label={translate('auto.k2632')} value={formatPercent(props.summary?.totalStats.requiredTermRecall)} tone={props.summary?.totalStats.passed ? 'positive' : 'pending'} />
+        <StatusMetric label={translate('auto.k2633')} value={formatPercent(props.summary?.totalStats.forbiddenTermCleanRate)} tone={props.summary?.totalStats.passed ? 'positive' : 'negative'} />
         <StatusMetric label={translate('auto.k1041')} value={props.summary?.totalStats.passed ? 'PASS' : 'FAIL'} tone={props.summary?.totalStats.passed ? 'positive' : 'negative'} />
       </div>
 
@@ -1802,7 +1802,7 @@ function QualityTab(props: {
           {(props.summary?.promptBindings ?? []).map((item) => <span className="status-pill neutral" key={item}>{item}</span>)}
         </div>
         <div className="model-access-quality-chip-list">
-          <strong>Provider Group</strong>
+          <strong>{translate('auto.k2634')}</strong>
           {(props.summary?.providerGroups ?? []).map((item) => <span className="status-pill neutral" key={item}>{item}</span>)}
         </div>
       </div>
@@ -1817,10 +1817,10 @@ function QualityTab(props: {
             <div className="model-access-summary-grid">
               <StatusMetric label={translate('auto.k1043')} value={`${task.passedScenarios}/${task.scenarioCount}`} tone={task.passed ? 'positive' : 'pending'} />
               <StatusMetric label={translate('auto.k1044')} value={formatPercent(task.scenarioPassRate)} />
-              <StatusMetric label="Recall" value={formatPercent(task.requiredTermRecall)} />
-              <StatusMetric label="Clean" value={formatPercent(task.forbiddenTermCleanRate)} />
-              <StatusMetric label="Required" value={`${task.requiredTermMatches}/${task.requiredTermCount}`} />
-              <StatusMetric label="Forbidden" value={`${task.forbiddenTermMatches}/${task.forbiddenTermCount}`} />
+              <StatusMetric label={translate('auto.k2632')} value={formatPercent(task.requiredTermRecall)} />
+              <StatusMetric label={translate('auto.k2635')} value={formatPercent(task.forbiddenTermCleanRate)} />
+              <StatusMetric label={translate('auto.k2636')} value={`${task.requiredTermMatches}/${task.requiredTermCount}`} />
+              <StatusMetric label={translate('auto.k2637')} value={`${task.forbiddenTermMatches}/${task.forbiddenTermCount}`} />
             </div>
             {task.failures.length > 0 && (
               <div className="model-access-failure-list">
@@ -1845,11 +1845,11 @@ function QualityTab(props: {
               <td>{formatPercent(props.summary?.thresholds.minScenarioPassRate)}</td>
             </tr>
             <tr>
-              <td>Required term recall</td>
+              <td>{translate('auto.k2638')}</td>
               <td>{formatPercent(props.summary?.thresholds.minRequiredTermRecall)}</td>
             </tr>
             <tr>
-              <td>Forbidden term clean rate</td>
+              <td>{translate('auto.k2639')}</td>
               <td>{formatPercent(props.summary?.thresholds.minForbiddenTermCleanRate)}</td>
             </tr>
           </tbody>
@@ -1878,9 +1878,9 @@ function LogsTab(props: {
   return (
     <div className="model-access-section">
       <form className="asset-filter-bar model-access-log-filter" onSubmit={(event) => void props.onApplyFilters(event)}>
-        <label className="field"><span>Project ID</span><input value={props.filters.projectId} onChange={(event) => props.onChangeFilter('projectId', event.target.value)} /></label>
-        <label className="field"><span>Application ID</span><input value={props.filters.applicationId} onChange={(event) => props.onChangeFilter('applicationId', event.target.value)} /></label>
-        <label className="field"><span>Environment ID</span><input value={props.filters.environmentId} onChange={(event) => props.onChangeFilter('environmentId', event.target.value)} /></label>
+        <label className="field"><span>{translate('auto.k2620')}</span><input value={props.filters.projectId} onChange={(event) => props.onChangeFilter('projectId', event.target.value)} /></label>
+        <label className="field"><span>{translate('auto.k2623')}</span><input value={props.filters.applicationId} onChange={(event) => props.onChangeFilter('applicationId', event.target.value)} /></label>
+        <label className="field"><span>{translate('auto.k2621')}</span><input value={props.filters.environmentId} onChange={(event) => props.onChangeFilter('environmentId', event.target.value)} /></label>
         <label className="field">
           <span>{translate('auto.k0276')}</span>
           <select value={props.filters.sensitivityLevel} onChange={(event) => props.onChangeFilter('sensitivityLevel', event.target.value)}>
@@ -1905,8 +1905,8 @@ function LogsTab(props: {
             {props.providers.map((provider) => <option key={provider.id} value={provider.id}>{provider.name}</option>)}
           </select>
         </label>
-        <label className="field"><span>Actor service</span><input value={props.filters.actorService} onChange={(event) => props.onChangeFilter('actorService', event.target.value)} /></label>
-        <label className="field"><span>Role scope</span><input value={props.filters.roleScope} onChange={(event) => props.onChangeFilter('roleScope', event.target.value)} /></label>
+        <label className="field"><span>{translate('auto.k2640')}</span><input value={props.filters.actorService} onChange={(event) => props.onChangeFilter('actorService', event.target.value)} /></label>
+        <label className="field"><span>{translate('auto.k2641')}</span><input value={props.filters.roleScope} onChange={(event) => props.onChangeFilter('roleScope', event.target.value)} /></label>
         <label className="field"><span>{translate('auto.k1048')}</span><input value={props.costFilters.projectId} onChange={(event) => props.onChangeCostFilter('projectId', event.target.value)} /></label>
         <label className="field"><span>{translate('auto.k1049')}</span><input value={props.costFilters.actorService} onChange={(event) => props.onChangeCostFilter('actorService', event.target.value)} /></label>
         <label className="field"><span>{translate('auto.k1050')}</span><input type="datetime-local" value={props.filters.startTime} onChange={(event) => props.onChangeFilter('startTime', event.target.value)} /></label>
@@ -1924,7 +1924,7 @@ function LogsTab(props: {
         <StatusMetric label={translate('auto.k0368')} value={props.summary?.succeeded ?? 0} tone="positive" />
         <StatusMetric label={translate('auto.k0369')} value={props.summary?.failed ?? 0} tone={(props.summary?.failed ?? 0) > 0 ? 'negative' : 'neutral'} />
         <StatusMetric label={translate('auto.k1000')} value={props.summary?.blocked ?? 0} tone={(props.summary?.blocked ?? 0) > 0 ? 'pending' : 'neutral'} />
-        <StatusMetric label="Token" value={`${props.summary?.inputTokens ?? 0}/${props.summary?.outputTokens ?? 0}`} />
+        <StatusMetric label={translate('auto.k2629')} value={`${props.summary?.inputTokens ?? 0}/${props.summary?.outputTokens ?? 0}`} />
         <StatusMetric label={translate('auto.k0983')} value={formatMoney(props.summary?.totalCost ?? 0)} />
       </div>
       <StateLine state={props.state} />
@@ -1936,9 +1936,9 @@ function LogsTab(props: {
             <tr>
               <th>{translate('auto.k1005')}</th>
               <th>{translate('auto.k0182')}</th>
-              <th>Provider</th>
-              <th>Prompt</th>
-              <th>Preview</th>
+              <th>{translate('auto.k0905')}</th>
+              <th>{translate('auto.k2610')}</th>
+              <th>{translate('auto.k1201')}</th>
               <th>{translate('auto.k0983')}</th>
               <th>{translate('auto.k0780')}</th>
             </tr>
@@ -1953,7 +1953,7 @@ function LogsTab(props: {
                 <td><StatusPill value={item.status} /></td>
                 <td>
                   <span className="table-primary">{item.providerName ?? '-'}</span>
-                  <span className="table-secondary">{item.modelName ?? '-'} · {item.routingGroup ?? '-'} · {item.modelCapability ?? 'CHAT'}{item.fallbackUsed ? ' · fallback' : ''}</span>
+                  <span className="table-secondary">{item.modelName ?? '-'} · {item.routingGroup ?? '-'} · {item.modelCapability ?? 'CHAT'}{item.fallbackUsed ? ` · ${translate('auto.k2628')}` : ''}</span>
                 </td>
                 <td>
                   <span className="table-primary">{item.promptKey ?? '-'}</span>
@@ -1965,7 +1965,7 @@ function LogsTab(props: {
                 </td>
                 <td>
                   <span className="table-primary">{formatMoney(item.totalCost)}</span>
-                  <span className="table-secondary">{item.inputTokens}/{item.outputTokens} tokens · {item.latencyMs}ms</span>
+                  <span className="table-secondary">{item.inputTokens}/{item.outputTokens} {translate('auto.k2629')} · {item.latencyMs}ms</span>
                 </td>
                 <td><span className="table-secondary">{item.errorCode ? `${item.errorCode}: ${item.errorMessage ?? ''}` : '-'}</span></td>
               </tr>
@@ -1987,7 +1987,7 @@ function LogsTab(props: {
                   <th>{translate('auto.k0176')}</th>
                   <th>{translate('auto.k0285')}</th>
                   <th>{translate('auto.k0182')}</th>
-                  <th>Token</th>
+                  <th>{translate('auto.k2629')}</th>
                   <th>{translate('auto.k0983')}</th>
                 </tr>
               </thead>
@@ -2054,7 +2054,7 @@ function StatusPill(props: { value?: string }) {
   const negative = ['DISABLED', 'DOWN', 'FAILED', 'OPEN', 'ERROR', 'CRITICAL'].includes(value);
   const pending = ['DRAFT', 'BLOCKED', 'WARN', 'WARNING'].includes(value);
   const tone = positive ? 'positive' : negative ? 'negative' : pending ? 'pending' : 'neutral';
-  return <span className={`status-pill ${tone}`}>{value}</span>;
+  return <span className={`status-pill ${tone}`} title={value}>{statusText(value)}</span>;
 }
 
 function StateLine(props: { state: WorkState }) {
@@ -2230,6 +2230,42 @@ function createPlaygroundMessage(role = 'user', content = ''): PlaygroundMessage
     role,
     content
   };
+}
+
+function switchText(value?: boolean) {
+  if (value === undefined) return '-';
+  return value ? translate('auto.k0993') : translate('auto.k2616');
+}
+
+function statusText(value?: string) {
+  const normalized = String(value ?? 'UNKNOWN').toUpperCase();
+  const mapping: Record<string, string> = {
+    ACTIVE: translate('auto.k1011'),
+    APPROVED: translate('auto.k1022'),
+    BLOCKED: translate('auto.k1000'),
+    CLOSED: translate('auto.k2642'),
+    CRITICAL: translate('auto.k0369'),
+    DISABLED: translate('auto.k0994'),
+    DOWN: translate('auto.k0094'),
+    DRAFT: translate('auto.k2345'),
+    ENABLED: translate('auto.k0993'),
+    ERROR: translate('auto.k0094'),
+    FAILED: translate('auto.k0369'),
+    FAIL: translate('auto.k0369'),
+    INFO: translate('auto.k2643'),
+    OK: translate('auto.k0095'),
+    OPEN: translate('auto.k2644'),
+    PASS: translate('auto.k1022'),
+    QUEUED: translate('auto.k2646'),
+    REJECTED: translate('auto.k2647'),
+    RUNNING: translate('auto.k2648'),
+    SUCCEEDED: translate('auto.k0368'),
+    UNKNOWN: translate('auto.k0903'),
+    UP: translate('auto.k0095'),
+    WARN: translate('auto.k2645'),
+    WARNING: translate('auto.k2645')
+  };
+  return mapping[normalized] ?? value ?? 'UNKNOWN';
 }
 
 function numberOrUndefined(value: string) {
