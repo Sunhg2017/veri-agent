@@ -2,6 +2,7 @@ import {
   Activity,
   AppWindow,
   Archive,
+  BookOpen,
   CheckCircle2,
   ChevronDown,
   ChevronRight,
@@ -14,11 +15,13 @@ import {
   Link2,
   LogOut,
   MonitorPlay,
+  Moon,
   ServerCog,
   Settings,
   ShieldCheck,
   Sparkles,
   ScrollText,
+  WalletCards,
   UsersRound,
   type LucideIcon
 } from 'lucide-react';
@@ -901,7 +904,6 @@ export function App() {
   function renderTopbarActions() {
     return (
       <div className="topbar-actions">
-        <HealthBadge health={health} />
         {currentUser && (
           <NotificationCenter
             open={notificationOpen}
@@ -914,8 +916,25 @@ export function App() {
             onMarkAllRead={() => void onMarkAllNotificationsRead()}
           />
         )}
+        <a className="topbar-link" href="#overview" aria-label="打开文档中心">
+          <BookOpen size={16} />
+          <span>文档</span>
+        </a>
+        <button className="topbar-chip topbar-language" type="button" aria-label="切换语言">
+          <span className="language-flag" aria-hidden="true">CN</span>
+          <span>ZH</span>
+          <ChevronDown size={14} />
+        </button>
+        <HealthBadge health={health} />
+        <div className="topbar-balance" aria-label="当前版本">
+          <WalletCards size={16} />
+          <span>企业版</span>
+        </div>
         {currentUser && (
           <div className="auth-panel">
+            <div className="auth-avatar" aria-hidden="true">
+              {(currentUser.display_name || currentUser.username || 'U').slice(0, 2).toUpperCase()}
+            </div>
             <div className="auth-info">
               <strong>{currentUser.display_name || currentUser.username}</strong>
               <span>{currentUser.email || currentUser.roles?.join(' · ') || ''}</span>
@@ -936,10 +955,10 @@ export function App() {
   if (!getAuthToken() && !currentUser && loginState.status !== 'loading') {
     return (
       <div className="login-page">
-        <div className="login-card">
+        <div className="login-card" role="main" aria-labelledby="login-title">
           <div className="login-brand">
             <div className="brand-mark">VA</div>
-            <div className="brand-name">Veri Agent</div>
+            <div className="brand-name" id="login-title">Veri Agent</div>
             <div className="brand-subtitle">测试平台 · 请登录</div>
           </div>
           <form className="login-form" onSubmit={onLogin}>
@@ -995,8 +1014,9 @@ export function App() {
 
   return (
     <div className="app-shell">
+      <a className="skip-link" href="#main-content">跳到主内容</a>
       {/* Sidebar */}
-      <aside className="sidebar">
+      <aside className="sidebar" aria-label="主导航">
         <div className="brand">
           <div className="brand-mark">VA</div>
           <div className="brand-text">
@@ -1005,7 +1025,7 @@ export function App() {
           </div>
         </div>
 
-        <nav className="nav-list">
+        <nav className="nav-list" aria-label="功能菜单">
           <button
             className={`nav-item nav-home${activePage === 'overview' ? ' active' : ''}`}
             type="button"
@@ -1027,6 +1047,7 @@ export function App() {
                   type="button"
                   onClick={() => setOpenSidebarGroupKey((prev) => (prev === group.key ? null : group.key))}
                   aria-expanded={isOpen}
+                  aria-controls={`nav-group-${group.key}`}
                   title={group.description}
                 >
                   <span className="nav-group-toggle-main">
@@ -1042,7 +1063,7 @@ export function App() {
                   </span>
                 </button>
                 {isOpen && (
-                  <div className="nav-sublist">
+                  <div className="nav-sublist" id={`nav-group-${group.key}`}>
                     {group.pages.map((page) => {
                       const Icon = page.icon;
                       const selected = activePage === page.key;
@@ -1066,10 +1087,16 @@ export function App() {
             );
           })}
         </nav>
+        <div className="sidebar-footer">
+          <button className="nav-item sidebar-mode-toggle" type="button" aria-label="深色模式暂未启用">
+            <Moon size={17} />
+            <span>深色模式</span>
+          </button>
+        </div>
       </aside>
 
       {/* Main content */}
-      <main className="workspace">
+      <main className="workspace" id="main-content" role="main">
         <header className="topbar">
           <div className="topbar-info">
             <div className="topbar-kicker">
@@ -1125,7 +1152,7 @@ export function App() {
               {passwordDialogState.status === 'error' && (
                 <div className="notice error">{passwordDialogState.message}</div>
               )}
-              <div className="modal-footer" style={{ padding: 0, marginTop: 4 }}>
+              <div className="modal-footer modal-footer-compact">
                 <button className="btn btn-primary" type="submit" disabled={passwordDialogState.status === 'submitting'}>
                   {passwordDialogState.status === 'submitting' ? '提交中...' : '确认修改'}
                 </button>
@@ -1163,7 +1190,7 @@ export function App() {
               {resetPasswordDialogState.status === 'error' && (
                 <div className="notice error">{resetPasswordDialogState.message}</div>
               )}
-              <div className="modal-footer" style={{ padding: 0, marginTop: 4 }}>
+              <div className="modal-footer modal-footer-compact">
                 <button className="btn btn-primary" type="submit" disabled={resetPasswordDialogState.status === 'submitting'}>
                   {resetPasswordDialogState.status === 'submitting' ? '提交中...' : '确认重置'}
                 </button>
