@@ -41,6 +41,7 @@ import {
   reportArchiveStatusTone,
   shortIdentifier
 } from './TestDesignWorkbenchShared';
+import { dictionaryLabel } from '../platform/dictionaries';
 import { translate } from '../platform/i18n';
 
 export function TestDesignPublishPanel(props: {
@@ -170,7 +171,7 @@ export function TestDesignPublishPanel(props: {
                 disabled={!props.canPublish || props.releaseReadinessState.loading}
               >
                 {props.releaseReadinessReasonCodes.map((code) => (
-                  <option key={code} value={code}>{code}</option>
+                  <option key={code} value={code}>{dictionaryLabel(code)}</option>
                 ))}
               </select>
             </label>
@@ -248,7 +249,7 @@ export function TestDesignPublishPanel(props: {
                 disabled={!props.canPublish || props.releaseReadinessState.loading || !props.selectedPendingReleaseReadinessApproval}
               >
                 {props.releaseReadinessReasonCodes.map((code) => (
-                  <option key={code} value={code}>{code}</option>
+                  <option key={code} value={code}>{dictionaryLabel(code)}</option>
                 ))}
               </select>
             </label>
@@ -261,7 +262,7 @@ export function TestDesignPublishPanel(props: {
               >
                 <option value="">{translate('auto.k1411')}</option>
                 {props.releaseReadinessWorkOrderStatuses.map((status) => (
-                  <option key={status} value={status}>{status}</option>
+                  <option key={status} value={status}>{dictionaryLabel(status)}</option>
                 ))}
               </select>
             </label>
@@ -305,7 +306,7 @@ export function TestDesignPublishPanel(props: {
                   {approval.latestNotePreview ? <small>{translate('auto.k1418')}{approval.latestNotePreview}</small> : null}
                 </div>
                 <div className="test-design-release-readiness-approval-actions">
-                  <span className={`badge badge-${releaseReadinessStatusTone(approval.status)}`}>{approval.status}</span>
+                  <span className={`badge badge-${releaseReadinessStatusTone(approval.status)}`} title={approval.status}>{dictionaryLabel(approval.status)}</span>
                   <button
                     className="btn btn-secondary btn-xs"
                     type="button"
@@ -329,8 +330,8 @@ export function TestDesignPublishPanel(props: {
                 onChange={(event) => props.onReleaseReadinessDraftChange((current) => ({ ...current, noteType: event.target.value === 'WORK_ORDER' ? 'WORK_ORDER' : 'COMMENT' }))}
                 disabled={!props.canPublish || props.releaseReadinessState.loading || !props.selectedReleaseReadinessApprovalId}
               >
-                <option value="COMMENT">COMMENT</option>
-                <option value="WORK_ORDER">WORK_ORDER</option>
+                <option value="COMMENT">{dictionaryLabel('COMMENT')}</option>
+                <option value="WORK_ORDER">{dictionaryLabel('WORK_ORDER')}</option>
               </select>
             </label>
             <label className="field test-design-release-readiness-wide">
@@ -357,7 +358,7 @@ export function TestDesignPublishPanel(props: {
             {props.selectedReleaseReadinessApprovalId ? (
               props.releaseReadinessNotes.length ? props.releaseReadinessNotes.slice(-6).map((note) => (
                 <div className="test-design-release-readiness-note" key={note.id}>
-                  <span className="badge badge-neutral">{note.noteType}</span>
+                  <span className="badge badge-neutral" title={note.noteType}>{dictionaryLabel(note.noteType)}</span>
                   <em>{note.noteText}</em>
                   <small>{note.createdBy ?? '-'} · {note.createdAt ?? '-'}</small>
                 </div>
@@ -520,10 +521,10 @@ function ReportArchivePanel(props: {
             <div>
               <strong>{archive.storageBackend ?? 'DATABASE'} · {archive.contentSizeBytes} bytes</strong>
               <em>{translate('auto.k1571')}{archive.reportRowCount} {translate('auto.k1572')}{archive.lineIntegrityCount} {translate('auto.k1573')}{archive.retentionUntil ?? '-'}</em>
-              <small>{archive.contentDigest ? `sha256:${archive.contentDigest.slice(0, 12)}` : '-'} {translate('auto.k1574')}{archive.archiveContentStored ? 'ready' : 'pending'}</small>
+              <small>{archive.contentDigest ? `sha256:${archive.contentDigest.slice(0, 12)}` : '-'} {translate('auto.k1574')}{archive.archiveContentStored ? dictionaryLabel('READY') : dictionaryLabel('PENDING')}</small>
             </div>
             <div className="test-design-release-readiness-approval-actions">
-              <span className={`badge badge-${reportArchiveStatusTone(archive.status)}`}>{archive.status}</span>
+              <span className={`badge badge-${reportArchiveStatusTone(archive.status)}`} title={archive.status}>{dictionaryLabel(archive.status)}</span>
               <button
                 className="btn btn-secondary btn-xs"
                 type="button"
@@ -547,7 +548,7 @@ function ReportArchivePanel(props: {
             disabled={!props.canExport || props.state.loading || !props.selectedArchiveId}
           >
             {props.approvalTypes.map((type) => (
-              <option key={type} value={type}>{type}</option>
+              <option key={type} value={type}>{dictionaryLabel(type)}</option>
             ))}
           </select>
         </label>
@@ -559,7 +560,7 @@ function ReportArchivePanel(props: {
             disabled={!props.canExport || props.state.loading || !props.selectedArchiveId}
           >
             {props.reasonCodes.map((code) => (
-              <option key={code} value={code}>{code}</option>
+              <option key={code} value={code}>{dictionaryLabel(code)}</option>
             ))}
           </select>
         </label>
@@ -618,7 +619,7 @@ function ReportArchivePanel(props: {
             disabled={!props.canExport || props.state.loading || !props.selectedPendingApproval}
           >
             {props.reasonCodes.map((code) => (
-              <option key={code} value={code}>{code}</option>
+              <option key={code} value={code}>{dictionaryLabel(code)}</option>
             ))}
           </select>
         </label>
@@ -631,7 +632,7 @@ function ReportArchivePanel(props: {
           >
             <option value="">{translate('auto.k1411')}</option>
             {props.workOrderStatuses.map((status) => (
-              <option key={status} value={status}>{status}</option>
+              <option key={status} value={status}>{dictionaryLabel(status)}</option>
             ))}
           </select>
         </label>
@@ -669,12 +670,12 @@ function ReportArchivePanel(props: {
           <div className={`test-design-release-readiness-approval${props.selectedApprovalId === approval.id ? ' selected' : ''}`} key={approval.id}>
             <div>
               <strong>{approval.workOrderKey ?? approval.id}</strong>
-              <em>{approval.approvalType} · {approval.workOrderStatus ?? '-'}</em>
+              <em>{dictionaryLabel(approval.approvalType)} · {dictionaryLabel(approval.workOrderStatus)}</em>
               <small>{approval.requestSummaryDigest ? `sha256:${approval.requestSummaryDigest.slice(0, 12)}` : '-'} {translate('auto.k1417')}{approval.noteCount ?? 0}</small>
               {approval.latestNotePreview ? <small>{translate('auto.k1418')}{approval.latestNotePreview}</small> : null}
             </div>
             <div className="test-design-release-readiness-approval-actions">
-              <span className={`badge badge-${reportArchiveStatusTone(approval.status)}`}>{approval.status}</span>
+              <span className={`badge badge-${reportArchiveStatusTone(approval.status)}`} title={approval.status}>{dictionaryLabel(approval.status)}</span>
               <button
                 className="btn btn-secondary btn-xs"
                 type="button"
@@ -697,8 +698,8 @@ function ReportArchivePanel(props: {
             onChange={(event) => props.onDraftChange((current) => ({ ...current, noteType: event.target.value === 'WORK_ORDER' ? 'WORK_ORDER' : 'COMMENT' }))}
             disabled={!props.canExport || props.state.loading || !props.selectedApprovalId}
           >
-            <option value="COMMENT">COMMENT</option>
-            <option value="WORK_ORDER">WORK_ORDER</option>
+            <option value="COMMENT">{dictionaryLabel('COMMENT')}</option>
+            <option value="WORK_ORDER">{dictionaryLabel('WORK_ORDER')}</option>
           </select>
         </label>
         <label className="field test-design-release-readiness-wide">
@@ -725,7 +726,7 @@ function ReportArchivePanel(props: {
         {props.selectedApprovalId ? (
           props.notes.length ? props.notes.slice(-6).map((note) => (
             <div className="test-design-release-readiness-note" key={note.id}>
-              <span className="badge badge-neutral">{note.noteType}</span>
+              <span className="badge badge-neutral" title={note.noteType}>{dictionaryLabel(note.noteType)}</span>
               <em>{note.noteText}</em>
               <small>{note.createdBy ?? '-'} · {note.createdAt ?? '-'}</small>
             </div>

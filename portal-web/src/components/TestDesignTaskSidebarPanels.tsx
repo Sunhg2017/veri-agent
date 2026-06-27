@@ -22,6 +22,7 @@ import {
 import { StateLine, type WorkState } from './TestDesignOverviewPanels';
 import { GenerationSourceBadge } from './TestDesignWorkbenchShared';
 import { taskGenerationSource } from '../testDesignGenerationSource';
+import { dictionaryLabel } from '../platform/dictionaries';
 import { translate } from '../platform/i18n';
 
 export function TestDesignGenerationConfigPanel(props: {
@@ -111,7 +112,7 @@ export function TestDesignGenerationConfigPanel(props: {
               {TEST_DESIGN_COVERAGE_TYPES.map((type) => (
                 <label key={type}>
                   <input type="checkbox" checked={draft.coverageTypes.includes(type)} onChange={() => props.onToggleCoverage(type)} disabled={!props.canGenerate || props.mutationState.loading} />
-                  <span>{type}</span>
+                  <span>{dictionaryLabel(type)}</span>
                 </label>
               ))}
             </div>
@@ -159,16 +160,16 @@ export function TestDesignTaskListPanel(props: {
             <span className="field-label">{translate('auto.k0182')}</span>
             <select value={props.taskFilters.status} onChange={(event) => props.onTaskFiltersChange((current) => ({ ...current, status: event.target.value }))} disabled={props.disabled || props.loadState.loading}>
               <option value="">{translate('auto.k0195')}</option>
-              <option value="DRAFT">DRAFT</option>
-              <option value="QUEUED">QUEUED</option>
-              <option value="RUNNING">RUNNING</option>
-              <option value="SUCCEEDED">SUCCEEDED</option>
-              <option value="PARTIAL_SUCCESS">PARTIAL_SUCCESS</option>
-              <option value="FAILED">FAILED</option>
-              <option value="CANCELLED">CANCELLED</option>
-              <option value="PUBLISH_QUEUED">PUBLISH_QUEUED</option>
-              <option value="PUBLISHING">PUBLISHING</option>
-              <option value="PUBLISHED">PUBLISHED</option>
+              <option value="DRAFT">{dictionaryLabel('DRAFT')}</option>
+              <option value="QUEUED">{dictionaryLabel('QUEUED')}</option>
+              <option value="RUNNING">{dictionaryLabel('RUNNING')}</option>
+              <option value="SUCCEEDED">{dictionaryLabel('SUCCEEDED')}</option>
+              <option value="PARTIAL_SUCCESS">{dictionaryLabel('PARTIAL_SUCCESS')}</option>
+              <option value="FAILED">{dictionaryLabel('FAILED')}</option>
+              <option value="CANCELLED">{dictionaryLabel('CANCELLED')}</option>
+              <option value="PUBLISH_QUEUED">{dictionaryLabel('PUBLISH_QUEUED')}</option>
+              <option value="PUBLISHING">{dictionaryLabel('PUBLISHING')}</option>
+              <option value="PUBLISHED">{dictionaryLabel('PUBLISHED')}</option>
             </select>
           </label>
           <label className="field">
@@ -185,7 +186,7 @@ export function TestDesignTaskListPanel(props: {
               <button type="button" className="quick-action-main" onClick={() => props.onSelectTask(task.id)}>
                 <span>
                   <strong>{task.title}</strong>
-                  <em>{task.status} · {task.generatedCount} / {task.confirmedCount}</em>
+                  <em>{dictionaryLabel(task.status)} · {task.generatedCount} / {task.confirmedCount}</em>
                   <GenerationSourceBadge source={taskGenerationSource(task)} compact />
                 </span>
               </button>

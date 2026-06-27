@@ -59,6 +59,7 @@ import {
   type WebhookEventView
 } from '../api/documentInput';
 import { hasPermission } from '../permissions';
+import { dictionaryLabel } from '../platform/dictionaries';
 import { translate } from '../platform/i18n';
 
 type WorkState = {
@@ -947,9 +948,9 @@ export function DocumentInputConsole(props: { signedIn: boolean; currentUser: Cu
                   onChange={(event) => setSourceDraft((current) => ({ ...current, status: event.target.value }))}
                 >
                   <option value="">{translate('auto.k0734')}</option>
-                  <option value="ENABLED">ENABLED</option>
-                  <option value="DISABLED">DISABLED</option>
-                  <option value="PLANNED">PLANNED</option>
+                  <option value="ENABLED">{dictionaryLabel('ENABLED')}</option>
+                  <option value="DISABLED">{dictionaryLabel('DISABLED')}</option>
+                  <option value="PLANNED">{dictionaryLabel('PLANNED')}</option>
                 </select>
               </label>
               <label className="field" htmlFor="source-code">
@@ -1497,13 +1498,13 @@ export function DocumentInputConsole(props: { signedIn: boolean; currentUser: Cu
                 aria-label={translate('auto.k0796')}
               >
                 <option value="">{translate('auto.k0367')}</option>
-                <option value="PENDING">PENDING</option>
-                <option value="CONFIRMED">CONFIRMED</option>
-                <option value="IGNORED">IGNORED</option>
-                <option value="PUBLISH_QUEUED">PUBLISH_QUEUED</option>
-                <option value="PUBLISHING">PUBLISHING</option>
-                <option value="PUBLISHED">PUBLISHED</option>
-                <option value="PUBLISH_FAILED">PUBLISH_FAILED</option>
+                <option value="PENDING">{dictionaryLabel('PENDING')}</option>
+                <option value="CONFIRMED">{dictionaryLabel('CONFIRMED')}</option>
+                <option value="IGNORED">{dictionaryLabel('IGNORED')}</option>
+                <option value="PUBLISH_QUEUED">{dictionaryLabel('PUBLISH_QUEUED')}</option>
+                <option value="PUBLISHING">{dictionaryLabel('PUBLISHING')}</option>
+                <option value="PUBLISHED">{dictionaryLabel('PUBLISHED')}</option>
+                <option value="PUBLISH_FAILED">{dictionaryLabel('PUBLISH_FAILED')}</option>
               </select>
               <input
                 type="text"
@@ -1755,13 +1756,13 @@ export function DocumentInputConsole(props: { signedIn: boolean; currentUser: Cu
                 onChange={(event) => setEventFilters((current) => ({ ...current, status: event.target.value }))}
               >
                 <option value="">{translate('auto.k0195')}</option>
-                <option value="FAILED">FAILED</option>
-                <option value="PROCESSING">PROCESSING</option>
-                <option value="PROCESSED">PROCESSED</option>
-                <option value="ACCEPTED">ACCEPTED</option>
-                <option value="REJECTED">REJECTED</option>
-                <option value="DEAD_LETTER">DEAD_LETTER</option>
-                <option value="REPLAYED">REPLAYED</option>
+                <option value="FAILED">{dictionaryLabel('FAILED')}</option>
+                <option value="PROCESSING">{dictionaryLabel('PROCESSING')}</option>
+                <option value="PROCESSED">{dictionaryLabel('PROCESSED')}</option>
+                <option value="ACCEPTED">{dictionaryLabel('ACCEPTED')}</option>
+                <option value="REJECTED">{dictionaryLabel('REJECTED')}</option>
+                <option value="DEAD_LETTER">{dictionaryLabel('DEAD_LETTER')}</option>
+                <option value="REPLAYED">{dictionaryLabel('REPLAYED')}</option>
               </select>
             </label>
           </div>
@@ -2028,7 +2029,7 @@ function DocumentStatusPill(props: { value: string }) {
       : negative.includes(normalized) || negative.includes(props.value)
         ? 'negative'
         : 'neutral';
-  return <span className={`status-pill ${tone}`}>{props.value}</span>;
+  return <span className={`status-pill ${tone}`} title={props.value}>{dictionaryLabel(props.value)}</span>;
 }
 
 function StatusMetric(props: { label: string; value: string; pill?: boolean }) {

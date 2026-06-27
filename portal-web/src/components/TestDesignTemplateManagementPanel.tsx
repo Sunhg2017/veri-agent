@@ -12,6 +12,7 @@ import {
   type TemplateDraft
 } from '../testDesignWorkbenchState';
 import { StateLine, type WorkState } from './TestDesignOverviewPanels';
+import { dictionaryLabel } from '../platform/dictionaries';
 import { translate } from '../platform/i18n';
 
 export function TestDesignTemplateManagementPanel(props: {
@@ -109,7 +110,7 @@ export function TestDesignTemplateManagementPanel(props: {
               <span className="field-label">{translate('auto.k1640')}</span>
               <select value={draft.generationStrategy} onChange={(event) => props.onTemplateDraftChange((current) => ({ ...current, generationStrategy: event.target.value }))} disabled={!props.canPolicyManage || props.state.loading}>
                 {TEST_DESIGN_GENERATION_STRATEGIES.map((strategy) => (
-                  <option key={strategy} value={strategy}>{strategy}</option>
+                  <option key={strategy} value={strategy}>{dictionaryLabel(strategy)}</option>
                 ))}
               </select>
             </label>
@@ -117,7 +118,7 @@ export function TestDesignTemplateManagementPanel(props: {
               <span className="field-label">{translate('auto.k1641')}</span>
               <select value={draft.coverageStrategy} onChange={(event) => props.onTemplateDraftChange((current) => ({ ...current, coverageStrategy: event.target.value }))} disabled={!props.canPolicyManage || props.state.loading}>
                 {TEST_DESIGN_COVERAGE_STRATEGIES.map((strategy) => (
-                  <option key={strategy} value={strategy}>{strategy}</option>
+                  <option key={strategy} value={strategy}>{dictionaryLabel(strategy)}</option>
                 ))}
               </select>
             </label>
@@ -140,7 +141,7 @@ export function TestDesignTemplateManagementPanel(props: {
               {TEST_DESIGN_COVERAGE_TYPES.map((type) => (
                 <label key={type}>
                   <input type="checkbox" checked={draft.coverageTypes.includes(type)} onChange={() => props.onToggleCoverage(type)} disabled={!props.canPolicyManage || props.state.loading} />
-                  <span>{type}</span>
+                  <span>{dictionaryLabel(type)}</span>
                 </label>
               ))}
             </div>

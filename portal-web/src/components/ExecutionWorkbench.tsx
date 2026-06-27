@@ -63,6 +63,7 @@ import {
   type ExecutionPlanDraft
 } from '../executionDagEditor';
 import { canUseButton, hasPermission } from '../permissions';
+import { dictionaryLabel } from '../platform/dictionaries';
 import { translate } from '../platform/i18n';
 
 type WorkState = {
@@ -680,9 +681,9 @@ export function ExecutionWorkbench(props: { signedIn: boolean; currentUser: Curr
               </Field>
               <Field label={translate('auto.k0182')}>
                 <select value={planDraft.status} onChange={(event) => setPlanDraftValue('status', event.target.value as ExecutionPlanDraft['status'])}>
-                  <option value="DRAFT">DRAFT</option>
-                  <option value="READY">READY</option>
-                  <option value="DISABLED">DISABLED</option>
+                  <option value="DRAFT">{dictionaryLabel('DRAFT')}</option>
+                  <option value="READY">{dictionaryLabel('READY')}</option>
+                  <option value="DISABLED">{dictionaryLabel('DISABLED')}</option>
                 </select>
               </Field>
             </div>
@@ -710,8 +711,8 @@ export function ExecutionWorkbench(props: { signedIn: boolean; currentUser: Curr
                     </Field>
                     <Field label={translate('auto.k0865')}>
                       <select value={node.type} onChange={(event) => setPlanNodeDraftValue(index, 'type', event.target.value as ExecutionDagNodeDraft['type'])}>
-                        <option value="API_TEST">API_TEST</option>
-                        <option value="REPORT_HANDOFF">REPORT_HANDOFF</option>
+                        <option value="API_TEST">{dictionaryLabel('API_TEST')}</option>
+                        <option value="REPORT_HANDOFF">{dictionaryLabel('REPORT_HANDOFF')}</option>
                       </select>
                     </Field>
                     <Field label={translate('auto.k0866')}>
@@ -756,9 +757,9 @@ export function ExecutionWorkbench(props: { signedIn: boolean; currentUser: Curr
                     </Field>
                     <Field label={translate('auto.k0868')}>
                       <select value={node.failurePolicy} onChange={(event) => setPlanNodeDraftValue(index, 'failurePolicy', event.target.value as ExecutionDagNodeDraft['failurePolicy'])}>
-                        <option value="FAIL_FAST">FAIL_FAST</option>
-                        <option value="CONTINUE">CONTINUE</option>
-                        <option value="BLOCK_DOWNSTREAM">BLOCK_DOWNSTREAM</option>
+                        <option value="FAIL_FAST">{dictionaryLabel('FAIL_FAST')}</option>
+                        <option value="CONTINUE">{dictionaryLabel('CONTINUE')}</option>
+                        <option value="BLOCK_DOWNSTREAM">{dictionaryLabel('BLOCK_DOWNSTREAM')}</option>
                       </select>
                     </Field>
                     <Field label={translate('auto.k0869')}>
@@ -1059,15 +1060,15 @@ export function ExecutionWorkbench(props: { signedIn: boolean; currentUser: Curr
             <form className="execution-trigger-form" onSubmit={onCreateTrigger}>
               <Field label={translate('auto.k0286')}>
                 <select value={triggerDraft.triggerType} onChange={(event) => setTriggerDraftValue('triggerType', event.target.value as TriggerDraft['triggerType'])}>
-                  <option value="WEBHOOK">WEBHOOK</option>
-                  <option value="CRON">CRON</option>
+                  <option value="WEBHOOK">{dictionaryLabel('WEBHOOK')}</option>
+                  <option value="CRON">{dictionaryLabel('CRON')}</option>
                 </select>
               </Field>
               <Field label={translate('auto.k0182')}>
                 <select value={triggerDraft.status} onChange={(event) => setTriggerDraftValue('status', event.target.value as TriggerDraft['status'])}>
-                  <option value="DISABLED">DISABLED</option>
-                  <option value="ENABLED">ENABLED</option>
-                  <option value="PAUSED">PAUSED</option>
+                  <option value="DISABLED">{dictionaryLabel('DISABLED')}</option>
+                  <option value="ENABLED">{dictionaryLabel('ENABLED')}</option>
+                  <option value="PAUSED">{dictionaryLabel('PAUSED')}</option>
                 </select>
               </Field>
               <Field label={triggerDraft.triggerType === 'WEBHOOK' ? 'source' : 'cron'}>
@@ -1250,7 +1251,7 @@ function StatusBadge(props: { status: string }) {
     : ['READY', 'RUNNING', 'QUEUED', 'ENABLED', 'ACCEPTED', 'SUCCEEDED', 'API_TEST'].includes(status) ? 'success'
       : status === 'PARTIAL_SUCCESS' || status === 'PAUSED' || status === 'REPORT_HANDOFF' ? 'warning'
         : 'neutral';
-  return <span className={`status-badge ${tone}`}>{status}</span>;
+  return <span className={`status-badge ${tone}`} title={status}>{dictionaryLabel(status)}</span>;
 }
 
 function activeRunStatus(status: string) {

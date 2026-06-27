@@ -17,6 +17,7 @@ import type {
   TestDesignQueuedEventReplayResult
 } from '../api/testDesign';
 import { StateLine, type WorkState } from './TestDesignOverviewPanels';
+import { dictionaryLabel } from '../platform/dictionaries';
 import { translate } from '../platform/i18n';
 
 export type CrossWpOperationsFilters = {
@@ -182,7 +183,7 @@ export function CrossWpOperationsPanel(props: {
               <div className={`test-design-quality-metric tone-${(runbook?.eligibleCandidateCount ?? 0) > 0 ? 'warning' : 'success'}`}>
                 <span>{translate('auto.k1437')}</span>
                 <strong>{runbook?.eligibleCandidateCount ?? 0}</strong>
-                <small>{translate('auto.k1348')}{runbook?.effectiveBatchSize ?? 0} {translate('auto.k1438')}{runbook?.manualRunSupported ? 'ready' : 'blocked'}</small>
+                <small>{translate('auto.k1348')}{runbook?.effectiveBatchSize ?? 0} {translate('auto.k1438')}{runbook?.manualRunSupported ? dictionaryLabel('READY') : dictionaryLabel('BLOCKED')}</small>
               </div>
               <div className="test-design-quality-metric tone-info">
                 <span>{translate('auto.k1439')}</span>
@@ -199,11 +200,11 @@ export function CrossWpOperationsPanel(props: {
             <div className="test-design-cross-wp-readiness">
               {dashboard.readiness.map((item) => (
                 <span className={`test-design-quality-chip tone-${item.tone}`} key={item.code}>
-                  {item.label} {item.ready ? 'ready' : 'blocked'}
+                  {item.label} {item.ready ? dictionaryLabel('READY') : dictionaryLabel('BLOCKED')}
                 </span>
               ))}
               <span className={`test-design-quality-chip tone-${dashboard.aggregateOnly && !dashboard.detailIdentifiersExported ? 'success' : 'warning'}`}>
-                aggregate-only {dashboard.aggregateOnly && !dashboard.detailIdentifiersExported ? 'on' : 'check'}
+                aggregate-only {dashboard.aggregateOnly && !dashboard.detailIdentifiersExported ? dictionaryLabel('ENABLED') : translate('auto.k0093')}
               </span>
             </div>
 
@@ -225,7 +226,7 @@ export function CrossWpOperationsPanel(props: {
                 </div>
                 <div className="test-design-cross-wp-row">
                   <span>{translate('auto.k1447')}</span>
-                  <strong>{dashboard.detailIdentifiersExported ? 'ON' : 'OFF'}</strong>
+                  <strong>{dashboard.detailIdentifiersExported ? dictionaryLabel('ENABLED') : dictionaryLabel('DISABLED')}</strong>
                   <small>{translate('auto.k1448')}</small>
                 </div>
               </div>
@@ -253,7 +254,7 @@ export function CrossWpOperationsPanel(props: {
                       disabled={!props.canPolicyManage}
                     >
                       {auditOutboxReplayStatuses.map((status) => (
-                        <option key={status} value={status}>{status}</option>
+                        <option key={status} value={status}>{dictionaryLabel(status)}</option>
                       ))}
                     </select>
                   </label>
@@ -324,7 +325,7 @@ export function CrossWpOperationsPanel(props: {
                       disabled={!props.canPolicyManage}
                     >
                       {queueAlertTypes.map((type) => (
-                        <option key={type} value={type}>{type}</option>
+                        <option key={type} value={type}>{dictionaryLabel(type)}</option>
                       ))}
                     </select>
                   </label>
@@ -336,7 +337,7 @@ export function CrossWpOperationsPanel(props: {
                       disabled={!props.canPolicyManage}
                     >
                       {queueAlertChannels.map((channel) => (
-                        <option key={channel} value={channel}>{channel}</option>
+                        <option key={channel} value={channel}>{dictionaryLabel(channel)}</option>
                       ))}
                     </select>
                   </label>
@@ -376,7 +377,7 @@ export function CrossWpOperationsPanel(props: {
                     {translate('auto.k1458')}</button>
                   {props.queueAlertSubscriptionResult && (
                     <span className="test-design-cross-wp-result">
-                      {props.queueAlertSubscriptionResult.alertType} · {props.queueAlertSubscriptionResult.channel}
+                      {dictionaryLabel(props.queueAlertSubscriptionResult.alertType)} · {dictionaryLabel(props.queueAlertSubscriptionResult.channel)}
                     </span>
                   )}
                 </div>
@@ -414,7 +415,7 @@ export function CrossWpOperationsPanel(props: {
                       disabled={!props.canPolicyManage}
                     >
                       {queuedEventReplayTypes.map((type) => (
-                        <option key={type} value={type}>{type}</option>
+                        <option key={type} value={type}>{dictionaryLabel(type)}</option>
                       ))}
                     </select>
                   </label>
@@ -461,7 +462,7 @@ export function CrossWpOperationsPanel(props: {
                 <div className="test-design-cross-wp-readiness">
                   {(runbook?.steps ?? []).map((step) => (
                     <span className={`test-design-quality-chip tone-${step.tone}`} key={step.code}>
-                      {step.label} {step.ready ? 'ready' : 'blocked'}
+                      {step.label} {step.ready ? dictionaryLabel('READY') : dictionaryLabel('BLOCKED')}
                     </span>
                   ))}
                 </div>
@@ -541,10 +542,10 @@ export function CrossWpOperationsPanel(props: {
                 </div>
                 <div className="test-design-cross-wp-readiness">
                   <span className={`test-design-quality-chip tone-${auditReport?.aggregateOnly && !auditReport?.detailRowsExported ? 'success' : 'warning'}`}>
-                    aggregate-only {auditReport?.aggregateOnly && !auditReport?.detailRowsExported ? 'on' : 'check'}
+                    aggregate-only {auditReport?.aggregateOnly && !auditReport?.detailRowsExported ? dictionaryLabel('ENABLED') : translate('auto.k0093')}
                   </span>
                   <span className={`test-design-quality-chip tone-${auditReport?.exportSupported ? 'success' : 'warning'}`}>
-                    export {auditReport?.exportSupported ? 'ready' : 'blocked'}
+                    export {auditReport?.exportSupported ? dictionaryLabel('READY') : dictionaryLabel('BLOCKED')}
                   </span>
                 </div>
                 <div className="test-design-cross-wp-row">
@@ -563,13 +564,13 @@ export function CrossWpOperationsPanel(props: {
                 </div>
                 <div className="test-design-cross-wp-readiness">
                   <span className={`test-design-quality-chip tone-${auditTemplate?.aggregateOnly && !auditTemplate?.identifierValuesExported ? 'success' : 'warning'}`}>
-                    aggregate-only {auditTemplate?.aggregateOnly ? 'on' : 'check'}
+                    aggregate-only {auditTemplate?.aggregateOnly ? dictionaryLabel('ENABLED') : translate('auto.k0093')}
                   </span>
                   <span className={`test-design-quality-chip tone-${auditTemplate?.modelObservationDrilldownSupported ? 'success' : 'warning'}`}>
-                    model drilldown {auditTemplate?.modelObservationDrilldownSupported ? 'ready' : 'blocked'}
+                    model drilldown {auditTemplate?.modelObservationDrilldownSupported ? dictionaryLabel('READY') : dictionaryLabel('BLOCKED')}
                   </span>
                   <span className={`test-design-quality-chip tone-${auditTemplate?.crossWpDetailReportSupported ? 'success' : 'warning'}`}>
-                    detail report {auditTemplate?.crossWpDetailReportSupported ? 'ready' : 'blocked'}
+                    detail report {auditTemplate?.crossWpDetailReportSupported ? dictionaryLabel('READY') : dictionaryLabel('BLOCKED')}
                   </span>
                 </div>
                 <div className="test-design-cross-wp-list">
@@ -645,7 +646,7 @@ export function CrossWpOperationsPanel(props: {
                   <div className="test-design-cross-wp-row" key={`${row.section}-${row.category}-${row.status}`}>
                     <span>
                       <strong>{row.section} · {row.category}</strong>
-                      <em>{row.status} {translate('auto.k1481')}{row.successCount} {translate('auto.k1477')}{row.failedCount} {translate('auto.k1482')}{row.warningCount}</em>
+                      <em>{dictionaryLabel(row.status)} {translate('auto.k1481')}{row.successCount} {translate('auto.k1477')}{row.failedCount} {translate('auto.k1482')}{row.warningCount}</em>
                       <small>{row.latestEventAt ?? '-'}</small>
                     </span>
                     <span className="badge badge-info">{row.eventCount}</span>
@@ -688,8 +689,8 @@ export function CrossWpOperationsPanel(props: {
                       props.queueAlertSubscriptions.map((subscription) => (
                         <div className="test-design-cross-wp-row" key={subscription.id}>
                           <span>
-                            <strong>{subscription.alertType}</strong>
-                            <em>{subscription.channel} · {subscription.targetRef}</em>
+                            <strong title={subscription.alertType}>{dictionaryLabel(subscription.alertType)}</strong>
+                            <em>{dictionaryLabel(subscription.channel)} · {subscription.targetRef}</em>
                             <small>{subscription.promptKey || translate('auto.k1493')}</small>
                           </span>
                           <span className={`badge badge-${subscription.enabled ? 'success' : 'neutral'}`}>

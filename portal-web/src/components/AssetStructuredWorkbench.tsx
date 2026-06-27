@@ -46,6 +46,7 @@ import {
 import { hasPermission } from '../permissions';
 import { AssetImportExportPanel } from './AssetImportExportPanel';
 import { AssetVersionHistoryPanel } from './AssetVersionHistoryPanel';
+import { dictionaryLabel } from '../platform/dictionaries';
 import { translate } from '../platform/i18n';
 
 export type AssetNavigationKey = 'requirements' | 'apis' | 'pages' | 'flows' | 'cases' | 'trace';
@@ -537,9 +538,7 @@ export function AssetStructuredWorkbench(props: {
               >
                 <option value="">{translate('auto.k0367')}</option>
                 {meta.statuses.map((status) => (
-                  <option key={status} value={status}>
-                    {status}
-                  </option>
+                  <option key={status} value={status}>{dictionaryLabel(status)}</option>
                 ))}
               </select>
             </label>
@@ -554,9 +553,7 @@ export function AssetStructuredWorkbench(props: {
                 >
                   <option value="">{translate('auto.k0414')}</option>
                   {ASSET_PAGE_SOURCES.map((source) => (
-                    <option key={source} value={source}>
-                      {source}
-                    </option>
+                    <option key={source} value={source}>{dictionaryLabel(source)}</option>
                   ))}
                 </select>
               </label>
@@ -701,9 +698,9 @@ export function AssetStructuredWorkbench(props: {
                     disabled={prototypeSyncState.loading}
                     onChange={(event) => setPrototypeSyncDraft((current) => ({ ...current, source: event.target.value }))}
                   >
-                    <option value="FIGMA">FIGMA</option>
-                    <option value="LANHU">LANHU</option>
-                    <option value="AXURE">AXURE</option>
+                    <option value="FIGMA">{dictionaryLabel('FIGMA')}</option>
+                    <option value="LANHU">{dictionaryLabel('LANHU')}</option>
+                    <option value="AXURE">{dictionaryLabel('AXURE')}</option>
                   </select>
                 </label>
                 <label className="field" htmlFor="asset-prototype-version">
@@ -933,9 +930,7 @@ function StructuredAssetForm(props: {
                 onChange={(event) => props.onChange((current) => ({ ...current, source: event.target.value }))}
               >
                 {ASSET_PAGE_SOURCES.map((source) => (
-                  <option key={source} value={source}>
-                    {source}
-                  </option>
+                  <option key={source} value={source}>{dictionaryLabel(source)}</option>
                 ))}
               </select>
             </label>
@@ -981,9 +976,7 @@ function StructuredAssetForm(props: {
                 onChange={(event) => props.onChange((current) => ({ ...current, priority: event.target.value }))}
               >
                 {ASSET_REQUIREMENT_PRIORITIES.map((priority) => (
-                  <option key={priority} value={priority}>
-                    {priority}
-                  </option>
+                  <option key={priority} value={priority}>{dictionaryLabel(priority)}</option>
                 ))}
               </select>
             </label>
@@ -998,9 +991,7 @@ function StructuredAssetForm(props: {
             onChange={(event) => props.onChange((current) => ({ ...current, status: event.target.value }))}
           >
             {statusOptions.map((status) => (
-              <option key={status} value={status}>
-                {status}
-              </option>
+              <option key={status} value={status}>{dictionaryLabel(status)}</option>
             ))}
           </select>
         </label>
@@ -1343,5 +1334,5 @@ function AssetStatusPill(props: { value: string }) {
       : ['DEPRECATED', 'REMOVED', 'ARCHIVED', 'FAILED', 'DOWN', 'OFF', 'ERROR'].includes(normalized)
         ? 'negative'
         : 'neutral';
-  return <span className={`status-pill ${tone}`}>{value}</span>;
+  return <span className={`status-pill ${tone}`} title={value}>{dictionaryLabel(value)}</span>;
 }

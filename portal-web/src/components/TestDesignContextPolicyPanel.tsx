@@ -24,6 +24,7 @@ import {
   contextPolicyOverrideLimitText,
   contextPolicyStatusTone
 } from './TestDesignWorkbenchShared';
+import { dictionaryLabel } from '../platform/dictionaries';
 import { translate } from '../platform/i18n';
 
 export function TestDesignContextPolicyPanel(props: {
@@ -93,8 +94,8 @@ export function TestDesignContextPolicyPanel(props: {
               onChange={(event) => props.onDraftChange((current) => ({ ...current, scopeType: event.target.value === 'ENVIRONMENT' ? 'ENVIRONMENT' : 'PROJECT' }))}
               disabled={!props.canPolicyManage || state.loading}
             >
-              <option value="PROJECT">PROJECT</option>
-              <option value="ENVIRONMENT">ENVIRONMENT</option>
+              <option value="PROJECT">{dictionaryLabel('PROJECT')}</option>
+              <option value="ENVIRONMENT">{dictionaryLabel('ENVIRONMENT')}</option>
             </select>
           </label>
           <label className="field">
@@ -105,7 +106,7 @@ export function TestDesignContextPolicyPanel(props: {
               disabled={!props.canPolicyManage || state.loading}
             >
               {TEST_DESIGN_CONTEXT_POLICY_REASON_CODES.map((code) => (
-                <option key={code} value={code}>{code}</option>
+                <option key={code} value={code}>{dictionaryLabel(code)}</option>
               ))}
             </select>
           </label>
@@ -250,7 +251,7 @@ export function TestDesignContextPolicyPanel(props: {
               disabled={!props.canPolicyManage || state.loading}
             >
               {TEST_DESIGN_CONTEXT_POLICY_REASON_CODES.map((code) => (
-                <option key={code} value={code}>{code}</option>
+                <option key={code} value={code}>{dictionaryLabel(code)}</option>
               ))}
             </select>
           </label>
@@ -263,7 +264,7 @@ export function TestDesignContextPolicyPanel(props: {
             >
               <option value="">{translate('auto.k1411')}</option>
               {TEST_DESIGN_CONTEXT_POLICY_WORK_ORDER_STATUSES.map((status) => (
-                <option key={status} value={status}>{status}</option>
+                <option key={status} value={status}>{dictionaryLabel(status)}</option>
               ))}
             </select>
           </label>
@@ -286,8 +287,8 @@ export function TestDesignContextPolicyPanel(props: {
               onChange={(event) => props.onDraftChange((current) => ({ ...current, noteType: event.target.value === 'WORK_ORDER' ? 'WORK_ORDER' : 'COMMENT' }))}
               disabled={!props.canPolicyManage || state.loading || !props.selectedOverrideId}
             >
-              <option value="COMMENT">COMMENT</option>
-              <option value="WORK_ORDER">WORK_ORDER</option>
+              <option value="COMMENT">{dictionaryLabel('COMMENT')}</option>
+              <option value="WORK_ORDER">{dictionaryLabel('WORK_ORDER')}</option>
             </select>
           </label>
           <label className="field test-design-context-policy-wide">
@@ -321,7 +322,7 @@ export function TestDesignContextPolicyPanel(props: {
                 {override.latestNotePreview ? <small>{translate('auto.k1418')}{override.latestNotePreview}</small> : null}
               </div>
               <div className="test-design-context-policy-override-actions">
-                <span className={`badge badge-${contextPolicyStatusTone(override.status)}`}>{override.status}</span>
+                <span className={`badge badge-${contextPolicyStatusTone(override.status)}`} title={override.status}>{dictionaryLabel(override.status)}</span>
                 <button
                   className="btn btn-secondary btn-xs"
                   type="button"
@@ -362,7 +363,7 @@ export function TestDesignContextPolicyPanel(props: {
           {props.selectedOverrideId ? (
             props.notes.length ? props.notes.slice(-6).map((note) => (
               <div className="test-design-context-policy-note" key={note.id}>
-                <span className="badge badge-neutral">{note.noteType}</span>
+                <span className="badge badge-neutral" title={note.noteType}>{dictionaryLabel(note.noteType)}</span>
                 <em>{note.noteText}</em>
                 <small>{note.createdBy ?? '-'} · {note.createdAt ?? '-'}</small>
               </div>

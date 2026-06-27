@@ -40,6 +40,7 @@ import {
   type ReportSummary
 } from '../api/reports';
 import { canUseButton, hasPermission } from '../permissions';
+import { dictionaryLabel } from '../platform/dictionaries';
 import { translate } from '../platform/i18n';
 
 type WorkState = {
@@ -447,11 +448,11 @@ export function ReportsWorkbench(props: { signedIn: boolean; currentUser: Curren
               <Field label="status">
                 <select value={filters.status} onChange={(event) => setFilters((current) => ({ ...current, status: event.target.value }))}>
                   <option value="">{translate('auto.k0195')}</option>
-                  <option value="READY">READY</option>
-                  <option value="FAILED">FAILED</option>
-                  <option value="QUEUED">QUEUED</option>
-                  <option value="GENERATING">GENERATING</option>
-                  <option value="ARCHIVED">ARCHIVED</option>
+                  <option value="READY">{dictionaryLabel('READY')}</option>
+                  <option value="FAILED">{dictionaryLabel('FAILED')}</option>
+                  <option value="QUEUED">{dictionaryLabel('QUEUED')}</option>
+                  <option value="GENERATING">{dictionaryLabel('GENERATING')}</option>
+                  <option value="ARCHIVED">{dictionaryLabel('ARCHIVED')}</option>
                 </select>
               </Field>
               <div className="report-filter-actions">
@@ -547,7 +548,7 @@ export function ReportsWorkbench(props: { signedIn: boolean; currentUser: Curren
                       className="report-list-button"
                       onClick={() => setSelectedReportId(report.id)}
                     >
-                      <span className={`badge badge-${statusTone(report.status)}`}>{report.status}</span>
+                      <span className={`badge badge-${statusTone(report.status)}`} title={report.status}>{dictionaryLabel(report.status)}</span>
                       <strong>{shortId(report.executionRunId)}</strong>
                       <span>{stringFrom(report.summary.runStatus, '-')} · {stringFrom(report.summary.diagnosisPrimaryCategory, 'UNKNOWN')}</span>
                       <small>{report.generatedAt ? formatDateTime(report.generatedAt) : report.createdAt ? formatDateTime(report.createdAt) : report.id}</small>
@@ -648,7 +649,7 @@ function ReportDetailPanel(props: {
       ) : <span className="badge badge-neutral">{translate('auto.k1153')}</span>}
     >
       <div className="report-detail-header">
-        <span className={`badge badge-${statusTone(props.detail.status)}`}>{props.detail.status}</span>
+        <span className={`badge badge-${statusTone(props.detail.status)}`} title={props.detail.status}>{dictionaryLabel(props.detail.status)}</span>
         <span className="report-mono">{props.detail.id}</span>
       </div>
       <div className="report-summary-grid">
@@ -850,7 +851,7 @@ function DefectDraftPanel(props: {
             <div className="report-mini-card" key={draft.id}>
               <div className="report-card-heading">
                 <strong>{draft.title || translate('auto.k1174')}</strong>
-                <span className={`badge badge-${statusTone(draft.status)}`}>{draft.status}</span>
+                <span className={`badge badge-${statusTone(draft.status)}`} title={draft.status}>{dictionaryLabel(draft.status)}</span>
               </div>
               <span>{draft.reproductionSummary || '-'}</span>
               <small>{draft.impactSummary || '-'}</small>

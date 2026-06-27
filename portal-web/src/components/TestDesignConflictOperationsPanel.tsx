@@ -31,6 +31,7 @@ import {
   publishRecordKey,
   shortIdentifier
 } from './TestDesignWorkbenchShared';
+import { dictionaryLabel } from '../platform/dictionaries';
 import { translate } from '../platform/i18n';
 
 export function TestDesignConflictOperationsPanel(props: {
@@ -121,9 +122,9 @@ export function TestDesignConflictOperationsPanel(props: {
               }))}
               disabled={!props.canRead || props.state.loading}
             >
-              <option value="OPEN">OPEN</option>
-              <option value="RESOLVED">RESOLVED</option>
-              <option value="ALL">ALL</option>
+              <option value="OPEN">{dictionaryLabel('OPEN')}</option>
+              <option value="RESOLVED">{dictionaryLabel('RESOLVED')}</option>
+              <option value="ALL">{dictionaryLabel('ALL')}</option>
             </select>
           </label>
           <label className="field">
@@ -135,7 +136,7 @@ export function TestDesignConflictOperationsPanel(props: {
             >
               <option value="">{translate('auto.k0195')}</option>
               {TEST_DESIGN_CANDIDATE_STATUSES.map((status) => (
-                <option value={status} key={status}>{status}</option>
+                <option value={status} key={status}>{dictionaryLabel(status)}</option>
               ))}
             </select>
           </label>

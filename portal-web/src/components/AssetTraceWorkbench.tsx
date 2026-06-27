@@ -41,6 +41,7 @@ import {
 import { hasPermission } from '../permissions';
 import type { AssetNavigationKey } from './AssetStructuredWorkbench';
 import { AssetTraceTopologyPanel, describeTopologyFocus } from './AssetTraceTopologyPanel';
+import { dictionaryLabel } from '../platform/dictionaries';
 import { translate } from '../platform/i18n';
 
 type AssetNavigationTab = {
@@ -442,7 +443,7 @@ export function AssetTraceWorkbench(props: {
               >
                 <option value="">{translate('auto.k0195')}</option>
                 {ASSET_REQUIREMENT_STATUSES.map((status) => (
-                  <option key={status} value={status}>{status}</option>
+                  <option key={status} value={status}>{dictionaryLabel(status)}</option>
                 ))}
               </select>
             </label>
@@ -456,7 +457,7 @@ export function AssetTraceWorkbench(props: {
               >
                 <option value="">{translate('auto.k0195')}</option>
                 {ASSET_API_STATUSES.map((status) => (
-                  <option key={status} value={status}>{status}</option>
+                  <option key={status} value={status}>{dictionaryLabel(status)}</option>
                 ))}
               </select>
             </label>
@@ -470,7 +471,7 @@ export function AssetTraceWorkbench(props: {
               >
                 <option value="">{translate('auto.k0195')}</option>
                 {ASSET_PAGE_STATUSES.map((status) => (
-                  <option key={status} value={status}>{status}</option>
+                  <option key={status} value={status}>{dictionaryLabel(status)}</option>
                 ))}
               </select>
             </label>
@@ -484,7 +485,7 @@ export function AssetTraceWorkbench(props: {
               >
                 <option value="">{translate('auto.k0195')}</option>
                 {ASSET_FLOW_STATUSES.map((status) => (
-                  <option key={status} value={status}>{status}</option>
+                  <option key={status} value={status}>{dictionaryLabel(status)}</option>
                 ))}
               </select>
             </label>
@@ -498,7 +499,7 @@ export function AssetTraceWorkbench(props: {
               >
                 <option value="">{translate('auto.k0195')}</option>
                 {ASSET_TEST_CASE_STATUSES.map((status) => (
-                  <option key={status} value={status}>{status}</option>
+                  <option key={status} value={status}>{dictionaryLabel(status)}</option>
                 ))}
               </select>
             </label>
@@ -596,7 +597,7 @@ export function AssetTraceWorkbench(props: {
                           render={(item) => (
                             <>
                               <strong>{item.title}</strong>
-                              <em>{item.status}</em>
+                              <em>{dictionaryLabel(item.status)}</em>
                             </>
                           )}
                         />
@@ -672,7 +673,7 @@ export function AssetTraceWorkbench(props: {
               render={(page) => (
                 <button className="trace-chip" type="button" onClick={() => selectSubject({ type: 'page', id: page.id })}>
                   <strong>{page.name}</strong>
-                  <span>{page.urlPattern ?? page.status}</span>
+                  <span>{page.urlPattern ?? dictionaryLabel(page.status)}</span>
                 </button>
               )}
             />
@@ -683,7 +684,7 @@ export function AssetTraceWorkbench(props: {
               render={(flow) => (
                 <button className="trace-chip" type="button" onClick={() => selectSubject({ type: 'flow', id: flow.id })}>
                   <strong>{flow.name}</strong>
-                  <span>{flow.status}</span>
+                  <span>{dictionaryLabel(flow.status)}</span>
                 </button>
               )}
             />
@@ -694,7 +695,7 @@ export function AssetTraceWorkbench(props: {
               render={(item) => (
                 <button className="trace-chip" type="button" onClick={() => selectSubject({ type: 'case', id: item.id })}>
                   <strong>{item.title}</strong>
-                  <span>{item.status}</span>
+                  <span>{dictionaryLabel(item.status)}</span>
                 </button>
               )}
             />
@@ -1050,8 +1051,8 @@ function ImpactPanel(props: {
         <div className="resource-summary">
           <strong>{row.requirement.title}</strong>
           <div><span>projectId</span><em>{row.requirement.projectId ?? '-'}</em></div>
-          <div><span>priority</span><em>{row.requirement.priority}</em></div>
-          <div><span>status</span><em>{row.requirement.status}</em></div>
+          <div><span>priority</span><em>{dictionaryLabel(row.requirement.priority)}</em></div>
+          <div><span>status</span><em>{dictionaryLabel(row.requirement.status)}</em></div>
           <div><span>id</span><em>{row.requirement.id}</em></div>
         </div>
         <div className="asset-source-trace">
@@ -1133,7 +1134,7 @@ function ImpactPanel(props: {
           <strong>{api.summary}</strong>
           <div><span>method</span><em>{api.httpMethod}</em></div>
           <div><span>path</span><em>{api.path}</em></div>
-          <div><span>status</span><em>{api.status}</em></div>
+          <div><span>status</span><em>{dictionaryLabel(api.status)}</em></div>
           <div><span>id</span><em>{api.id}</em></div>
         </div>
         <div className="asset-source-trace">
@@ -1188,7 +1189,7 @@ function ImpactPanel(props: {
           <strong>{page.name}</strong>
           <div><span>projectId</span><em>{page.projectId ?? '-'}</em></div>
           <div><span>urlPattern</span><em>{page.urlPattern ?? '-'}</em></div>
-          <div><span>status</span><em>{page.status}</em></div>
+          <div><span>status</span><em>{dictionaryLabel(page.status)}</em></div>
           <div><span>id</span><em>{page.id}</em></div>
         </div>
         <div className="asset-source-trace">
@@ -1229,8 +1230,8 @@ function ImpactPanel(props: {
         <div className="resource-summary">
           <strong>{flow.name}</strong>
           <div><span>projectId</span><em>{flow.projectId ?? '-'}</em></div>
-          <div><span>priority</span><em>{flow.priority}</em></div>
-          <div><span>status</span><em>{flow.status}</em></div>
+          <div><span>priority</span><em>{dictionaryLabel(flow.priority)}</em></div>
+          <div><span>status</span><em>{dictionaryLabel(flow.status)}</em></div>
           <div><span>id</span><em>{flow.id}</em></div>
         </div>
         <div className="asset-source-trace">
@@ -1271,8 +1272,8 @@ function ImpactPanel(props: {
       <div className="resource-summary">
         <strong>{testCase.title}</strong>
         <div><span>projectId</span><em>{testCase.projectId ?? '-'}</em></div>
-        <div><span>priority</span><em>{testCase.priority}</em></div>
-        <div><span>status</span><em>{testCase.status}</em></div>
+        <div><span>priority</span><em>{dictionaryLabel(testCase.priority)}</em></div>
+        <div><span>status</span><em>{dictionaryLabel(testCase.status)}</em></div>
         <div><span>id</span><em>{testCase.id}</em></div>
       </div>
       <div className="asset-source-trace">

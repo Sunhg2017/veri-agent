@@ -9,6 +9,7 @@ import {
 } from '../api/assets';
 import type { CurrentUser } from '../api/auth';
 import { hasPermission } from '../permissions';
+import { dictionaryLabel } from '../platform/dictionaries';
 import { translate } from '../platform/i18n';
 
 type WorkState = {
@@ -129,7 +130,7 @@ export function AssetImportExportPanel(props: {
               onChange={(event) => updateAssetType(event.target.value as AssetImportExportType)}
             >
               {assetTypeOptions.map((assetType) => (
-                <option key={assetType} value={assetType}>{assetType}</option>
+                <option key={assetType} value={assetType}>{dictionaryLabel(assetType)}</option>
               ))}
             </select>
           </label>
@@ -142,7 +143,7 @@ export function AssetImportExportPanel(props: {
               onChange={(event) => setDraft((current) => ({ ...current, format: event.target.value as AssetImportExportFormat }))}
             >
               {formatOptions.map((format) => (
-                <option key={format} value={format}>{format}</option>
+                <option key={format} value={format}>{dictionaryLabel(format)}</option>
               ))}
             </select>
           </label>

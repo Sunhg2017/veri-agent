@@ -23,6 +23,7 @@ import {
   sampleStatusTone,
   shortIdentifier
 } from './TestDesignWorkbenchShared';
+import { dictionaryLabel } from '../platform/dictionaries';
 import { translate } from '../platform/i18n';
 
 export type EvaluationSampleFilters = {
@@ -176,7 +177,7 @@ export function EvaluationCorpusOperationsPanel(props: {
             >
               <option value="">{translate('auto.k0195')}</option>
               {evaluationSampleStatuses.map((status) => (
-                <option key={status} value={status}>{status}</option>
+                <option key={status} value={status}>{dictionaryLabel(status)}</option>
               ))}
             </select>
           </label>
@@ -188,7 +189,7 @@ export function EvaluationCorpusOperationsPanel(props: {
             >
               <option value="">{translate('auto.k0195')}</option>
               {TEST_DESIGN_COVERAGE_TYPES.map((coverageType) => (
-                <option key={coverageType} value={coverageType}>{coverageType}</option>
+                <option key={coverageType} value={coverageType}>{dictionaryLabel(coverageType)}</option>
               ))}
             </select>
           </label>
@@ -215,7 +216,7 @@ export function EvaluationCorpusOperationsPanel(props: {
             <div className="test-design-evaluation-form-heading">
               <strong>{selectedSample ? translate('auto.k1511') : translate('auto.k1503')}</strong>
               {selectedSample && (
-                <span className={`badge badge-${sampleStatusTone(selectedSample.status)}`}>{selectedSample.status}</span>
+                <span className={`badge badge-${sampleStatusTone(selectedSample.status)}`} title={selectedSample.status}>{dictionaryLabel(selectedSample.status)}</span>
               )}
             </div>
             <div className="form-grid">
@@ -244,7 +245,7 @@ export function EvaluationCorpusOperationsPanel(props: {
                   disabled={!props.canPolicyManage}
                 >
                   {evaluationSampleSourceTypes.map((sourceType) => (
-                    <option key={sourceType} value={sourceType}>{sourceType}</option>
+                    <option key={sourceType} value={sourceType}>{dictionaryLabel(sourceType)}</option>
                   ))}
                 </select>
               </label>
@@ -256,7 +257,7 @@ export function EvaluationCorpusOperationsPanel(props: {
                   disabled={!props.canPolicyManage}
                 >
                   {TEST_DESIGN_COVERAGE_TYPES.map((coverageType) => (
-                    <option key={coverageType} value={coverageType}>{coverageType}</option>
+                    <option key={coverageType} value={coverageType}>{dictionaryLabel(coverageType)}</option>
                   ))}
                 </select>
               </label>
@@ -267,9 +268,9 @@ export function EvaluationCorpusOperationsPanel(props: {
                   onChange={(event) => props.onSampleDraftChange((current) => ({ ...current, priority: event.target.value }))}
                   disabled={!props.canPolicyManage}
                 >
-                  <option value="HIGH">HIGH</option>
-                  <option value="MEDIUM">MEDIUM</option>
-                  <option value="LOW">LOW</option>
+                  <option value="HIGH">{dictionaryLabel('HIGH')}</option>
+                  <option value="MEDIUM">{dictionaryLabel('MEDIUM')}</option>
+                  <option value="LOW">{dictionaryLabel('LOW')}</option>
                 </select>
               </label>
               <label className="field">
@@ -280,7 +281,7 @@ export function EvaluationCorpusOperationsPanel(props: {
                   disabled={!props.canPolicyManage}
                 >
                   {evaluationSampleStatuses.map((status) => (
-                    <option key={status} value={status}>{status}</option>
+                    <option key={status} value={status}>{dictionaryLabel(status)}</option>
                   ))}
                 </select>
               </label>
@@ -396,7 +397,7 @@ export function EvaluationCorpusOperationsPanel(props: {
                         {sample.sampleDigest ? ` · ${shortIdentifier(sample.sampleDigest)}` : ''}
                       </small>
                     </span>
-                    <span className={`badge badge-${sampleStatusTone(sample.status)}`}>{sample.status}</span>
+                    <span className={`badge badge-${sampleStatusTone(sample.status)}`} title={sample.status}>{dictionaryLabel(sample.status)}</span>
                   </button>
                 ))
               ) : (
@@ -410,7 +411,7 @@ export function EvaluationCorpusOperationsPanel(props: {
           <div className="test-design-calibration-form">
             <div className="test-design-evaluation-form-heading">
               <strong>{translate('auto.k1509')}</strong>
-              <span className={`badge badge-${calibrationStatusTone(latestCalibrationStatus)}`}>{latestCalibrationStatus}</span>
+              <span className={`badge badge-${calibrationStatusTone(latestCalibrationStatus)}`} title={latestCalibrationStatus}>{dictionaryLabel(latestCalibrationStatus)}</span>
             </div>
             <div className="form-grid">
               <label className="field">
@@ -453,7 +454,7 @@ export function EvaluationCorpusOperationsPanel(props: {
                   disabled={!props.canPolicyManage}
                 >
                   {calibrationRunModes.map((mode) => (
-                    <option key={mode} value={mode}>{mode}</option>
+                    <option key={mode} value={mode}>{dictionaryLabel(mode)}</option>
                   ))}
                 </select>
               </label>
@@ -483,10 +484,10 @@ export function EvaluationCorpusOperationsPanel(props: {
                 <div className="test-design-calibration-row" key={run.id}>
                   <span>
                     <strong>{run.promptVersion || '-'} · {run.baselineVersion || translate('auto.k1524')}</strong>
-                    <em>{run.runMode} {translate('auto.k1530')}{run.sampleCount} {translate('auto.k1531')}{run.candidateCount}</em>
+                    <em>{dictionaryLabel(run.runMode)} {translate('auto.k1530')}{run.sampleCount} {translate('auto.k1531')}{run.candidateCount}</em>
                     <small>{translate('auto.k1532')}{run.regressionCount} · {run.createdAt ?? '-'}</small>
                   </span>
-                  <span className={`badge badge-${calibrationStatusTone(run.status)}`}>{run.status}</span>
+                  <span className={`badge badge-${calibrationStatusTone(run.status)}`} title={run.status}>{dictionaryLabel(run.status)}</span>
                 </div>
               ))
             ) : (

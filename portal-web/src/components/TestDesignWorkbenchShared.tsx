@@ -9,6 +9,7 @@ import { testDesignBatchActionLabel } from '../testDesignConfirmation';
 import type { TestDesignGenerationSource } from '../testDesignGenerationSource';
 import { generationSourceText } from '../testDesignGenerationSource';
 import type { TestDesignCandidateDraftQualityIssue } from '../testDesignQuality';
+import { dictionaryLabel } from '../platform/dictionaries';
 import { translate } from '../platform/i18n';
 
 type BatchEditSummaryResult = {
@@ -42,7 +43,7 @@ export function CandidateStatus(props: { value: string }) {
         : value === 'PUBLISH_QUEUED' || value === 'PUBLISHING'
           ? 'badge badge-warning'
           : 'badge badge-warning';
-  return <span className={className}>{value}</span>;
+  return <span className={className} title={value}>{dictionaryLabel(value)}</span>;
 }
 
 export function GenerationSourceBadge(props: { source: TestDesignGenerationSource; compact?: boolean }) {
@@ -151,7 +152,7 @@ export function PublishResultBadge(props: { value: string }) {
         : value === 'QUEUED' || value === 'RUNNING'
           ? 'badge badge-warning'
           : 'badge badge-warning';
-  return <span className={className}>{value}</span>;
+  return <span className={className} title={value}>{dictionaryLabel(value)}</span>;
 }
 
 export function ReviewRecordRow(props: { record: TestDesignReviewRecordView }) {

@@ -945,7 +945,32 @@ a:hover {
 }
 
 .field select {
-  appearance: auto;
+  appearance: none;
+  padding-right: 34px;
+  background-image:
+    linear-gradient(45deg, transparent 50%, var(--text-tertiary) 50%),
+    linear-gradient(135deg, var(--text-tertiary) 50%, transparent 50%);
+  background-position:
+    calc(100% - 17px) 50%,
+    calc(100% - 12px) 50%;
+  background-size: 5px 5px, 5px 5px;
+  background-repeat: no-repeat;
+}
+
+.field select:hover {
+  border-color: var(--border-strong);
+  background-color: var(--surface-hover);
+}
+
+.field select:disabled {
+  background-image:
+    linear-gradient(45deg, transparent 50%, var(--text-placeholder) 50%),
+    linear-gradient(135deg, var(--text-placeholder) 50%, transparent 50%);
+}
+
+.field select option {
+  background: var(--surface);
+  color: var(--text-primary);
 }
 
 .field small {
@@ -8945,4 +8970,35 @@ tbody tr:hover td {
   .modal-backdrop {
     padding: 12px;
   }
+}
+
+/* Final form-control override: keep native selects visually aligned across workbenches. */
+select {
+  appearance: none;
+  padding-right: 34px;
+  background-color: var(--surface);
+  background-image:
+    linear-gradient(45deg, transparent 50%, var(--text-tertiary) 50%),
+    linear-gradient(135deg, var(--text-tertiary) 50%, transparent 50%);
+  background-position:
+    calc(100% - 17px) 50%,
+    calc(100% - 12px) 50%;
+  background-size: 5px 5px, 5px 5px;
+  background-repeat: no-repeat;
+}
+
+select:hover {
+  background-color: var(--surface-hover);
+}
+
+select:disabled {
+  background-color: var(--bg-alt);
+  background-image:
+    linear-gradient(45deg, transparent 50%, var(--text-placeholder) 50%),
+    linear-gradient(135deg, var(--text-placeholder) 50%, transparent 50%);
+}
+
+select option {
+  background: var(--surface);
+  color: var(--text-primary);
 }

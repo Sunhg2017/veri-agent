@@ -57,6 +57,7 @@ import {
   type UiE2eSceneSummary
 } from '../api/uiE2e';
 import { canUseButton, hasPermission } from '../permissions';
+import { dictionaryLabel } from '../platform/dictionaries';
 import {
   blankUiE2eSceneDraft,
   buildUiE2eBundleListSummary,
@@ -923,11 +924,11 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
               <Field label="status">
                 <select value={sceneFilters.status} onChange={(event) => setSceneFilters((current) => ({ ...current, status: event.target.value }))}>
                   <option value="">{translate('auto.k0195')}</option>
-                  <option value="DRAFT">DRAFT</option>
-                  <option value="REVIEWING">REVIEWING</option>
-                  <option value="APPROVED">APPROVED</option>
-                  <option value="DISABLED">DISABLED</option>
-                  <option value="ARCHIVED">ARCHIVED</option>
+                  <option value="DRAFT">{dictionaryLabel('DRAFT')}</option>
+                  <option value="REVIEWING">{dictionaryLabel('REVIEWING')}</option>
+                  <option value="APPROVED">{dictionaryLabel('APPROVED')}</option>
+                  <option value="DISABLED">{dictionaryLabel('DISABLED')}</option>
+                  <option value="ARCHIVED">{dictionaryLabel('ARCHIVED')}</option>
                 </select>
               </Field>
               <Field label="applicationId">
@@ -947,10 +948,10 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
               <Field label="riskLevel">
                 <select value={sceneFilters.riskLevel} onChange={(event) => setSceneFilters((current) => ({ ...current, riskLevel: event.target.value }))}>
                   <option value="">{translate('auto.k0195')}</option>
-                  <option value="LOW">LOW</option>
-                  <option value="MEDIUM">MEDIUM</option>
-                  <option value="HIGH">HIGH</option>
-                  <option value="CRITICAL">CRITICAL</option>
+                  <option value="LOW">{dictionaryLabel('LOW')}</option>
+                  <option value="MEDIUM">{dictionaryLabel('MEDIUM')}</option>
+                  <option value="HIGH">{dictionaryLabel('HIGH')}</option>
+                  <option value="CRITICAL">{dictionaryLabel('CRITICAL')}</option>
                 </select>
               </Field>
               <Field label="tag">
@@ -1014,18 +1015,18 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
                 </Field>
                 <Field label="status">
                   <select value={sceneDraft.status} onChange={(event) => setSceneDraftValue('status', event.target.value)} disabled={!canManage || sceneActionState.loading}>
-                    <option value="DRAFT">DRAFT</option>
-                    <option value="REVIEWING">REVIEWING</option>
-                    <option value="APPROVED">APPROVED</option>
-                    <option value="DISABLED">DISABLED</option>
+                    <option value="DRAFT">{dictionaryLabel('DRAFT')}</option>
+                    <option value="REVIEWING">{dictionaryLabel('REVIEWING')}</option>
+                    <option value="APPROVED">{dictionaryLabel('APPROVED')}</option>
+                    <option value="DISABLED">{dictionaryLabel('DISABLED')}</option>
                   </select>
                 </Field>
                 <Field label="riskLevel">
                   <select value={sceneDraft.riskLevel} onChange={(event) => setSceneDraftValue('riskLevel', event.target.value)} disabled={!canManage || sceneActionState.loading}>
-                    <option value="LOW">LOW</option>
-                    <option value="MEDIUM">MEDIUM</option>
-                    <option value="HIGH">HIGH</option>
-                    <option value="CRITICAL">CRITICAL</option>
+                    <option value="LOW">{dictionaryLabel('LOW')}</option>
+                    <option value="MEDIUM">{dictionaryLabel('MEDIUM')}</option>
+                    <option value="HIGH">{dictionaryLabel('HIGH')}</option>
+                    <option value="CRITICAL">{dictionaryLabel('CRITICAL')}</option>
                   </select>
                 </Field>
                 <Field label="tags">
@@ -1048,8 +1049,8 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
                         onChange={(event) => setSceneImportDraft((current) => ({ ...current, sourceType: event.target.value as UiE2eSceneImportSourceType }))}
                         disabled={!canManage || sceneActionState.loading}
                       >
-                        <option value="PLAYWRIGHT_CODEGEN">PLAYWRIGHT_CODEGEN</option>
-                        <option value="SELENIUM_IDE">SELENIUM_IDE</option>
+                        <option value="PLAYWRIGHT_CODEGEN">{dictionaryLabel('PLAYWRIGHT_CODEGEN')}</option>
+                        <option value="SELENIUM_IDE">{dictionaryLabel('SELENIUM_IDE')}</option>
                       </select>
                     </Field>
                     <Field label="codeHint">
@@ -1178,7 +1179,7 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
                 const summary = buildUiE2eSceneListSummary(scene);
                 return (
                   <>
-                    <span className={`badge badge-${statusTone(scene.status)}`}>{scene.status}</span>
+                    <span className={`badge badge-${statusTone(scene.status)}`} title={scene.status}>{dictionaryLabel(scene.status)}</span>
                     <strong>{scene.code}</strong>
                     <span>{summary.headline}</span>
                     <small>{summary.detail}</small>
@@ -1225,11 +1226,11 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
               <Field label="status">
                 <select value={bundleFilters.status} onChange={(event) => setBundleFilters((current) => ({ ...current, status: event.target.value }))}>
                   <option value="">{translate('auto.k0195')}</option>
-                  <option value="DRAFT">DRAFT</option>
-                  <option value="REVIEWING">REVIEWING</option>
-                  <option value="APPROVED">APPROVED</option>
-                  <option value="REJECTED">REJECTED</option>
-                  <option value="ARCHIVED">ARCHIVED</option>
+                  <option value="DRAFT">{dictionaryLabel('DRAFT')}</option>
+                  <option value="REVIEWING">{dictionaryLabel('REVIEWING')}</option>
+                  <option value="APPROVED">{dictionaryLabel('APPROVED')}</option>
+                  <option value="REJECTED">{dictionaryLabel('REJECTED')}</option>
+                  <option value="ARCHIVED">{dictionaryLabel('ARCHIVED')}</option>
                 </select>
               </Field>
               <Field label="keyword">
@@ -1279,7 +1280,7 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
                 const summary = buildUiE2eBundleListSummary(bundle);
                 return (
                   <>
-                    <span className={`badge badge-${statusTone(bundle.status)}`}>{bundle.status}</span>
+                    <span className={`badge badge-${statusTone(bundle.status)}`} title={bundle.status}>{dictionaryLabel(bundle.status)}</span>
                     <strong>{bundle.sceneCode || shortId(bundle.sceneId)}</strong>
                     <span>{summary.headline}</span>
                     <small>{summary.detail}</small>
@@ -1559,13 +1560,13 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
               <Field label="status">
                 <select value={runFilters.status} onChange={(event) => setRunFilters((current) => ({ ...current, status: event.target.value }))}>
                   <option value="">{translate('auto.k0195')}</option>
-                  <option value="QUEUED">QUEUED</option>
-                  <option value="RUNNING">RUNNING</option>
-                  <option value="SUCCEEDED">SUCCEEDED</option>
-                  <option value="FAILED">FAILED</option>
-                  <option value="TIMEOUT">TIMEOUT</option>
-                  <option value="CANCELED">CANCELED</option>
-                  <option value="BLOCKED">BLOCKED</option>
+                  <option value="QUEUED">{dictionaryLabel('QUEUED')}</option>
+                  <option value="RUNNING">{dictionaryLabel('RUNNING')}</option>
+                  <option value="SUCCEEDED">{dictionaryLabel('SUCCEEDED')}</option>
+                  <option value="FAILED">{dictionaryLabel('FAILED')}</option>
+                  <option value="TIMEOUT">{dictionaryLabel('TIMEOUT')}</option>
+                  <option value="CANCELED">{dictionaryLabel('CANCELED')}</option>
+                  <option value="BLOCKED">{dictionaryLabel('BLOCKED')}</option>
                 </select>
               </Field>
               <Field label="keyword">
@@ -1615,7 +1616,7 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
                 const summary = buildUiE2eRunListSummary(run);
                 return (
                   <>
-                    <span className={`badge badge-${statusTone(run.status)}`}>{run.status}</span>
+                    <span className={`badge badge-${statusTone(run.status)}`} title={run.status}>{dictionaryLabel(run.status)}</span>
                     <strong>{run.sceneCode || shortId(run.sceneId)}</strong>
                     <span>{summary.headline}</span>
                     <small>{summary.detail}</small>
@@ -1643,10 +1644,10 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
                 </Field>
                 <Field label="status">
                   <select value={flakyDraft.status} onChange={(event) => setFlakyDraftValue('status', event.target.value)} disabled={!canFlaky || flakyActionState.loading}>
-                    <option value="NONE">NONE</option>
-                    <option value="FLAKY_CANDIDATE">FLAKY_CANDIDATE</option>
-                    <option value="CONFIRMED_FLAKY">CONFIRMED_FLAKY</option>
-                    <option value="WAIVED">WAIVED</option>
+                    <option value="NONE">{dictionaryLabel('NONE')}</option>
+                    <option value="FLAKY_CANDIDATE">{dictionaryLabel('FLAKY_CANDIDATE')}</option>
+                    <option value="CONFIRMED_FLAKY">{dictionaryLabel('CONFIRMED_FLAKY')}</option>
+                    <option value="WAIVED">{dictionaryLabel('WAIVED')}</option>
                   </select>
                 </Field>
                 <Field label="reasonCode">
@@ -1669,10 +1670,10 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
               <Field label="status">
                 <select value={flakyFilters.status} onChange={(event) => setFlakyFilters((current) => ({ ...current, status: event.target.value }))}>
                   <option value="">{translate('auto.k0195')}</option>
-                  <option value="NONE">NONE</option>
-                  <option value="FLAKY_CANDIDATE">FLAKY_CANDIDATE</option>
-                  <option value="CONFIRMED_FLAKY">CONFIRMED_FLAKY</option>
-                  <option value="WAIVED">WAIVED</option>
+                  <option value="NONE">{dictionaryLabel('NONE')}</option>
+                  <option value="FLAKY_CANDIDATE">{dictionaryLabel('FLAKY_CANDIDATE')}</option>
+                  <option value="CONFIRMED_FLAKY">{dictionaryLabel('CONFIRMED_FLAKY')}</option>
+                  <option value="WAIVED">{dictionaryLabel('WAIVED')}</option>
                 </select>
               </Field>
               <Field label="keyword">
@@ -1722,7 +1723,7 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
                 const summary = buildUiE2eFlakyListSummary(item);
                 return (
                   <>
-                    <span className={`badge badge-${statusTone(item.status)}`}>{item.status}</span>
+                    <span className={`badge badge-${statusTone(item.status)}`} title={item.status}>{dictionaryLabel(item.status)}</span>
                     <strong>{item.sceneCode || shortId(item.sceneId || item.runId)}</strong>
                     <span>{summary.headline}</span>
                     <small>{summary.detail}</small>
@@ -1911,7 +1912,7 @@ function SceneDetailPanel(props: {
   return (
     <Panel title={translate('auto.k1946')} desc={`${props.detail.projectId} · ${props.detail.code}`}>
       <div className="report-detail-header">
-        <span className={`badge badge-${statusTone(props.detail.status)}`}>{props.detail.status}</span>
+        <span className={`badge badge-${statusTone(props.detail.status)}`} title={props.detail.status}>{dictionaryLabel(props.detail.status)}</span>
         <span className="report-mono">{props.detail.id}</span>
       </div>
       <div className="report-summary-grid">
@@ -1997,7 +1998,7 @@ function BundleDetailPanel(props: { detail: UiE2eBundleDetail | null; exported: 
   return (
     <Panel title={translate('auto.k1953')} desc={`${props.detail.projectId} · ${props.detail.sceneCode || props.detail.sceneId}`}>
       <div className="report-detail-header">
-        <span className={`badge badge-${statusTone(props.detail.status)}`}>{props.detail.status}</span>
+        <span className={`badge badge-${statusTone(props.detail.status)}`} title={props.detail.status}>{dictionaryLabel(props.detail.status)}</span>
         <span className="report-mono">{props.detail.id}</span>
       </div>
       <div className="report-summary-grid">
@@ -2083,7 +2084,7 @@ function RunDetailPanel(props: {
   return (
     <Panel title={translate('auto.k0880')} desc={`${props.detail.projectId} · ${props.detail.sceneCode || props.detail.sceneId}`}>
       <div className="report-detail-header">
-        <span className={`badge badge-${statusTone(props.detail.status)}`}>{props.detail.status}</span>
+        <span className={`badge badge-${statusTone(props.detail.status)}`} title={props.detail.status}>{dictionaryLabel(props.detail.status)}</span>
         <span className="report-mono">{props.detail.id}</span>
       </div>
       <div className="report-summary-grid">
@@ -2261,7 +2262,7 @@ function FlakyDetailPanel(props: { item: UiE2eFlakyMark | null; state: WorkState
   return (
     <Panel title={translate('auto.k1981')} desc={`${props.item.projectId} · ${props.item.sceneCode || props.item.sceneId || '-'}`}>
       <div className="report-detail-header">
-        <span className={`badge badge-${statusTone(props.item.status)}`}>{props.item.status}</span>
+        <span className={`badge badge-${statusTone(props.item.status)}`} title={props.item.status}>{dictionaryLabel(props.item.status)}</span>
         <span className="report-mono">{props.item.id}</span>
       </div>
       <div className="report-summary-grid">

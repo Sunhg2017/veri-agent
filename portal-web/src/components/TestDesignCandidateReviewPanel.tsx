@@ -53,6 +53,7 @@ import {
   GenerationSourceBadge,
   QualityFieldMessages
 } from './TestDesignWorkbenchShared';
+import { dictionaryLabel } from '../platform/dictionaries';
 import { translate } from '../platform/i18n';
 
 export function TestDesignCandidateReviewPanel(props: {
@@ -138,14 +139,14 @@ export function TestDesignCandidateReviewPanel(props: {
             <span className="field-label">{translate('auto.k1314')}</span>
             <select value={props.candidateFilters.status} onChange={(event) => props.onCandidateFiltersChange((current) => ({ ...current, status: event.target.value }))} disabled={props.taskState.loading || !props.selectedTaskId}>
               <option value="">{translate('auto.k0195')}</option>
-              {TEST_DESIGN_CANDIDATE_STATUSES.map((status) => <option key={status} value={status}>{status}</option>)}
+              {TEST_DESIGN_CANDIDATE_STATUSES.map((status) => <option key={status} value={status}>{dictionaryLabel(status)}</option>)}
             </select>
           </label>
           <label className="field">
             <span className="field-label">{translate('auto.k1315')}</span>
             <select value={props.candidateFilters.coverageType} onChange={(event) => props.onCandidateFiltersChange((current) => ({ ...current, coverageType: event.target.value }))} disabled={props.taskState.loading || !props.selectedTaskId}>
               <option value="">{translate('auto.k0195')}</option>
-              {TEST_DESIGN_COVERAGE_TYPES.map((type) => <option key={type} value={type}>{type}</option>)}
+              {TEST_DESIGN_COVERAGE_TYPES.map((type) => <option key={type} value={type}>{dictionaryLabel(type)}</option>)}
             </select>
           </label>
           <label className="field">
@@ -240,17 +241,17 @@ export function TestDesignCandidateReviewPanel(props: {
                 <span className="field-label">{translate('auto.k1315')}</span>
                 <select value={props.batchEditDraft.coverageType} onChange={(event) => props.onBatchEditDraftChange((current) => ({ ...current, coverageType: event.target.value }))} disabled={!props.canReview || props.mutationState.loading}>
                   <option value="">{translate('auto.k1333')}</option>
-                  {TEST_DESIGN_COVERAGE_TYPES.map((type) => <option key={type} value={type}>{type}</option>)}
+                  {TEST_DESIGN_COVERAGE_TYPES.map((type) => <option key={type} value={type}>{dictionaryLabel(type)}</option>)}
                 </select>
               </label>
               <label className="field">
                 <span className="field-label">{translate('auto.k0419')}</span>
                 <select value={props.batchEditDraft.priority} onChange={(event) => props.onBatchEditDraftChange((current) => ({ ...current, priority: event.target.value }))} disabled={!props.canReview || props.mutationState.loading}>
                   <option value="">{translate('auto.k1333')}</option>
-                  <option value="CRITICAL">CRITICAL</option>
-                  <option value="HIGH">HIGH</option>
-                  <option value="MEDIUM">MEDIUM</option>
-                  <option value="LOW">LOW</option>
+                  <option value="CRITICAL">{dictionaryLabel('CRITICAL')}</option>
+                  <option value="HIGH">{dictionaryLabel('HIGH')}</option>
+                  <option value="MEDIUM">{dictionaryLabel('MEDIUM')}</option>
+                  <option value="LOW">{dictionaryLabel('LOW')}</option>
                 </select>
               </label>
               <label className="field">
@@ -308,8 +309,8 @@ export function TestDesignCandidateReviewPanel(props: {
                       <strong>{candidate.title}</strong>
                       <div className="field-hint">{candidate.errorMessage ?? candidate.requirementId ?? '-'}</div>
                     </td>
-                    <td>{candidate.coverageType}</td>
-                    <td>{candidate.priority}</td>
+                    <td>{dictionaryLabel(candidate.coverageType)}</td>
+                    <td>{dictionaryLabel(candidate.priority)}</td>
                     <td><CandidateStatus value={candidate.status} /></td>
                     <td><GenerationSourceBadge source={candidateGenerationSource(candidate, props.selectedTask)} compact /></td>
                     <td>
@@ -355,17 +356,17 @@ export function TestDesignCandidateReviewPanel(props: {
               <label className="field">
                 <span className="field-label">{translate('auto.k1315')}</span>
                 <select value={candidateDraft.coverageType} onChange={(event) => props.onCandidateDraftChange({ ...candidateDraft, coverageType: event.target.value })} disabled={!props.canReview || props.mutationState.loading}>
-                  {TEST_DESIGN_COVERAGE_TYPES.map((type) => <option key={type} value={type}>{type}</option>)}
+                  {TEST_DESIGN_COVERAGE_TYPES.map((type) => <option key={type} value={type}>{dictionaryLabel(type)}</option>)}
                 </select>
                 <QualityFieldMessages field="coverageType" issues={props.candidateQualityIssues} />
               </label>
               <label className="field">
                 <span className="field-label">{translate('auto.k0419')}</span>
                 <select value={candidateDraft.priority} onChange={(event) => props.onCandidateDraftChange({ ...candidateDraft, priority: event.target.value })} disabled={!props.canReview || props.mutationState.loading}>
-                  <option value="CRITICAL">CRITICAL</option>
-                  <option value="HIGH">HIGH</option>
-                  <option value="MEDIUM">MEDIUM</option>
-                  <option value="LOW">LOW</option>
+                  <option value="CRITICAL">{dictionaryLabel('CRITICAL')}</option>
+                  <option value="HIGH">{dictionaryLabel('HIGH')}</option>
+                  <option value="MEDIUM">{dictionaryLabel('MEDIUM')}</option>
+                  <option value="LOW">{dictionaryLabel('LOW')}</option>
                 </select>
                 <QualityFieldMessages field="priority" issues={props.candidateQualityIssues} />
               </label>

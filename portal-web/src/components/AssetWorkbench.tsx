@@ -54,6 +54,7 @@ import { AssetImportExportPanel } from './AssetImportExportPanel';
 import { AssetStructuredWorkbench, type AssetNavigationKey } from './AssetStructuredWorkbench';
 import { AssetTraceWorkbench } from './AssetTraceWorkbench';
 import { AssetVersionHistoryPanel } from './AssetVersionHistoryPanel';
+import { dictionaryLabel } from '../platform/dictionaries';
 import { translate } from '../platform/i18n';
 
 type WorkState = {
@@ -811,9 +812,7 @@ export function AssetWorkbench(props: { signedIn: boolean; currentUser: CurrentU
               >
                 <option value="">{translate('auto.k0367')}</option>
                 {ASSET_REQUIREMENT_STATUSES.map((status) => (
-                  <option key={status} value={status}>
-                    {status}
-                  </option>
+                  <option key={status} value={status}>{dictionaryLabel(status)}</option>
                 ))}
               </select>
             </label>
@@ -827,9 +826,7 @@ export function AssetWorkbench(props: { signedIn: boolean; currentUser: CurrentU
               >
                 <option value="">{translate('auto.k0414')}</option>
                 {ASSET_REQUIREMENT_SOURCES.map((source) => (
-                  <option key={source} value={source}>
-                    {source}
-                  </option>
+                  <option key={source} value={source}>{dictionaryLabel(source)}</option>
                 ))}
               </select>
             </label>
@@ -941,9 +938,7 @@ export function AssetWorkbench(props: { signedIn: boolean; currentUser: CurrentU
                   >
                     <option value="">{translate('auto.k0367')}</option>
                     {ASSET_API_STATUSES.map((status) => (
-                      <option key={status} value={status}>
-                        {status}
-                      </option>
+                      <option key={status} value={status}>{dictionaryLabel(status)}</option>
                     ))}
                   </select>
                 </label>
@@ -1097,9 +1092,7 @@ export function AssetWorkbench(props: { signedIn: boolean; currentUser: CurrentU
                   onChange={(event) => setCreateDraft((current) => ({ ...current, priority: event.target.value }))}
                 >
                   {ASSET_REQUIREMENT_PRIORITIES.map((priority) => (
-                    <option key={priority} value={priority}>
-                      {priority}
-                    </option>
+                    <option key={priority} value={priority}>{dictionaryLabel(priority)}</option>
                   ))}
                 </select>
               </label>
@@ -1112,9 +1105,7 @@ export function AssetWorkbench(props: { signedIn: boolean; currentUser: CurrentU
                   onChange={(event) => setCreateDraft((current) => ({ ...current, source: event.target.value }))}
                 >
                   {ASSET_REQUIREMENT_SOURCES.map((source) => (
-                    <option key={source} value={source}>
-                      {source}
-                    </option>
+                    <option key={source} value={source}>{dictionaryLabel(source)}</option>
                   ))}
                 </select>
               </label>
@@ -1259,9 +1250,7 @@ export function AssetWorkbench(props: { signedIn: boolean; currentUser: CurrentU
                       onChange={(event) => setApiCreateDraft((current) => ({ ...current, status: event.target.value }))}
                     >
                       {ASSET_API_STATUSES.map((status) => (
-                        <option key={status} value={status}>
-                          {status}
-                        </option>
+                        <option key={status} value={status}>{dictionaryLabel(status)}</option>
                       ))}
                     </select>
                   </label>
@@ -1443,9 +1432,7 @@ export function AssetWorkbench(props: { signedIn: boolean; currentUser: CurrentU
                     onChange={(event) => setEditDraft((current) => ({ ...current, priority: event.target.value }))}
                   >
                     {ASSET_REQUIREMENT_PRIORITIES.map((priority) => (
-                      <option key={priority} value={priority}>
-                        {priority}
-                      </option>
+                      <option key={priority} value={priority}>{dictionaryLabel(priority)}</option>
                     ))}
                   </select>
                 </label>
@@ -1647,9 +1634,7 @@ export function AssetWorkbench(props: { signedIn: boolean; currentUser: CurrentU
                         onChange={(event) => setApiEditDraft((current) => ({ ...current, status: event.target.value }))}
                       >
                         {apiStatusOptions(selectedApi.status).map((status) => (
-                          <option key={status} value={status}>
-                            {status}
-                          </option>
+                          <option key={status} value={status}>{dictionaryLabel(status)}</option>
                         ))}
                       </select>
                     </label>
@@ -2018,5 +2003,5 @@ function AssetStatusPill(props: { value: string }) {
       : ['DEPRECATED', 'REMOVED', 'FAILED', 'DOWN', 'OFF', 'ERROR'].includes(normalized)
         ? 'negative'
         : 'neutral';
-  return <span className={`status-pill ${tone}`}>{value}</span>;
+  return <span className={`status-pill ${tone}`} title={value}>{dictionaryLabel(value)}</span>;
 }

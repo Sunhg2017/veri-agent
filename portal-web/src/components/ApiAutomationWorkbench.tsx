@@ -45,6 +45,7 @@ import {
   type ApiAutomationSyncResponse
 } from '../api/apiAutomation';
 import { canUseButton, hasPermission } from '../permissions';
+import { dictionaryLabel } from '../platform/dictionaries';
 import { translate } from '../platform/i18n';
 
 const DIFF_STATUS_OPTIONS = ['ALL', 'NEW', 'CHANGED', 'MATCHED', 'CONFLICT', 'SKIPPED', 'UNKNOWN'] as const;
@@ -579,7 +580,7 @@ export function ApiAutomationWorkbench(props: { signedIn: boolean; currentUser: 
                 disabled={!detail || detailState.loading}
               >
                 {DIFF_STATUS_OPTIONS.map((status) => (
-                  <option value={status} key={status}>{status === 'ALL' ? translate('auto.k0195') : status}</option>
+                  <option value={status} key={status}>{status === 'ALL' ? translate('auto.k0195') : dictionaryLabel(status)}</option>
                 ))}
               </select>
             </Field>
@@ -1080,7 +1081,7 @@ function StatusBadge(props: { status: string }) {
   const tone = status.includes('FAILED') || status === 'CONFLICT' || status === 'SKIPPED' || status === 'BLOCKED' || status === 'ERROR' ? 'danger'
     : status === 'PARSED' || status === 'MATCHED' || status === 'CREATED' || status === 'UPDATED' || status === 'APPROVED' || status === 'PASSED' || status === 'MANAGED' ? 'success'
       : 'neutral';
-  return <span className={`status-badge ${tone}`}>{status}</span>;
+  return <span className={`status-badge ${tone}`} title={status}>{dictionaryLabel(status)}</span>;
 }
 
 function scriptBundleFiles(bundle: ApiAutomationScriptBundle) {

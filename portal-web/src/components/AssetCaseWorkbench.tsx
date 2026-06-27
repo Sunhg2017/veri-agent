@@ -48,6 +48,7 @@ import { AssetImportExportPanel } from './AssetImportExportPanel';
 import type { AssetNavigationKey } from './AssetStructuredWorkbench';
 import { AssetVersionHistoryPanel } from './AssetVersionHistoryPanel';
 import { StepRichTextField } from './StepRichTextField';
+import { dictionaryLabel } from '../platform/dictionaries';
 import { translate } from '../platform/i18n';
 
 type AssetNavigationTab = {
@@ -490,9 +491,7 @@ export function AssetCaseWorkbench(props: {
               >
                 <option value="">{translate('auto.k0367')}</option>
                 {ASSET_TEST_CASE_STATUSES.map((status) => (
-                  <option key={status} value={status}>
-                    {status}
-                  </option>
+                  <option key={status} value={status}>{dictionaryLabel(status)}</option>
                 ))}
               </select>
             </label>
@@ -506,9 +505,7 @@ export function AssetCaseWorkbench(props: {
               >
                 <option value="">{translate('auto.k0414')}</option>
                 {caseSources.map((source) => (
-                  <option key={source} value={source}>
-                    {source}
-                  </option>
+                  <option key={source} value={source}>{dictionaryLabel(source)}</option>
                 ))}
               </select>
             </label>
@@ -851,9 +848,7 @@ function CaseForm(props: {
             onChange={(event) => props.onChange((current) => ({ ...current, priority: event.target.value }))}
           >
             {ASSET_REQUIREMENT_PRIORITIES.map((priority) => (
-              <option key={priority} value={priority}>
-                {priority}
-              </option>
+              <option key={priority} value={priority}>{dictionaryLabel(priority)}</option>
             ))}
           </select>
         </label>
@@ -866,9 +861,7 @@ function CaseForm(props: {
             onChange={(event) => props.onChange((current) => ({ ...current, status: event.target.value }))}
           >
             {statusOptions.map((status) => (
-              <option key={status} value={status}>
-                {status}
-              </option>
+              <option key={status} value={status}>{dictionaryLabel(status)}</option>
             ))}
           </select>
         </label>
@@ -1237,7 +1230,7 @@ function AssetStatusPill(props: { value: string }) {
   return (
     <span className={`status-pill ${props.value.toLowerCase()}`}>
       <CheckCircle2 size={12} />
-      {props.value}
+      <span title={props.value}>{dictionaryLabel(props.value)}</span>
     </span>
   );
 }

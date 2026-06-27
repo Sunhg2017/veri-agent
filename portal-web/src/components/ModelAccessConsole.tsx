@@ -75,6 +75,7 @@ import {
   type InvokeModelResponse
 } from '../api/modelAccess';
 import { canUseButton, hasPermission } from '../permissions';
+import { dictionaryLabel, dictionaryListLabel } from '../platform/dictionaries';
 import { translate } from '../platform/i18n';
 
 type WorkState = {
@@ -1065,7 +1066,7 @@ export function ModelAccessConsole(props: { signedIn: boolean; currentUser: Curr
             <Activity size={16} />
           </div>
           <div className="document-health-grid">
-            <StatusMetric label={translate('auto.k0427')} value={statusText(health?.status ?? 'UNKNOWN')} tone={health?.status === 'UP' ? 'positive' : 'negative'} />
+            <StatusMetric label={translate('auto.k0427')} value={dictionaryLabel(health?.status ?? 'UNKNOWN')} tone={health?.status === 'UP' ? 'positive' : 'negative'} />
             <StatusMetric label={translate('auto.k0962')} value={health?.enabledProviders ?? providers.filter((item) => item.status === 'ENABLED').length} />
             <StatusMetric label={translate('auto.k2612')} value={health?.activePrompts ?? prompts.filter((item) => item.status === 'ACTIVE').length} />
             <StatusMetric label={translate('auto.k0963')} value={health?.openCircuitProviders ?? 0} tone={(health?.openCircuitProviders ?? 0) > 0 ? 'negative' : 'positive'} />
@@ -1119,7 +1120,7 @@ function ProviderTab(props: {
           <label className="field">
             <span>{translate('auto.k0286')}<b>*</b></span>
             <select value={props.draft.providerType} disabled={!props.canManage || Boolean(props.editingProviderId)} onChange={(event) => props.onChangeDraft('providerType', event.target.value)}>
-              {MODEL_PROVIDER_TYPES.map((type) => <option key={type} value={type}>{type}</option>)}
+              {MODEL_PROVIDER_TYPES.map((type) => <option key={type} value={type}>{dictionaryLabel(type)}</option>)}
             </select>
           </label>
           <label className="field">
@@ -1190,12 +1191,12 @@ function ProviderTab(props: {
                 <tr key={provider.id}>
                   <td>
                     <span className="table-primary">{provider.name}</span>
-                    <span className="table-secondary">{provider.providerType}</span>
+                    <span className="table-secondary" title={provider.providerType}>{dictionaryLabel(provider.providerType)}</span>
                   </td>
                   <td><StatusPill value={provider.status} /></td>
                   <td>
                     <span className="table-primary">P{provider.priority} / {provider.timeoutMs}ms</span>
-                    <span className="table-secondary">{provider.routingGroup} · {provider.capabilities}</span>
+                    <span className="table-secondary" title={provider.capabilities}>{provider.routingGroup} · {dictionaryListLabel(provider.capabilities)}</span>
                   </td>
                   <td><span className="table-secondary">{provider.apiKeyRef ?? '-'}</span></td>
                   <td>
@@ -1270,7 +1271,7 @@ function PolicyTab(props: {
             <label className="field">
               <span>{translate('auto.k0263')}<b>*</b></span>
               <select value={props.draft.scopeType} disabled={!props.canManage} onChange={(event) => props.onChangeDraft('scopeType', event.target.value)}>
-                {MODEL_POLICY_SCOPE_TYPES.map((type) => <option key={type} value={type}>{type}</option>)}
+                {MODEL_POLICY_SCOPE_TYPES.map((type) => <option key={type} value={type}>{dictionaryLabel(type)}</option>)}
               </select>
             </label>
             <label className="field">
@@ -1284,17 +1285,17 @@ function PolicyTab(props: {
             <label className="field">
               <span>{translate('auto.k0991')}</span>
               <select value={props.draft.modelInvocationEnabled} disabled={!props.canManage} onChange={(event) => props.onChangeDraft('modelInvocationEnabled', event.target.value)}>
-                <option value="INHERIT">{translate('auto.k0992')}</option>
-                <option value="ENABLED">{translate('auto.k0993')}</option>
-                <option value="DISABLED">{translate('auto.k0994')}</option>
+                <option value="INHERIT">{dictionaryLabel('INHERIT')}</option>
+                <option value="ENABLED">{dictionaryLabel('ENABLED')}</option>
+                <option value="DISABLED">{dictionaryLabel('DISABLED')}</option>
               </select>
             </label>
             <label className="field">
               <span>{translate('auto.k0995')}</span>
               <select value={props.draft.publicModelAllowed} disabled={!props.canManage} onChange={(event) => props.onChangeDraft('publicModelAllowed', event.target.value)}>
-                <option value="INHERIT">{translate('auto.k0992')}</option>
-                <option value="ENABLED">{translate('auto.k0993')}</option>
-                <option value="DISABLED">{translate('auto.k0996')}</option>
+                <option value="INHERIT">{dictionaryLabel('INHERIT')}</option>
+                <option value="ENABLED">{dictionaryLabel('ENABLED')}</option>
+                <option value="DISABLED">{dictionaryLabel('DISABLED')}</option>
               </select>
             </label>
             <label className="field">
@@ -1308,9 +1309,9 @@ function PolicyTab(props: {
             <label className="field">
               <span>{translate('auto.k0999')}</span>
               <select value={props.draft.budgetOverrunAction} disabled={!props.canManage} onChange={(event) => props.onChangeDraft('budgetOverrunAction', event.target.value)}>
-                <option value="">{translate('auto.k0992')}</option>
-                <option value="BLOCK">{translate('auto.k1000')}</option>
-                <option value="FALLBACK">{translate('auto.k1001')}</option>
+                <option value="">{dictionaryLabel('INHERIT')}</option>
+                <option value="BLOCK">{dictionaryLabel('BLOCK')}</option>
+                <option value="FALLBACK">{dictionaryLabel('FALLBACK')}</option>
               </select>
             </label>
             <label className="field">
@@ -1347,7 +1348,7 @@ function PolicyTab(props: {
             <StatusMetric label={translate('auto.k1005')} value={switchText(props.effectivePolicy?.modelInvocationEnabled)} tone={props.effectivePolicy?.modelInvocationEnabled ? 'positive' : 'negative'} />
             <StatusMetric label={translate('auto.k0995')} value={switchText(props.effectivePolicy?.publicModelAllowed)} tone={props.effectivePolicy?.publicModelAllowed ? 'positive' : 'pending'} />
             <StatusMetric label={translate('auto.k1006')} value={props.effectivePolicy?.dailyBudgetLimit === undefined ? '-' : formatMoney(props.effectivePolicy.dailyBudgetLimit)} />
-            <StatusMetric label={translate('auto.k0363')} value={props.effectivePolicy?.budgetOverrunAction ?? '-'} />
+            <StatusMetric label={translate('auto.k0363')} value={dictionaryLabel(props.effectivePolicy?.budgetOverrunAction)} />
             <StatusMetric label={translate('auto.k0972')} value={props.effectivePolicy?.routingGroup ?? '-'} />
             <StatusMetric label={translate('auto.k0247')} value={props.effectivePolicy?.roleScope ?? '-'} />
           </div>
@@ -1376,7 +1377,7 @@ function PolicyTab(props: {
             {props.policies.length ? props.policies.map((policy) => (
               <tr key={`${policy.scopeType}:${policy.scopeKey}`}>
                 <td>
-                  <span className="table-primary">{policy.scopeType}</span>
+                  <span className="table-primary" title={policy.scopeType}>{dictionaryLabel(policy.scopeType)}</span>
                   <span className="table-secondary">{policy.scopeKey}</span>
                 </td>
                 <td>
@@ -1385,7 +1386,7 @@ function PolicyTab(props: {
                 </td>
                 <td>
                   <span className="table-primary">{policy.dailyBudgetLimit === undefined ? '-' : formatMoney(policy.dailyBudgetLimit)}</span>
-                  <span className="table-secondary">{policy.costAlertWarningRatio === undefined ? '-' : policy.costAlertWarningRatio} · {policy.budgetOverrunAction ?? '-'}</span>
+                  <span className="table-secondary">{policy.costAlertWarningRatio === undefined ? '-' : policy.costAlertWarningRatio} · {dictionaryLabel(policy.budgetOverrunAction)}</span>
                 </td>
                 <td><span className="table-secondary">{policy.routingGroup ?? '-'}</span></td>
                 <td><span className="table-secondary">{policy.reason ?? '-'}</span></td>
@@ -1623,10 +1624,10 @@ function PlaygroundTab(props: {
             <label className="field">
               <span>{translate('auto.k0276')}</span>
               <select value={props.draft.sensitivityLevel} disabled={!props.canManage} onChange={(event) => props.onChangeDraft('sensitivityLevel', event.target.value)}>
-                <option value="PUBLIC">PUBLIC</option>
-                <option value="INTERNAL">INTERNAL</option>
-                <option value="CONFIDENTIAL">CONFIDENTIAL</option>
-                <option value="RESTRICTED">RESTRICTED</option>
+                <option value="PUBLIC">{dictionaryLabel('PUBLIC')}</option>
+                <option value="INTERNAL">{dictionaryLabel('INTERNAL')}</option>
+                <option value="CONFIDENTIAL">{dictionaryLabel('CONFIDENTIAL')}</option>
+                <option value="RESTRICTED">{dictionaryLabel('RESTRICTED')}</option>
               </select>
             </label>
             <label className="field">
@@ -1654,9 +1655,9 @@ function PlaygroundTab(props: {
                 <label className="field">
                   <span>{translate('auto.k0247')}{index + 1}</span>
                   <select value={message.role} disabled={!props.canManage} onChange={(event) => props.onChangeMessage(message.id, 'role', event.target.value)}>
-                    <option value="system">system</option>
-                    <option value="user">user</option>
-                    <option value="assistant">assistant</option>
+                    <option value="system">{dictionaryLabel('system')}</option>
+                    <option value="user">{dictionaryLabel('user')}</option>
+                    <option value="assistant">{dictionaryLabel('assistant')}</option>
                   </select>
                 </label>
                 <label className="field document-content-field">
@@ -1685,7 +1686,7 @@ function PlaygroundTab(props: {
         <div className="model-access-playground-result">
           <div className="panel-title-row">
             <h2>{translate('auto.k0219')}</h2>
-            <span className="table-secondary">{props.result.mode ? translate('auto.k1031', { value0: props.result.mode }) : translate('auto.k1032')}</span>
+              <span className="table-secondary">{props.result.mode ? translate('auto.k1031', { value0: dictionaryLabel(props.result.mode) }) : translate('auto.k1032')}</span>
           </div>
           <div className="model-access-summary-grid">
             <StatusMetric label={translate('auto.k2627')} value={props.result.response?.invocationId ?? props.result.job?.invocationId ?? '-'} />
@@ -1777,7 +1778,7 @@ function QualityTab(props: {
         <label className="field">
           <span>{translate('auto.k1037')}</span>
           <select value={props.selectedTaskType} onChange={(event) => props.onChangeTaskType(event.target.value as (typeof qualityTaskTypeOptions)[number])}>
-            {qualityTaskTypeOptions.map((item) => <option key={item} value={item}>{item}</option>)}
+            {qualityTaskTypeOptions.map((item) => <option key={item} value={item}>{dictionaryLabel(item)}</option>)}
           </select>
         </label>
         <div className="asset-filter-actions">
@@ -1791,7 +1792,7 @@ function QualityTab(props: {
         <StatusMetric label={translate('auto.k1040')} value={formatPercent(props.summary?.totalStats.scenarioPassRate)} tone={props.summary?.totalStats.passed ? 'positive' : 'negative'} />
         <StatusMetric label={translate('auto.k2632')} value={formatPercent(props.summary?.totalStats.requiredTermRecall)} tone={props.summary?.totalStats.passed ? 'positive' : 'pending'} />
         <StatusMetric label={translate('auto.k2633')} value={formatPercent(props.summary?.totalStats.forbiddenTermCleanRate)} tone={props.summary?.totalStats.passed ? 'positive' : 'negative'} />
-        <StatusMetric label={translate('auto.k1041')} value={props.summary?.totalStats.passed ? 'PASS' : 'FAIL'} tone={props.summary?.totalStats.passed ? 'positive' : 'negative'} />
+        <StatusMetric label={translate('auto.k1041')} value={dictionaryLabel(props.summary?.totalStats.passed ? 'PASS' : 'FAIL')} tone={props.summary?.totalStats.passed ? 'positive' : 'negative'} />
       </div>
 
       <StateLine state={props.state} />
@@ -1811,7 +1812,7 @@ function QualityTab(props: {
         {(props.summary?.taskStats ?? []).map((task) => (
           <div className="model-access-quality-card" key={task.taskType}>
             <div className="panel-title-row">
-              <h2>{task.taskType}</h2>
+              <h2 title={task.taskType}>{dictionaryLabel(task.taskType)}</h2>
               <StatusPill value={task.passed ? 'PASS' : 'FAIL'} />
             </div>
             <div className="model-access-summary-grid">
@@ -1885,17 +1886,17 @@ function LogsTab(props: {
           <span>{translate('auto.k0276')}</span>
           <select value={props.filters.sensitivityLevel} onChange={(event) => props.onChangeFilter('sensitivityLevel', event.target.value)}>
             <option value="">{translate('auto.k0195')}</option>
-            <option value="PUBLIC">PUBLIC</option>
-            <option value="INTERNAL">INTERNAL</option>
-            <option value="CONFIDENTIAL">CONFIDENTIAL</option>
-            <option value="RESTRICTED">RESTRICTED</option>
+            <option value="PUBLIC">{dictionaryLabel('PUBLIC')}</option>
+            <option value="INTERNAL">{dictionaryLabel('INTERNAL')}</option>
+            <option value="CONFIDENTIAL">{dictionaryLabel('CONFIDENTIAL')}</option>
+            <option value="RESTRICTED">{dictionaryLabel('RESTRICTED')}</option>
           </select>
         </label>
         <label className="field">
           <span>{translate('auto.k0182')}</span>
           <select value={props.filters.status} onChange={(event) => props.onChangeFilter('status', event.target.value)}>
             <option value="">{translate('auto.k0195')}</option>
-            {INVOCATION_STATUSES.map((status) => <option key={status} value={status}>{status}</option>)}
+            {INVOCATION_STATUSES.map((status) => <option key={status} value={status}>{dictionaryLabel(status)}</option>)}
           </select>
         </label>
         <label className="field">
@@ -1953,11 +1954,11 @@ function LogsTab(props: {
                 <td><StatusPill value={item.status} /></td>
                 <td>
                   <span className="table-primary">{item.providerName ?? '-'}</span>
-                  <span className="table-secondary">{item.modelName ?? '-'} · {item.routingGroup ?? '-'} · {item.modelCapability ?? 'CHAT'}{item.fallbackUsed ? ` · ${translate('auto.k2628')}` : ''}</span>
+                  <span className="table-secondary" title={item.modelCapability ?? 'CHAT'}>{item.modelName ?? '-'} · {item.routingGroup ?? '-'} · {dictionaryLabel(item.modelCapability ?? 'CHAT')}{item.fallbackUsed ? ` · ${translate('auto.k2628')}` : ''}</span>
                 </td>
                 <td>
                   <span className="table-primary">{item.promptKey ?? '-'}</span>
-                  <span className="table-secondary">{item.promptVersion ? `v${item.promptVersion}` : '-'} · {item.sensitivityLevel ?? 'INTERNAL'} · {item.roleScope ?? '-'} · {item.routingRuleName ?? '-'}</span>
+                  <span className="table-secondary">{item.promptVersion ? `v${item.promptVersion}` : '-'} · {dictionaryLabel(item.sensitivityLevel ?? 'INTERNAL')} · {item.roleScope ?? '-'} · {item.routingRuleName ?? '-'}</span>
                 </td>
                 <td>
                   <span className="table-primary">{item.requestPreview ?? '-'}</span>
@@ -2054,7 +2055,7 @@ function StatusPill(props: { value?: string }) {
   const negative = ['DISABLED', 'DOWN', 'FAILED', 'OPEN', 'ERROR', 'CRITICAL'].includes(value);
   const pending = ['DRAFT', 'BLOCKED', 'WARN', 'WARNING'].includes(value);
   const tone = positive ? 'positive' : negative ? 'negative' : pending ? 'pending' : 'neutral';
-  return <span className={`status-pill ${tone}`} title={value}>{statusText(value)}</span>;
+  return <span className={`status-pill ${tone}`} title={value}>{dictionaryLabel(value)}</span>;
 }
 
 function StateLine(props: { state: WorkState }) {
@@ -2235,37 +2236,6 @@ function createPlaygroundMessage(role = 'user', content = ''): PlaygroundMessage
 function switchText(value?: boolean) {
   if (value === undefined) return '-';
   return value ? translate('auto.k0993') : translate('auto.k2616');
-}
-
-function statusText(value?: string) {
-  const normalized = String(value ?? 'UNKNOWN').toUpperCase();
-  const mapping: Record<string, string> = {
-    ACTIVE: translate('auto.k1011'),
-    APPROVED: translate('auto.k1022'),
-    BLOCKED: translate('auto.k1000'),
-    CLOSED: translate('auto.k2642'),
-    CRITICAL: translate('auto.k0369'),
-    DISABLED: translate('auto.k0994'),
-    DOWN: translate('auto.k0094'),
-    DRAFT: translate('auto.k2345'),
-    ENABLED: translate('auto.k0993'),
-    ERROR: translate('auto.k0094'),
-    FAILED: translate('auto.k0369'),
-    FAIL: translate('auto.k0369'),
-    INFO: translate('auto.k2643'),
-    OK: translate('auto.k0095'),
-    OPEN: translate('auto.k2644'),
-    PASS: translate('auto.k1022'),
-    QUEUED: translate('auto.k2646'),
-    REJECTED: translate('auto.k2647'),
-    RUNNING: translate('auto.k2648'),
-    SUCCEEDED: translate('auto.k0368'),
-    UNKNOWN: translate('auto.k0903'),
-    UP: translate('auto.k0095'),
-    WARN: translate('auto.k2645'),
-    WARNING: translate('auto.k2645')
-  };
-  return mapping[normalized] ?? value ?? 'UNKNOWN';
 }
 
 function numberOrUndefined(value: string) {

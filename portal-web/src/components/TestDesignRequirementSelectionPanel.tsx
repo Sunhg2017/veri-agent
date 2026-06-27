@@ -4,6 +4,7 @@ import type { AssetRequirementView } from '../api/assets';
 import type { RequirementFilters } from '../testDesignWorkbenchState';
 import { StateLine, type WorkState } from './TestDesignOverviewPanels';
 import { emptyRequirementText } from './TestDesignWorkbenchShared';
+import { dictionaryLabel } from '../platform/dictionaries';
 import { translate } from '../platform/i18n';
 
 export function TestDesignRequirementSelectionPanel(props: {
@@ -59,9 +60,9 @@ export function TestDesignRequirementSelectionPanel(props: {
               disabled={props.disabled}
             >
               <option value="">{translate('auto.k0195')}</option>
-              <option value="APPROVED">APPROVED</option>
-              <option value="REVIEWING">REVIEWING</option>
-              <option value="DRAFT">DRAFT</option>
+              <option value="APPROVED">{dictionaryLabel('APPROVED')}</option>
+              <option value="REVIEWING">{dictionaryLabel('REVIEWING')}</option>
+              <option value="DRAFT">{dictionaryLabel('DRAFT')}</option>
             </select>
           </label>
           <label className="field">
@@ -108,7 +109,7 @@ export function TestDesignRequirementSelectionPanel(props: {
                       <strong>{requirement.title}</strong>
                       <div className="field-hint">{requirement.id}</div>
                     </td>
-                    <td><span className="badge badge-neutral">{requirement.priority}</span></td>
+                    <td><span className="badge badge-neutral" title={requirement.priority}>{dictionaryLabel(requirement.priority)}</span></td>
                     <td>{requirement.sourceRef ?? requirement.source}</td>
                     <td>{requirement.tags.join(', ') || '-'}</td>
                   </tr>

@@ -76,6 +76,7 @@ import {
   type PageKey,
   type UserLifecycleAction
 } from '../permissions';
+import { dictionaryLabel } from '../platform/dictionaries';
 import { translate } from '../platform/i18n';
 
 function optionalBoolean(value: string | undefined): boolean | undefined {
@@ -619,7 +620,7 @@ function StatusBadge({ status }: { status: string }) {
     'DRAFT': 'badge-warning'
   };
   const cls = map[status] || 'badge-neutral';
-  return <span className={`badge ${cls}`}>{status}</span>;
+  return <span className={`badge ${cls}`} title={status}>{dictionaryLabel(status)}</span>;
 }
 
 /* ===================== DataSection (table + create + side panel) ===================== */
