@@ -96,7 +96,7 @@ async function runWp10MainFlow(page: Page, assertResponsive: boolean) {
   await expectInfoBlock(page, exportPanel, 'DOM scan', 'clean');
   expect(mock.exportTypes).toContain('JSON');
   await exportPanel.getByRole('button', { name: '导出 Markdown' }).click();
-  await expect(page.getByText('MARKDOWN 摘要已生成')).toBeVisible();
+  await expect(exportPanel.getByText('MARKDOWN 报告已生成')).toBeVisible();
   expect(mock.exportTypes).toContain('MARKDOWN');
 
   await assertNoSensitiveSamples(page);
