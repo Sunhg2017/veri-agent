@@ -2605,4 +2605,7 @@ export const autoMessages = {
   k2604: " · 约 {{value0}} 个",
   k2605: "规划中",
   k2606: "邀请",
+  k2607: "按{{value0}}排序",
+  k2608: "展开{{value0}}",
+  k2609: "收起{{value0}}",
 } as const;
