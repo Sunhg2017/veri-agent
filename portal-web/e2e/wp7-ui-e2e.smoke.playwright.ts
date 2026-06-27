@@ -1,4 +1,4 @@
-import { expect, test, type Page, type Route } from '@playwright/test';
+import { expect, test, type Locator, type Page, type Route } from '@playwright/test';
 
 const wp7Permissions = [
   'uiE2e:read',
@@ -53,15 +53,15 @@ async function runWp7MainFlow(page: Page, assertResponsive: boolean) {
 
   const scenePanel = page.locator('section.panel').filter({ has: page.getByRole('heading', { name: '场景筛选与创建' }) });
   const sceneForm = scenePanel.locator('form.ui-e2e-form').first();
-  await sceneForm.getByLabel('projectId').fill('project-wp7-ui-smoke');
-  await sceneForm.getByLabel('code').fill('portal-ui-smoke-created');
-  await sceneForm.getByLabel('name').fill('后台管理员登录并进入首页');
-  await sceneForm.getByLabel('applicationId').fill('app-alpha');
-  await sceneForm.getByLabel('environmentId').fill('staging');
-  await sceneForm.getByLabel('status').selectOption('APPROVED');
-  await sceneForm.getByLabel('riskLevel').selectOption('HIGH');
-  await sceneForm.getByLabel('tags').fill('login smoke');
-  await sceneForm.getByLabel('sourceSummary').fill('{"pageRefs":["page-ui-1"],"flowRefs":["flow-ui-1"],"testCaseRefs":["case-ui-1"]}');
+  await fieldControl(sceneForm, 'projectId', 'input').fill('project-wp7-ui-smoke');
+  await fieldControl(sceneForm, 'code', 'input').fill('portal-ui-smoke-created');
+  await fieldControl(sceneForm, 'name', 'input').fill('后台管理员登录并进入首页');
+  await fieldControl(sceneForm, 'applicationId', 'input').fill('app-alpha');
+  await fieldControl(sceneForm, 'environmentId', 'input').fill('staging');
+  await fieldControl(sceneForm, 'status', 'select').selectOption('APPROVED');
+  await fieldControl(sceneForm, 'riskLevel', 'select').selectOption('HIGH');
+  await fieldControl(sceneForm, 'tags', 'input').fill('login smoke');
+  await fieldControl(sceneForm, 'sourceSummary', 'textarea').fill('{"pageRefs":["page-ui-1"],"flowRefs":["flow-ui-1"],"testCaseRefs":["case-ui-1"]}');
   await sceneForm.getByRole('button', { name: '创建场景' }).click();
   await expect(sceneForm.locator('.document-state-line.success')).toContainText('场景已创建');
   expect(mock.createScenePayload).toMatchObject({
@@ -92,14 +92,15 @@ async function runWp7MainFlow(page: Page, assertResponsive: boolean) {
   const runPanel = page.locator('section.panel').filter({ has: page.getByRole('heading', { name: '运行主链路' }) });
   const runForm = runPanel.locator('form.ui-e2e-form').first();
   const runFilterForm = runPanel.locator('form.ui-e2e-filter-grid').first();
-  await expect(runForm.locator('.notice')).toContainText('请先补全 accountLeaseRef');
-  await runForm.getByLabel('accountLeaseRef').fill('55555555-5555-4555-8555-555555555555');
-  await runForm.getByLabel('requestKey').fill('wp7-ui-request-1');
-  await runForm.getByLabel('reason').fill('browser smoke run');
-  await expect(runForm.locator('.notice')).toContainText('当前环境 runner 默认关闭');
+  const runCreationNotice = runForm.locator('.notice').first();
+  await expect(runCreationNotice).toContainText('请先补全 accountLeaseRef');
+  await fieldControl(runForm, 'accountLeaseRef', 'input').fill('55555555-5555-4555-8555-555555555555');
+  await fieldControl(runForm, 'requestKey', 'input').fill('wp7-ui-request-1');
+  await fieldControl(runForm, 'reason', 'input').fill('browser smoke run');
+  await expect(runCreationNotice).toContainText('当前环境 runner 默认关闭');
   await expect(runForm.getByRole('button', { name: '创建运行' })).toBeDisabled();
 
-  await runFilterForm.getByLabel('status').selectOption('BLOCKED');
+  await fieldControl(runFilterForm, 'status', 'select').selectOption('BLOCKED');
   await runFilterForm.getByRole('button', { name: '筛选' }).click();
   const blockedRunItem = runPanel.locator('.ui-e2e-list-item').first();
   await expect(blockedRunItem).toContainText('RUNNER_DISABLED');
@@ -111,12 +112,12 @@ async function runWp7MainFlow(page: Page, assertResponsive: boolean) {
 
   const flakyPanel = page.locator('section.panel').filter({ has: page.getByRole('heading', { name: 'Flaky 治理' }) });
   const flakyForm = flakyPanel.locator('form.ui-e2e-form').first();
-  await flakyForm.getByLabel('projectId').fill('project-wp7-ui-smoke');
-  await flakyForm.getByLabel('sceneId').fill(mock.createdSceneId);
-  await flakyForm.getByLabel('runId').fill(blockedRunId);
-  await flakyForm.getByLabel('status').selectOption('CONFIRMED_FLAKY');
-  await flakyForm.getByLabel('reasonCode').fill('locator-drift');
-  await flakyForm.getByLabel('reasonSummary').fill('定位器偶发漂移');
+  await fieldControl(flakyForm, 'projectId', 'input').fill('project-wp7-ui-smoke');
+  await fieldControl(flakyForm, 'sceneId', 'input').fill(mock.createdSceneId);
+  await fieldControl(flakyForm, 'runId', 'input').fill(blockedRunId);
+  await fieldControl(flakyForm, 'status', 'select').selectOption('CONFIRMED_FLAKY');
+  await fieldControl(flakyForm, 'reasonCode', 'input').fill('locator-drift');
+  await fieldControl(flakyForm, 'reasonSummary', 'input').fill('定位器偶发漂移');
   await flakyForm.getByRole('button', { name: '保存 Flaky 标记' }).click();
   await expect(flakyForm.locator('.document-state-line.success')).toContainText('Flaky 标记已更新');
   expect(mock.upsertFlakyPayload).toMatchObject({
@@ -134,6 +135,10 @@ async function runWp7MainFlow(page: Page, assertResponsive: boolean) {
     await expect(page.locator('.ui-e2e-list-column')).toBeVisible();
     await expect(page.locator('.ui-e2e-detail-column')).toBeVisible();
   }
+}
+
+function fieldControl(form: Locator, label: string, controlSelector: 'input' | 'select' | 'textarea') {
+  return form.locator(`label.field:has(.field-label:text-is("${label}")) ${controlSelector}`).first();
 }
 
 async function assertNoSensitiveSamples(page: Page) {
