@@ -3,6 +3,9 @@ package com.songhg.veri.agent.db;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.songhg.veri.agent.asset.application.query.AssetListQuery;
 import com.songhg.veri.agent.asset.application.port.AssetRepository;
+import com.songhg.veri.agent.asset.domain.AssetApi;
+import com.songhg.veri.agent.asset.domain.AssetBusinessFlow;
+import com.songhg.veri.agent.asset.domain.AssetPage;
 import com.songhg.veri.agent.asset.domain.AssetRequirement;
 import com.songhg.veri.agent.asset.domain.AssetVersion;
 import com.songhg.veri.agent.asset.domain.TestCaseRecord;
@@ -2022,6 +2025,44 @@ class DbProfileRepositoryContractTest {
     }
 
     @Test
+    void assetRepositoryUsesLiteralKeywordSearchAcrossWp3Assets() {
+        String projectId = "project-asset-keyword-db-" + UUID.randomUUID();
+        AssetRequirement requirement = requirement(
+                projectId,
+                "REQ-LITERAL-100",
+                "字面量检索需求",
+                "SRC-KEY_%_REF",
+                Instant.now().minusSeconds(50)
+        );
+        AssetApi api = api(projectId, "API-LITERAL-100", "/api/orders/{orderId}/receipt_%_detail", Instant.now().minusSeconds(40));
+        AssetPage page = page(projectId, "PAGE-LITERAL-100", "Receipt Review", "/receipts/%/review", Instant.now().minusSeconds(30));
+        AssetBusinessFlow flow = businessFlow(projectId, "FLOW-LITERAL-100", "Receipt approval", Instant.now().minusSeconds(20));
+        TestCaseRecord testCase = testCase(projectId, UUID.randomUUID(), "TC-LITERAL-100", "Receipt literal smoke", "SRC-TC-LITERAL");
+
+        assetRepository.saveRequirement(requirement);
+        assetRepository.saveApi(api);
+        assetRepository.savePage(page);
+        assetRepository.saveBusinessFlow(flow);
+        assetRepository.saveTestCase(testCase);
+
+        assertThat(assetRepository.requirements(keywordQuery(projectId, "KEY_%_REF")))
+                .extracting(AssetRequirement::code)
+                .containsExactly("REQ-LITERAL-100");
+        assertThat(assetRepository.apis(keywordQuery(projectId, "receipt_%_detail")))
+                .extracting(AssetApi::code)
+                .containsExactly("API-LITERAL-100");
+        assertThat(assetRepository.pages(keywordQuery(projectId, "receipts/%/review")))
+                .extracting(AssetPage::code)
+                .containsExactly("PAGE-LITERAL-100");
+        assertThat(assetRepository.businessFlows(keywordQuery(projectId, "receiptCheck")))
+                .extracting(AssetBusinessFlow::code)
+                .containsExactly("FLOW-LITERAL-100");
+        assertThat(assetRepository.testCases(keywordQuery(projectId, "capture_%_receipt")))
+                .extracting(TestCaseRecord::code)
+                .containsExactly("TC-LITERAL-100");
+    }
+
+    @Test
     void assetRepositoryFindsActiveTestCasesByRequirementThroughTraceLinks() {
         String projectId = "project-wp5-conflict-db-" + UUID.randomUUID();
         AssetRequirement requirement = requirement(projectId, "REQ-WP5-CONFLICT", "WP5 冲突需求", "SRC-WP5", Instant.now());
@@ -3484,6 +3525,72 @@ class DbProfileRepositoryContractTest {
         );
     }
 
+    private AssetApi api(String projectId, String code, String path, Instant createdAt) {
+        return new AssetApi(
+                UUID.randomUUID(),
+                code,
+                "Receipt detail api",
+                "returns receipt_%_detail payload",
+                "GET",
+                path,
+                "OPENAPI",
+                "openapi:" + code,
+                "v1",
+                "{\"properties\":{\"receiptCheck\":{\"type\":\"string\"}}}",
+                "{\"properties\":{\"receipt_%_detail\":{\"type\":\"string\"}}}",
+                projectId,
+                "ACTIVE",
+                "ACTIVE",
+                null,
+                null,
+                createdAt,
+                createdAt
+        );
+    }
+
+    private AssetPage page(String projectId, String code, String name, String urlPattern, Instant createdAt) {
+        return new AssetPage(
+                UUID.randomUUID(),
+                code,
+                name,
+                urlPattern,
+                "MANUAL",
+                "figma:" + code,
+                "version-receipt_%_detail",
+                "{\"nodes\":[{\"name\":\"receiptCheck\"}]}",
+                null,
+                projectId,
+                "ACTIVE",
+                "ACTIVE",
+                null,
+                null,
+                createdAt,
+                createdAt
+        );
+    }
+
+    private AssetBusinessFlow businessFlow(String projectId, String code, String name, Instant createdAt) {
+        return new AssetBusinessFlow(
+                UUID.randomUUID(),
+                code,
+                name,
+                "Approves receipt detail",
+                "{\"steps\":[{\"code\":\"receiptCheck\"}]}",
+                "HIGH",
+                projectId,
+                "DRAFT",
+                "ACTIVE",
+                null,
+                null,
+                createdAt,
+                createdAt
+        );
+    }
+
+    private AssetListQuery keywordQuery(String projectId, String keyword) {
+        return new AssetListQuery(projectId, "ACTIVE", null, null, keyword, PageQuery.of(0, 20));
+    }
+
     private TestCaseRecord testCase(String projectId, UUID caseId, String code, String title) {
         return testCase(projectId, caseId, code, title, "wp5:" + caseId);
     }
@@ -3507,8 +3614,8 @@ class DbProfileRepositoryContractTest {
                         UUID.randomUUID(),
                         caseId,
                         0,
-                        "执行核心流程",
-                        "核心流程通过"
+                        "capture_%_receipt step",
+                        "receipt detail is visible"
                 )),
                 AssetVersion.initial(),
                 "ACTIVE",

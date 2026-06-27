@@ -25,7 +25,7 @@ If an environment has already recorded a retired migration in `flyway_schema_his
 ## Prerequisites
 
 - PostgreSQL 15+.
-- Migration account can run `create extension if not exists pgcrypto`.
+- Migration account can run `create extension if not exists pgcrypto` and `create extension if not exists pg_trgm`.
 - Migration account owns or can create objects in the target schema.
 - Run scripts in lexical order with Flyway, Liquibase, or `psql`.
 

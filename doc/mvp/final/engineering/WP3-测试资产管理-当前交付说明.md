@@ -61,7 +61,7 @@ WP3 当前提供测试资产的最小闭环：需求、API、页面、业务流�
 
 ## 5. 数据模型
 
-PostgreSQL 表位于 `db/migration/wp1/V20260518_014__wp3_asset_base_schema.sql`，生命周期扩展位于 `db/migration/wp1/V20260521_022__wp3_asset_lifecycle.sql`，页面原型来源版本预留位于 `db/migration/wp1/V20260521_023__wp3_page_prototype_source_version.sql`，回滚/页面原型幂等/页面和业务流追踪索引扩展位于 `db/migration/wp1/V20260523_028__wp3_trace_impact_prototype_sync.sql`：
+PostgreSQL 表位于 `db/migration/wp1/V20260518_014__wp3_asset_base_schema.sql`，生命周期扩展位于 `db/migration/wp1/V20260521_022__wp3_asset_lifecycle.sql`，页面原型来源版本预留位于 `db/migration/wp1/V20260521_023__wp3_page_prototype_source_version.sql`，回滚/页面原型幂等/页面和业务流追踪索引扩展位于 `db/migration/wp1/V20260523_028__wp3_trace_impact_prototype_sync.sql`，关键词搜索索引扩展位于 `db/migration/wp1/V20260627_076__wp3_asset_keyword_trigram_indexes.sql`：
 
 - `asset_requirement`
 - `asset_api`
@@ -82,6 +82,12 @@ PostgreSQL 表位于 `db/migration/wp1/V20260518_014__wp3_asset_base_schema.sql`
 - `asset_test_case(project_id, code)`
 - `asset_link(source_type, source_id, target_type, target_id, link_type)`
 - `asset_version_history(asset_type, asset_id, version)`
+
+关键词搜索口径：
+
+- 需求、API、页面、业务流、测试用例列表的 `keyword` 查询保留大小写不敏感的字面子串语义，用户输入中的 `%`、`_` 和 `!` 会按普通字符匹配。
+- PostgreSQL 侧启用 `pg_trgm`，并为需求、API、页面、业务流、测试用例和测试步骤建立 GIN trigram 表达式索引，避免数据量增长后依赖 `position()` 多字段顺序扫描。
+- `keyword` 覆盖核心标识、标题/名称/说明、sourceRef、标签、schema/JSON 字段；测试用例额外通过 `asset_test_step` 的 action/expectedResult 等步骤字段命中。
 
 版本口径：
 

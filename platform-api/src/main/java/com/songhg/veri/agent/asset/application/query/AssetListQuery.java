@@ -39,6 +39,21 @@ public record AssetListQuery(
         return pageQuery.offset();
     }
 
+    /**
+     * Returns a literal, case-insensitive SQL LIKE pattern for PostgreSQL trigram indexes.
+     * Escaping preserves the old position() substring semantics for %, _, and ! input.
+     */
+    public String keywordLikePattern() {
+        if (keyword == null) {
+            return null;
+        }
+        String escaped = keyword.toLowerCase(java.util.Locale.ROOT)
+                .replace("!", "!!")
+                .replace("%", "!%")
+                .replace("_", "!_");
+        return "%" + escaped + "%";
+    }
+
     private static String trimToNull(String value) {
         if (value == null || value.trim().isEmpty()) {
             return null;

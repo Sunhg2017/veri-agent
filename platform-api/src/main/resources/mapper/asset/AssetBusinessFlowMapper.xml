@@ -38,11 +38,9 @@
             </choose>
             <if test="query.status != null">and lower(status) = lower(#{query.status})</if>
             <if test="query.keyword != null">
-                and (
-                    position(lower(#{query.keyword}) in lower(coalesce(code, ''))) > 0
-                    or position(lower(#{query.keyword}) in lower(coalesce(name, ''))) > 0
-                    or position(lower(#{query.keyword}) in lower(coalesce(description, ''))) > 0
-                )
+                and lower(coalesce(code, '') || ' ' || coalesce(name, '') || ' ' ||
+                          coalesce(description, '') || ' ' || coalesce(flow_json::text, ''))
+                    like #{query.keywordLikePattern} escape '!'
             </if>
         </where>
     </sql>

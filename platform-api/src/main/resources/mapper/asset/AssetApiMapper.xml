@@ -45,13 +45,10 @@
             <if test="query.status != null">and lower(status) = lower(#{query.status})</if>
             <if test="query.source != null">and lower(source) = lower(#{query.source})</if>
             <if test="query.keyword != null">
-                and (
-                    position(lower(#{query.keyword}) in lower(coalesce(code, ''))) > 0
-                    or position(lower(#{query.keyword}) in lower(coalesce(summary, ''))) > 0
-                    or position(lower(#{query.keyword}) in lower(coalesce(description, ''))) > 0
-                    or position(lower(#{query.keyword}) in lower(coalesce(path, ''))) > 0
-                    or position(lower(#{query.keyword}) in lower(coalesce(source_ref, ''))) > 0
-                )
+                and lower(coalesce(code, '') || ' ' || coalesce(summary, '') || ' ' || coalesce(description, '') || ' ' ||
+                          coalesce(path, '') || ' ' || coalesce(source_ref, '') || ' ' ||
+                          coalesce(request_schema::text, '') || ' ' || coalesce(response_schema::text, ''))
+                    like #{query.keywordLikePattern} escape '!'
             </if>
         </where>
     </sql>

@@ -75,11 +75,16 @@
             <if test="query.source != null">and lower(tc.source) = lower(#{query.source})</if>
             <if test="query.keyword != null">
                 and (
-                    position(lower(#{query.keyword}) in lower(coalesce(tc.code, ''))) > 0
-                    or position(lower(#{query.keyword}) in lower(coalesce(tc.title, ''))) > 0
-                    or position(lower(#{query.keyword}) in lower(coalesce(tc.description, ''))) > 0
-                    or position(lower(#{query.keyword}) in lower(coalesce(tc.source_ref, ''))) > 0
-                    or position(lower(#{query.keyword}) in lower(coalesce(tc.tags, ''))) > 0
+                    lower(coalesce(tc.code, '') || ' ' || coalesce(tc.title, '') || ' ' || coalesce(tc.description, '') || ' ' || coalesce(tc.source_ref, '') || ' ' || coalesce(tc.tags, '') || ' ' ||
+                          coalesce(tc.preconditions, '') || ' ' || coalesce(tc.test_data_ref, ''))
+                        like #{query.keywordLikePattern} escape '!'
+                    or exists (
+                        select 1
+                        from asset_test_step ts
+                        where ts.case_id = tc.id
+                          and lower(coalesce(ts.action, '') || ' ' || coalesce(ts.target, '') || ' ' || coalesce(ts.input_data, '') || ' ' || coalesce(ts.expected_result, '') || ' ' || coalesce(ts.data_ref, ''))
+                              like #{query.keywordLikePattern} escape '!'
+                    )
                 )
             </if>
         </where>

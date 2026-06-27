@@ -658,16 +658,22 @@ with expected(table_name, index_name) as (
         ('asset_requirement','uk_asset_requirement_project_code'),
         ('asset_requirement','uk_asset_requirement_project_import_source_ref'),
         ('asset_requirement','idx_asset_requirement_project_lifecycle'),
+        ('asset_requirement','idx_asset_requirement_keyword_trgm'),
         ('asset_api','uk_asset_api_project_service_path_method'),
         ('asset_api','idx_asset_api_project_lifecycle'),
+        ('asset_api','idx_asset_api_keyword_trgm'),
         ('asset_page','uk_asset_page_project_code'),
         ('asset_page','idx_asset_page_project_lifecycle'),
+        ('asset_page','idx_asset_page_keyword_trgm'),
         ('asset_business_flow','uk_asset_business_flow_project_code'),
         ('asset_business_flow','idx_asset_business_flow_project_lifecycle'),
+        ('asset_business_flow','idx_asset_business_flow_keyword_trgm'),
         ('asset_test_case','uk_asset_test_case_project_code'),
         ('asset_test_case','uk_asset_test_case_project_ai_source_ref'),
         ('asset_test_case','idx_asset_test_case_project_lifecycle'),
+        ('asset_test_case','idx_asset_test_case_keyword_trgm'),
         ('asset_test_step','uk_asset_test_step_case_order'),
+        ('asset_test_step','idx_asset_test_step_keyword_trgm'),
         ('asset_link','uk_asset_link_source_target_link'),
         ('asset_version_history','uk_asset_version_history_asset_version'),
         ('asset_version_history','idx_asset_version_history_asset_created'),
@@ -811,4 +817,42 @@ select
     'schema.key_indexes_exist' as check_name,
     case when count(*) = 0 then 'PASS' else 'FAIL' end as status,
     coalesce(string_agg(item, ', ' order by item), 'all key indexes/unique indexes exist') as details
+from missing;
+
+with expected(index_name) as (
+    values
+        ('idx_asset_requirement_keyword_trgm'),
+        ('idx_asset_api_keyword_trgm'),
+        ('idx_asset_page_keyword_trgm'),
+        ('idx_asset_business_flow_keyword_trgm'),
+        ('idx_asset_test_case_keyword_trgm'),
+        ('idx_asset_test_step_keyword_trgm')
+),
+index_definitions as (
+    select
+        e.index_name,
+        i.indexdef
+    from expected e
+    left join pg_indexes i
+        on i.schemaname = current_schema()
+       and i.indexname = e.index_name
+),
+missing as (
+    select index_name
+    from index_definitions
+    where indexdef is null
+       or indexdef not ilike '% using gin %'
+       or indexdef not ilike '%gin_trgm_ops%'
+)
+select
+    'schema.wp3_keyword_trigram_indexes' as check_name,
+    case
+        when not exists (select 1 from pg_extension where extname = 'pg_trgm') then 'FAIL'
+        when count(*) = 0 then 'PASS'
+        else 'FAIL'
+    end as status,
+    case
+        when not exists (select 1 from pg_extension where extname = 'pg_trgm') then 'pg_trgm extension is missing'
+        else coalesce(string_agg(index_name, ', ' order by index_name), 'WP3 keyword indexes use pg_trgm GIN expressions')
+    end as details
 from missing;
