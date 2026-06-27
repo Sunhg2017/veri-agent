@@ -659,15 +659,14 @@ function DataSection(props: DataSectionProps) {
               </div>
             </div>
           </div>
-          <div className="toolbar-actions" style={{ flexWrap: 'wrap' }}>
+          <div className="toolbar-actions management-toolbar-actions">
             {props.canCreate && props.onCreate && (
-              <div className="flex items-center gap-sm">
+              <div className="management-quick-create">
                 <input
                   type="text"
                   placeholder={`输入${props.action.replace('新增', '').replace('创建', '').replace('邀请', '') || '名称'}`}
                   value={quickCreateValue}
                   onChange={(e) => setQuickCreateValue(e.target.value)}
-                  style={{ width: 160, height: 36, border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '0 10px', fontSize: 13 }}
                   disabled={!props.signedIn}
                 />
                 <button
@@ -799,17 +798,16 @@ function ResourceLifecyclePanel<T extends object>(props: ResourceLifecyclePanelP
   return (
     <div className="panel">
       <div className="panel-body">
-        <div style={{ marginBottom: 12 }}>
-          <div className="text-tertiary text-xs font-semibold" style={{ marginBottom: 2 }}>详情</div>
-          <h3 className="panel-title" style={{ fontSize: 15 }}>{props.title}</h3>
+        <div className="management-side-heading">
+          <div className="text-tertiary text-xs font-semibold">详情</div>
+          <h3 className="panel-title">{props.title}</h3>
         </div>
 
-        <div className="field" style={{ marginBottom: 12 }}>
+        <div className="field management-select-field">
           <select
             value={selectedKey}
             onChange={(e) => setSelectedKey(e.target.value)}
             disabled={!props.signedIn}
-            style={{ width: '100%', minHeight: 38, border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '0 10px', fontSize: 13 }}
           >
             <option value="">选择{props.resourceLabel}...</option>
             {props.resources.map((r) => (
@@ -836,7 +834,7 @@ function ResourceLifecyclePanel<T extends object>(props: ResourceLifecyclePanelP
             {props.canEdit && editDraft && (
               <>
                 <div className="divider" />
-                <div style={{ display: 'grid', gap: 10 }}>
+                <div className="management-edit-form">
                   {props.fields.map((field) => (
                     <div className="field" key={field.key}>
                       <label className="field-label">{field.label}</label>
@@ -844,7 +842,6 @@ function ResourceLifecyclePanel<T extends object>(props: ResourceLifecyclePanelP
                         <select
                           value={editDraft[field.key] ?? ''}
                           onChange={(e) => setEditDraft((d) => d ? { ...d, [field.key]: e.target.value } : d)}
-                          style={{ width: '100%', minHeight: 36, border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '0 10px', fontSize: 13 }}
                         >
                           {(field.options ?? []).map((opt) => (
                             <option key={opt.value} value={opt.value}>{opt.label}</option>
@@ -856,7 +853,6 @@ function ResourceLifecyclePanel<T extends object>(props: ResourceLifecyclePanelP
                           value={editDraft[field.key] ?? ''}
                           onChange={(e) => setEditDraft((d) => d ? { ...d, [field.key]: e.target.value } : d)}
                           placeholder={field.placeholder}
-                          style={{ width: '100%', minHeight: 36, border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '0 10px', fontSize: 13 }}
                         />
                       )}
                     </div>
@@ -871,7 +867,7 @@ function ResourceLifecyclePanel<T extends object>(props: ResourceLifecyclePanelP
             {props.statusOptions.length > 0 && (
               <>
                 <div className="divider" />
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
+                <div className="management-status-actions">
                   {props.statusOptions.map((opt) => {
                     const OptIcon = opt.icon;
                     return (
@@ -904,14 +900,13 @@ function RoleBindingControls(props: {
   const [selectedRole, setSelectedRole] = useState('');
   if (!props.canAssign && !props.canUnassign) return null;
   return (
-    <div className="role-binding-controls" style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+    <div className="role-binding-controls">
       {props.canAssign && (
         <>
           <select
             value={selectedRole}
             onChange={(e) => setSelectedRole(e.target.value)}
             disabled={!props.signedIn}
-            style={{ width: 90, height: 28, border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', fontSize: 12, padding: '0 4px' }}
           >
             <option value="">角色</option>
             {props.roles.map((r) => <option key={r.code} value={r.code}>{r.name}</option>)}

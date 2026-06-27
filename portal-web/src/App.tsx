@@ -361,6 +361,7 @@ export function App() {
   const passwordChangeRequired = Boolean(currentUser?.must_change_password);
   const [openSidebarGroupKey, setOpenSidebarGroupKey] = useState<string | null>(() => sidebarGroupKeyByPageKey[activePage] ?? null);
   const activeSidebarGroupKey = sidebarGroupKeyByPageKey[activePage] ?? null;
+  const activeSidebarGroupLabel = sidebarGroups.find((group) => group.key === activeSidebarGroupKey)?.label ?? '平台总览';
 
   /* ---------- Hash routing ---------- */
 
@@ -937,7 +938,7 @@ export function App() {
       <div className="login-page">
         <div className="login-card">
           <div className="login-brand">
-            <div className="brand-mark" style={{ margin: '0 auto' }}>VA</div>
+            <div className="brand-mark">VA</div>
             <div className="brand-name">Veri Agent</div>
             <div className="brand-subtitle">测试平台 · 请登录</div>
           </div>
@@ -969,9 +970,8 @@ export function App() {
               <div className="login-error">{loginState.message}</div>
             )}
             <button
-              className="btn btn-primary"
+              className="btn btn-primary login-submit"
               type="submit"
-              style={{ minHeight: 44, fontSize: 16 }}
             >
               登 录
             </button>
@@ -985,9 +985,9 @@ export function App() {
   if (loginState.status === 'loading' && !currentUser) {
     return (
       <div className="login-page">
-        <div className="login-card" style={{ textAlign: 'center' }}>
-          <div className="brand-mark" style={{ margin: '0 auto 16px' }}>VA</div>
-          <div style={{ color: 'var(--text-secondary)', fontSize: 14 }}>正在验证登录状态...</div>
+        <div className="login-card login-loading-card">
+          <div className="brand-mark">VA</div>
+          <div>正在验证登录状态...</div>
         </div>
       </div>
     );
@@ -1072,13 +1072,19 @@ export function App() {
       <main className="workspace">
         <header className="topbar">
           <div className="topbar-info">
+            <div className="topbar-kicker">
+              <span>{activeSidebarGroupLabel}</span>
+              <span>{activeDefinition.label}</span>
+            </div>
             <h1>{activeDefinition.title}</h1>
             <p>{activeDefinition.description}</p>
           </div>
           {renderTopbarActions()}
         </header>
 
-        {renderWorkspacePage()}
+        <div className="page-frame">
+          {renderWorkspacePage()}
+        </div>
       </main>
 
       {/* Toasts */}

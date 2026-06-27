@@ -9,7 +9,7 @@ export function OverviewPage(props: {
   managementData: ManagementData;
 }) {
   return (
-    <div>
+    <div className="overview-page">
       <section className="metrics-grid">
         <div className="metric-card">
           <div className="metric-icon info"><Building2 size={20} /></div>
@@ -54,7 +54,7 @@ export function OverviewPage(props: {
             </div>
           </div>
           <div className="panel-body">
-            <div style={{ display: 'grid', gap: 12 }}>
+            <div className="overview-status-list">
               <DetailItem label="后端健康" value={props.health.data?.status ?? (props.health.loading ? '检查中...' : '不可用')} />
               <DetailItem label="服务名称" value={props.health.data?.service ?? 'platform-api'} />
             </div>
@@ -64,9 +64,9 @@ export function OverviewPage(props: {
         <div className="side-stack">
           <div className="panel">
             <div className="panel-body">
-              <div style={{ display: 'grid', gap: 8 }}>
-                <div className="badge badge-primary" style={{ width: 'max-content' }}>WP1 · 平台管理</div>
-                <p className="text-secondary text-sm" style={{ lineHeight: 1.6 }}>
+              <div className="overview-scope-card">
+                <div className="badge badge-primary">WP1 · 平台管理</div>
+                <p className="text-secondary text-sm">
                   组织、用户、角色权限治理 · 项目、应用、环境基础配置 · 外部集成、审计日志、系统设置
                 </p>
               </div>
@@ -86,9 +86,9 @@ export function OverviewPage(props: {
 
 function DetailItem({ label, value }: { label: string; value: string }) {
   return (
-    <div style={{ display: 'flex', gap: 8, alignItems: 'baseline', padding: '4px 0', borderBottom: '1px solid var(--border-light)' }}>
-      <span className="text-tertiary text-sm" style={{ flex: '0 0 80px' }}>{label}</span>
-      <span style={{ fontSize: 14, overflowWrap: 'anywhere' }}>{value}</span>
+    <div className="overview-detail-item">
+      <span className="text-tertiary text-sm">{label}</span>
+      <span>{value}</span>
     </div>
   );
 }
