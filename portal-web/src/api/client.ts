@@ -1,3 +1,4 @@
+import { translate } from '../platform/i18n';
 export interface ApiResponse<T> {
   code: string;
   message: string;
@@ -162,7 +163,7 @@ export async function requestText(path: string, init?: RequestInit): Promise<Tex
         return textResponse(retryResponse);
       }
     }
-    throw new ApiError('登录已过期，请重新登录', 'SESSION_EXPIRED', '', 401);
+    throw new ApiError(translate('auto.k0048'), 'SESSION_EXPIRED', '', 401);
   }
 
   return textResponse(response);
@@ -193,7 +194,7 @@ export async function requestBinary(path: string, init?: RequestInit): Promise<B
         return binaryResponse(retryResponse);
       }
     }
-    throw new ApiError('登录已过期，请重新登录', 'SESSION_EXPIRED', '', 401);
+    throw new ApiError(translate('auto.k0048'), 'SESSION_EXPIRED', '', 401);
   }
 
   return binaryResponse(response);
@@ -231,7 +232,7 @@ async function request<T>(path: string, init: RequestInit | undefined, jsonBody:
           return { ...retryBody, trace_id: retryTraceId } as ApiResponse<T>;
         }
         throw new ApiError(
-          retryBody.message || '请求失败',
+          retryBody.message || translate('auto.k0101'),
           retryBody.code || `HTTP_${retryResponse.status}`,
           retryTraceId,
           retryResponse.status,
@@ -240,14 +241,14 @@ async function request<T>(path: string, init: RequestInit | undefined, jsonBody:
       }
     }
     // If refresh failed, throw a clear "session expired" error
-    throw new ApiError('登录已过期，请重新登录', 'SESSION_EXPIRED', '', 401);
+    throw new ApiError(translate('auto.k0048'), 'SESSION_EXPIRED', '', 401);
   }
 
   const body = (await response.json()) as ApiEnvelope<T | ApiErrorDetail>;
   const traceId = body.trace_id ?? body.traceId ?? response.headers.get('X-Trace-Id') ?? '';
   if (!response.ok || body.code !== 'OK') {
     throw new ApiError(
-      body.message || '请求失败',
+      body.message || translate('auto.k0101'),
       body.code || `HTTP_${response.status}`,
       traceId,
       response.status,
@@ -298,14 +299,14 @@ function errorFromTextResponse(text: string, status: number, traceId: string) {
     const body = JSON.parse(text) as ApiEnvelope<ApiErrorDetail>;
     const bodyTraceId = body.trace_id ?? body.traceId ?? traceId;
     return new ApiError(
-      body.message || '请求失败',
+      body.message || translate('auto.k0101'),
       body.code || `HTTP_${status}`,
       bodyTraceId,
       status,
       body.data
     );
   } catch {
-    return new ApiError(text || '请求失败', `HTTP_${status}`, traceId, status);
+    return new ApiError(text || translate('auto.k0101'), `HTTP_${status}`, traceId, status);
   }
 }
 

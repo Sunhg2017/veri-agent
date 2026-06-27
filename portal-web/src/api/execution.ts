@@ -1,5 +1,6 @@
 import { refreshToken } from './auth';
 import { ApiError, getAuthToken, requestBinary, requestJson, type ApiResponse, type BinaryResponse } from './client';
+import { translate } from '../platform/i18n';
 
 const EXECUTION_BASE = '/api/v1/execution';
 
@@ -412,7 +413,7 @@ export async function subscribeExecutionRunStream(
   const contentType = response.headers.get('Content-Type') ?? '';
   if (contentType && !contentType.toLowerCase().includes('text/event-stream')) {
     throw new ApiError(
-      '执行日志流返回类型异常',
+      translate('auto.k0124'),
       'INVALID_STREAM_RESPONSE',
       response.headers.get('X-Trace-Id') ?? '',
       response.status
@@ -907,10 +908,10 @@ async function fetchExecutionRunStream(id: string, signal: AbortSignal | undefin
     if (refreshed) {
       return fetchExecutionRunStream(id, signal, false);
     }
-    throw new ApiError('登录已过期，请重新登录', 'SESSION_EXPIRED', '', 401);
+    throw new ApiError(translate('auto.k0048'), 'SESSION_EXPIRED', '', 401);
   }
   if (!response.ok) {
-    throw await streamApiError(response, '执行日志流连接失败');
+    throw await streamApiError(response, translate('auto.k0125'));
   }
   return response;
 }

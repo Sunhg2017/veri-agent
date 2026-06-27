@@ -1,4 +1,5 @@
 import { requestJson, requestText, type ApiResponse, type TextResponse } from './client';
+import { translate } from '../platform/i18n';
 
 export const ASSET_REQUIREMENT_STATUSES = ['DRAFT', 'REVIEWING', 'APPROVED', 'DEPRECATED'] as const;
 export const ASSET_REQUIREMENT_PRIORITIES = ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW'] as const;
@@ -635,7 +636,7 @@ export function normalizeAssetRequirementView(raw: unknown): AssetRequirementVie
   const id = stringValue(item.id, stringValue(item.requirementId, stringValue(item.requirement_id)));
   return {
     id,
-    title: stringValue(item.title, stringValue(item.name, id || '未命名需求')),
+    title: stringValue(item.title, stringValue(item.name, id || translate('auto.k0096'))),
     description: optionalString(item.description),
     source: enumString(item.source, ASSET_REQUIREMENT_SOURCES, 'MANUAL'),
     sourceRef: optionalString(item.sourceRef) ?? optionalString(item.source_ref) ?? optionalString(item.externalRequirementId) ?? optionalString(item.external_requirement_id),
@@ -671,7 +672,7 @@ export function normalizeAssetApiView(raw: unknown): AssetApiView {
   return {
     id,
     code: optionalString(item.code),
-    summary: stringValue(item.summary, stringValue(item.name, id || '未命名 API')),
+    summary: stringValue(item.summary, stringValue(item.name, id || translate('auto.k0097'))),
     description: optionalString(item.description),
     httpMethod: enumString(item.httpMethod ?? item.http_method, ASSET_API_METHODS, 'GET'),
     path: stringValue(item.path, '/'),
@@ -707,7 +708,7 @@ export function normalizeAssetPageView(raw: unknown): AssetPageView {
   return {
     id,
     code: optionalString(item.code),
-    name: stringValue(item.name, stringValue(item.title, id || '未命名页面')),
+    name: stringValue(item.name, stringValue(item.title, id || translate('auto.k0098'))),
     urlPattern: optionalString(item.urlPattern) ?? optionalString(item.url_pattern),
     source: enumString(item.source, ASSET_PAGE_SOURCES, 'MANUAL'),
     sourceRef: optionalString(item.sourceRef) ?? optionalString(item.source_ref),
@@ -741,7 +742,7 @@ export function normalizeAssetBusinessFlowView(raw: unknown): AssetBusinessFlowV
   return {
     id,
     code: optionalString(item.code),
-    name: stringValue(item.name, id || '未命名业务流'),
+    name: stringValue(item.name, id || translate('auto.k0099')),
     description: optionalString(item.description),
     flowJson: optionalJsonString(item.flowJson) ?? optionalJsonString(item.flow_json),
     priority: enumString(item.priority, ASSET_REQUIREMENT_PRIORITIES, 'MEDIUM'),
@@ -790,7 +791,7 @@ export function normalizeAssetTestCaseView(raw: unknown): AssetTestCaseView {
   return {
     id,
     code: optionalString(item.code),
-    title: stringValue(item.title, stringValue(item.name, id || '未命名用例')),
+    title: stringValue(item.title, stringValue(item.name, id || translate('auto.k0100'))),
     description: optionalString(item.description),
     requirementId: optionalString(item.requirementId) ?? optionalString(item.requirement_id),
     apiId: optionalString(item.apiId) ?? optionalString(item.api_id),

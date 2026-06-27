@@ -1,4 +1,5 @@
 import { ApiError, getAuthToken, requestJson, requestText, type ApiResponse } from './client';
+import { translate } from '../platform/i18n';
 
 export const MODEL_PROVIDER_TYPES = ['LOCAL_ECHO', 'OPENAI_COMPATIBLE', 'MOCK_FAILURE'] as const;
 export const MODEL_PROVIDER_STATUSES = ['ENABLED', 'DISABLED'] as const;
@@ -909,7 +910,7 @@ export async function invokeModelStream(
     body: JSON.stringify(compactPayload(payload))
   });
   if (response.status === 401 && token) {
-    throw new ApiError('登录已过期，请重新登录', 'SESSION_EXPIRED', '', 401);
+    throw new ApiError(translate('auto.k0048'), 'SESSION_EXPIRED', '', 401);
   }
   if (!response.ok) {
     throw await streamApiError(response);
@@ -917,7 +918,7 @@ export async function invokeModelStream(
   const contentType = response.headers.get('Content-Type') ?? '';
   if (contentType && !contentType.toLowerCase().includes('text/event-stream')) {
     throw new ApiError(
-      '流式模型调用返回类型异常',
+      translate('auto.k0126'),
       'INVALID_STREAM_RESPONSE',
       response.headers.get('X-Trace-Id') ?? '',
       response.status
@@ -1033,14 +1034,14 @@ async function streamApiError(response: Response) {
   try {
     const body = JSON.parse(text) as { message?: string; code?: string; trace_id?: string; traceId?: string; data?: unknown };
     return new ApiError(
-      body.message || '流式模型调用失败',
+      body.message || translate('auto.k0127'),
       body.code || `HTTP_${response.status}`,
       body.trace_id ?? body.traceId ?? response.headers.get('X-Trace-Id') ?? '',
       response.status
     );
   } catch {
     return new ApiError(
-      text || '流式模型调用失败',
+      text || translate('auto.k0127'),
       `HTTP_${response.status}`,
       response.headers.get('X-Trace-Id') ?? '',
       response.status

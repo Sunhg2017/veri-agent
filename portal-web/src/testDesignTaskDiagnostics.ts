@@ -1,6 +1,7 @@
 import type { TestDesignTaskView } from './api/testDesign';
 import { sanitizeTestDesignExportText } from './testDesignExport';
 import { generationSourceText, taskGenerationSource } from './testDesignGenerationSource';
+import { translate } from './platform/i18n';
 
 export type TestDesignTaskDiagnosticTone = 'neutral' | 'warning' | 'danger';
 
@@ -20,91 +21,91 @@ export function buildTestDesignTaskDiagnostics(task: TestDesignTaskView | null |
   const generationSource = taskGenerationSource(task);
 
   return [
-    { label: '任务 ID', value: compactTestDesignDigest(task.id, 10, 6) },
-    { label: '项目', value: compactTestDesignDigest(task.projectId, 10, 6) },
-    { label: '状态', value: displayDiagnosticText(task.status) },
-    { label: '需求数', value: String(task.totalRequirements ?? task.requirementIds.length) },
-    { label: '覆盖', value: formatList(task.coverageTypes) },
-    { label: '产出', value: `${task.generatedCount} 生成 / ${task.confirmedCount} 确认 / ${task.publishedCount} 发布` },
+    { label: translate('auto.k1362'), value: compactTestDesignDigest(task.id, 10, 6) },
+    { label: translate('auto.k0176'), value: compactTestDesignDigest(task.projectId, 10, 6) },
+    { label: translate('auto.k0182'), value: displayDiagnosticText(task.status) },
+    { label: translate('auto.k2175'), value: String(task.totalRequirements ?? task.requirementIds.length) },
+    { label: translate('auto.k0538'), value: formatList(task.coverageTypes) },
+    { label: translate('auto.k2176'), value: translate('auto.k2177', { value0: task.generatedCount, value1: task.confirmedCount, value2: task.publishedCount }) },
     {
-      label: '生成来源',
+      label: translate('auto.k2178'),
       value: generationSourceText(generationSource),
       tone: generationSource.tone === 'warning' ? 'warning' : 'neutral'
     },
     { label: 'Prompt', value: formatPrompt(task) },
-    { label: '模型', value: formatModel(task) },
-    { label: '模型调用', value: compactTestDesignDigest(task.modelInvocationId, 12, 8) },
+    { label: translate('auto.k2179'), value: formatModel(task) },
+    { label: translate('auto.k0991'), value: compactTestDesignDigest(task.modelInvocationId, 12, 8) },
     {
-      label: '调用观测',
+      label: translate('auto.k2180'),
       value: formatModelObservation(task),
       tone: modelObservationTone(task)
     },
     {
-      label: '观测策略',
+      label: translate('auto.k2181'),
       value: summarizeTestDesignModelObservationPolicy(task),
       tone: modelObservationPolicyTone(task)
     },
     {
-      label: '编排策略',
+      label: translate('auto.k2182'),
       value: summarizeTestDesignGenerationOrchestrationPolicy(task),
       tone: generationOrchestrationPolicyTone(task)
     },
-    { label: '调用链路', value: compactTestDesignDigest(task.modelObservation?.traceId, 12, 8) },
-    { label: '调用任务', value: compactTestDesignDigest(task.modelObservation?.jobId, 12, 8) },
-    { label: '输入摘要', value: compactTestDesignDigest(task.inputDigest, 12, 8) },
-    { label: '幂等键', value: compactTestDesignDigest(task.idempotencyKey, 14, 8) },
-    { label: '上下文', value: summarizeTestDesignTaskContext(task.contextSummary) },
-    { label: '上下文策略', value: summarizeTestDesignContextPolicy(task.contextSummary) },
+    { label: translate('auto.k2183'), value: compactTestDesignDigest(task.modelObservation?.traceId, 12, 8) },
+    { label: translate('auto.k2184'), value: compactTestDesignDigest(task.modelObservation?.jobId, 12, 8) },
+    { label: translate('auto.k2185'), value: compactTestDesignDigest(task.inputDigest, 12, 8) },
+    { label: translate('auto.k2186'), value: compactTestDesignDigest(task.idempotencyKey, 14, 8) },
+    { label: translate('auto.k2187'), value: summarizeTestDesignTaskContext(task.contextSummary) },
+    { label: translate('auto.k1388'), value: summarizeTestDesignContextPolicy(task.contextSummary) },
     {
-      label: '装配策略',
+      label: translate('auto.k2188'),
       value: summarizeTestDesignContextAssemblyPolicy(task),
       tone: contextAssemblyPolicyTone(task)
     },
     {
-      label: '策略治理',
+      label: translate('auto.k2189'),
       value: summarizeTestDesignContextPolicyGovernance(task),
       tone: contextPolicyGovernanceTone(task)
     },
     {
-      label: '策略运营',
+      label: translate('auto.k2190'),
       value: summarizeTestDesignContextPolicyOperations(task),
       tone: contextPolicyOperationsTone(task)
     },
     {
-      label: '作用域策略',
+      label: translate('auto.k2191'),
       value: summarizeTestDesignScopePolicy(task),
       tone: scopePolicyTone(task)
     },
     {
-      label: '评测语料',
+      label: translate('auto.k2192'),
       value: summarizeTestDesignEvaluationCorpusPolicy(task),
       tone: evaluationCorpusPolicyTone(task)
     },
     {
-      label: '发布准出',
+      label: translate('auto.k2193'),
       value: summarizeTestDesignReleaseReadinessPolicy(task),
       tone: releaseReadinessPolicyTone(task)
     },
     {
-      label: '审计链',
+      label: translate('auto.k1542'),
       value: summarizeTestDesignAuditChainPolicy(task),
       tone: auditChainPolicyTone(task)
     },
     {
-      label: '归档策略',
+      label: translate('auto.k2194'),
       value: summarizeTestDesignArchivePolicy(task),
       tone: archivePolicyTone(task)
     },
     {
-      label: '报告清单',
+      label: translate('auto.k2195'),
       value: summarizeTestDesignReportManifestPolicy(task),
       tone: reportManifestPolicyTone(task)
     },
-    { label: '请求人', value: displayDiagnosticText(task.requestedBy) },
-    { label: '创建', value: formatDateTime(task.createdAt) },
-    { label: '更新', value: formatDateTime(task.updatedAt) },
+    { label: translate('auto.k2196'), value: displayDiagnosticText(task.requestedBy) },
+    { label: translate('auto.k0862'), value: formatDateTime(task.createdAt) },
+    { label: translate('auto.k1008'), value: formatDateTime(task.updatedAt) },
     {
-      label: '错误',
+      label: translate('auto.k0780'),
       value: displayDiagnosticText(task.errorMessage, 96),
       tone: task.errorMessage ? 'danger' : 'neutral'
     }
@@ -163,12 +164,12 @@ export function summarizeTestDesignContextPolicy(contextSummary: Record<string, 
 
   const record = limits as Record<string, unknown>;
   const parts = [
-    contextPolicyPart(record, 'linkedAssetsPerRequirement', '关联资产'),
-    contextPolicyPart(record, 'explicitAssetsPerType', '显式资产'),
-    contextPolicyPart(record, 'existingCasesPerRequirement', '历史用例'),
-    contextPolicyPart(record, 'requirementDescriptionChars', '需求描述'),
-    contextPolicyPart(record, 'acceptanceCriteriaChars', '验收标准'),
-    contextPolicyPart(record, 'linkedAssetSchemaChars', '资产摘要')
+    contextPolicyPart(record, 'linkedAssetsPerRequirement', translate('auto.k0431')),
+    contextPolicyPart(record, 'explicitAssetsPerType', translate('auto.k1393')),
+    contextPolicyPart(record, 'existingCasesPerRequirement', translate('auto.k1394')),
+    contextPolicyPart(record, 'requirementDescriptionChars', translate('auto.k2197')),
+    contextPolicyPart(record, 'acceptanceCriteriaChars', translate('auto.k0650')),
+    contextPolicyPart(record, 'linkedAssetSchemaChars', translate('auto.k1397'))
   ].filter(Boolean);
 
   return parts.length ? parts.join(' · ') : '-';
@@ -184,12 +185,12 @@ export function summarizeTestDesignContextAssemblyPolicy(
 
   const mode = displayDiagnosticText(policy.assemblyMode, 40);
   const digest = displayDiagnosticText(policy.digestStrategy, 40);
-  const digestRequired = policy.inputDigestRequired === true ? '摘要:required' : '摘要:optional';
-  const summaryOnly = policy.persistedContextSummaryOnly === true ? '仅摘要:yes' : '仅摘要:no';
-  const wp3Boundary = policy.wp3ApplicationServiceOnly === true ? 'WP3应用服务:yes' : 'WP3应用服务:no';
-  const rawStored = policy.rawContextBodyStored === true ? '原文持久化:on' : '原文持久化:off';
-  const modelPayload = policy.modelPayloadStored === true ? '模型载荷持久化:on' : '模型载荷持久化:off';
-  const detailExport = anyAssemblyDetailExported(policy) ? '细节导出:on' : '细节导出:off';
+  const digestRequired = policy.inputDigestRequired === true ? translate('auto.k2198') : translate('auto.k2199');
+  const summaryOnly = policy.persistedContextSummaryOnly === true ? translate('auto.k2200') : translate('auto.k2201');
+  const wp3Boundary = policy.wp3ApplicationServiceOnly === true ? translate('auto.k2202') : translate('auto.k2203');
+  const rawStored = policy.rawContextBodyStored === true ? translate('auto.k2204') : translate('auto.k2205');
+  const modelPayload = policy.modelPayloadStored === true ? translate('auto.k2206') : translate('auto.k2207');
+  const detailExport = anyAssemblyDetailExported(policy) ? translate('auto.k2208') : translate('auto.k2209');
   return [mode, digest, digestRequired, summaryOnly, wp3Boundary, rawStored, modelPayload, detailExport]
     .filter((part) => part !== '-')
     .join(' · ') || '-';
@@ -206,9 +207,9 @@ export function summarizeTestDesignContextPolicyGovernance(
   const source = displayDiagnosticText(governance.policySource, 32);
   const status = displayDiagnosticText(governance.governanceStatus, 40);
   const mode = displayDiagnosticText(governance.changeMode, 32);
-  const projectOverride = governance.projectOverrideSupported === true ? '项目覆盖:on' : '项目覆盖:off';
-  const envOverride = governance.environmentOverrideSupported === true ? '环境覆盖:on' : '环境覆盖:off';
-  const approval = governance.changeApprovalWorkflowReady === true ? '审批流:ready' : '审批流:pending';
+  const projectOverride = governance.projectOverrideSupported === true ? translate('auto.k2210') : translate('auto.k2211');
+  const envOverride = governance.environmentOverrideSupported === true ? translate('auto.k2212') : translate('auto.k2213');
+  const approval = governance.changeApprovalWorkflowReady === true ? translate('auto.k2214') : translate('auto.k2215');
   return [source, status, mode, projectOverride, envOverride, approval]
     .filter((part) => part !== '-')
     .join(' · ') || '-';
@@ -226,9 +227,9 @@ export function summarizeTestDesignContextPolicyOperations(
   const resolution = displayDiagnosticText(operations.policyResolutionOrder, 40);
   const fallback = displayDiagnosticText(operations.policyFallbackBehavior, 40);
   const approvalStatus = displayDiagnosticText(operations.approvalStatus, 32);
-  const projectStore = operations.projectOverrideStoreReady === true ? '项目覆盖存储:ready' : '项目覆盖存储:pending';
-  const envStore = operations.environmentOverrideStoreReady === true ? '环境覆盖存储:ready' : '环境覆盖存储:pending';
-  const approval = operations.changeApprovalWorkflowReady === true ? '审批流:ready' : '审批流:pending';
+  const projectStore = operations.projectOverrideStoreReady === true ? translate('auto.k2216') : translate('auto.k2217');
+  const envStore = operations.environmentOverrideStoreReady === true ? translate('auto.k2218') : translate('auto.k2219');
+  const approval = operations.changeApprovalWorkflowReady === true ? translate('auto.k2214') : translate('auto.k2215');
   return [mode, resolution, fallback, approvalStatus, projectStore, envStore, approval]
     .filter((part) => part !== '-')
     .join(' · ') || '-';
@@ -242,12 +243,12 @@ export function summarizeTestDesignScopePolicy(task: TestDesignTaskView | null |
 
   const model = displayDiagnosticText(policy.scopeModel, 40);
   const listScope = displayDiagnosticText(policy.listFallbackScope, 44);
-  const taskScope = policy.taskProjectScopeRequired === true ? '任务:project' : '任务:platform';
-  const candidateScope = policy.candidateProjectScopeRequired === true ? '候选:project' : '候选:platform';
-  const batchScope = policy.batchCandidateProjectScopeRequired === true ? '批量:project-set' : '批量:platform';
-  const publishScope = policy.publishProjectScopeRequired === true ? '发布:project' : '发布:platform';
-  const asyncScope = policy.asyncTaskProjectScopeRecovered === true ? '异步:task-project' : '异步:unknown';
-  const evalScope = policy.evaluationCorpusProjectIsolated === true ? '评测语料:project' : '评测语料:shared';
+  const taskScope = policy.taskProjectScopeRequired === true ? translate('auto.k2220') : translate('auto.k2221');
+  const candidateScope = policy.candidateProjectScopeRequired === true ? translate('auto.k2222') : translate('auto.k2223');
+  const batchScope = policy.batchCandidateProjectScopeRequired === true ? translate('auto.k2224') : translate('auto.k2225');
+  const publishScope = policy.publishProjectScopeRequired === true ? translate('auto.k2226') : translate('auto.k2227');
+  const asyncScope = policy.asyncTaskProjectScopeRecovered === true ? translate('auto.k2228') : translate('auto.k2229');
+  const evalScope = policy.evaluationCorpusProjectIsolated === true ? translate('auto.k2230') : translate('auto.k2231');
   return [model, listScope, taskScope, candidateScope, batchScope, publishScope, asyncScope, evalScope]
     .filter((part) => part !== '-')
     .join(' · ') || '-';
@@ -262,13 +263,13 @@ export function summarizeTestDesignEvaluationCorpusPolicy(task: TestDesignTaskVi
   const corpusMode = displayDiagnosticText(policy.corpusMode, 40);
   const gateMode = displayDiagnosticText(policy.qualityGateMode, 40);
   const threshold = displayDiagnosticText(policy.thresholdSource, 32);
-  const projectScope = policy.projectScopeRequired === true ? '项目作用域:required' : '项目作用域:optional';
+  const projectScope = policy.projectScopeRequired === true ? translate('auto.k2232') : translate('auto.k2233');
   const goldenSet = policy.goldenSetBaselineRequired === true ? 'golden set:required' : 'golden set:optional';
-  const aiEval = policy.qualityEvalScriptReady === true ? 'AI评测脚本:ready' : 'AI评测脚本:pending';
-  const gate = policy.qualityGateIntegrated === true ? '质量门禁:integrated' : '质量门禁:manual';
-  const readiness = policy.readinessDistributionTracked === true ? '准出分布:tracked' : '准出分布:missing';
-  const promptVersion = policy.promptVersionTracked === true ? 'Prompt版本:tracked' : 'Prompt版本:missing';
-  const operations = policy.operationsConsoleReady === true ? '运营后台:ready' : '运营后台:pending';
+  const aiEval = policy.qualityEvalScriptReady === true ? translate('auto.k2234') : translate('auto.k2235');
+  const gate = policy.qualityGateIntegrated === true ? translate('auto.k2236') : translate('auto.k2237');
+  const readiness = policy.readinessDistributionTracked === true ? translate('auto.k2238') : translate('auto.k2239');
+  const promptVersion = policy.promptVersionTracked === true ? translate('auto.k2240') : translate('auto.k2241');
+  const operations = policy.operationsConsoleReady === true ? translate('auto.k2242') : translate('auto.k2243');
   return [corpusMode, gateMode, threshold, projectScope, goldenSet, aiEval, gate, readiness, promptVersion, operations]
     .filter((part) => part !== '-')
     .join(' · ') || '-';
@@ -282,13 +283,13 @@ export function summarizeTestDesignReleaseReadinessPolicy(task: TestDesignTaskVi
 
   const decision = displayDiagnosticText(policy.decisionMode, 40);
   const threshold = displayDiagnosticText(policy.thresholdSource, 32);
-  const quality = policy.qualityThresholdEvaluated === true ? '质量阈值:checked' : '质量阈值:pending';
-  const advisory = policy.advisoryOnly === true ? '建议模式:on' : '建议模式:off';
-  const blocking = policy.publishBlockingEnabled === true ? '发布阻断:on' : '发布阻断:off';
-  const approval = policy.approvalWorkflowReady === true ? '审批流:ready' : '审批流:pending';
-  const manual = policy.manualApprovalRequired === true ? '人工准出:required' : '人工准出:optional';
-  const autoPublish = policy.autoPublishAllowed === true ? '自动发布:on' : '自动发布:off';
-  const confirmed = policy.confirmedCandidateRequired === true ? '候选确认:required' : '候选确认:optional';
+  const quality = policy.qualityThresholdEvaluated === true ? translate('auto.k2244') : translate('auto.k2245');
+  const advisory = policy.advisoryOnly === true ? translate('auto.k2246') : translate('auto.k2247');
+  const blocking = policy.publishBlockingEnabled === true ? translate('auto.k2248') : translate('auto.k2249');
+  const approval = policy.approvalWorkflowReady === true ? translate('auto.k2214') : translate('auto.k2215');
+  const manual = policy.manualApprovalRequired === true ? translate('auto.k2250') : translate('auto.k2251');
+  const autoPublish = policy.autoPublishAllowed === true ? translate('auto.k2252') : translate('auto.k2253');
+  const confirmed = policy.confirmedCandidateRequired === true ? translate('auto.k2254') : translate('auto.k2255');
   return [decision, threshold, quality, advisory, blocking, approval, manual, autoPublish, confirmed]
     .filter((part) => part !== '-')
     .join(' · ') || '-';
@@ -302,14 +303,14 @@ export function summarizeTestDesignAuditChainPolicy(task: TestDesignTaskView | n
 
   const mode = displayDiagnosticText(policy.chainMode, 44);
   const source = displayDiagnosticText(policy.eventSource, 44);
-  const wp1 = policy.wp1AuditEventWritten === true ? 'WP1审计:written' : 'WP1审计:missing';
-  const wp2 = policy.wp2InvocationReferenceTracked === true ? 'WP2调用:tracked' : 'WP2调用:missing';
-  const wp3 = policy.wp3PublishReferenceTracked === true ? 'WP3发布:tracked' : 'WP3发布:missing';
-  const wp5 = policy.wp5DomainEventsTracked === true ? 'WP5本域:tracked' : 'WP5本域:missing';
-  const scope = policy.projectScopeRequired === true ? '项目作用域:required' : '项目作用域:optional';
-  const trace = policy.traceSignalTracked === true ? 'trace信号:tracked' : 'trace信号:missing';
-  const dashboard = policy.crossWpAuditDashboardReady === true ? '跨WP看板:ready' : '跨WP看板:pending';
-  const outbox = policy.auditOutboxReplayDashboardReady === true ? 'outbox看板:ready' : 'outbox看板:pending';
+  const wp1 = policy.wp1AuditEventWritten === true ? translate('auto.k2256') : translate('auto.k2257');
+  const wp2 = policy.wp2InvocationReferenceTracked === true ? translate('auto.k2258') : translate('auto.k2259');
+  const wp3 = policy.wp3PublishReferenceTracked === true ? translate('auto.k2260') : translate('auto.k2261');
+  const wp5 = policy.wp5DomainEventsTracked === true ? translate('auto.k2262') : translate('auto.k2263');
+  const scope = policy.projectScopeRequired === true ? translate('auto.k2232') : translate('auto.k2233');
+  const trace = policy.traceSignalTracked === true ? translate('auto.k2264') : translate('auto.k2265');
+  const dashboard = policy.crossWpAuditDashboardReady === true ? translate('auto.k2266') : translate('auto.k2267');
+  const outbox = policy.auditOutboxReplayDashboardReady === true ? translate('auto.k2268') : translate('auto.k2269');
   return [mode, source, wp1, wp2, wp3, wp5, scope, trace, dashboard, outbox]
     .filter((part) => part !== '-')
     .join(' · ') || '-';
@@ -324,18 +325,18 @@ export function summarizeTestDesignArchivePolicy(task: TestDesignTaskView | null
   const version = displayDiagnosticText(policy.policyVersion, 32);
   const storage = displayDiagnosticText(policy.storagePolicy, 32);
   const retention = typeof policy.retentionDays === 'number' && Number.isFinite(policy.retentionDays)
-    ? `保留:${Math.floor(policy.retentionDays)}天`
-    : '保留:-';
-  const approval = policy.approvalRequired === true ? '审批:required' : '审批:optional';
-  const workflow = policy.archiveApprovalWorkflowReady === true ? '审批流:ready' : '审批流:pending';
-  const externalWorkflow = policy.externalShareApprovalWorkflowReady === true ? '外发审批:ready' : '外发审批:pending';
-  const workOrder = policy.workOrderWorkflowReady === true ? '工单流转:ready' : '工单流转:pending';
-  const storageReady = policy.archiveStorageReady === true ? '归档存储:ready' : '归档存储:pending';
-  const contentStored = policy.archiveContentStored === true ? '归档正文:stored' : '归档正文:pending';
-  const lineIndex = policy.lineIntegrityIndexReady === true ? '行级索引:ready' : '行级索引:pending';
-  const sharing = policy.externalSharingAllowed === true ? '外发:on' : '外发:off';
-  const retentionTracked = policy.retentionPolicyTracked === true ? '保留策略:tracked' : '保留策略:missing';
-  const detailExport = anyArchiveDetailExported(policy) ? '细节导出:on' : '细节导出:off';
+    ? translate('auto.k2270', { value0: Math.floor(policy.retentionDays) })
+    : translate('auto.k2271');
+  const approval = policy.approvalRequired === true ? translate('auto.k2272') : translate('auto.k2273');
+  const workflow = policy.archiveApprovalWorkflowReady === true ? translate('auto.k2214') : translate('auto.k2215');
+  const externalWorkflow = policy.externalShareApprovalWorkflowReady === true ? translate('auto.k2274') : translate('auto.k2275');
+  const workOrder = policy.workOrderWorkflowReady === true ? translate('auto.k2276') : translate('auto.k2277');
+  const storageReady = policy.archiveStorageReady === true ? translate('auto.k2278') : translate('auto.k2279');
+  const contentStored = policy.archiveContentStored === true ? translate('auto.k2280') : translate('auto.k2281');
+  const lineIndex = policy.lineIntegrityIndexReady === true ? translate('auto.k2282') : translate('auto.k2283');
+  const sharing = policy.externalSharingAllowed === true ? translate('auto.k2284') : translate('auto.k2285');
+  const retentionTracked = policy.retentionPolicyTracked === true ? translate('auto.k2286') : translate('auto.k2287');
+  const detailExport = anyArchiveDetailExported(policy) ? translate('auto.k2208') : translate('auto.k2209');
   return [
     version,
     storage,
@@ -365,12 +366,12 @@ export function summarizeTestDesignReportManifestPolicy(task: TestDesignTaskView
   const schema = displayDiagnosticText(policy.schemaVersion, 32);
   const fieldSet = displayDiagnosticText(policy.fieldSetVersion, 32);
   const mode = displayDiagnosticText(policy.manifestMode, 36);
-  const rowCount = policy.rowCountTracked === true ? '行数:tracked' : '行数:missing';
-  const completion = policy.completionStatusTracked === true ? '完成状态:tracked' : '完成状态:missing';
-  const reconciliation = policy.archiveReconciliationReady === true ? '归档核验:ready' : '归档核验:pending';
-  const rowIntegrityStored = policy.rowIntegrityStored === true ? '行级完整性:stored' : '行级完整性:pending';
-  const rowIntegrityIndex = policy.rowIntegrityIndexReady === true ? '行级索引:ready' : '行级索引:pending';
-  const detailExport = anyReportManifestDetailExported(policy) ? '细节导出:on' : '细节导出:off';
+  const rowCount = policy.rowCountTracked === true ? translate('auto.k2288') : translate('auto.k2289');
+  const completion = policy.completionStatusTracked === true ? translate('auto.k2290') : translate('auto.k2291');
+  const reconciliation = policy.archiveReconciliationReady === true ? translate('auto.k2292') : translate('auto.k2293');
+  const rowIntegrityStored = policy.rowIntegrityStored === true ? translate('auto.k2294') : translate('auto.k2295');
+  const rowIntegrityIndex = policy.rowIntegrityIndexReady === true ? translate('auto.k2282') : translate('auto.k2283');
+  const detailExport = anyReportManifestDetailExported(policy) ? translate('auto.k2208') : translate('auto.k2209');
   return [version, schema, fieldSet, mode, rowCount, completion, reconciliation, rowIntegrityStored, rowIntegrityIndex, detailExport]
     .filter((part) => part !== '-')
     .join(' · ') || '-';
@@ -384,17 +385,17 @@ export function summarizeTestDesignModelObservationPolicy(task: TestDesignTaskVi
 
   const version = displayDiagnosticText(policy.policyVersion, 36);
   const mode = displayDiagnosticText(policy.observationMode, 40);
-  const wp2 = policy.wp2InvocationReferenceTracked === true ? 'WP2调用:tracked' : 'WP2调用:missing';
-  const trace = policy.traceIdTracked === true ? 'trace信号:tracked' : 'trace信号:missing';
-  const job = policy.jobIdTracked === true ? 'job信号:tracked' : 'job信号:missing';
-  const routing = policy.routingMetadataTracked === true ? '路由:tracked' : '路由:missing';
+  const wp2 = policy.wp2InvocationReferenceTracked === true ? translate('auto.k2258') : translate('auto.k2259');
+  const trace = policy.traceIdTracked === true ? translate('auto.k2264') : translate('auto.k2265');
+  const job = policy.jobIdTracked === true ? translate('auto.k2296') : translate('auto.k2297');
+  const routing = policy.routingMetadataTracked === true ? translate('auto.k2298') : translate('auto.k2299');
   const token = policy.tokenUsageTracked === true ? 'token:tracked' : 'token:missing';
   const costLatency = policy.costTracked === true && policy.latencyTracked === true
-    ? '成本耗时:tracked'
-    : '成本耗时:missing';
+    ? translate('auto.k2300')
+    : translate('auto.k2301');
   const fallback = policy.fallbackTracked === true ? 'fallback:tracked' : 'fallback:missing';
-  const payload = policy.promptPayloadStored === true ? 'Prompt载荷:on' : 'Prompt载荷:off';
-  const detailExport = anyModelObservationDetailExported(policy) ? '细节导出:on' : '细节导出:off';
+  const payload = policy.promptPayloadStored === true ? translate('auto.k2302') : translate('auto.k2303');
+  const detailExport = anyModelObservationDetailExported(policy) ? translate('auto.k2208') : translate('auto.k2209');
   return [version, mode, wp2, trace, job, routing, token, costLatency, fallback, payload, detailExport]
     .filter((part) => part !== '-')
     .join(' · ') || '-';
@@ -408,19 +409,19 @@ export function summarizeTestDesignGenerationOrchestrationPolicy(task: TestDesig
 
   const version = displayDiagnosticText(policy.policyVersion, 40);
   const mode = displayDiagnosticText(policy.orchestrationMode, 40);
-  const claim = policy.conditionalRunClaimSupported === true ? '条件认领:ready' : '条件认领:missing';
-  const idempotent = policy.idempotentCreateReplaySupported === true ? '幂等回放:ready' : '幂等回放:missing';
-  const replay = policy.duplicateEventReplaySafe === true ? '重复事件:safe' : '重复事件:risky';
-  const recovery = policy.eventRecoveryEnabled === true ? '恢复扫描:on' : '恢复扫描:off';
-  const queueLag = policy.queueLagMetricReady === true ? '队列lag:ready' : '队列lag:pending';
-  const timeout = policy.timeoutAlertReady === true ? '超时告警:ready' : '超时告警:pending';
+  const claim = policy.conditionalRunClaimSupported === true ? translate('auto.k2304') : translate('auto.k2305');
+  const idempotent = policy.idempotentCreateReplaySupported === true ? translate('auto.k2306') : translate('auto.k2307');
+  const replay = policy.duplicateEventReplaySafe === true ? translate('auto.k2308') : translate('auto.k2309');
+  const recovery = policy.eventRecoveryEnabled === true ? translate('auto.k2310') : translate('auto.k2311');
+  const queueLag = policy.queueLagMetricReady === true ? translate('auto.k2312') : translate('auto.k2313');
+  const timeout = policy.timeoutAlertReady === true ? translate('auto.k2314') : translate('auto.k2315');
   const manual = policy.asyncGenerationEnabled === false
-    ? '人工重发:n/a'
-    : policy.manualQueuedEventReplayReady === true ? '人工重发:ready' : '人工重发:pending';
+    ? translate('auto.k2316')
+    : policy.manualQueuedEventReplayReady === true ? translate('auto.k2317') : translate('auto.k2318');
   const multi = policy.asyncGenerationEnabled === false
-    ? '多实例证据:n/a'
-    : policy.multiInstanceLoadTestEvidenceReady === true ? '多实例证据:ready' : '多实例证据:pending';
-  const detailExport = anyGenerationOrchestrationDetailExported(policy) ? '细节导出:on' : '细节导出:off';
+    ? translate('auto.k2319')
+    : policy.multiInstanceLoadTestEvidenceReady === true ? translate('auto.k2320') : translate('auto.k2321');
+  const detailExport = anyGenerationOrchestrationDetailExported(policy) ? translate('auto.k2208') : translate('auto.k2209');
   const runtime = generationOrchestrationRuntimeSummary(policy);
   return [version, mode, claim, idempotent, replay, recovery, queueLag, timeout, manual, multi, detailExport, runtime]
     .filter((part) => part !== '-')
@@ -1093,28 +1094,28 @@ function generationOrchestrationRuntimeSummary(policy: {
 }) {
   const parts: string[] = [];
   if (typeof policy.queueLagWarningSeconds === 'number') {
-    parts.push(`lag阈值:${Math.floor(policy.queueLagWarningSeconds)}s`);
+    parts.push(translate('auto.k2322', { value0: Math.floor(policy.queueLagWarningSeconds) }));
   }
   if (typeof policy.runningTimeoutSeconds === 'number') {
-    parts.push(`超时阈值:${Math.floor(policy.runningTimeoutSeconds)}s`);
+    parts.push(translate('auto.k2323', { value0: Math.floor(policy.runningTimeoutSeconds) }));
   }
   if (typeof policy.queuedTaskCount === 'number') {
-    parts.push(`排队:${Math.floor(policy.queuedTaskCount)}`);
+    parts.push(translate('auto.k2324', { value0: Math.floor(policy.queuedTaskCount) }));
   }
   if (typeof policy.runningTaskCount === 'number') {
-    parts.push(`运行:${Math.floor(policy.runningTaskCount)}`);
+    parts.push(translate('auto.k2325', { value0: Math.floor(policy.runningTaskCount) }));
   }
   if (typeof policy.oldestQueuedAgeSeconds === 'number') {
-    parts.push(`最旧排队:${Math.floor(policy.oldestQueuedAgeSeconds)}s`);
+    parts.push(translate('auto.k2326', { value0: Math.floor(policy.oldestQueuedAgeSeconds) }));
   }
   if (typeof policy.staleRunningTaskCount === 'number') {
-    parts.push(`超时运行:${Math.floor(policy.staleRunningTaskCount)}`);
+    parts.push(translate('auto.k2327', { value0: Math.floor(policy.staleRunningTaskCount) }));
   }
   if (policy.queueLagWarning === true) {
-    parts.push('lag告警:on');
+    parts.push(translate('auto.k2328'));
   }
   if (policy.timeoutWarning === true) {
-    parts.push('超时告警:on');
+    parts.push(translate('auto.k2329'));
   }
   return parts.length ? parts.join(' / ') : '-';
 }
@@ -1259,7 +1260,7 @@ function formatModel(task: TestDesignTaskView) {
 function formatModelObservation(task: TestDesignTaskView) {
   const observation = task.modelObservation;
   if (!observation) {
-    return task.modelInvocationId ? '仅记录调用 ID' : '-';
+    return task.modelInvocationId ? translate('auto.k2330') : '-';
   }
   const parts: string[] = [];
   parts.push(displayDiagnosticText(observation.status, 24));
@@ -1270,7 +1271,7 @@ function formatModelObservation(task: TestDesignTaskView) {
     parts.push('fallback');
   }
   if (!observation.available) {
-    parts.push('日志暂不可用');
+    parts.push(translate('auto.k2331'));
   }
   const error = displayDiagnosticText(observation.errorCode || observation.errorMessage, 48);
   if (error !== '-') {

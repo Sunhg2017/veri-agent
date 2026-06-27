@@ -9,6 +9,7 @@ import {
   type AssetTraceTopologyNode
 } from '../assetTraceTopology';
 import type { AssetNavigationKey } from './AssetStructuredWorkbench';
+import { translate } from '../platform/i18n';
 
 const LANE_WIDTH = 188;
 const NODE_WIDTH = 164;
@@ -28,8 +29,8 @@ export function AssetTraceTopologyPanel(props: {
       <div className="empty-state compact">
         <GitBranch size={20} />
         <div>
-          <strong>暂无拓扑节点</strong>
-          <span>选择需求、API、页面、业务流或用例后展示关系拓扑</span>
+          <strong>{translate('auto.k0505')}</strong>
+          <span>{translate('auto.k0506')}</span>
         </div>
       </div>
     );
@@ -41,10 +42,10 @@ export function AssetTraceTopologyPanel(props: {
   return (
     <div className="trace-topology-panel">
       <div className="trace-topology-summary">
-        <span>展示 {graph.nodes.length} 个节点 / {graph.edges.length} 条关系</span>
-        <span>分析深度 {graph.maxDepth} 跳</span>
+        <span>{translate('auto.k0507')}{graph.nodes.length} {translate('auto.k0508')}{graph.edges.length} {translate('auto.k0509')}</span>
+        <span>{translate('auto.k0510')}{graph.maxDepth} {translate('auto.k0511')}</span>
         {graph.hiddenNodeCount > 0 || graph.hiddenEdgeCount > 0 ? (
-          <span>已折叠 {graph.hiddenNodeCount} 个节点、{graph.hiddenEdgeCount} 条关系</span>
+          <span>{translate('auto.k0512')}{graph.hiddenNodeCount} {translate('auto.k0513')}{graph.hiddenEdgeCount} {translate('auto.k0509')}</span>
         ) : null}
       </div>
 
@@ -140,7 +141,7 @@ export function AssetTraceTopologyPanel(props: {
                 <button
                   className="mini-button icon-only trace-topology-open"
                   type="button"
-                  title={`打开${labelAssetTraceSubjectType(node.assetType)}详情`}
+                  title={translate('auto.k0514', { value0: labelAssetTraceSubjectType(node.assetType) })}
                   onClick={() => props.onOpenAsset(subjectTypeToTab(node.assetType), node.assetId)}
                 >
                   <Eye size={14} />
@@ -153,13 +154,13 @@ export function AssetTraceTopologyPanel(props: {
 
       <div className="trace-topology-footer">
         <div className="trace-topology-legend">
-          <span className="focus">焦点</span>
-          <span className="neighbor">一跳</span>
-          <span className="context">二跳</span>
+          <span className="focus">{translate('auto.k0515')}</span>
+          <span className="neighbor">{translate('auto.k0516')}</span>
+          <span className="context">{translate('auto.k0517')}</span>
         </div>
         <div className="trace-topology-hint">
           <Link2 size={14} />
-          <span>点击节点切换焦点，右上角图标可打开资产详情</span>
+          <span>{translate('auto.k0518')}</span>
         </div>
       </div>
     </div>
@@ -211,12 +212,12 @@ function subjectTypeToTab(type: AssetTraceSubjectType): AssetNavigationKey {
 
 export function describeTopologyFocus(subject: AssetTraceSubject | null, nodes: AssetTraceTopologyNode[]) {
   if (!subject) {
-    return '未选择焦点资产';
+    return translate('auto.k0519');
   }
   const key = assetTraceSubjectKey(subject);
   const node = nodes.find((item) => item.key === key);
   if (!node) {
-    return `${labelAssetTraceSubjectType(subject.type)}未出现在当前拓扑中`;
+    return translate('auto.k0520', { value0: labelAssetTraceSubjectType(subject.type) });
   }
   return `${labelAssetTraceSubjectType(subject.type)} · ${node.title}`;
 }

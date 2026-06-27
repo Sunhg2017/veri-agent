@@ -1,4 +1,5 @@
 import type { ExecutionDagNodePayload, ExecutionPlanDetail } from './api/execution';
+import { translate } from './platform/i18n';
 
 export type ExecutionNodeType = 'API_TEST' | 'REPORT_HANDOFF';
 export type ExecutionFailurePolicy = 'FAIL_FAST' | 'CONTINUE' | 'BLOCK_DOWNSTREAM';
@@ -105,10 +106,10 @@ export function executionPlanDraftFromDetail(plan: ExecutionPlanDetail): Executi
 
 export function validateExecutionPlanDraft(draft: ExecutionPlanDraft): ExecutionDraftIssue[] {
   const issues: ExecutionDraftIssue[] = [];
-  if (!draft.projectId.trim()) issues.push({ field: 'projectId', message: '请填写项目' });
-  if (!draft.name.trim()) issues.push({ field: 'name', message: '请填写计划名称' });
-  if (!draft.environmentKey.trim()) issues.push({ field: 'environmentKey', message: '请填写环境' });
-  if (!draft.nodes.length) issues.push({ field: 'nodes', message: '至少需要一个 DAG 节点' });
+  if (!draft.projectId.trim()) issues.push({ field: 'projectId', message: translate('auto.k1994') });
+  if (!draft.name.trim()) issues.push({ field: 'name', message: translate('auto.k1995') });
+  if (!draft.environmentKey.trim()) issues.push({ field: 'environmentKey', message: translate('auto.k1996') });
+  if (!draft.nodes.length) issues.push({ field: 'nodes', message: translate('auto.k1997') });
 
   const seenKeys = new Set<string>();
   const duplicateKeys = new Set<string>();
@@ -116,39 +117,39 @@ export function validateExecutionPlanDraft(draft: ExecutionPlanDraft): Execution
     const label = `nodes.${index}`;
     const key = node.key.trim();
     if (!key) {
-      issues.push({ field: `${label}.key`, message: '节点 key 必填' });
+      issues.push({ field: `${label}.key`, message: translate('auto.k1998') });
     } else if (!NODE_KEY_PATTERN.test(key)) {
-      issues.push({ field: `${label}.key`, message: `节点 ${key} 只能包含字母、数字、-、_` });
+      issues.push({ field: `${label}.key`, message: translate('auto.k1999', { value0: key }) });
     }
     if (seenKeys.has(key)) duplicateKeys.add(key);
     seenKeys.add(key);
     if (!Number.isFinite(node.timeoutSeconds) || node.timeoutSeconds < 1 || node.timeoutSeconds > 86400) {
-      issues.push({ field: `${label}.timeoutSeconds`, message: `节点 ${key || index + 1} 超时秒必须在 1-86400` });
+      issues.push({ field: `${label}.timeoutSeconds`, message: translate('auto.k2000', { value0: key || index + 1 }) });
     }
     if (!Number.isFinite(node.maxAttempts) || node.maxAttempts < 0 || node.maxAttempts > 5) {
-      issues.push({ field: `${label}.maxAttempts`, message: `节点 ${key || index + 1} 重试次数必须在 0-5` });
+      issues.push({ field: `${label}.maxAttempts`, message: translate('auto.k2001', { value0: key || index + 1 }) });
     }
     if (node.type === 'API_TEST' && node.accountPoolRef.trim()
       && (!Number.isFinite(node.accountLeaseTtlSeconds) || node.accountLeaseTtlSeconds < 0 || node.accountLeaseTtlSeconds > 604800)) {
-      issues.push({ field: `${label}.accountLeaseTtlSeconds`, message: `节点 ${key || index + 1} 租借 TTL 秒必须在 0-604800` });
+      issues.push({ field: `${label}.accountLeaseTtlSeconds`, message: translate('auto.k2002', { value0: key || index + 1 }) });
     }
   });
-  duplicateKeys.forEach((key) => issues.push({ field: 'nodes.key', message: `节点 key 重复: ${key}` }));
+  duplicateKeys.forEach((key) => issues.push({ field: 'nodes.key', message: translate('auto.k2003', { value0: key }) }));
 
   const keys = new Set(draft.nodes.map((node) => node.key.trim()).filter(Boolean));
   draft.nodes.forEach((node) => {
     parseCommaSeparated(node.dependenciesText).forEach((dependency) => {
       if (!keys.has(dependency)) {
-        issues.push({ field: `${node.key}.dependencies`, message: `节点 ${node.key || '-'} 依赖不存在: ${dependency}` });
+        issues.push({ field: `${node.key}.dependencies`, message: translate('auto.k2004', { value0: node.key || '-', value1: dependency }) });
       }
       if (dependency === node.key.trim()) {
-        issues.push({ field: `${node.key}.dependencies`, message: `节点 ${node.key} 不能依赖自身` });
+        issues.push({ field: `${node.key}.dependencies`, message: translate('auto.k2005', { value0: node.key }) });
       }
     });
   });
 
   findCycle(draft.nodes)?.forEach((key) => {
-    issues.push({ field: 'nodes.dependencies', message: `DAG 依赖存在环: ${key}` });
+    issues.push({ field: 'nodes.dependencies', message: translate('auto.k2006', { value0: key }) });
   });
 
   return issues;

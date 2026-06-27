@@ -1,6 +1,7 @@
 import type { TestDesignAuditSummaryView, TestDesignAuditTimelineItemView } from './api/testDesign';
 import { sanitizeTestDesignExportText } from './testDesignExport';
 import type { TestDesignQualitySummaryTone } from './testDesignQualitySummary';
+import { translate } from './platform/i18n';
 
 export type TestDesignAuditMetric = {
   label: string;
@@ -36,31 +37,31 @@ export function buildTestDesignAuditSummary(
     scopeLabel: scopeLabel(summary),
     metrics: [
       {
-        label: '本域事件',
+        label: translate('auto.k2022'),
         value: eventCount,
-        desc: summary?.taskStatus ? sanitize(summary.taskStatus, 24) : '未加载',
+        desc: summary?.taskStatus ? sanitize(summary.taskStatus, 24) : translate('auto.k0169'),
         tone: eventCount > 1 ? 'info' : 'neutral'
       },
       {
-        label: '评审记录',
+        label: translate('auto.k2023'),
         value: reviewRecordCount,
         desc: formatRatio(reviewRecordCount, eventCount),
         tone: reviewRecordCount > 0 ? 'success' : 'neutral'
       },
       {
-        label: '发布记录',
+        label: translate('auto.k0792'),
         value: publishRecordCount,
-        desc: dryRunRecordCount ? `预演 ${dryRunRecordCount}` : '无预演',
+        desc: dryRunRecordCount ? translate('auto.k2024', { value0: dryRunRecordCount }) : translate('auto.k2025'),
         tone: publishRecordCount > 0 ? 'info' : 'neutral'
       },
       {
-        label: '失败冲突',
+        label: translate('auto.k2026'),
         value: issueCount,
         desc: formatRatio(issueCount, eventCount),
         tone: issueCount > 0 ? 'warning' : 'success'
       },
       {
-        label: '说明覆盖',
+        label: translate('auto.k2027'),
         value: noteCoverageCount,
         desc: formatRatio(noteCoverageCount, eventCount),
         tone: noteCoverageCount > 0 ? 'info' : 'neutral'
@@ -85,7 +86,7 @@ function toTimelineItem(item: TestDesignAuditTimelineItemView): TestDesignAuditT
     metaText: [
       result,
       item.actor ? `by ${sanitize(item.actor, 32)}` : '',
-      item.hasNote ? '有说明' : '无说明',
+      item.hasNote ? translate('auto.k2028') : translate('auto.k2029'),
       compactId(item.candidateId)
     ].filter(Boolean).join(' · '),
     tone: timelineTone(item)
@@ -114,29 +115,29 @@ function buildWarnings(
   const warnings: TestDesignAuditSummary['warnings'] = [];
   const missingNoteCount = timeline.filter((item) => !item.hasNote && item.source !== 'TASK').length;
   if (issueCount > 0) {
-    warnings.push({ label: '存在失败或冲突', count: issueCount, tone: 'warning' });
+    warnings.push({ label: translate('auto.k2030'), count: issueCount, tone: 'warning' });
   }
   if (missingNoteCount > 0) {
-    warnings.push({ label: '最近事件缺说明', count: missingNoteCount, tone: 'warning' });
+    warnings.push({ label: translate('auto.k2031'), count: missingNoteCount, tone: 'warning' });
   }
   if (noteCoverageCount === 0 && timeline.length > 1) {
-    warnings.push({ label: '无人工说明', count: timeline.length - 1, tone: 'warning' });
+    warnings.push({ label: translate('auto.k2032'), count: timeline.length - 1, tone: 'warning' });
   }
   return warnings;
 }
 
 function scopeLabel(summary: TestDesignAuditSummaryView | null | undefined) {
   if (!summary) {
-    return '审计链摘要未加载';
+    return translate('auto.k2033');
   }
   const parts: string[] = [];
   if (summary.projectId) {
-    parts.push(`项目 ${sanitize(summary.projectId, 32)}`);
+    parts.push(translate('auto.k2034', { value0: sanitize(summary.projectId, 32) }));
   }
   if (summary.taskStatus) {
-    parts.push(`任务 ${sanitize(summary.taskStatus, 24)}`);
+    parts.push(translate('auto.k2035', { value0: sanitize(summary.taskStatus, 24) }));
   }
-  parts.push(`本域事件 ${normalizeCount(summary.eventCount)}`);
+  parts.push(translate('auto.k2036', { value0: normalizeCount(summary.eventCount) }));
   return parts.join(' · ');
 }
 

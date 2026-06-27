@@ -1,4 +1,5 @@
 import type { TestDesignCandidateView, TestDesignTaskView } from './api/testDesign';
+import { translate } from './platform/i18n';
 
 export type TestDesignGenerationSourceKind =
   | 'MODEL_OUTPUT'
@@ -16,7 +17,7 @@ export type TestDesignGenerationSource = {
   tone: TestDesignGenerationSourceTone;
 };
 
-const FALLBACK_TEMPLATE_PATTERN = /(已降级规则模板|降级规则模板|rule[-_\s]?template\s+fallback|fallback\s+to\s+rule[-_\s]?template)/i;
+const FALLBACK_TEMPLATE_PATTERN = /(\u5df2\u964d\u7ea7\u89c4\u5219\u6a21\u677f|\u964d\u7ea7\u89c4\u5219\u6a21\u677f|rule[-_\s]?template\s+fallback|fallback\s+to\s+rule[-_\s]?template)/i;
 const MODEL_MODES = new Set(['MODEL', 'MODEL_WITH_FALLBACK']);
 
 export function taskGenerationSource(task: TestDesignTaskView | null | undefined): TestDesignGenerationSource {
@@ -26,8 +27,8 @@ export function taskGenerationSource(task: TestDesignTaskView | null | undefined
   if (isRuleTemplateFallback(task.errorMessage)) {
     return {
       kind: 'MODEL_FALLBACK_TEMPLATE',
-      label: '模型降级模板',
-      detail: '模型失败后由规则模板生成',
+      label: translate('auto.k2098'),
+      detail: translate('auto.k2099'),
       tone: 'warning'
     };
   }
@@ -38,7 +39,7 @@ export function taskGenerationSource(task: TestDesignTaskView | null | undefined
   if (invocationId || (provider && !isGenerationMode(provider)) || (model && !isGenerationMode(model))) {
     return {
       kind: 'MODEL_OUTPUT',
-      label: '模型输出',
+      label: translate('auto.k2100'),
       detail: formatModelDetail(provider, model),
       tone: 'success'
     };
@@ -48,16 +49,16 @@ export function taskGenerationSource(task: TestDesignTaskView | null | undefined
   if (mode === 'RULE_TEMPLATE') {
     return {
       kind: 'RULE_TEMPLATE',
-      label: '规则模板',
-      detail: '未调用模型',
+      label: translate('auto.k2101'),
+      detail: translate('auto.k2102'),
       tone: 'neutral'
     };
   }
   if (mode && MODEL_MODES.has(mode)) {
     return {
       kind: 'MODEL_PENDING',
-      label: '模型待生成',
-      detail: mode === 'MODEL_WITH_FALLBACK' ? '允许失败后降级模板' : '严格模型模式',
+      label: translate('auto.k2103'),
+      detail: mode === 'MODEL_WITH_FALLBACK' ? translate('auto.k2104') : translate('auto.k2105'),
       tone: 'warning'
     };
   }
@@ -80,8 +81,8 @@ export function candidateGenerationSource(
   if (isRuleTemplateFallback(candidate.errorMessage)) {
     return {
       kind: 'MODEL_FALLBACK_TEMPLATE',
-      label: '模型降级模板',
-      detail: '模型失败后由规则模板生成',
+      label: translate('auto.k2098'),
+      detail: translate('auto.k2099'),
       tone: 'warning'
     };
   }
@@ -92,7 +93,7 @@ export function candidateGenerationSource(
   if (invocationId || (provider && !isGenerationMode(provider)) || (model && !isGenerationMode(model))) {
     return {
       kind: 'MODEL_OUTPUT',
-      label: '模型输出',
+      label: translate('auto.k2100'),
       detail: formatModelDetail(provider, model),
       tone: 'success'
     };
@@ -102,32 +103,32 @@ export function candidateGenerationSource(
   if (mode === 'RULE_TEMPLATE') {
     return {
       kind: 'RULE_TEMPLATE',
-      label: '规则模板',
-      detail: '未调用模型',
+      label: translate('auto.k2101'),
+      detail: translate('auto.k2102'),
       tone: 'neutral'
     };
   }
   if (mode === 'MODEL_WITH_FALLBACK') {
     return {
       kind: 'MODEL_FALLBACK_TEMPLATE',
-      label: '模型降级模板',
-      detail: '未记录模型输出，按模板候选处理',
+      label: translate('auto.k2098'),
+      detail: translate('auto.k2106'),
       tone: 'warning'
     };
   }
   if (mode === 'MODEL') {
     return {
       kind: 'MODEL_PENDING',
-      label: '模型待生成',
-      detail: '尚未记录模型调用',
+      label: translate('auto.k2103'),
+      detail: translate('auto.k2107'),
       tone: 'warning'
     };
   }
 
   return {
     kind: 'RULE_TEMPLATE',
-    label: '规则模板',
-    detail: '未记录模型调用',
+    label: translate('auto.k2101'),
+    detail: translate('auto.k2108'),
     tone: 'neutral'
   };
 }
@@ -139,8 +140,8 @@ export function generationSourceText(source: TestDesignGenerationSource): string
 function unknownSource(): TestDesignGenerationSource {
   return {
     kind: 'UNKNOWN',
-    label: '来源未知',
-    detail: '缺少模型或模板标识',
+    label: translate('auto.k2109'),
+    detail: translate('auto.k2110'),
     tone: 'warning'
   };
 }
@@ -178,5 +179,5 @@ function formatModelDetail(provider?: string, model?: string) {
   if (provider && model) {
     return `${provider} / ${model}`;
   }
-  return provider ?? model ?? '已记录模型调用';
+  return provider ?? model ?? translate('auto.k2111');
 }

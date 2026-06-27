@@ -5,6 +5,7 @@ import {
   type StepRichTextSegment,
   type StepRichTextStyle
 } from '../stepRichText';
+import { translate } from '../platform/i18n';
 
 export function StepRichTextField(props: {
   disabled: boolean;
@@ -20,17 +21,17 @@ export function StepRichTextField(props: {
     <div className="field step-rich-text-field">
       <div className="step-rich-text-label-row">
         <label htmlFor={props.id}>{props.label}</label>
-        <div className="step-rich-text-toolbar" aria-label={`${props.label} 富文本工具栏`}>
-          <button className="mini-button icon-only" type="button" title="加粗" disabled={props.disabled} onClick={() => props.onFormat('bold')}>
+        <div className="step-rich-text-toolbar" aria-label={translate('auto.k1195', { value0: props.label })}>
+          <button className="mini-button icon-only" type="button" title={translate('auto.k1196')} disabled={props.disabled} onClick={() => props.onFormat('bold')}>
             <Bold size={13} />
           </button>
-          <button className="mini-button icon-only" type="button" title="斜体" disabled={props.disabled} onClick={() => props.onFormat('italic')}>
+          <button className="mini-button icon-only" type="button" title={translate('auto.k1197')} disabled={props.disabled} onClick={() => props.onFormat('italic')}>
             <Italic size={13} />
           </button>
-          <button className="mini-button icon-only" type="button" title="行内代码" disabled={props.disabled} onClick={() => props.onFormat('code')}>
+          <button className="mini-button icon-only" type="button" title={translate('auto.k1198')} disabled={props.disabled} onClick={() => props.onFormat('code')}>
             <Code2 size={13} />
           </button>
-          <button className="mini-button icon-only" type="button" title="列表" disabled={props.disabled} onClick={() => props.onFormat('bullet')}>
+          <button className="mini-button icon-only" type="button" title={translate('auto.k1199')} disabled={props.disabled} onClick={() => props.onFormat('bullet')}>
             <List size={13} />
           </button>
         </div>
@@ -43,8 +44,8 @@ export function StepRichTextField(props: {
         onChange={(event) => props.onChange(event.target.value)}
         placeholder={props.placeholder}
       />
-      <div className="step-rich-text-preview" aria-label={`${props.label} 预览`}>
-        {blocks.length ? blocks.map((block, index) => <StepRichTextBlockView block={block} key={`${props.id}-preview-${index}`} />) : <em>预览</em>}
+      <div className="step-rich-text-preview" aria-label={translate('auto.k1200', { value0: props.label })}>
+        {blocks.length ? blocks.map((block, index) => <StepRichTextBlockView block={block} key={`${props.id}-preview-${index}`} />) : <em>{translate('auto.k1201')}</em>}
       </div>
     </div>
   );

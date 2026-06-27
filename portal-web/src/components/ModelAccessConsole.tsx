@@ -75,6 +75,7 @@ import {
   type InvokeModelResponse
 } from '../api/modelAccess';
 import { canUseButton, hasPermission } from '../permissions';
+import { translate } from '../platform/i18n';
 
 type WorkState = {
   loading: boolean;
@@ -267,12 +268,12 @@ const initialPlaygroundResult: PlaygroundResult = {
 const qualityTaskTypeOptions = ['ALL', 'case-design', 'defect-triage', 'requirement-summary'] as const;
 
 const tabs: Array<{ key: TabKey; label: string; icon: LucideIcon }> = [
-  { key: 'providers', label: '供应商', icon: ServerCog },
+  { key: 'providers', label: translate('auto.k0905'), icon: ServerCog },
   { key: 'prompts', label: 'Prompt', icon: FileDiff },
   { key: 'playground', label: 'Playground', icon: PlayCircle },
-  { key: 'quality', label: '质量评估', icon: Eye },
-  { key: 'policies', label: '策略', icon: SlidersHorizontal },
-  { key: 'logs', label: '日志与成本', icon: Activity }
+  { key: 'quality', label: translate('auto.k0906'), icon: Eye },
+  { key: 'policies', label: translate('auto.k0907'), icon: SlidersHorizontal },
+  { key: 'logs', label: translate('auto.k0908'), icon: Activity }
 ];
 
 export function ModelAccessConsole(props: { signedIn: boolean; currentUser: CurrentUser | null }) {
@@ -387,32 +388,32 @@ export function ModelAccessConsole(props: { signedIn: boolean; currentUser: Curr
       setHealth(healthResult.value.data);
       traceIds.push(healthResult.value.trace_id);
     } else {
-      errors.push(errorMessage(healthResult.reason, '模型接入健康检查失败'));
+      errors.push(errorMessage(healthResult.reason, translate('auto.k0909')));
     }
 
     if (providersResult.status === 'fulfilled') {
       setProviders(providersResult.value.data);
       traceIds.push(providersResult.value.trace_id);
     } else {
-      errors.push(errorMessage(providersResult.reason, '供应商列表加载失败'));
+      errors.push(errorMessage(providersResult.reason, translate('auto.k0910')));
     }
 
     if (promptsResult.status === 'fulfilled') {
       traceIds.push(promptsResult.value);
     } else {
-      errors.push(errorMessage(promptsResult.reason, 'Prompt 列表加载失败'));
+      errors.push(errorMessage(promptsResult.reason, translate('auto.k0911')));
     }
 
     if (policiesResult.status === 'fulfilled') {
       traceIds.push(policiesResult.value);
     } else {
-      errors.push(errorMessage(policiesResult.reason, '策略列表加载失败'));
+      errors.push(errorMessage(policiesResult.reason, translate('auto.k0912')));
     }
 
     if (logsResult.status === 'fulfilled') {
       traceIds.push(logsResult.value);
     } else {
-      errors.push(errorMessage(logsResult.reason, '调用日志加载失败'));
+      errors.push(errorMessage(logsResult.reason, translate('auto.k0913')));
     }
 
     setLoadState({
@@ -459,7 +460,7 @@ export function ModelAccessConsole(props: { signedIn: boolean; currentUser: Curr
   async function onSubmitProvider(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!canManageProviders) {
-      setProviderState({ loading: false, error: '当前账号无模型供应商管理权限' });
+      setProviderState({ loading: false, error: translate('auto.k0914') });
       return;
     }
     const validation = validateProviderDraft(providerDraft);
@@ -479,11 +480,11 @@ export function ModelAccessConsole(props: { signedIn: boolean; currentUser: Curr
       setEditingProviderId(null);
       setProviderState({
         loading: false,
-        success: editingProviderId ? '供应商已保存' : '供应商已创建',
+        success: editingProviderId ? translate('auto.k0915') : translate('auto.k0916'),
         traceId: providersResponse.trace_id || response.trace_id
       });
     } catch (error: unknown) {
-      setProviderState({ loading: false, error: errorMessage(error, '供应商保存失败'), traceId: traceId(error) });
+      setProviderState({ loading: false, error: errorMessage(error, translate('auto.k0917')), traceId: traceId(error) });
     }
   }
 
@@ -496,9 +497,9 @@ export function ModelAccessConsole(props: { signedIn: boolean; currentUser: Curr
         : await enableModelProvider(provider.id);
       const providersResponse = await fetchModelProviders();
       setProviders(providersResponse.data);
-      setProviderState({ loading: false, success: `供应商已${response.data.status === 'ENABLED' ? '启用' : '停用'}`, traceId: response.trace_id });
+      setProviderState({ loading: false, success: translate('auto.k0918', { value0: response.data.status === 'ENABLED' ? translate('auto.k0251') : translate('auto.k0253') }), traceId: response.trace_id });
     } catch (error: unknown) {
-      setProviderState({ loading: false, error: errorMessage(error, '供应商状态切换失败'), traceId: traceId(error) });
+      setProviderState({ loading: false, error: errorMessage(error, translate('auto.k0919')), traceId: traceId(error) });
     }
   }
 
@@ -512,9 +513,9 @@ export function ModelAccessConsole(props: { signedIn: boolean; currentUser: Curr
       ]);
       setProviderChecks((current) => ({ ...current, [provider.id]: checkResponse.data }));
       setProviderResilience((current) => ({ ...current, [provider.id]: resilienceResponse.data }));
-      setProviderState({ loading: false, success: `${provider.name} 就绪检查完成`, traceId: checkResponse.trace_id });
+      setProviderState({ loading: false, success: translate('auto.k0920', { value0: provider.name }), traceId: checkResponse.trace_id });
     } catch (error: unknown) {
-      setProviderState({ loading: false, error: errorMessage(error, '就绪检查失败'), traceId: traceId(error) });
+      setProviderState({ loading: false, error: errorMessage(error, translate('auto.k0921')), traceId: traceId(error) });
     }
   }
 
@@ -524,24 +525,24 @@ export function ModelAccessConsole(props: { signedIn: boolean; currentUser: Curr
     try {
       const response = await resetProviderCircuit(provider.id);
       setProviderResilience((current) => ({ ...current, [provider.id]: response.data }));
-      setProviderState({ loading: false, success: `${provider.name} 熔断状态已恢复`, traceId: response.trace_id });
+      setProviderState({ loading: false, success: translate('auto.k0922', { value0: provider.name }), traceId: response.trace_id });
     } catch (error: unknown) {
-      setProviderState({ loading: false, error: errorMessage(error, '熔断恢复失败'), traceId: traceId(error) });
+      setProviderState({ loading: false, error: errorMessage(error, translate('auto.k0923')), traceId: traceId(error) });
     }
   }
 
   async function onSubmitPrompt(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!canManagePrompts) {
-      setPromptState({ loading: false, error: '当前账号无 Prompt 管理权限' });
+      setPromptState({ loading: false, error: translate('auto.k0924') });
       return;
     }
     if (!promptDraft.promptKey.trim() || !promptDraft.name.trim() || !promptDraft.content.trim()) {
-      setPromptState({ loading: false, error: 'Prompt key、名称和内容必填' });
+      setPromptState({ loading: false, error: translate('auto.k0925') });
       return;
     }
     if (promptDraft.content.length > 12000) {
-      setPromptState({ loading: false, error: 'Prompt 内容不能超过 12000 字符' });
+      setPromptState({ loading: false, error: translate('auto.k0926') });
       return;
     }
     setPromptState({ loading: true });
@@ -556,9 +557,9 @@ export function ModelAccessConsole(props: { signedIn: boolean; currentUser: Curr
       });
       const traceId = await refreshPrompts();
       setPromptDraft(initialPromptDraft);
-      setPromptState({ loading: false, success: `Prompt v${response.data.version} 已创建`, traceId: traceId || response.trace_id });
+      setPromptState({ loading: false, success: translate('auto.k0927', { value0: response.data.version }), traceId: traceId || response.trace_id });
     } catch (error: unknown) {
-      setPromptState({ loading: false, error: errorMessage(error, 'Prompt 创建失败'), traceId: traceId(error) });
+      setPromptState({ loading: false, error: errorMessage(error, translate('auto.k0928')), traceId: traceId(error) });
     }
   }
 
@@ -568,9 +569,9 @@ export function ModelAccessConsole(props: { signedIn: boolean; currentUser: Curr
     try {
       const response = await activatePromptVersion(prompt.id);
       const traceId = await refreshPrompts();
-      setPromptState({ loading: false, success: `${prompt.promptKey} v${prompt.version} 已激活`, traceId: traceId || response.trace_id });
+      setPromptState({ loading: false, success: translate('auto.k0929', { value0: prompt.promptKey, value1: prompt.version }), traceId: traceId || response.trace_id });
     } catch (error: unknown) {
-      setPromptState({ loading: false, error: errorMessage(error, 'Prompt 激活失败'), traceId: traceId(error) });
+      setPromptState({ loading: false, error: errorMessage(error, translate('auto.k0930')), traceId: traceId(error) });
     }
   }
 
@@ -580,9 +581,9 @@ export function ModelAccessConsole(props: { signedIn: boolean; currentUser: Curr
     try {
       const response = await approvePromptVersion(prompt.id, { reviewNote: prompt.changeNote });
       const traceId = await refreshPrompts();
-      setPromptState({ loading: false, success: `${prompt.promptKey} v${prompt.version} 已审批通过`, traceId: traceId || response.trace_id });
+      setPromptState({ loading: false, success: translate('auto.k0931', { value0: prompt.promptKey, value1: prompt.version }), traceId: traceId || response.trace_id });
     } catch (error: unknown) {
-      setPromptState({ loading: false, error: errorMessage(error, 'Prompt 审批失败'), traceId: traceId(error) });
+      setPromptState({ loading: false, error: errorMessage(error, translate('auto.k0932')), traceId: traceId(error) });
     }
   }
 
@@ -592,16 +593,16 @@ export function ModelAccessConsole(props: { signedIn: boolean; currentUser: Curr
     try {
       const response = await rejectPromptVersion(prompt.id, { reviewNote: prompt.changeNote });
       const traceId = await refreshPrompts();
-      setPromptState({ loading: false, success: `${prompt.promptKey} v${prompt.version} 已驳回`, traceId: traceId || response.trace_id });
+      setPromptState({ loading: false, success: translate('auto.k0933', { value0: prompt.promptKey, value1: prompt.version }), traceId: traceId || response.trace_id });
     } catch (error: unknown) {
-      setPromptState({ loading: false, error: errorMessage(error, 'Prompt 驳回失败'), traceId: traceId(error) });
+      setPromptState({ loading: false, error: errorMessage(error, translate('auto.k0934')), traceId: traceId(error) });
     }
   }
 
   async function onSubmitPolicy(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!canManagePolicies) {
-      setPolicyState({ loading: false, error: '当前账号无策略管理权限' });
+      setPolicyState({ loading: false, error: translate('auto.k0935') });
       return;
     }
     const validation = validatePolicyDraft(policyDraft);
@@ -613,15 +614,15 @@ export function ModelAccessConsole(props: { signedIn: boolean; currentUser: Curr
     try {
       const response = await upsertModelAccessPolicy(policyPayload(policyDraft));
       const traceId = await refreshPolicies();
-      setPolicyState({ loading: false, success: `${response.data.scopeType}:${response.data.scopeKey} 已保存`, traceId: traceId || response.trace_id });
+      setPolicyState({ loading: false, success: translate('auto.k0936', { value0: response.data.scopeType, value1: response.data.scopeKey }), traceId: traceId || response.trace_id });
     } catch (error: unknown) {
-      setPolicyState({ loading: false, error: errorMessage(error, '策略保存失败'), traceId: traceId(error) });
+      setPolicyState({ loading: false, error: errorMessage(error, translate('auto.k0937')), traceId: traceId(error) });
     }
   }
 
   async function onRunPlayground(mode: PlaygroundRunMode) {
     if (!canManageInvocations) {
-      setPlaygroundState({ loading: false, error: '当前账号无模型调用管理权限' });
+      setPlaygroundState({ loading: false, error: translate('auto.k0938') });
       return;
     }
     const payload = buildPlaygroundPayload(playgroundDraft);
@@ -642,7 +643,7 @@ export function ModelAccessConsole(props: { signedIn: boolean; currentUser: Curr
           streamContent: response.data.content,
           job: null
         });
-        setPlaygroundState({ loading: false, success: '同步调用完成', traceId: response.trace_id });
+        setPlaygroundState({ loading: false, success: translate('auto.k0939'), traceId: response.trace_id });
         return;
       }
       if (mode === 'stream') {
@@ -679,7 +680,7 @@ export function ModelAccessConsole(props: { signedIn: boolean; currentUser: Curr
         }));
         setPlaygroundState({
           loading: false,
-          success: '流式调用完成',
+          success: translate('auto.k0940'),
           traceId: metadata?.traceId
         });
         return;
@@ -692,16 +693,16 @@ export function ModelAccessConsole(props: { signedIn: boolean; currentUser: Curr
         streamContent: '',
         job: response.data
       });
-      setPlaygroundState({ loading: false, success: '异步任务已提交', traceId: response.trace_id || response.data.traceId });
+      setPlaygroundState({ loading: false, success: translate('auto.k0941'), traceId: response.trace_id || response.data.traceId });
     } catch (error: unknown) {
-      setPlaygroundState({ loading: false, error: errorMessage(error, 'Playground 调用失败'), traceId: traceId(error) });
+      setPlaygroundState({ loading: false, error: errorMessage(error, translate('auto.k0942')), traceId: traceId(error) });
     }
   }
 
   async function onRefreshPlaygroundJob() {
     const jobId = playgroundResult.job?.jobId;
     if (!jobId) {
-      setPlaygroundState({ loading: false, error: '当前没有异步任务可查询' });
+      setPlaygroundState({ loading: false, error: translate('auto.k0943') });
       return;
     }
     setPlaygroundState({ loading: true });
@@ -713,16 +714,16 @@ export function ModelAccessConsole(props: { signedIn: boolean; currentUser: Curr
         job: response.data,
         response: response.data.response ?? current.response
       }));
-      setPlaygroundState({ loading: false, success: '异步任务状态已刷新', traceId: response.trace_id || response.data.traceId });
+      setPlaygroundState({ loading: false, success: translate('auto.k0944'), traceId: response.trace_id || response.data.traceId });
     } catch (error: unknown) {
-      setPlaygroundState({ loading: false, error: errorMessage(error, '异步任务查询失败'), traceId: traceId(error) });
+      setPlaygroundState({ loading: false, error: errorMessage(error, translate('auto.k0945')), traceId: traceId(error) });
     }
   }
 
   async function onCancelPlaygroundJob() {
     const jobId = playgroundResult.job?.jobId;
     if (!jobId) {
-      setPlaygroundState({ loading: false, error: '当前没有异步任务可取消' });
+      setPlaygroundState({ loading: false, error: translate('auto.k0946') });
       return;
     }
     setPlaygroundState({ loading: true });
@@ -734,9 +735,9 @@ export function ModelAccessConsole(props: { signedIn: boolean; currentUser: Curr
         job: response.data,
         response: response.data.response ?? current.response
       }));
-      setPlaygroundState({ loading: false, success: '异步任务已取消', traceId: response.trace_id || response.data.traceId });
+      setPlaygroundState({ loading: false, success: translate('auto.k0947'), traceId: response.trace_id || response.data.traceId });
     } catch (error: unknown) {
-      setPlaygroundState({ loading: false, error: errorMessage(error, '异步任务取消失败'), traceId: traceId(error) });
+      setPlaygroundState({ loading: false, error: errorMessage(error, translate('auto.k0948')), traceId: traceId(error) });
     }
   }
 
@@ -744,9 +745,9 @@ export function ModelAccessConsole(props: { signedIn: boolean; currentUser: Curr
     setQualityState({ loading: true });
     try {
       const traceId = await refreshQualitySummary(taskType);
-      setQualityState({ loading: false, success: '质量评估已刷新', traceId });
+      setQualityState({ loading: false, success: translate('auto.k0949'), traceId });
     } catch (error: unknown) {
-      setQualityState({ loading: false, error: errorMessage(error, '质量评估加载失败'), traceId: traceId(error) });
+      setQualityState({ loading: false, error: errorMessage(error, translate('auto.k0950')), traceId: traceId(error) });
     }
   }
 
@@ -756,9 +757,9 @@ export function ModelAccessConsole(props: { signedIn: boolean; currentUser: Curr
     try {
       const response = await fetchEffectiveModelAccessPolicy(compactPolicyPreviewFilters(policyPreviewDraft));
       setEffectivePolicy(response.data);
-      setPolicyState({ loading: false, success: '有效策略已刷新', traceId: response.trace_id });
+      setPolicyState({ loading: false, success: translate('auto.k0951'), traceId: response.trace_id });
     } catch (error: unknown) {
-      setPolicyState({ loading: false, error: errorMessage(error, '有效策略刷新失败'), traceId: traceId(error) });
+      setPolicyState({ loading: false, error: errorMessage(error, translate('auto.k0952')), traceId: traceId(error) });
     }
   }
 
@@ -767,24 +768,24 @@ export function ModelAccessConsole(props: { signedIn: boolean; currentUser: Curr
     setLogState({ loading: true });
     try {
       const traceId = await refreshLogs();
-      setLogState({ loading: false, success: '日志与成本已刷新', traceId });
+      setLogState({ loading: false, success: translate('auto.k0953'), traceId });
     } catch (error: unknown) {
-      setLogState({ loading: false, error: errorMessage(error, '日志与成本刷新失败'), traceId: traceId(error) });
+      setLogState({ loading: false, error: errorMessage(error, translate('auto.k0954')), traceId: traceId(error) });
     }
   }
 
   async function onExportInvocations() {
     if (!canExport) {
-      setExportState({ loading: false, error: '当前账号无调用日志导出权限' });
+      setExportState({ loading: false, error: translate('auto.k0955') });
       return;
     }
     setExportState({ loading: true });
     try {
       const response = await exportInvocationsCsv(invocationFilters);
       downloadText(response.text, response.filename ?? 'wp2-invocations.csv', response.contentType || 'text/csv;charset=UTF-8');
-      setExportState({ loading: false, success: `CSV 已生成：${invocationExportPath(invocationFilters)}`, traceId: response.traceId });
+      setExportState({ loading: false, success: translate('auto.k0956', { value0: invocationExportPath(invocationFilters) }), traceId: response.traceId });
     } catch (error: unknown) {
-      setExportState({ loading: false, error: errorMessage(error, 'CSV 导出失败'), traceId: traceId(error) });
+      setExportState({ loading: false, error: errorMessage(error, translate('auto.k0957')), traceId: traceId(error) });
     }
   }
 
@@ -828,8 +829,8 @@ export function ModelAccessConsole(props: { signedIn: boolean; currentUser: Curr
         <div className="empty-state compact">
           <ShieldCheck size={18} />
           <div>
-            <strong>暂无访问权限</strong>
-            <span>需要 modelAccess:read。</span>
+            <strong>{translate('auto.k0958')}</strong>
+            <span>{translate('auto.k0959')}</span>
           </div>
         </div>
       </div>
@@ -845,11 +846,11 @@ export function ModelAccessConsole(props: { signedIn: boolean; currentUser: Curr
               <span className="section-icon"><ServerCog size={18} /></span>
               <div>
                 <span className="eyebrow">WP2</span>
-                <h2>模型接入管理</h2>
+                <h2>{translate('auto.k0960')}</h2>
               </div>
             </div>
             <div className="panel-toolbar-actions">
-              <button className="icon-button" type="button" onClick={() => void refreshAll()} disabled={loadState.loading} title="刷新">
+              <button className="icon-button" type="button" onClick={() => void refreshAll()} disabled={loadState.loading} title={translate('auto.k0170')}>
                 <RefreshCw size={16} />
               </button>
             </div>
@@ -929,7 +930,7 @@ export function ModelAccessConsole(props: { signedIn: boolean; currentUser: Curr
                   setPrompts(response.data);
                   setPromptState({ loading: false, traceId: response.trace_id });
                 } catch (error: unknown) {
-                  setPromptState({ loading: false, error: errorMessage(error, 'Prompt 查询失败'), traceId: traceId(error) });
+                  setPromptState({ loading: false, error: errorMessage(error, translate('auto.k0961')), traceId: traceId(error) });
                 }
               }}
               onLeftPromptChange={setLeftPromptId}
@@ -1060,30 +1061,30 @@ export function ModelAccessConsole(props: { signedIn: boolean; currentUser: Curr
       <aside className="model-access-side">
         <div className="panel detail-panel">
           <div className="panel-title-row">
-            <h2>运行状态</h2>
+            <h2>{translate('auto.k0384')}</h2>
             <Activity size={16} />
           </div>
           <div className="document-health-grid">
-            <StatusMetric label="服务" value={health?.status ?? 'UNKNOWN'} tone={health?.status === 'UP' ? 'positive' : 'negative'} />
-            <StatusMetric label="启用供应商" value={health?.enabledProviders ?? providers.filter((item) => item.status === 'ENABLED').length} />
+            <StatusMetric label={translate('auto.k0427')} value={health?.status ?? 'UNKNOWN'} tone={health?.status === 'UP' ? 'positive' : 'negative'} />
+            <StatusMetric label={translate('auto.k0962')} value={health?.enabledProviders ?? providers.filter((item) => item.status === 'ENABLED').length} />
             <StatusMetric label="Active Prompt" value={health?.activePrompts ?? prompts.filter((item) => item.status === 'ACTIVE').length} />
-            <StatusMetric label="打开熔断" value={health?.openCircuitProviders ?? 0} tone={(health?.openCircuitProviders ?? 0) > 0 ? 'negative' : 'positive'} />
-            <StatusMetric label="限流" value={health?.providerRateLimitEnabled ? health.providerRateLimitMaxRequests : 'OFF'} />
-            <StatusMetric label="并发" value={health?.providerConcurrencyLimitEnabled ? health.providerMaxConcurrentRequests : 'OFF'} />
+            <StatusMetric label={translate('auto.k0963')} value={health?.openCircuitProviders ?? 0} tone={(health?.openCircuitProviders ?? 0) > 0 ? 'negative' : 'positive'} />
+            <StatusMetric label={translate('auto.k0964')} value={health?.providerRateLimitEnabled ? health.providerRateLimitMaxRequests : 'OFF'} />
+            <StatusMetric label={translate('auto.k0965')} value={health?.providerConcurrencyLimitEnabled ? health.providerMaxConcurrentRequests : 'OFF'} />
           </div>
         </div>
 
         <div className="panel detail-panel">
           <div className="panel-title-row">
-            <h2>权限</h2>
+            <h2>{translate('auto.k0966')}</h2>
             <KeyRound size={16} />
           </div>
           <div className="model-access-permission-list">
-            <PermissionFlag label="读取" enabled={canRead} />
-            <PermissionFlag label="管理供应商" enabled={canManageProviders} />
-            <PermissionFlag label="管理 Prompt" enabled={canManagePrompts} />
-            <PermissionFlag label="管理策略" enabled={canManagePolicies} />
-            <PermissionFlag label="导出日志" enabled={canExport} />
+            <PermissionFlag label={translate('auto.k0967')} enabled={canRead} />
+            <PermissionFlag label={translate('auto.k0968')} enabled={canManageProviders} />
+            <PermissionFlag label={translate('auto.k0969')} enabled={canManagePrompts} />
+            <PermissionFlag label={translate('auto.k0970')} enabled={canManagePolicies} />
+            <PermissionFlag label={translate('auto.k0971')} enabled={canExport} />
           </div>
         </div>
       </aside>
@@ -1112,21 +1113,21 @@ function ProviderTab(props: {
       <form className="model-access-form" onSubmit={props.onSubmit}>
         <div className="document-form-grid model-access-provider-grid">
           <label className="field">
-            <span>名称<b>*</b></span>
+            <span>{translate('auto.k0177')}<b>*</b></span>
             <input value={props.draft.name} disabled={!props.canManage} onChange={(event) => props.onChangeDraft('name', event.target.value)} />
           </label>
           <label className="field">
-            <span>类型<b>*</b></span>
+            <span>{translate('auto.k0286')}<b>*</b></span>
             <select value={props.draft.providerType} disabled={!props.canManage || Boolean(props.editingProviderId)} onChange={(event) => props.onChangeDraft('providerType', event.target.value)}>
               {MODEL_PROVIDER_TYPES.map((type) => <option key={type} value={type}>{type}</option>)}
             </select>
           </label>
           <label className="field">
-            <span>路由组</span>
+            <span>{translate('auto.k0972')}</span>
             <input value={props.draft.routingGroup} placeholder="default" disabled={!props.canManage} onChange={(event) => props.onChangeDraft('routingGroup', event.target.value)} />
           </label>
           <label className="field">
-            <span>能力</span>
+            <span>{translate('auto.k0973')}</span>
             <input value={props.draft.capabilities} placeholder="CHAT,TEXT,JSON" disabled={!props.canManage} onChange={(event) => props.onChangeDraft('capabilities', event.target.value)} />
           </label>
           <label className="field">
@@ -1136,32 +1137,32 @@ function ProviderTab(props: {
           <label className="field">
             <span>SecretRef / apiKeyRef</span>
             <input value={props.draft.apiKeyRef} placeholder="env:MODEL_API_KEY" disabled={!props.canManage} onChange={(event) => props.onChangeDraft('apiKeyRef', event.target.value)} />
-            <small>仅保存引用值。</small>
+            <small>{translate('auto.k0974')}</small>
           </label>
           <label className="field">
-            <span>优先级</span>
+            <span>{translate('auto.k0419')}</span>
             <input type="number" min="0" value={props.draft.priority} disabled={!props.canManage} onChange={(event) => props.onChangeDraft('priority', event.target.value)} />
           </label>
           <label className="field">
-            <span>超时 ms</span>
+            <span>{translate('auto.k0975')}</span>
             <input type="number" min="100" value={props.draft.timeoutMs} disabled={!props.canManage} onChange={(event) => props.onChangeDraft('timeoutMs', event.target.value)} />
           </label>
           <label className="field">
-            <span>输入成本 / 1k</span>
+            <span>{translate('auto.k0976')}</span>
             <input type="number" min="0" step="0.0001" value={props.draft.inputCostPer1kTokens} disabled={!props.canManage} onChange={(event) => props.onChangeDraft('inputCostPer1kTokens', event.target.value)} />
           </label>
           <label className="field">
-            <span>输出成本 / 1k</span>
+            <span>{translate('auto.k0977')}</span>
             <input type="number" min="0" step="0.0001" value={props.draft.outputCostPer1kTokens} disabled={!props.canManage} onChange={(event) => props.onChangeDraft('outputCostPer1kTokens', event.target.value)} />
           </label>
         </div>
         <div className="document-actions">
           <button className="primary-button" type="submit" disabled={!props.canManage || props.state.loading}>
             {props.editingProviderId ? <Save size={16} /> : <Plus size={16} />}
-            {props.editingProviderId ? '保存供应商' : '创建供应商'}
+            {props.editingProviderId ? translate('auto.k0978') : translate('auto.k0979')}
           </button>
           {props.editingProviderId && (
-            <button className="secondary-button" type="button" onClick={props.onCancelEdit}>取消编辑</button>
+            <button className="secondary-button" type="button" onClick={props.onCancelEdit}>{translate('auto.k0739')}</button>
           )}
           <StateLine state={props.state} />
         </div>
@@ -1171,14 +1172,14 @@ function ProviderTab(props: {
         <table>
           <thead>
             <tr>
-              <th>供应商</th>
-              <th>状态</th>
-              <th>路由</th>
+              <th>{translate('auto.k0905')}</th>
+              <th>{translate('auto.k0182')}</th>
+              <th>{translate('auto.k0980')}</th>
               <th>SecretRef</th>
-              <th>就绪</th>
-              <th>熔断</th>
-              <th>成本</th>
-              <th>操作</th>
+              <th>{translate('auto.k0981')}</th>
+              <th>{translate('auto.k0982')}</th>
+              <th>{translate('auto.k0983')}</th>
+              <th>{translate('auto.k0249')}</th>
             </tr>
           </thead>
           <tbody>
@@ -1219,18 +1220,18 @@ function ProviderTab(props: {
                   </td>
                   <td>
                     <div className="model-access-row-actions">
-                      <button className="mini-button icon-only" type="button" title="编辑" disabled={!props.canManage} onClick={() => props.onEdit(provider)}><Save size={14} /></button>
-                      <button className="mini-button icon-only" type="button" title={provider.status === 'ENABLED' ? '停用' : '启用'} disabled={!props.canManage} onClick={() => void props.onToggle(provider)}>
+                      <button className="mini-button icon-only" type="button" title={translate('auto.k0746')} disabled={!props.canManage} onClick={() => props.onEdit(provider)}><Save size={14} /></button>
+                      <button className="mini-button icon-only" type="button" title={provider.status === 'ENABLED' ? translate('auto.k0253') : translate('auto.k0251')} disabled={!props.canManage} onClick={() => void props.onToggle(provider)}>
                         {provider.status === 'ENABLED' ? <ToggleLeft size={14} /> : <ToggleRight size={14} />}
                       </button>
-                      <button className="mini-button icon-only" type="button" title="就绪检查" disabled={!props.canManage} onClick={() => void props.onCheck(provider)}><PlayCircle size={14} /></button>
-                      <button className="mini-button icon-only" type="button" title="恢复熔断" disabled={!props.canManage} onClick={() => void props.onResetCircuit(provider)}><RotateCcw size={14} /></button>
+                      <button className="mini-button icon-only" type="button" title={translate('auto.k0984')} disabled={!props.canManage} onClick={() => void props.onCheck(provider)}><PlayCircle size={14} /></button>
+                      <button className="mini-button icon-only" type="button" title={translate('auto.k0985')} disabled={!props.canManage} onClick={() => void props.onResetCircuit(provider)}><RotateCcw size={14} /></button>
                     </div>
                   </td>
                 </tr>
               );
             }) : (
-              <tr><td className="table-empty" colSpan={8}>暂无供应商</td></tr>
+              <tr><td className="table-empty" colSpan={8}>{translate('auto.k0986')}</td></tr>
             )}
           </tbody>
         </table>
@@ -1259,16 +1260,15 @@ function PolicyTab(props: {
         <form className="model-access-form" onSubmit={props.onSubmit}>
           <div className="model-access-policy-entry">
             <div>
-              <strong>生成/覆盖策略</strong>
-              <span>模型调用、预算和路由在 WP2 管理；用例生成策略和覆盖优先级在 WP5 模板管理维护。</span>
+              <strong>{translate('auto.k0987')}</strong>
+              <span>{translate('auto.k0988')}</span>
             </div>
             <a className="btn btn-secondary btn-sm" href="#test-design">
-              <SlidersHorizontal size={15} /> 打开模板管理
-            </a>
+              <SlidersHorizontal size={15} /> {translate('auto.k0989')}</a>
           </div>
           <div className="document-form-grid model-access-policy-form-grid">
             <label className="field">
-              <span>作用域<b>*</b></span>
+              <span>{translate('auto.k0263')}<b>*</b></span>
               <select value={props.draft.scopeType} disabled={!props.canManage} onChange={(event) => props.onChangeDraft('scopeType', event.target.value)}>
                 {MODEL_POLICY_SCOPE_TYPES.map((type) => <option key={type} value={type}>{type}</option>)}
               </select>
@@ -1278,79 +1278,78 @@ function PolicyTab(props: {
               <input value={props.draft.scopeKey} disabled={!props.canManage || props.draft.scopeType === 'PLATFORM'} onChange={(event) => props.onChangeDraft('scopeKey', event.target.value)} />
             </label>
             <label className="field model-access-checkbox-field">
-              <span>启用策略</span>
+              <span>{translate('auto.k0990')}</span>
               <input type="checkbox" checked={props.draft.enabled} disabled={!props.canManage} onChange={(event) => props.onChangeDraft('enabled', event.target.checked)} />
             </label>
             <label className="field">
-              <span>模型调用</span>
+              <span>{translate('auto.k0991')}</span>
               <select value={props.draft.modelInvocationEnabled} disabled={!props.canManage} onChange={(event) => props.onChangeDraft('modelInvocationEnabled', event.target.value)}>
-                <option value="INHERIT">继承</option>
-                <option value="ENABLED">允许</option>
-                <option value="DISABLED">关闭</option>
+                <option value="INHERIT">{translate('auto.k0992')}</option>
+                <option value="ENABLED">{translate('auto.k0993')}</option>
+                <option value="DISABLED">{translate('auto.k0994')}</option>
               </select>
             </label>
             <label className="field">
-              <span>公开模型</span>
+              <span>{translate('auto.k0995')}</span>
               <select value={props.draft.publicModelAllowed} disabled={!props.canManage} onChange={(event) => props.onChangeDraft('publicModelAllowed', event.target.value)}>
-                <option value="INHERIT">继承</option>
-                <option value="ENABLED">允许</option>
-                <option value="DISABLED">禁止</option>
+                <option value="INHERIT">{translate('auto.k0992')}</option>
+                <option value="ENABLED">{translate('auto.k0993')}</option>
+                <option value="DISABLED">{translate('auto.k0996')}</option>
               </select>
             </label>
             <label className="field">
-              <span>日预算</span>
+              <span>{translate('auto.k0997')}</span>
               <input type="number" min="0" step="0.00000001" value={props.draft.dailyBudgetLimit} disabled={!props.canManage} onChange={(event) => props.onChangeDraft('dailyBudgetLimit', event.target.value)} />
             </label>
             <label className="field">
-              <span>告警比例</span>
+              <span>{translate('auto.k0998')}</span>
               <input type="number" min="0.01" max="1" step="0.01" value={props.draft.costAlertWarningRatio} disabled={!props.canManage} onChange={(event) => props.onChangeDraft('costAlertWarningRatio', event.target.value)} />
             </label>
             <label className="field">
-              <span>超预算</span>
+              <span>{translate('auto.k0999')}</span>
               <select value={props.draft.budgetOverrunAction} disabled={!props.canManage} onChange={(event) => props.onChangeDraft('budgetOverrunAction', event.target.value)}>
-                <option value="">继承</option>
-                <option value="BLOCK">阻断</option>
-                <option value="FALLBACK">降级</option>
+                <option value="">{translate('auto.k0992')}</option>
+                <option value="BLOCK">{translate('auto.k1000')}</option>
+                <option value="FALLBACK">{translate('auto.k1001')}</option>
               </select>
             </label>
             <label className="field">
-              <span>路由组</span>
+              <span>{translate('auto.k0972')}</span>
               <input value={props.draft.routingGroup} placeholder="default/private" disabled={!props.canManage} onChange={(event) => props.onChangeDraft('routingGroup', event.target.value)} />
             </label>
             <label className="field model-access-policy-reason">
-              <span>备注</span>
+              <span>{translate('auto.k0211')}</span>
               <input value={props.draft.reason} maxLength={300} disabled={!props.canManage} onChange={(event) => props.onChangeDraft('reason', event.target.value)} />
             </label>
           </div>
           <div className="document-actions">
             <button className="primary-button" type="submit" disabled={!props.canManage || props.state.loading}>
-              <Save size={16} /> 保存策略
-            </button>
-            <button className="secondary-button" type="button" disabled={!props.canManage} onClick={props.onResetDraft}>重置</button>
+              <Save size={16} /> {translate('auto.k1002')}</button>
+            <button className="secondary-button" type="button" disabled={!props.canManage} onClick={props.onResetDraft}>{translate('auto.k0254')}</button>
             <StateLine state={props.state} />
           </div>
         </form>
 
         <form className="model-access-effective-panel" onSubmit={(event) => void props.onPreview(event)}>
           <div className="panel-title-row">
-            <h2>有效策略</h2>
+            <h2>{translate('auto.k1003')}</h2>
             <Eye size={16} />
           </div>
           <div className="document-form-grid model-access-effective-grid">
             <label className="field"><span>Project ID</span><input value={props.previewDraft.projectId} onChange={(event) => props.onChangePreview('projectId', event.target.value)} /></label>
             <label className="field"><span>Environment ID</span><input value={props.previewDraft.environmentId} onChange={(event) => props.onChangePreview('environmentId', event.target.value)} /></label>
-            <label className="field"><span>角色</span><input value={props.previewDraft.roles} placeholder="SuperAdmin,Auditor" onChange={(event) => props.onChangePreview('roles', event.target.value)} /></label>
+            <label className="field"><span>{translate('auto.k0247')}</span><input value={props.previewDraft.roles} placeholder="SuperAdmin,Auditor" onChange={(event) => props.onChangePreview('roles', event.target.value)} /></label>
           </div>
           <div className="document-actions">
-            <button className="secondary-button" type="submit" disabled={props.state.loading}><RefreshCw size={15} /> 刷新预览</button>
+            <button className="secondary-button" type="submit" disabled={props.state.loading}><RefreshCw size={15} /> {translate('auto.k1004')}</button>
           </div>
           <div className="model-access-summary-grid">
-            <StatusMetric label="调用" value={props.effectivePolicy?.modelInvocationEnabled ? 'ON' : 'OFF'} tone={props.effectivePolicy?.modelInvocationEnabled ? 'positive' : 'negative'} />
-            <StatusMetric label="公开模型" value={props.effectivePolicy?.publicModelAllowed ? 'ON' : 'OFF'} tone={props.effectivePolicy?.publicModelAllowed ? 'positive' : 'pending'} />
-            <StatusMetric label="预算" value={props.effectivePolicy?.dailyBudgetLimit === undefined ? '-' : formatMoney(props.effectivePolicy.dailyBudgetLimit)} />
-            <StatusMetric label="动作" value={props.effectivePolicy?.budgetOverrunAction ?? '-'} />
-            <StatusMetric label="路由组" value={props.effectivePolicy?.routingGroup ?? '-'} />
-            <StatusMetric label="角色" value={props.effectivePolicy?.roleScope ?? '-'} />
+            <StatusMetric label={translate('auto.k1005')} value={props.effectivePolicy?.modelInvocationEnabled ? 'ON' : 'OFF'} tone={props.effectivePolicy?.modelInvocationEnabled ? 'positive' : 'negative'} />
+            <StatusMetric label={translate('auto.k0995')} value={props.effectivePolicy?.publicModelAllowed ? 'ON' : 'OFF'} tone={props.effectivePolicy?.publicModelAllowed ? 'positive' : 'pending'} />
+            <StatusMetric label={translate('auto.k1006')} value={props.effectivePolicy?.dailyBudgetLimit === undefined ? '-' : formatMoney(props.effectivePolicy.dailyBudgetLimit)} />
+            <StatusMetric label={translate('auto.k0363')} value={props.effectivePolicy?.budgetOverrunAction ?? '-'} />
+            <StatusMetric label={translate('auto.k0972')} value={props.effectivePolicy?.routingGroup ?? '-'} />
+            <StatusMetric label={translate('auto.k0247')} value={props.effectivePolicy?.roleScope ?? '-'} />
           </div>
           <div className="model-access-policy-match-list">
             {(props.effectivePolicy?.matchedScopes.length ?? 0) > 0
@@ -1364,13 +1363,13 @@ function PolicyTab(props: {
         <table>
           <thead>
             <tr>
-              <th>作用域</th>
-              <th>开关</th>
-              <th>预算</th>
-              <th>路由</th>
-              <th>备注</th>
-              <th>更新</th>
-              <th>操作</th>
+              <th>{translate('auto.k0263')}</th>
+              <th>{translate('auto.k1007')}</th>
+              <th>{translate('auto.k1006')}</th>
+              <th>{translate('auto.k0980')}</th>
+              <th>{translate('auto.k0211')}</th>
+              <th>{translate('auto.k1008')}</th>
+              <th>{translate('auto.k0249')}</th>
             </tr>
           </thead>
           <tbody>
@@ -1382,7 +1381,7 @@ function PolicyTab(props: {
                 </td>
                 <td>
                   <StatusPill value={policy.enabled ? 'ENABLED' : 'DISABLED'} />
-                  <span className="table-secondary">调用 {formatOptionalBoolean(policy.modelInvocationEnabled)} · 公开 {formatOptionalBoolean(policy.publicModelAllowed)}</span>
+                  <span className="table-secondary">{translate('auto.k1005')}{formatOptionalBoolean(policy.modelInvocationEnabled)} {translate('auto.k1009')}{formatOptionalBoolean(policy.publicModelAllowed)}</span>
                 </td>
                 <td>
                   <span className="table-primary">{policy.dailyBudgetLimit === undefined ? '-' : formatMoney(policy.dailyBudgetLimit)}</span>
@@ -1396,12 +1395,11 @@ function PolicyTab(props: {
                 </td>
                 <td>
                   <button className="mini-button" type="button" disabled={!props.canManage} onClick={() => props.onEdit(policy)}>
-                    <Save size={14} /> 编辑
-                  </button>
+                    <Save size={14} /> {translate('auto.k0746')}</button>
                 </td>
               </tr>
             )) : (
-              <tr><td className="table-empty" colSpan={7}>暂无策略</td></tr>
+              <tr><td className="table-empty" colSpan={7}>{translate('auto.k1010')}</td></tr>
             )}
           </tbody>
         </table>
@@ -1441,47 +1439,46 @@ function PromptTab(props: {
               <input value={props.draft.promptKey} disabled={!props.canManage} onChange={(event) => props.onChangeDraft('promptKey', event.target.value)} />
             </label>
             <label className="field">
-              <span>名称<b>*</b></span>
+              <span>{translate('auto.k0177')}<b>*</b></span>
               <input value={props.draft.name} disabled={!props.canManage} onChange={(event) => props.onChangeDraft('name', event.target.value)} />
             </label>
             <label className="field model-access-checkbox-field">
-              <span>激活</span>
+              <span>{translate('auto.k1011')}</span>
               <input type="checkbox" checked={props.draft.activate} disabled={!props.canManage} onChange={(event) => props.onChangeDraft('activate', event.target.checked)} />
             </label>
             <label className="field model-access-checkbox-field">
-              <span>高风险</span>
+              <span>{translate('auto.k1012')}</span>
               <input type="checkbox" checked={props.draft.highRisk} disabled={!props.canManage} onChange={(event) => props.onChangeDraft('highRisk', event.target.checked)} />
             </label>
           </div>
           <label className="field document-content-field">
-            <span>内容<b>*</b></span>
+            <span>{translate('auto.k1013')}<b>*</b></span>
             <textarea value={props.draft.content} maxLength={12000} disabled={!props.canManage} onChange={(event) => props.onChangeDraft('content', event.target.value)} />
             <small>{props.draft.content.length} / 12000</small>
           </label>
           <label className="field">
-            <span>变更说明</span>
+            <span>{translate('auto.k1014')}</span>
             <input value={props.draft.changeNote} disabled={!props.canManage} onChange={(event) => props.onChangeDraft('changeNote', event.target.value)} />
           </label>
           <div className="document-actions">
             <button className="primary-button" type="submit" disabled={!props.canManage || props.state.loading}>
-              <Plus size={16} /> 新建版本
-            </button>
+              <Plus size={16} /> {translate('auto.k1015')}</button>
             <StateLine state={props.state} />
           </div>
         </form>
 
         <div className="model-access-diff-panel">
           <div className="panel-title-row">
-            <h2>版本 Diff</h2>
+            <h2>{translate('auto.k1016')}</h2>
             <FileDiff size={16} />
           </div>
           <div className="model-access-diff-selectors">
             <select value={props.leftPromptId} onChange={(event) => props.onLeftPromptChange(event.target.value)}>
-              <option value="">上一版本</option>
+              <option value="">{translate('auto.k1017')}</option>
               {props.selectedPromptVersions.map((prompt) => <option key={prompt.id} value={prompt.id}>{prompt.promptKey} v{prompt.version}</option>)}
             </select>
             <select value={props.rightPromptId} onChange={(event) => props.onRightPromptChange(event.target.value)}>
-              <option value="">最新版本</option>
+              <option value="">{translate('auto.k1018')}</option>
               {props.selectedPromptVersions.map((prompt) => <option key={prompt.id} value={prompt.id}>{prompt.promptKey} v{prompt.version}</option>)}
             </select>
           </div>
@@ -1495,7 +1492,7 @@ function PromptTab(props: {
                 <span>{row.lineNo}</span>
                 <code>{row.left || row.right || ' '}</code>
               </div>
-            )) : <span className="table-secondary">暂无可比较版本</span>}
+            )) : <span className="table-secondary">{translate('auto.k1019')}</span>}
           </div>
         </div>
       </div>
@@ -1512,7 +1509,7 @@ function PromptTab(props: {
           </datalist>
         </label>
         <div className="asset-filter-actions">
-          <button className="secondary-button" type="submit"><Search size={15} /> 查询</button>
+          <button className="secondary-button" type="submit"><Search size={15} /> {translate('auto.k0372')}</button>
         </div>
       </form>
 
@@ -1521,12 +1518,12 @@ function PromptTab(props: {
           <thead>
             <tr>
               <th>Prompt</th>
-              <th>版本</th>
-              <th>状态</th>
-              <th>审批</th>
-              <th>变更</th>
-              <th>更新时间</th>
-              <th>操作</th>
+              <th>{translate('auto.k0178')}</th>
+              <th>{translate('auto.k0182')}</th>
+              <th>{translate('auto.k0213')}</th>
+              <th>{translate('auto.k1020')}</th>
+              <th>{translate('auto.k0421')}</th>
+              <th>{translate('auto.k0249')}</th>
             </tr>
           </thead>
           <tbody>
@@ -1545,25 +1542,22 @@ function PromptTab(props: {
                   <td><StatusPill value={prompt.status} /></td>
                   <td>
                     <StatusPill value={prompt.approvalStatus ?? 'NOT_REQUIRED'} />
-                    <span className="table-secondary">{prompt.approvedBy ?? (prompt.highRisk ? '待审批' : '-')}</span>
+                    <span className="table-secondary">{prompt.approvedBy ?? (prompt.highRisk ? translate('auto.k1021') : '-')}</span>
                   </td>
                   <td><span className="table-secondary">{prompt.changeNote ?? '-'}</span></td>
                   <td><span className="table-secondary">{formatDateTime(prompt.updatedAt)}</span></td>
                   <td>
                     <button className="mini-button" type="button" disabled={!canApprovePrompt} onClick={() => void props.onApprove(prompt)}>
-                      <CheckCircle2 size={14} /> 通过
-                    </button>
+                      <CheckCircle2 size={14} /> {translate('auto.k1022')}</button>
                     <button className="mini-button" type="button" disabled={!canRejectPrompt} onClick={() => void props.onReject(prompt)}>
-                      <XCircle size={14} /> 驳回
-                    </button>
+                      <XCircle size={14} /> {translate('auto.k0214')}</button>
                     <button className="mini-button" type="button" disabled={!canActivatePrompt} onClick={() => void props.onActivate(prompt)}>
-                      <CheckCircle2 size={14} /> 激活
-                    </button>
+                      <CheckCircle2 size={14} /> {translate('auto.k1011')}</button>
                   </td>
                 </tr>
               );
             }) : (
-              <tr><td className="table-empty" colSpan={7}>暂无 Prompt 版本</td></tr>
+              <tr><td className="table-empty" colSpan={7}>{translate('auto.k1023')}</td></tr>
             )}
           </tbody>
         </table>
@@ -1618,7 +1612,7 @@ function PlaygroundTab(props: {
             <label className="field">
               <span>Provider</span>
               <select value={props.draft.providerId} disabled={!props.canManage} onChange={(event) => props.onChangeDraft('providerId', event.target.value)}>
-                <option value="">自动路由</option>
+                <option value="">{translate('auto.k1024')}</option>
                 {props.providers.map((provider) => <option key={provider.id} value={provider.id}>{provider.name}</option>)}
               </select>
             </label>
@@ -1627,7 +1621,7 @@ function PlaygroundTab(props: {
               <input value={props.draft.modelName} disabled={!props.canManage} onChange={(event) => props.onChangeDraft('modelName', event.target.value)} />
             </label>
             <label className="field">
-              <span>敏感级别</span>
+              <span>{translate('auto.k0276')}</span>
               <select value={props.draft.sensitivityLevel} disabled={!props.canManage} onChange={(event) => props.onChangeDraft('sensitivityLevel', event.target.value)}>
                 <option value="PUBLIC">PUBLIC</option>
                 <option value="INTERNAL">INTERNAL</option>
@@ -1636,11 +1630,11 @@ function PlaygroundTab(props: {
               </select>
             </label>
             <label className="field">
-              <span>能力</span>
+              <span>{translate('auto.k0973')}</span>
               <input value={props.draft.capability} disabled={!props.canManage} onChange={(event) => props.onChangeDraft('capability', event.target.value)} />
             </label>
             <label className="field model-access-checkbox-field">
-              <span>允许公开模型</span>
+              <span>{translate('auto.k1025')}</span>
               <input type="checkbox" checked={props.draft.allowPublicModel} disabled={!props.canManage} onChange={(event) => props.onChangeDraft('allowPublicModel', event.target.checked)} />
             </label>
           </div>
@@ -1653,13 +1647,12 @@ function PlaygroundTab(props: {
             <div className="panel-title-row">
               <h2>Messages</h2>
               <button className="mini-button" type="button" disabled={!props.canManage} onClick={props.onAddMessage}>
-                <Plus size={14} /> 添加消息
-              </button>
+                <Plus size={14} /> {translate('auto.k1026')}</button>
             </div>
             {props.draft.messages.map((message, index) => (
               <div className="model-access-message-row" key={message.id}>
                 <label className="field">
-                  <span>角色 {index + 1}</span>
+                  <span>{translate('auto.k0247')}{index + 1}</span>
                   <select value={message.role} disabled={!props.canManage} onChange={(event) => props.onChangeMessage(message.id, 'role', event.target.value)}>
                     <option value="system">system</option>
                     <option value="user">user</option>
@@ -1667,10 +1660,10 @@ function PlaygroundTab(props: {
                   </select>
                 </label>
                 <label className="field document-content-field">
-                  <span>内容</span>
+                  <span>{translate('auto.k1013')}</span>
                   <textarea value={message.content} disabled={!props.canManage} onChange={(event) => props.onChangeMessage(message.id, 'content', event.target.value)} />
                 </label>
-                <button className="mini-button icon-only" type="button" title="删除消息" disabled={!props.canManage || props.draft.messages.length === 1} onClick={() => props.onRemoveMessage(message.id)}>
+                <button className="mini-button icon-only" type="button" title={translate('auto.k1027')} disabled={!props.canManage || props.draft.messages.length === 1} onClick={() => props.onRemoveMessage(message.id)}>
                   <XCircle size={14} />
                 </button>
               </div>
@@ -1679,23 +1672,20 @@ function PlaygroundTab(props: {
 
           <div className="document-actions">
             <button className="primary-button" type="button" disabled={!props.canManage || props.state.loading} onClick={() => void props.onRun('sync')}>
-              <PlayCircle size={16} /> 同步调用
-            </button>
+              <PlayCircle size={16} /> {translate('auto.k1028')}</button>
             <button className="secondary-button" type="button" disabled={!props.canManage || props.state.loading} onClick={() => void props.onRun('stream')}>
-              <Activity size={16} /> 流式调用
-            </button>
+              <Activity size={16} /> {translate('auto.k1029')}</button>
             <button className="secondary-button" type="button" disabled={!props.canManage || props.state.loading} onClick={() => void props.onRun('async')}>
-              <RefreshCw size={16} /> 异步任务
-            </button>
-            <button className="secondary-button" type="button" onClick={props.onReset}>重置</button>
+              <RefreshCw size={16} /> {translate('auto.k1030')}</button>
+            <button className="secondary-button" type="button" onClick={props.onReset}>{translate('auto.k0254')}</button>
             <StateLine state={props.state} />
           </div>
         </form>
 
         <div className="model-access-playground-result">
           <div className="panel-title-row">
-            <h2>运行结果</h2>
-            <span className="table-secondary">{props.result.mode ? `模式：${props.result.mode}` : '尚未执行'}</span>
+            <h2>{translate('auto.k0219')}</h2>
+            <span className="table-secondary">{props.result.mode ? translate('auto.k1031', { value0: props.result.mode }) : translate('auto.k1032')}</span>
           </div>
           <div className="model-access-summary-grid">
             <StatusMetric label="Invocation" value={props.result.response?.invocationId ?? props.result.job?.invocationId ?? '-'} />
@@ -1703,27 +1693,25 @@ function PlaygroundTab(props: {
             <StatusMetric label="Model" value={props.result.response?.modelName ?? '-'} />
             <StatusMetric label="Fallback" value={props.result.response?.fallbackUsed ? 'YES' : 'NO'} tone={props.result.response?.fallbackUsed ? 'pending' : 'neutral'} />
             <StatusMetric label="Tokens" value={props.result.response ? `${props.result.response.inputTokens}/${props.result.response.outputTokens}` : '-'} />
-            <StatusMetric label="成本" value={props.result.response ? formatMoney(props.result.response.totalCost) : '-'} />
+            <StatusMetric label={translate('auto.k0983')} value={props.result.response ? formatMoney(props.result.response.totalCost) : '-'} />
           </div>
 
           {props.result.job && (
             <div className="model-access-async-job">
               <div className="panel-title-row">
-                <h2>异步任务</h2>
+                <h2>{translate('auto.k1030')}</h2>
                 <StatusPill value={props.result.job.status} />
               </div>
               <div className="document-actions">
                 <button className="secondary-button" type="button" disabled={props.state.loading} onClick={() => void props.onRefreshJob()}>
-                  <RefreshCw size={15} /> 刷新状态
-                </button>
+                  <RefreshCw size={15} /> {translate('auto.k1033')}</button>
                 <button
                   className="secondary-button"
                   type="button"
                   disabled={props.state.loading || !['QUEUED', 'RUNNING'].includes(String(props.result.job.status))}
                   onClick={() => void props.onCancelJob()}
                 >
-                  <XCircle size={15} /> 取消任务
-                </button>
+                  <XCircle size={15} /> {translate('auto.k1034')}</button>
               </div>
               <div className="model-access-job-meta">
                 <span>jobId: {props.result.job.jobId}</span>
@@ -1737,21 +1725,21 @@ function PlaygroundTab(props: {
           )}
 
           <label className="field document-content-field">
-            <span>内容</span>
+            <span>{translate('auto.k1013')}</span>
             <textarea value={props.result.streamContent || props.result.response?.content || ''} readOnly />
           </label>
 
           <div className="model-access-stream-events">
             <div className="panel-title-row">
-              <h2>事件流 / 元数据</h2>
+              <h2>{translate('auto.k1035')}</h2>
               <span className="table-secondary">{latestTraceId ? `Trace ID：${latestTraceId}` : '-'}</span>
             </div>
             <div className="table-wrap model-access-table-wrap">
               <table>
                 <thead>
                   <tr>
-                    <th>事件</th>
-                    <th>内容</th>
+                    <th>{translate('auto.k0895')}</th>
+                    <th>{translate('auto.k1013')}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -1761,7 +1749,7 @@ function PlaygroundTab(props: {
                       <td><code className="inline-code-block">{JSON.stringify(event)}</code></td>
                     </tr>
                   )) : (
-                    <tr><td className="table-empty" colSpan={2}>暂无流式事件</td></tr>
+                    <tr><td className="table-empty" colSpan={2}>{translate('auto.k1036')}</td></tr>
                   )}
                 </tbody>
               </table>
@@ -1787,30 +1775,30 @@ function QualityTab(props: {
         props.onRefresh();
       }}>
         <label className="field">
-          <span>任务类型</span>
+          <span>{translate('auto.k1037')}</span>
           <select value={props.selectedTaskType} onChange={(event) => props.onChangeTaskType(event.target.value as (typeof qualityTaskTypeOptions)[number])}>
             {qualityTaskTypeOptions.map((item) => <option key={item} value={item}>{item}</option>)}
           </select>
         </label>
         <div className="asset-filter-actions">
-          <button className="secondary-button" type="submit"><RefreshCw size={15} /> 刷新</button>
+          <button className="secondary-button" type="submit"><RefreshCw size={15} /> {translate('auto.k0170')}</button>
         </div>
       </form>
 
       <div className="model-access-summary-grid">
-        <StatusMetric label="语料版本" value={props.summary?.corpusVersion ?? '-'} />
-        <StatusMetric label="场景数" value={props.summary?.scenarioCount ?? 0} />
-        <StatusMetric label="总通过率" value={formatPercent(props.summary?.totalStats.scenarioPassRate)} tone={props.summary?.totalStats.passed ? 'positive' : 'negative'} />
+        <StatusMetric label={translate('auto.k1038')} value={props.summary?.corpusVersion ?? '-'} />
+        <StatusMetric label={translate('auto.k1039')} value={props.summary?.scenarioCount ?? 0} />
+        <StatusMetric label={translate('auto.k1040')} value={formatPercent(props.summary?.totalStats.scenarioPassRate)} tone={props.summary?.totalStats.passed ? 'positive' : 'negative'} />
         <StatusMetric label="Recall" value={formatPercent(props.summary?.totalStats.requiredTermRecall)} tone={props.summary?.totalStats.passed ? 'positive' : 'pending'} />
         <StatusMetric label="Clean Rate" value={formatPercent(props.summary?.totalStats.forbiddenTermCleanRate)} tone={props.summary?.totalStats.passed ? 'positive' : 'negative'} />
-        <StatusMetric label="总门禁" value={props.summary?.totalStats.passed ? 'PASS' : 'FAIL'} tone={props.summary?.totalStats.passed ? 'positive' : 'negative'} />
+        <StatusMetric label={translate('auto.k1041')} value={props.summary?.totalStats.passed ? 'PASS' : 'FAIL'} tone={props.summary?.totalStats.passed ? 'positive' : 'negative'} />
       </div>
 
       <StateLine state={props.state} />
 
       <div className="model-access-quality-meta">
         <div className="model-access-quality-chip-list">
-          <strong>Prompt 绑定</strong>
+          <strong>{translate('auto.k1042')}</strong>
           {(props.summary?.promptBindings ?? []).map((item) => <span className="status-pill neutral" key={item}>{item}</span>)}
         </div>
         <div className="model-access-quality-chip-list">
@@ -1827,8 +1815,8 @@ function QualityTab(props: {
               <StatusPill value={task.passed ? 'PASS' : 'FAIL'} />
             </div>
             <div className="model-access-summary-grid">
-              <StatusMetric label="场景" value={`${task.passedScenarios}/${task.scenarioCount}`} tone={task.passed ? 'positive' : 'pending'} />
-              <StatusMetric label="通过率" value={formatPercent(task.scenarioPassRate)} />
+              <StatusMetric label={translate('auto.k1043')} value={`${task.passedScenarios}/${task.scenarioCount}`} tone={task.passed ? 'positive' : 'pending'} />
+              <StatusMetric label={translate('auto.k1044')} value={formatPercent(task.scenarioPassRate)} />
               <StatusMetric label="Recall" value={formatPercent(task.requiredTermRecall)} />
               <StatusMetric label="Clean" value={formatPercent(task.forbiddenTermCleanRate)} />
               <StatusMetric label="Required" value={`${task.requiredTermMatches}/${task.requiredTermCount}`} />
@@ -1847,13 +1835,13 @@ function QualityTab(props: {
         <table>
           <thead>
             <tr>
-              <th>门槛</th>
-              <th>数值</th>
+              <th>{translate('auto.k1045')}</th>
+              <th>{translate('auto.k1046')}</th>
             </tr>
           </thead>
           <tbody>
             <tr>
-              <td>场景通过率</td>
+              <td>{translate('auto.k1047')}</td>
               <td>{formatPercent(props.summary?.thresholds.minScenarioPassRate)}</td>
             </tr>
             <tr>
@@ -1894,9 +1882,9 @@ function LogsTab(props: {
         <label className="field"><span>Application ID</span><input value={props.filters.applicationId} onChange={(event) => props.onChangeFilter('applicationId', event.target.value)} /></label>
         <label className="field"><span>Environment ID</span><input value={props.filters.environmentId} onChange={(event) => props.onChangeFilter('environmentId', event.target.value)} /></label>
         <label className="field">
-          <span>敏感级别</span>
+          <span>{translate('auto.k0276')}</span>
           <select value={props.filters.sensitivityLevel} onChange={(event) => props.onChangeFilter('sensitivityLevel', event.target.value)}>
-            <option value="">全部</option>
+            <option value="">{translate('auto.k0195')}</option>
             <option value="PUBLIC">PUBLIC</option>
             <option value="INTERNAL">INTERNAL</option>
             <option value="CONFIDENTIAL">CONFIDENTIAL</option>
@@ -1904,40 +1892,40 @@ function LogsTab(props: {
           </select>
         </label>
         <label className="field">
-          <span>状态</span>
+          <span>{translate('auto.k0182')}</span>
           <select value={props.filters.status} onChange={(event) => props.onChangeFilter('status', event.target.value)}>
-            <option value="">全部</option>
+            <option value="">{translate('auto.k0195')}</option>
             {INVOCATION_STATUSES.map((status) => <option key={status} value={status}>{status}</option>)}
           </select>
         </label>
         <label className="field">
-          <span>供应商</span>
+          <span>{translate('auto.k0905')}</span>
           <select value={props.filters.providerId} onChange={(event) => props.onChangeFilter('providerId', event.target.value)}>
-            <option value="">全部</option>
+            <option value="">{translate('auto.k0195')}</option>
             {props.providers.map((provider) => <option key={provider.id} value={provider.id}>{provider.name}</option>)}
           </select>
         </label>
         <label className="field"><span>Actor service</span><input value={props.filters.actorService} onChange={(event) => props.onChangeFilter('actorService', event.target.value)} /></label>
         <label className="field"><span>Role scope</span><input value={props.filters.roleScope} onChange={(event) => props.onChangeFilter('roleScope', event.target.value)} /></label>
-        <label className="field"><span>成本项目</span><input value={props.costFilters.projectId} onChange={(event) => props.onChangeCostFilter('projectId', event.target.value)} /></label>
-        <label className="field"><span>成本服务</span><input value={props.costFilters.actorService} onChange={(event) => props.onChangeCostFilter('actorService', event.target.value)} /></label>
-        <label className="field"><span>开始时间</span><input type="datetime-local" value={props.filters.startTime} onChange={(event) => props.onChangeFilter('startTime', event.target.value)} /></label>
-        <label className="field"><span>结束时间</span><input type="datetime-local" value={props.filters.endTime} onChange={(event) => props.onChangeFilter('endTime', event.target.value)} /></label>
-        <label className="field"><span>成本开始</span><input type="date" value={props.costFilters.startDate} onChange={(event) => props.onChangeCostFilter('startDate', event.target.value)} /></label>
-        <label className="field"><span>成本结束</span><input type="date" value={props.costFilters.endDate} onChange={(event) => props.onChangeCostFilter('endDate', event.target.value)} /></label>
+        <label className="field"><span>{translate('auto.k1048')}</span><input value={props.costFilters.projectId} onChange={(event) => props.onChangeCostFilter('projectId', event.target.value)} /></label>
+        <label className="field"><span>{translate('auto.k1049')}</span><input value={props.costFilters.actorService} onChange={(event) => props.onChangeCostFilter('actorService', event.target.value)} /></label>
+        <label className="field"><span>{translate('auto.k1050')}</span><input type="datetime-local" value={props.filters.startTime} onChange={(event) => props.onChangeFilter('startTime', event.target.value)} /></label>
+        <label className="field"><span>{translate('auto.k1051')}</span><input type="datetime-local" value={props.filters.endTime} onChange={(event) => props.onChangeFilter('endTime', event.target.value)} /></label>
+        <label className="field"><span>{translate('auto.k1052')}</span><input type="date" value={props.costFilters.startDate} onChange={(event) => props.onChangeCostFilter('startDate', event.target.value)} /></label>
+        <label className="field"><span>{translate('auto.k1053')}</span><input type="date" value={props.costFilters.endDate} onChange={(event) => props.onChangeCostFilter('endDate', event.target.value)} /></label>
         <div className="asset-filter-actions">
-          <button className="secondary-button" type="submit" disabled={props.state.loading}><Search size={15} /> 查询</button>
+          <button className="secondary-button" type="submit" disabled={props.state.loading}><Search size={15} /> {translate('auto.k0372')}</button>
           <button className="secondary-button" type="button" disabled={!props.canExport || props.exportState.loading} onClick={() => void props.onExport()}><Download size={15} /> CSV</button>
         </div>
       </form>
 
       <div className="model-access-summary-grid">
-        <StatusMetric label="总调用" value={props.summary?.total ?? 0} />
-        <StatusMetric label="成功" value={props.summary?.succeeded ?? 0} tone="positive" />
-        <StatusMetric label="失败" value={props.summary?.failed ?? 0} tone={(props.summary?.failed ?? 0) > 0 ? 'negative' : 'neutral'} />
-        <StatusMetric label="阻断" value={props.summary?.blocked ?? 0} tone={(props.summary?.blocked ?? 0) > 0 ? 'pending' : 'neutral'} />
+        <StatusMetric label={translate('auto.k1054')} value={props.summary?.total ?? 0} />
+        <StatusMetric label={translate('auto.k0368')} value={props.summary?.succeeded ?? 0} tone="positive" />
+        <StatusMetric label={translate('auto.k0369')} value={props.summary?.failed ?? 0} tone={(props.summary?.failed ?? 0) > 0 ? 'negative' : 'neutral'} />
+        <StatusMetric label={translate('auto.k1000')} value={props.summary?.blocked ?? 0} tone={(props.summary?.blocked ?? 0) > 0 ? 'pending' : 'neutral'} />
         <StatusMetric label="Token" value={`${props.summary?.inputTokens ?? 0}/${props.summary?.outputTokens ?? 0}`} />
-        <StatusMetric label="成本" value={formatMoney(props.summary?.totalCost ?? 0)} />
+        <StatusMetric label={translate('auto.k0983')} value={formatMoney(props.summary?.totalCost ?? 0)} />
       </div>
       <StateLine state={props.state} />
       <StateLine state={props.exportState} />
@@ -1946,13 +1934,13 @@ function LogsTab(props: {
         <table>
           <thead>
             <tr>
-              <th>调用</th>
-              <th>状态</th>
+              <th>{translate('auto.k1005')}</th>
+              <th>{translate('auto.k0182')}</th>
               <th>Provider</th>
               <th>Prompt</th>
               <th>Preview</th>
-              <th>成本</th>
-              <th>错误</th>
+              <th>{translate('auto.k0983')}</th>
+              <th>{translate('auto.k0780')}</th>
             </tr>
           </thead>
           <tbody>
@@ -1982,7 +1970,7 @@ function LogsTab(props: {
                 <td><span className="table-secondary">{item.errorCode ? `${item.errorCode}: ${item.errorMessage ?? ''}` : '-'}</span></td>
               </tr>
             )) : (
-              <tr><td className="table-empty" colSpan={7}>暂无调用日志</td></tr>
+              <tr><td className="table-empty" colSpan={7}>{translate('auto.k1055')}</td></tr>
             )}
           </tbody>
         </table>
@@ -1990,17 +1978,17 @@ function LogsTab(props: {
 
       <div className="model-access-cost-grid">
         <div className="model-access-cost-block">
-          <div className="panel-title-row"><h2>成本日报</h2><Activity size={16} /></div>
+          <div className="panel-title-row"><h2>{translate('auto.k1056')}</h2><Activity size={16} /></div>
           <div className="table-wrap model-access-table-wrap">
             <table>
               <thead>
                 <tr>
-                  <th>日期</th>
-                  <th>项目</th>
-                  <th>应用</th>
-                  <th>状态</th>
+                  <th>{translate('auto.k1057')}</th>
+                  <th>{translate('auto.k0176')}</th>
+                  <th>{translate('auto.k0285')}</th>
+                  <th>{translate('auto.k0182')}</th>
                   <th>Token</th>
-                  <th>成本</th>
+                  <th>{translate('auto.k0983')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -2014,14 +2002,14 @@ function LogsTab(props: {
                     <td>{formatMoney(row.totalCost)}</td>
                   </tr>
                 )) : (
-                  <tr><td className="table-empty" colSpan={6}>暂无成本数据</td></tr>
+                  <tr><td className="table-empty" colSpan={6}>{translate('auto.k1058')}</td></tr>
                 )}
               </tbody>
             </table>
           </div>
         </div>
         <div className="model-access-cost-block">
-          <div className="panel-title-row"><h2>成本告警</h2><AlertTriangle size={16} /></div>
+          <div className="panel-title-row"><h2>{translate('auto.k1059')}</h2><AlertTriangle size={16} /></div>
           <div className="model-access-alert-list">
             {props.alerts.length ? props.alerts.map((alert, index) => (
               <div className="model-access-alert" key={`${alert.projectId}-${alert.actorService}-${alert.periodStart}-${index}`}>
@@ -2032,7 +2020,7 @@ function LogsTab(props: {
             )) : (
               <div className="empty-state compact">
                 <CheckCircle2 size={18} />
-                <div><strong>暂无告警</strong><span>当前筛选范围未返回成本告警。</span></div>
+                <div><strong>{translate('auto.k1060')}</strong><span>{translate('auto.k1061')}</span></div>
               </div>
             )}
           </div>
@@ -2071,7 +2059,7 @@ function StatusPill(props: { value?: string }) {
 
 function StateLine(props: { state: WorkState }) {
   if (props.state.loading) {
-    return <span className="document-state-line">处理中...</span>;
+    return <span className="document-state-line">{translate('auto.k1062')}</span>;
   }
   if (props.state.error) {
     return <span className="document-state-line error">{props.state.error}{props.state.traceId ? ` · ${props.state.traceId}` : ''}</span>;
@@ -2087,29 +2075,29 @@ function StateLine(props: { state: WorkState }) {
 
 function validateProviderDraft(draft: ProviderDraft) {
   if (!draft.name.trim()) {
-    return '供应商名称必填';
+    return translate('auto.k1063');
   }
   if (!MODEL_PROVIDER_TYPES.includes(draft.providerType as (typeof MODEL_PROVIDER_TYPES)[number])) {
-    return '供应商类型无效';
+    return translate('auto.k1064');
   }
   if (draft.routingGroup.trim() && !/^[A-Za-z0-9_.:-]+$/.test(draft.routingGroup.trim())) {
-    return '路由组仅支持字母、数字、点、下划线、冒号和短横线';
+    return translate('auto.k1065');
   }
   if (numberOrUndefined(draft.priority) === undefined || Number(draft.priority) < 0) {
-    return '优先级不能小于 0';
+    return translate('auto.k1066');
   }
   if (numberOrUndefined(draft.timeoutMs) === undefined || Number(draft.timeoutMs) < 100) {
-    return '超时不能小于 100ms';
+    return translate('auto.k1067');
   }
   if ((numberOrUndefined(draft.inputCostPer1kTokens) ?? 0) < 0 || (numberOrUndefined(draft.outputCostPer1kTokens) ?? 0) < 0) {
-    return 'Token 成本不能为负数';
+    return translate('auto.k1068');
   }
   if (draft.providerType === 'OPENAI_COMPATIBLE') {
     if (!/^https?:\/\/.+/i.test(draft.baseUrl.trim())) {
-      return 'OpenAI-compatible 供应商需要 http/https Base URL';
+      return translate('auto.k1069');
     }
     if (!/^env:[A-Z0-9_]+$/i.test(draft.apiKeyRef.trim())) {
-      return 'OpenAI-compatible 供应商 apiKeyRef 需使用 env:VARIABLE_NAME';
+      return translate('auto.k1070');
     }
   }
   return '';
@@ -2133,27 +2121,27 @@ function providerPayload(draft: ProviderDraft, includeType: boolean): ModelProvi
 function validatePolicyDraft(draft: PolicyDraft) {
   const scopeType = draft.scopeType.trim().toUpperCase();
   if (!MODEL_POLICY_SCOPE_TYPES.includes(scopeType as (typeof MODEL_POLICY_SCOPE_TYPES)[number])) {
-    return '策略作用域无效';
+    return translate('auto.k1071');
   }
   if (scopeType !== 'PLATFORM' && !draft.scopeKey.trim()) {
-    return '非平台级策略必须填写 Scope key';
+    return translate('auto.k1072');
   }
   if (draft.scopeKey.trim() && !/^[A-Za-z0-9_.:@-]{1,128}$/.test(draft.scopeKey.trim())) {
-    return 'Scope key 仅支持 128 位内字母、数字、点、下划线、冒号、@ 和短横线';
+    return translate('auto.k1073');
   }
   const dailyBudgetLimit = numberOrUndefined(draft.dailyBudgetLimit);
   if (dailyBudgetLimit !== undefined && dailyBudgetLimit < 0) {
-    return '日预算不能为负数';
+    return translate('auto.k1074');
   }
   const warningRatio = numberOrUndefined(draft.costAlertWarningRatio);
   if (warningRatio !== undefined && (warningRatio <= 0 || warningRatio > 1)) {
-    return '告警比例必须在 0 到 1 之间';
+    return translate('auto.k1075');
   }
   if (draft.routingGroup.trim() && !/^[A-Za-z0-9_.:-]{1,64}$/.test(draft.routingGroup.trim())) {
-    return '路由组仅支持字母、数字、点、下划线、冒号和短横线';
+    return translate('auto.k1065');
   }
   if (draft.reason.length > 300) {
-    return '备注不能超过 300 字符';
+    return translate('auto.k1076');
   }
   return '';
 }
@@ -2195,13 +2183,13 @@ function triStateFromBoolean(value?: boolean): PolicyDraft['modelInvocationEnabl
 
 function buildPlaygroundPayload(draft: PlaygroundDraft): { value: Parameters<typeof invokeModel>[0] } | { error: string } {
   if (!draft.projectId.trim()) {
-    return { error: 'Project ID 必填' };
+    return { error: translate('auto.k1077') };
   }
   const messages = draft.messages
     .map((message) => ({ role: message.role.trim(), content: message.content.trim() }))
     .filter((message) => message.role && message.content);
   if (!messages.length) {
-    return { error: '至少需要一条消息' };
+    return { error: translate('auto.k1078') };
   }
 
   let promptVariables: Record<string, string> | undefined;
@@ -2209,13 +2197,13 @@ function buildPlaygroundPayload(draft: PlaygroundDraft): { value: Parameters<typ
     try {
       const raw = JSON.parse(draft.promptVariablesText);
       if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
-        return { error: 'Prompt Variables 必须是 JSON 对象' };
+        return { error: translate('auto.k1079') };
       }
       promptVariables = Object.fromEntries(
         Object.entries(raw as Record<string, unknown>).map(([key, value]) => [key, value == null ? '' : String(value)])
       );
     } catch {
-      return { error: 'Prompt Variables JSON 解析失败' };
+      return { error: translate('auto.k1080') };
     }
   }
 
@@ -2354,12 +2342,12 @@ function formatPercent(value?: number) {
 
 function formatOptionalBoolean(value?: boolean) {
   if (value === true) {
-    return '允许';
+    return translate('auto.k0993');
   }
   if (value === false) {
-    return '关闭';
+    return translate('auto.k0994');
   }
-  return '继承';
+  return translate('auto.k0992');
 }
 
 function formatDateTime(value?: string) {

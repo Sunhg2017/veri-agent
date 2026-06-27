@@ -63,6 +63,7 @@ import {
   type ExecutionPlanDraft
 } from '../executionDagEditor';
 import { canUseButton, hasPermission } from '../permissions';
+import { translate } from '../platform/i18n';
 
 type WorkState = {
   loading: boolean;
@@ -194,7 +195,7 @@ export function ExecutionWorkbench(props: { signedIn: boolean; currentUser: Curr
       setSelectedPlanId((current) => current || planResult.data.items[0]?.id || '');
       setSelectedRunId((current) => current || runResult.data.items[0]?.id || '');
     } catch (error: unknown) {
-      setLoadState({ loading: false, error: error instanceof Error ? error.message : '加载失败' });
+      setLoadState({ loading: false, error: error instanceof Error ? error.message : translate('auto.k0049') });
     }
   }, [canRead, props.signedIn]);
 
@@ -225,7 +226,7 @@ export function ExecutionWorkbench(props: { signedIn: boolean; currentUser: Curr
         setTriggerEvents([]);
       }
     } catch (error: unknown) {
-      setPlanActionState({ loading: false, error: error instanceof Error ? error.message : '加载计划详情失败' });
+      setPlanActionState({ loading: false, error: error instanceof Error ? error.message : translate('auto.k0821') });
     }
   }, [canRead]);
 
@@ -260,7 +261,7 @@ export function ExecutionWorkbench(props: { signedIn: boolean; currentUser: Curr
         loaded: false
       });
     } catch (error: unknown) {
-      setRunActionState({ loading: false, error: error instanceof Error ? error.message : '加载运行详情失败' });
+      setRunActionState({ loading: false, error: error instanceof Error ? error.message : translate('auto.k0822') });
     }
   }, [canRead]);
 
@@ -294,7 +295,7 @@ export function ExecutionWorkbench(props: { signedIn: boolean; currentUser: Curr
         loading: false,
         loadingMore: false,
         loaded: true,
-        error: error instanceof Error ? error.message : '加载运行日志失败'
+        error: error instanceof Error ? error.message : translate('auto.k0823')
       }));
     }
   }, [canRead]);
@@ -357,7 +358,7 @@ export function ExecutionWorkbench(props: { signedIn: boolean; currentUser: Curr
             setRunStreamState({ loading: false, error: error.message });
             return;
           }
-          setRunStreamState({ loading: false, error: error instanceof Error ? error.message : '实时日志连接失败' });
+          setRunStreamState({ loading: false, error: error instanceof Error ? error.message : translate('auto.k0824') });
           retryTimer = window.setTimeout(connect, 3000);
         });
     };
@@ -379,11 +380,11 @@ export function ExecutionWorkbench(props: { signedIn: boolean; currentUser: Curr
   }, [selectedTriggerId]);
 
   if (!props.signedIn) {
-    return <div className="notice warning">请先登录后查看执行编排。</div>;
+    return <div className="notice warning">{translate('auto.k0825')}</div>;
   }
 
   if (!canRead) {
-    return <div className="notice error">当前账号缺少 execution:read 权限。</div>;
+    return <div className="notice error">{translate('auto.k0826')}</div>;
   }
 
   async function onCreatePlan(event: FormEvent<HTMLFormElement>) {
@@ -402,9 +403,9 @@ export function ExecutionWorkbench(props: { signedIn: boolean; currentUser: Curr
       setPlanDetail(result.data);
       setPlanDraft(executionPlanDraftFromDetail(result.data));
       setPlanDraftMode('edit');
-      setPlanActionState({ loading: false, success: '执行计划已创建' });
+      setPlanActionState({ loading: false, success: translate('auto.k0827') });
     } catch (error: unknown) {
-      setPlanActionState({ loading: false, error: error instanceof Error ? error.message : '创建计划失败' });
+      setPlanActionState({ loading: false, error: error instanceof Error ? error.message : translate('auto.k0828') });
     }
   }
 
@@ -421,9 +422,9 @@ export function ExecutionWorkbench(props: { signedIn: boolean; currentUser: Curr
       setPlanDetail(result.data);
       setPlanDraft(executionPlanDraftFromDetail(result.data));
       setPlans((current) => current.map((plan) => plan.id === result.data.id ? result.data : plan));
-      setPlanActionState({ loading: false, success: '执行计划已更新' });
+      setPlanActionState({ loading: false, success: translate('auto.k0829') });
     } catch (error: unknown) {
-      setPlanActionState({ loading: false, error: error instanceof Error ? error.message : '更新计划失败' });
+      setPlanActionState({ loading: false, error: error instanceof Error ? error.message : translate('auto.k0830') });
     }
   }
 
@@ -434,9 +435,9 @@ export function ExecutionWorkbench(props: { signedIn: boolean; currentUser: Curr
       const result = await archiveExecutionPlan(selectedPlanId);
       setPlanDetail(result.data);
       setPlans((current) => current.map((plan) => plan.id === result.data.id ? result.data : plan));
-      setPlanActionState({ loading: false, success: '执行计划已归档' });
+      setPlanActionState({ loading: false, success: translate('auto.k0831') });
     } catch (error: unknown) {
-      setPlanActionState({ loading: false, error: error instanceof Error ? error.message : '归档计划失败' });
+      setPlanActionState({ loading: false, error: error instanceof Error ? error.message : translate('auto.k0832') });
     }
   }
 
@@ -446,9 +447,9 @@ export function ExecutionWorkbench(props: { signedIn: boolean; currentUser: Curr
     try {
       const result = await dryRunExecutionPlan(selectedPlanId);
       setLastDryRun(result.data);
-      setPlanActionState({ loading: false, success: result.data.valid ? 'DAG 校验通过' : 'DAG 校验未通过' });
+      setPlanActionState({ loading: false, success: result.data.valid ? translate('auto.k0833') : translate('auto.k0834') });
     } catch (error: unknown) {
-      setPlanActionState({ loading: false, error: error instanceof Error ? error.message : 'Dry run 失败' });
+      setPlanActionState({ loading: false, error: error instanceof Error ? error.message : translate('auto.k0835') });
     }
   }
 
@@ -463,9 +464,9 @@ export function ExecutionWorkbench(props: { signedIn: boolean; currentUser: Curr
       setRunDetail(result.data);
       setSelectedRunId(result.data.id);
       setRuns((current) => [result.data, ...current.filter((run) => run.id !== result.data.id)]);
-      setRunActionState({ loading: false, success: result.data.idempotentReplay ? '已回放既有运行' : '运行已触发' });
+      setRunActionState({ loading: false, success: result.data.idempotentReplay ? translate('auto.k0836') : translate('auto.k0837') });
     } catch (error: unknown) {
-      setRunActionState({ loading: false, error: error instanceof Error ? error.message : '触发失败' });
+      setRunActionState({ loading: false, error: error instanceof Error ? error.message : translate('auto.k0838') });
     }
   }
 
@@ -477,9 +478,9 @@ export function ExecutionWorkbench(props: { signedIn: boolean; currentUser: Curr
       setRunDetail(result.data);
       setLastRunExport(null);
       mergeRun(result.data);
-      setRunActionState({ loading: false, success: '运行已取消或保持终态' });
+      setRunActionState({ loading: false, success: translate('auto.k0839') });
     } catch (error: unknown) {
-      setRunActionState({ loading: false, error: error instanceof Error ? error.message : '取消失败' });
+      setRunActionState({ loading: false, error: error instanceof Error ? error.message : translate('auto.k0162') });
     }
   }
 
@@ -491,9 +492,9 @@ export function ExecutionWorkbench(props: { signedIn: boolean; currentUser: Curr
       setRunDetail(result.data);
       setLastRunExport(null);
       mergeRun(result.data);
-      setRunActionState({ loading: false, success: '重试已提交' });
+      setRunActionState({ loading: false, success: translate('auto.k0840') });
     } catch (error: unknown) {
-      setRunActionState({ loading: false, error: error instanceof Error ? error.message : '重试失败' });
+      setRunActionState({ loading: false, error: error instanceof Error ? error.message : translate('auto.k0841') });
     }
   }
 
@@ -503,9 +504,9 @@ export function ExecutionWorkbench(props: { signedIn: boolean; currentUser: Curr
     try {
       const result = await exportExecutionRun(runDetail.id);
       setLastRunExport(result.data);
-      setRunActionState({ loading: false, success: '脱敏摘要已导出' });
+      setRunActionState({ loading: false, success: translate('auto.k0842') });
     } catch (error: unknown) {
-      setRunActionState({ loading: false, error: error instanceof Error ? error.message : '导出失败' });
+      setRunActionState({ loading: false, error: error instanceof Error ? error.message : translate('auto.k0062') });
     }
   }
 
@@ -523,9 +524,9 @@ export function ExecutionWorkbench(props: { signedIn: boolean; currentUser: Curr
       link.download = response.filename ?? `${artifact.artifactType.toLowerCase()}-${artifact.id}`;
       link.click();
       URL.revokeObjectURL(url);
-      setRunActionState({ loading: false, success: `${artifact.artifactType} 已下载` });
+      setRunActionState({ loading: false, success: translate('auto.k0843', { value0: artifact.artifactType }) });
     } catch (error: unknown) {
-      setRunActionState({ loading: false, error: error instanceof Error ? error.message : '下载运行产物失败' });
+      setRunActionState({ loading: false, error: error instanceof Error ? error.message : translate('auto.k0844') });
     }
   }
 
@@ -545,9 +546,9 @@ export function ExecutionWorkbench(props: { signedIn: boolean; currentUser: Curr
       });
       setTriggers((current) => [result.data, ...current.filter((trigger) => trigger.id !== result.data.id)]);
       setSelectedTriggerId(result.data.id);
-      setTriggerActionState({ loading: false, success: '触发配置已创建' });
+      setTriggerActionState({ loading: false, success: translate('auto.k0845') });
     } catch (error: unknown) {
-      setTriggerActionState({ loading: false, error: error instanceof Error ? error.message : '创建触发配置失败' });
+      setTriggerActionState({ loading: false, error: error instanceof Error ? error.message : translate('auto.k0846') });
     }
   }
 
@@ -558,9 +559,9 @@ export function ExecutionWorkbench(props: { signedIn: boolean; currentUser: Curr
     try {
       const result = await updateExecutionTrigger(trigger.id, { status: nextStatus });
       setTriggers((current) => current.map((item) => item.id === result.data.id ? result.data : item));
-      setTriggerActionState({ loading: false, success: `触发配置已更新为 ${result.data.status}` });
+      setTriggerActionState({ loading: false, success: translate('auto.k0847', { value0: result.data.status }) });
     } catch (error: unknown) {
-      setTriggerActionState({ loading: false, error: error instanceof Error ? error.message : '更新触发配置失败' });
+      setTriggerActionState({ loading: false, error: error instanceof Error ? error.message : translate('auto.k0848') });
     }
   }
 
@@ -569,9 +570,9 @@ export function ExecutionWorkbench(props: { signedIn: boolean; currentUser: Curr
     try {
       const result = await dryRunExecutionTrigger(trigger.id);
       setLastTriggerDryRun(result.data);
-      setTriggerActionState({ loading: false, success: result.data.valid ? '触发配置校验通过' : '触发配置未就绪' });
+      setTriggerActionState({ loading: false, success: result.data.valid ? translate('auto.k0849') : translate('auto.k0850') });
     } catch (error: unknown) {
-      setTriggerActionState({ loading: false, error: error instanceof Error ? error.message : '触发配置 dry run 失败' });
+      setTriggerActionState({ loading: false, error: error instanceof Error ? error.message : translate('auto.k0851') });
     }
   }
 
@@ -584,7 +585,7 @@ export function ExecutionWorkbench(props: { signedIn: boolean; currentUser: Curr
       const result = await fetchExecutionTriggerEvents(triggerId, { size: 5 });
       setTriggerEvents(result.data.items);
     } catch (error: unknown) {
-      setTriggerActionState({ loading: false, error: error instanceof Error ? error.message : '加载触发事件失败' });
+      setTriggerActionState({ loading: false, error: error instanceof Error ? error.message : translate('auto.k0852') });
     }
   }
 
@@ -605,7 +606,7 @@ export function ExecutionWorkbench(props: { signedIn: boolean; currentUser: Curr
       return;
     }
     if (event.type === 'connected') {
-      setRunStreamState({ loading: false, success: `已接入 ${event.status} 实时流` });
+      setRunStreamState({ loading: false, success: translate('auto.k0853', { value0: event.status }) });
       return;
     }
     setRunStreamState((current) => ({ ...current, loading: false }));
@@ -621,22 +622,21 @@ export function ExecutionWorkbench(props: { signedIn: boolean; currentUser: Curr
   return (
     <section className="execution-workbench" data-testid="execution-workbench">
       <div className="metric-grid execution-metric-grid">
-        <MetricCard label="READY 计划" value={String(summary.ready)} icon={<CheckCircle2 size={18} />} />
-        <MetricCard label="运行中" value={String(summary.running)} icon={<Clock3 size={18} />} />
-        <MetricCard label="失败/超时" value={String(summary.failed)} icon={<AlertTriangle size={18} />} />
-        <MetricCard label="启用触发" value={String(summary.enabledTriggers)} icon={<Webhook size={18} />} />
+        <MetricCard label={translate('auto.k0854')} value={String(summary.ready)} icon={<CheckCircle2 size={18} />} />
+        <MetricCard label={translate('auto.k0855')} value={String(summary.running)} icon={<Clock3 size={18} />} />
+        <MetricCard label={translate('auto.k0856')} value={String(summary.failed)} icon={<AlertTriangle size={18} />} />
+        <MetricCard label={translate('auto.k0857')} value={String(summary.enabledTriggers)} icon={<Webhook size={18} />} />
       </div>
 
       <section className="panel">
         <div className="panel-header">
           <div>
-            <div className="panel-title">调度策略</div>
-            <div className="panel-desc">{health ? `${health.service} · ${health.status}` : loadState.loading ? '加载中' : '未加载'}</div>
+            <div className="panel-title">{translate('auto.k0858')}</div>
+            <div className="panel-desc">{health ? `${health.service} · ${health.status}` : loadState.loading ? translate('auto.k0168') : translate('auto.k0169')}</div>
           </div>
           <button className="btn btn-ghost btn-sm" type="button" onClick={() => void refreshWorkbench()} disabled={loadState.loading}>
             <RefreshCw size={15} />
-            刷新
-          </button>
+            {translate('auto.k0170')}</button>
         </div>
         <div className="panel-body compact">
           {loadState.error && <div className="document-state-line error">{loadState.error}</div>}
@@ -655,32 +655,30 @@ export function ExecutionWorkbench(props: { signedIn: boolean; currentUser: Curr
         <form className="panel" onSubmit={onCreatePlan}>
           <div className="panel-header">
             <div>
-              <div className="panel-title">{planDraftMode === 'edit' ? '编辑计划' : '新建计划'}</div>
-              <div className="panel-desc">多节点 DAG · digest safe</div>
+              <div className="panel-title">{planDraftMode === 'edit' ? translate('auto.k0859') : translate('auto.k0860')}</div>
+              <div className="panel-desc">{translate('auto.k0861')}</div>
             </div>
             <div className="execution-panel-actions">
               <button className="btn btn-ghost btn-sm" type="button" onClick={resetPlanDraft}>
                 <RefreshCw size={15} />
-                新建
-              </button>
+                {translate('auto.k0489')}</button>
               <button className="btn btn-primary btn-sm" type="submit" disabled={!canManage || planActionState.loading}>
                 <FileText size={15} />
-                创建
-              </button>
+                {translate('auto.k0862')}</button>
             </div>
           </div>
           <div className="panel-body">
             <div className="form-grid">
-              <Field label="项目">
+              <Field label={translate('auto.k0176')}>
                 <input value={planDraft.projectId} onChange={(event) => setPlanDraftValue('projectId', event.target.value)} />
               </Field>
-              <Field label="名称">
+              <Field label={translate('auto.k0177')}>
                 <input value={planDraft.name} onChange={(event) => setPlanDraftValue('name', event.target.value)} />
               </Field>
-              <Field label="环境">
+              <Field label={translate('auto.k0215')}>
                 <input value={planDraft.environmentKey} onChange={(event) => setPlanDraftValue('environmentKey', event.target.value)} />
               </Field>
-              <Field label="状态">
+              <Field label={translate('auto.k0182')}>
                 <select value={planDraft.status} onChange={(event) => setPlanDraftValue('status', event.target.value as ExecutionPlanDraft['status'])}>
                   <option value="DRAFT">DRAFT</option>
                   <option value="READY">READY</option>
@@ -688,16 +686,15 @@ export function ExecutionWorkbench(props: { signedIn: boolean; currentUser: Curr
                 </select>
               </Field>
             </div>
-            <Field label="描述">
+            <Field label={translate('auto.k0443')}>
               <input value={planDraft.description} onChange={(event) => setPlanDraftValue('description', event.target.value)} />
             </Field>
             <div className="execution-dag-editor">
               <div className="execution-subheader">
-                <strong>DAG 节点</strong>
+                <strong>{translate('auto.k0863')}</strong>
                 <button className="btn btn-secondary btn-sm" type="button" onClick={addPlanNode} disabled={!canManage}>
                   <FileText size={15} />
-                  添加节点
-                </button>
+                  {translate('auto.k0864')}</button>
               </div>
               {planDraft.nodes.map((node, index) => (
                 <div className="execution-node-editor" key={`${node.key}-${index}`}>
@@ -705,20 +702,19 @@ export function ExecutionWorkbench(props: { signedIn: boolean; currentUser: Curr
                     <span className="mono">{node.key || `node-${index + 1}`}</span>
                     <button className="btn btn-ghost btn-sm" type="button" onClick={() => removePlanNode(index)} disabled={planDraft.nodes.length <= 1 || !canManage}>
                       <Trash2 size={15} />
-                      删除
-                    </button>
+                      {translate('auto.k0451')}</button>
                   </div>
                   <div className="form-grid">
                     <Field label="node key">
                       <input value={node.key} onChange={(event) => setPlanNodeDraftValue(index, 'key', event.target.value)} />
                     </Field>
-                    <Field label="节点类型">
+                    <Field label={translate('auto.k0865')}>
                       <select value={node.type} onChange={(event) => setPlanNodeDraftValue(index, 'type', event.target.value as ExecutionDagNodeDraft['type'])}>
                         <option value="API_TEST">API_TEST</option>
                         <option value="REPORT_HANDOFF">REPORT_HANDOFF</option>
                       </select>
                     </Field>
-                    <Field label="依赖">
+                    <Field label={translate('auto.k0866')}>
                       <input value={node.dependenciesText} onChange={(event) => setPlanNodeDraftValue(index, 'dependenciesText', event.target.value)} />
                     </Field>
                     <Field label="bundleId">
@@ -755,17 +751,17 @@ export function ExecutionWorkbench(props: { signedIn: boolean; currentUser: Curr
                         </Field>
                       </>
                     )}
-                    <Field label="超时秒">
+                    <Field label={translate('auto.k0867')}>
                       <input type="number" min={1} max={86400} value={node.timeoutSeconds} onChange={(event) => setPlanNodeDraftValue(index, 'timeoutSeconds', Number(event.target.value))} />
                     </Field>
-                    <Field label="失败策略">
+                    <Field label={translate('auto.k0868')}>
                       <select value={node.failurePolicy} onChange={(event) => setPlanNodeDraftValue(index, 'failurePolicy', event.target.value as ExecutionDagNodeDraft['failurePolicy'])}>
                         <option value="FAIL_FAST">FAIL_FAST</option>
                         <option value="CONTINUE">CONTINUE</option>
                         <option value="BLOCK_DOWNSTREAM">BLOCK_DOWNSTREAM</option>
                       </select>
                     </Field>
-                    <Field label="重试次数">
+                    <Field label={translate('auto.k0869')}>
                       <input type="number" min={0} max={5} value={node.maxAttempts} onChange={(event) => setPlanNodeDraftValue(index, 'maxAttempts', Number(event.target.value))} />
                     </Field>
                   </div>
@@ -776,12 +772,10 @@ export function ExecutionWorkbench(props: { signedIn: boolean; currentUser: Curr
             <div className="execution-panel-actions execution-form-actions">
               <button className="btn btn-secondary btn-sm" type="button" onClick={() => void onUpdatePlan()} disabled={!canManage || !selectedPlanId || planActionState.loading || planDraftMode !== 'edit'}>
                 <ShieldCheck size={15} />
-                保存更新
-              </button>
+                {translate('auto.k0870')}</button>
               <button className="btn btn-ghost btn-sm" type="button" onClick={() => void onArchivePlan()} disabled={!canManage || !selectedPlanId || planActionState.loading || planDetail?.status === 'ARCHIVED'}>
                 <Trash2 size={15} />
-                归档
-              </button>
+                {translate('auto.k0871')}</button>
             </div>
             {planActionState.error && <div className="document-state-line error">{planActionState.error}</div>}
             {planActionState.success && <div className="document-state-line success">{planActionState.success}</div>}
@@ -791,8 +785,8 @@ export function ExecutionWorkbench(props: { signedIn: boolean; currentUser: Curr
         <section className="panel" data-testid="execution-plan-list">
           <div className="panel-header">
             <div>
-              <div className="panel-title">计划列表</div>
-              <div className="panel-desc">{plans.length} 条</div>
+              <div className="panel-title">{translate('auto.k0872')}</div>
+              <div className="panel-desc">{plans.length} {translate('auto.k0181')}</div>
             </div>
           </div>
           <div className="panel-body compact">
@@ -800,10 +794,10 @@ export function ExecutionWorkbench(props: { signedIn: boolean; currentUser: Curr
               <table>
                 <thead>
                   <tr>
-                    <th>计划</th>
-                    <th>项目</th>
-                    <th>状态</th>
-                    <th>节点</th>
+                    <th>{translate('auto.k0873')}</th>
+                    <th>{translate('auto.k0176')}</th>
+                    <th>{translate('auto.k0182')}</th>
+                    <th>{translate('auto.k0874')}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -825,7 +819,7 @@ export function ExecutionWorkbench(props: { signedIn: boolean; currentUser: Curr
                       <td>{plan.nodeCount}</td>
                     </tr>
                   )) : (
-                    <tr><td className="table-empty" colSpan={4}>{loadState.loading ? '加载中' : '暂无执行计划'}</td></tr>
+                    <tr><td className="table-empty" colSpan={4}>{loadState.loading ? translate('auto.k0168') : translate('auto.k0875')}</td></tr>
                   )}
                 </tbody>
               </table>
@@ -837,8 +831,8 @@ export function ExecutionWorkbench(props: { signedIn: boolean; currentUser: Curr
       <section className="panel" data-testid="execution-dag-preview">
         <div className="panel-header">
           <div>
-            <div className="panel-title">DAG 与运行</div>
-            <div className="panel-desc">{planDetail ? `${planDetail.name} · ${planDetail.environmentKey}` : '未选择计划'}</div>
+            <div className="panel-title">{translate('auto.k0876')}</div>
+            <div className="panel-desc">{planDetail ? `${planDetail.name} · ${planDetail.environmentKey}` : translate('auto.k0877')}</div>
           </div>
           <div className="execution-panel-actions">
             <button className="btn btn-ghost btn-sm" type="button" onClick={() => void onDryRunPlan()} disabled={!selectedPlanId || planActionState.loading}>
@@ -847,8 +841,7 @@ export function ExecutionWorkbench(props: { signedIn: boolean; currentUser: Curr
             </button>
             <button className="btn btn-secondary btn-sm" type="button" onClick={() => void onTriggerRun()} disabled={!selectedPlanId || !canTrigger || runActionState.loading}>
               <Play size={15} />
-              运行
-            </button>
+              {translate('auto.k0217')}</button>
           </div>
         </div>
         <div className="panel-body compact">
@@ -856,7 +849,7 @@ export function ExecutionWorkbench(props: { signedIn: boolean; currentUser: Curr
             <Field label="requestKey">
               <input value={manualRequestKey} onChange={(event) => setManualRequestKey(event.target.value)} />
             </Field>
-            <Field label="原因">
+            <Field label={translate('auto.k0878')}>
               <input value={manualReason} onChange={(event) => setManualReason(event.target.value)} />
             </Field>
           </div>
@@ -891,7 +884,7 @@ export function ExecutionWorkbench(props: { signedIn: boolean; currentUser: Curr
                 <div className="execution-digest-line">{summaryText(node.inputSummary)}</div>
               </div>
             )) : (
-              <div className="table-empty">暂无 DAG 节点</div>
+              <div className="table-empty">{translate('auto.k0879')}</div>
             )}
           </div>
           {runActionState.error && <div className="document-state-line error">{runActionState.error}</div>}
@@ -903,26 +896,22 @@ export function ExecutionWorkbench(props: { signedIn: boolean; currentUser: Curr
         <section className="panel" data-testid="execution-run-detail">
           <div className="panel-header">
             <div>
-              <div className="panel-title">运行详情</div>
-              <div className="panel-desc">{runDetail ? `${runDetail.status} · ${runDetail.triggerType}` : '未选择运行'}</div>
+              <div className="panel-title">{translate('auto.k0880')}</div>
+              <div className="panel-desc">{runDetail ? `${runDetail.status} · ${runDetail.triggerType}` : translate('auto.k0881')}</div>
             </div>
             <div className="execution-panel-actions">
               <button className="btn btn-ghost btn-sm" type="button" onClick={() => void refreshRunDetail(selectedRunId)} disabled={!selectedRunId}>
                 <RefreshCw size={15} />
-                刷新
-              </button>
+                {translate('auto.k0170')}</button>
               <button className="btn btn-secondary btn-sm" type="button" onClick={() => void onCancelRun()} disabled={!runDetail || !activeRunStatus(runDetail.status) || !canTrigger}>
                 <Square size={15} />
-                取消
-              </button>
+                {translate('auto.k0220')}</button>
               <button className="btn btn-secondary btn-sm" type="button" onClick={() => void onRetryRun()} disabled={!runDetail || !retryableRunStatus(runDetail.status) || !canTrigger}>
                 <RotateCcw size={15} />
-                重试
-              </button>
+                {translate('auto.k0227')}</button>
               <button className="btn btn-secondary btn-sm" type="button" onClick={() => void onExportRun()} disabled={!runDetail || !canExport || runActionState.loading}>
                 <Download size={15} />
-                导出摘要
-              </button>
+                {translate('auto.k0221')}</button>
             </div>
           </div>
           <div className="panel-body compact">
@@ -962,7 +951,7 @@ export function ExecutionWorkbench(props: { signedIn: boolean; currentUser: Curr
                   <StatusBadge status={run.status} />
                 </button>
               )) : (
-                <div className="table-empty">暂无运行记录</div>
+                <div className="table-empty">{translate('auto.k0882')}</div>
               )}
             </div>
             <div className="execution-node-grid">
@@ -983,7 +972,7 @@ export function ExecutionWorkbench(props: { signedIn: boolean; currentUser: Curr
             </div>
             <div className="execution-run-log-panel">
               <div className="execution-subheader">
-                <strong>运行产物</strong>
+                <strong>{translate('auto.k0883')}</strong>
                 <span>{runDetail?.artifacts.length ?? 0}</span>
               </div>
               {runDetail?.artifacts.length ? (
@@ -1007,20 +996,19 @@ export function ExecutionWorkbench(props: { signedIn: boolean; currentUser: Curr
                           disabled={!canExport || !artifact.downloadReady || runActionState.loading}
                         >
                           <Download size={15} />
-                          下载
-                        </button>
+                          {translate('auto.k0884')}</button>
                       </div>
                     </div>
                   ))}
                 </div>
               ) : (
-                <div className="table-empty">暂无运行产物</div>
+                <div className="table-empty">{translate('auto.k0885')}</div>
               )}
             </div>
             <div className="execution-run-log-panel">
               <div className="execution-subheader">
-                <strong>运行日志</strong>
-                <span>{runStreamState.loading ? '连接中' : `${runLogs.length}/${runLogHistoryState.total || runLogs.length}`}</span>
+                <strong>{translate('auto.k0886')}</strong>
+                <span>{runStreamState.loading ? translate('auto.k0887') : `${runLogs.length}/${runLogHistoryState.total || runLogs.length}`}</span>
               </div>
               {runLogHistoryState.error ? <div className="document-state-line error">{runLogHistoryState.error}</div> : null}
               {runLogs.length ? (
@@ -1036,7 +1024,7 @@ export function ExecutionWorkbench(props: { signedIn: boolean; currentUser: Curr
                   ))}
                 </div>
               ) : (
-                <div className="table-empty">{runLogHistoryState.loading ? '加载运行日志中' : '暂无运行日志'}</div>
+                <div className="table-empty">{runLogHistoryState.loading ? translate('auto.k0888') : translate('auto.k0889')}</div>
               )}
               <div className="execution-panel-actions">
                 <button
@@ -1046,8 +1034,7 @@ export function ExecutionWorkbench(props: { signedIn: boolean; currentUser: Curr
                   disabled={!selectedRunId || runLogHistoryState.loading || runLogHistoryState.loadingMore}
                 >
                   <RefreshCw size={15} />
-                  刷新日志
-                </button>
+                  {translate('auto.k0890')}</button>
                 <button
                   className="btn btn-ghost btn-sm"
                   type="button"
@@ -1055,8 +1042,7 @@ export function ExecutionWorkbench(props: { signedIn: boolean; currentUser: Curr
                   disabled={!selectedRunId || runLogHistoryState.loadingMore || runLogs.length >= runLogHistoryState.total}
                 >
                   <Clock3 size={15} />
-                  加载更多
-                </button>
+                  {translate('auto.k0891')}</button>
               </div>
             </div>
           </div>
@@ -1065,19 +1051,19 @@ export function ExecutionWorkbench(props: { signedIn: boolean; currentUser: Curr
         <section className="panel">
           <div className="panel-header">
             <div>
-              <div className="panel-title">触发配置</div>
-              <div className="panel-desc">{triggers.length} 条 · secret masked</div>
+              <div className="panel-title">{translate('auto.k0892')}</div>
+              <div className="panel-desc">{triggers.length} {translate('auto.k0893')}</div>
             </div>
           </div>
           <div className="panel-body compact">
             <form className="execution-trigger-form" onSubmit={onCreateTrigger}>
-              <Field label="类型">
+              <Field label={translate('auto.k0286')}>
                 <select value={triggerDraft.triggerType} onChange={(event) => setTriggerDraftValue('triggerType', event.target.value as TriggerDraft['triggerType'])}>
                   <option value="WEBHOOK">WEBHOOK</option>
                   <option value="CRON">CRON</option>
                 </select>
               </Field>
-              <Field label="状态">
+              <Field label={translate('auto.k0182')}>
                 <select value={triggerDraft.status} onChange={(event) => setTriggerDraftValue('status', event.target.value as TriggerDraft['status'])}>
                   <option value="DISABLED">DISABLED</option>
                   <option value="ENABLED">ENABLED</option>
@@ -1105,8 +1091,7 @@ export function ExecutionWorkbench(props: { signedIn: boolean; currentUser: Curr
               </Field>
               <button className="btn btn-primary btn-sm" type="submit" disabled={!canManage || !selectedPlanId || triggerActionState.loading}>
                 <Webhook size={15} />
-                新增
-              </button>
+                {translate('auto.k0894')}</button>
             </form>
             {triggerActionState.error && <div className="document-state-line error">{triggerActionState.error}</div>}
             {triggerActionState.success && <div className="document-state-line success">{triggerActionState.success}</div>}
@@ -1134,20 +1119,19 @@ export function ExecutionWorkbench(props: { signedIn: boolean; currentUser: Curr
                       }
                     }}>
                       <RefreshCw size={15} />
-                      事件
-                    </button>
+                      {translate('auto.k0895')}</button>
                     <button className="btn btn-ghost btn-sm" type="button" onClick={() => void onDryRunTrigger(trigger)}>
                       <ShieldCheck size={15} />
                       Dry run
                     </button>
                     <button className="btn btn-secondary btn-sm" type="button" onClick={() => void onToggleTrigger(trigger)} disabled={!canManage}>
                       {trigger.status === 'ENABLED' ? <PauseCircle size={15} /> : <Play size={15} />}
-                      {trigger.status === 'ENABLED' ? '暂停' : '启用'}
+                      {trigger.status === 'ENABLED' ? translate('auto.k0896') : translate('auto.k0251')}
                     </button>
                   </div>
                 </div>
               )) : (
-                <div className="table-empty">暂无触发配置</div>
+                <div className="table-empty">{translate('auto.k0897')}</div>
               )}
             </div>
             <div className="execution-event-list">
@@ -1156,7 +1140,7 @@ export function ExecutionWorkbench(props: { signedIn: boolean; currentUser: Curr
                   <span>{event.status} · {event.sourceEventId}</span>
                   <small className="mono">{event.traceId ?? shortId(event.requestDigest)}{event.runId ? ` · ${shortId(event.runId)}` : ''}</small>
                 </div>
-              )) : <div className="table-empty">暂无触发事件</div>}
+              )) : <div className="table-empty">{translate('auto.k0898')}</div>}
             </div>
           </div>
         </section>

@@ -24,6 +24,7 @@ import {
   contextPolicyOverrideLimitText,
   contextPolicyStatusTone
 } from './TestDesignWorkbenchShared';
+import { translate } from '../platform/i18n';
 
 export function TestDesignContextPolicyPanel(props: {
   disabled: boolean;
@@ -53,24 +54,22 @@ export function TestDesignContextPolicyPanel(props: {
     <section className="panel test-design-context-policy-panel">
       <div className="panel-header compact">
         <div>
-          <h2 className="panel-title">上下文策略</h2>
+          <h2 className="panel-title">{translate('auto.k1388')}</h2>
           <p className="panel-desc">{props.summary.scopeLabel}</p>
         </div>
         <div className="toolbar-actions">
           <button className="btn btn-secondary btn-sm" type="button" disabled={props.disabled || state.loading} onClick={props.onRefresh}>
             <RefreshCw size={15} />
-            查询
-          </button>
+            {translate('auto.k0372')}</button>
           <button className="btn btn-ghost btn-sm" type="button" disabled={!props.canPolicyManage || state.loading} onClick={props.onNewDraft}>
             <Plus size={15} />
-            新建
-          </button>
+            {translate('auto.k0489')}</button>
         </div>
       </div>
       <div className="panel-body compact main-stack">
         <form className="test-design-context-policy-form" onSubmit={props.onSubmit}>
           <label className="field">
-            <span className="field-label">项目 ID</span>
+            <span className="field-label">{translate('auto.k1389')}</span>
             <input
               value={draft.projectId}
               onChange={(event) => props.onDraftChange((current) => ({ ...current, projectId: event.target.value }))}
@@ -79,7 +78,7 @@ export function TestDesignContextPolicyPanel(props: {
             />
           </label>
           <label className="field">
-            <span className="field-label">环境键</span>
+            <span className="field-label">{translate('auto.k1390')}</span>
             <input
               value={draft.environmentKey}
               onChange={(event) => props.onDraftChange((current) => ({ ...current, environmentKey: event.target.value }))}
@@ -88,7 +87,7 @@ export function TestDesignContextPolicyPanel(props: {
             />
           </label>
           <label className="field">
-            <span className="field-label">覆盖范围</span>
+            <span className="field-label">{translate('auto.k1391')}</span>
             <select
               value={draft.scopeType}
               onChange={(event) => props.onDraftChange((current) => ({ ...current, scopeType: event.target.value === 'ENVIRONMENT' ? 'ENVIRONMENT' : 'PROJECT' }))}
@@ -99,7 +98,7 @@ export function TestDesignContextPolicyPanel(props: {
             </select>
           </label>
           <label className="field">
-            <span className="field-label">变更原因</span>
+            <span className="field-label">{translate('auto.k1392')}</span>
             <select
               value={draft.changeReasonCode}
               onChange={(event) => props.onDraftChange((current) => ({ ...current, changeReasonCode: event.target.value as TestDesignContextPolicyDraft['changeReasonCode'] }))}
@@ -111,7 +110,7 @@ export function TestDesignContextPolicyPanel(props: {
             </select>
           </label>
           <label className="field">
-            <span className="field-label">关联资产</span>
+            <span className="field-label">{translate('auto.k0431')}</span>
             <input
               value={draft.linkedAssetsPerRequirement}
               type="number"
@@ -122,7 +121,7 @@ export function TestDesignContextPolicyPanel(props: {
             />
           </label>
           <label className="field">
-            <span className="field-label">显式资产</span>
+            <span className="field-label">{translate('auto.k1393')}</span>
             <input
               value={draft.explicitAssetsPerType}
               type="number"
@@ -133,7 +132,7 @@ export function TestDesignContextPolicyPanel(props: {
             />
           </label>
           <label className="field">
-            <span className="field-label">历史用例</span>
+            <span className="field-label">{translate('auto.k1394')}</span>
             <input
               value={draft.existingCasesPerRequirement}
               type="number"
@@ -144,7 +143,7 @@ export function TestDesignContextPolicyPanel(props: {
             />
           </label>
           <label className="field">
-            <span className="field-label">需求摘要</span>
+            <span className="field-label">{translate('auto.k1395')}</span>
             <input
               value={draft.requirementDescriptionChars}
               type="number"
@@ -155,7 +154,7 @@ export function TestDesignContextPolicyPanel(props: {
             />
           </label>
           <label className="field">
-            <span className="field-label">验收摘要</span>
+            <span className="field-label">{translate('auto.k1396')}</span>
             <input
               value={draft.acceptanceCriteriaChars}
               type="number"
@@ -166,7 +165,7 @@ export function TestDesignContextPolicyPanel(props: {
             />
           </label>
           <label className="field">
-            <span className="field-label">资产摘要</span>
+            <span className="field-label">{translate('auto.k1397')}</span>
             <input
               value={draft.assetSchemaChars}
               type="number"
@@ -177,7 +176,7 @@ export function TestDesignContextPolicyPanel(props: {
             />
           </label>
           <label className="field">
-            <span className="field-label">工单编号</span>
+            <span className="field-label">{translate('auto.k1398')}</span>
             <input
               value={draft.workOrderKey}
               onChange={(event) => props.onDraftChange((current) => ({ ...current, workOrderKey: event.target.value }))}
@@ -186,7 +185,7 @@ export function TestDesignContextPolicyPanel(props: {
             />
           </label>
           <label className="field">
-            <span className="field-label">工单标题</span>
+            <span className="field-label">{translate('auto.k1399')}</span>
             <input
               value={draft.workOrderTitle}
               onChange={(event) => props.onDraftChange((current) => ({ ...current, workOrderTitle: event.target.value }))}
@@ -194,7 +193,7 @@ export function TestDesignContextPolicyPanel(props: {
             />
           </label>
           <label className="field test-design-context-policy-wide">
-            <span className="field-label">工单 URL</span>
+            <span className="field-label">{translate('auto.k1400')}</span>
             <input
               value={draft.workOrderUrl}
               onChange={(event) => props.onDraftChange((current) => ({ ...current, workOrderUrl: event.target.value }))}
@@ -203,7 +202,7 @@ export function TestDesignContextPolicyPanel(props: {
             />
           </label>
           <label className="field test-design-context-policy-wide">
-            <span className="field-label">策略正文</span>
+            <span className="field-label">{translate('auto.k1401')}</span>
             <textarea
               value={draft.policyBody}
               maxLength={4000}
@@ -213,7 +212,7 @@ export function TestDesignContextPolicyPanel(props: {
             />
           </label>
           <label className="field test-design-context-policy-wide">
-            <span className="field-label">策略 diff</span>
+            <span className="field-label">{translate('auto.k1402')}</span>
             <textarea
               value={draft.policyDiffSummary}
               maxLength={1000}
@@ -223,7 +222,7 @@ export function TestDesignContextPolicyPanel(props: {
             />
           </label>
           <label className="field test-design-context-policy-wide">
-            <span className="field-label">申请备注</span>
+            <span className="field-label">{translate('auto.k1403')}</span>
             <textarea
               value={draft.requestNote}
               maxLength={1000}
@@ -234,17 +233,17 @@ export function TestDesignContextPolicyPanel(props: {
           </label>
           <button className="btn btn-primary btn-sm test-design-context-policy-submit" type="submit" disabled={!props.canPolicyManage || state.loading || props.submitBlocked}>
             <Save size={15} />
-            {props.selectedPendingOverride ? '更新草稿' : '提交覆盖'}
+            {props.selectedPendingOverride ? translate('auto.k1404') : translate('auto.k1405')}
           </button>
         </form>
         <div className="test-design-context-policy-summary">
-          <Detail label="生效限制" value={props.summary.limitSummary} />
-          <Detail label="状态分布" value={props.summary.statusSummary} />
-          <Detail label="导出红线" value={props.summary.redLineSummary} />
+          <Detail label={translate('auto.k1406')} value={props.summary.limitSummary} />
+          <Detail label={translate('auto.k1407')} value={props.summary.statusSummary} />
+          <Detail label={translate('auto.k1408')} value={props.summary.redLineSummary} />
         </div>
         <div className="test-design-context-policy-review-grid">
           <label className="field">
-            <span className="field-label">审批原因</span>
+            <span className="field-label">{translate('auto.k1409')}</span>
             <select
               value={draft.approvalReasonCode}
               onChange={(event) => props.onDraftChange((current) => ({ ...current, approvalReasonCode: event.target.value as TestDesignContextPolicyDraft['approvalReasonCode'] }))}
@@ -256,20 +255,20 @@ export function TestDesignContextPolicyPanel(props: {
             </select>
           </label>
           <label className="field">
-            <span className="field-label">工单状态</span>
+            <span className="field-label">{translate('auto.k1410')}</span>
             <select
               value={draft.workOrderStatus}
               onChange={(event) => props.onDraftChange((current) => ({ ...current, workOrderStatus: event.target.value as TestDesignContextPolicyDraft['workOrderStatus'] }))}
               disabled={!props.canPolicyManage || state.loading}
             >
-              <option value="">跟随审批</option>
+              <option value="">{translate('auto.k1411')}</option>
               {TEST_DESIGN_CONTEXT_POLICY_WORK_ORDER_STATUSES.map((status) => (
                 <option key={status} value={status}>{status}</option>
               ))}
             </select>
           </label>
           <label className="field test-design-context-policy-wide">
-            <span className="field-label">审批备注</span>
+            <span className="field-label">{translate('auto.k1412')}</span>
             <textarea
               value={draft.reviewNote}
               maxLength={1000}
@@ -281,7 +280,7 @@ export function TestDesignContextPolicyPanel(props: {
         </div>
         <div className="test-design-context-policy-note-form">
           <label className="field">
-            <span className="field-label">备注类型</span>
+            <span className="field-label">{translate('auto.k1413')}</span>
             <select
               value={draft.noteType}
               onChange={(event) => props.onDraftChange((current) => ({ ...current, noteType: event.target.value === 'WORK_ORDER' ? 'WORK_ORDER' : 'COMMENT' }))}
@@ -292,7 +291,7 @@ export function TestDesignContextPolicyPanel(props: {
             </select>
           </label>
           <label className="field test-design-context-policy-wide">
-            <span className="field-label">流转备注</span>
+            <span className="field-label">{translate('auto.k1414')}</span>
             <textarea
               value={draft.noteText}
               maxLength={1000}
@@ -308,8 +307,7 @@ export function TestDesignContextPolicyPanel(props: {
             onClick={props.onAddNote}
           >
             <Plus size={15} />
-            追加备注
-          </button>
+            {translate('auto.k1415')}</button>
         </div>
         <div className="test-design-context-policy-overrides">
           {props.overrides.length ? props.overrides.slice(0, 6).map((override) => (
@@ -318,9 +316,9 @@ export function TestDesignContextPolicyPanel(props: {
                 <strong>{override.scopeType}{override.environmentKey ? ` · ${override.environmentKey}` : ''}</strong>
                 <em>{contextPolicyOverrideLimitText(override.overrideLimits)}</em>
                 <small>{override.workOrderKey ?? '-'} · {override.workOrderStatus ?? '-'}</small>
-                <small>正文 v{override.policyBodyVersion ?? '-'} · {contextPolicyDigestText(override.policyBodyDigest)} · 备注 {override.noteCount ?? 0}</small>
+                <small>{translate('auto.k1416')}{override.policyBodyVersion ?? '-'} · {contextPolicyDigestText(override.policyBodyDigest)} {translate('auto.k1417')}{override.noteCount ?? 0}</small>
                 <small>{override.requestedBy ?? '-'} · {override.createdAt ?? '-'}</small>
-                {override.latestNotePreview ? <small>最新备注：{override.latestNotePreview}</small> : null}
+                {override.latestNotePreview ? <small>{translate('auto.k1418')}{override.latestNotePreview}</small> : null}
               </div>
               <div className="test-design-context-policy-override-actions">
                 <span className={`badge badge-${contextPolicyStatusTone(override.status)}`}>{override.status}</span>
@@ -331,7 +329,7 @@ export function TestDesignContextPolicyPanel(props: {
                   onClick={() => props.onSelectOverride(override)}
                 >
                   <FileText size={14} />
-                  {override.status === 'PENDING' ? '编辑' : '流转'}
+                  {override.status === 'PENDING' ? translate('auto.k0746') : translate('auto.k1419')}
                 </button>
                 {override.status === 'PENDING' && (
                   <>
@@ -342,8 +340,7 @@ export function TestDesignContextPolicyPanel(props: {
                       onClick={() => props.onReviewOverride(override.id, 'approve')}
                     >
                       <CheckCircle2 size={14} />
-                      通过
-                    </button>
+                      {translate('auto.k1022')}</button>
                     <button
                       className="btn btn-ghost btn-xs"
                       type="button"
@@ -351,18 +348,17 @@ export function TestDesignContextPolicyPanel(props: {
                       onClick={() => props.onReviewOverride(override.id, 'reject')}
                     >
                       <XCircle size={14} />
-                      驳回
-                    </button>
+                      {translate('auto.k0214')}</button>
                   </>
                 )}
               </div>
             </div>
           )) : (
-            <div className="notice info">暂无策略覆盖记录</div>
+            <div className="notice info">{translate('auto.k1420')}</div>
           )}
         </div>
         <div className="test-design-context-policy-notes">
-          <strong>备注流转 · {props.selectedOverride?.workOrderKey ?? (props.selectedOverrideId || '-')}</strong>
+          <strong>{translate('auto.k1421')}{props.selectedOverride?.workOrderKey ?? (props.selectedOverrideId || '-')}</strong>
           {props.selectedOverrideId ? (
             props.notes.length ? props.notes.slice(-6).map((note) => (
               <div className="test-design-context-policy-note" key={note.id}>
@@ -371,10 +367,10 @@ export function TestDesignContextPolicyPanel(props: {
                 <small>{note.createdBy ?? '-'} · {note.createdAt ?? '-'}</small>
               </div>
             )) : (
-              <div className="notice info">暂无备注流转记录</div>
+              <div className="notice info">{translate('auto.k1422')}</div>
             )
           ) : (
-            <div className="notice info">未选择策略覆盖记录</div>
+            <div className="notice info">{translate('auto.k1423')}</div>
           )}
         </div>
         <StateLine state={state} />

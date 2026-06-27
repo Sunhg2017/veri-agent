@@ -1,3 +1,4 @@
+import { translate } from './platform/i18n';
 export type StepRichTextStyle = 'bold' | 'italic' | 'code' | 'bullet';
 
 export type StepRichTextSegment = {
@@ -16,10 +17,10 @@ export type StepRichTextEdit = {
 };
 
 const PLACEHOLDERS: Record<StepRichTextStyle, string> = {
-  bold: '重点',
-  italic: '强调',
-  code: '字段',
-  bullet: '步骤说明'
+  bold: translate('auto.k2018'),
+  italic: translate('auto.k2019'),
+  code: translate('auto.k2020'),
+  bullet: translate('auto.k2021')
 };
 
 export function applyStepRichTextMarkup(

@@ -5,6 +5,7 @@ import type {
 } from './api/testDesign';
 import type { TestDesignQualitySummary } from './testDesignQualitySummary';
 import type { TestDesignReviewSummary } from './testDesignReviewSummary';
+import { translate } from './platform/i18n';
 
 export const TEST_DESIGN_EXPORT_CONTENT_TYPE = 'text/csv;charset=UTF-8';
 
@@ -268,12 +269,12 @@ export function buildTestDesignTaskReportCsv(input: TestDesignTaskReportExportIn
   }
   const feedbackLoopItems = new Map(input.reviewSummary.feedbackLoop.items.map((item) => [item.label, item]));
   rows.push(taskReportRow(task, generatedAt, 'metadata', 'feedbackLoop', 'scope', '', input.reviewScopeLabel, undefined, undefined, input.reviewScopeLabel));
-  rows.push(taskReportRow(task, generatedAt, 'summary', 'feedbackLoop', 'metric', 'promptTuningSignals', input.reviewSummary.feedbackLoop.promptTuningSignalCount, feedbackLoopItems.get('反馈信号')?.percent, input.reviewSummary.feedbackLoop.tone, input.reviewScopeLabel));
-  rows.push(taskReportRow(task, generatedAt, 'summary', 'feedbackLoop', 'metric', 'sampleCandidates', input.reviewSummary.feedbackLoop.sampleCandidateCount, feedbackLoopItems.get('涉及候选')?.percent, feedbackLoopItems.get('涉及候选')?.tone, input.reviewScopeLabel));
-  rows.push(taskReportRow(task, generatedAt, 'summary', 'feedbackLoop', 'metric', 'commentCoverage', input.reviewSummary.feedbackLoop.commentCoverageCount, input.reviewSummary.feedbackLoop.commentCoveragePercent, feedbackLoopItems.get('说明覆盖')?.tone, input.reviewScopeLabel));
-  rows.push(taskReportRow(task, generatedAt, 'summary', 'feedbackLoop', 'distribution:signal', 'correction', input.reviewSummary.feedbackLoop.correctionCount, feedbackLoopItems.get('人工修正')?.percent, feedbackLoopItems.get('人工修正')?.tone, input.reviewScopeLabel));
-  rows.push(taskReportRow(task, generatedAt, 'summary', 'feedbackLoop', 'distribution:signal', 'rejected', input.reviewSummary.feedbackLoop.rejectedCount, feedbackLoopItems.get('驳回')?.percent, feedbackLoopItems.get('驳回')?.tone, input.reviewScopeLabel));
-  rows.push(taskReportRow(task, generatedAt, 'summary', 'feedbackLoop', 'distribution:signal', 'ignored', input.reviewSummary.feedbackLoop.ignoredCount, feedbackLoopItems.get('忽略')?.percent, feedbackLoopItems.get('忽略')?.tone, input.reviewScopeLabel));
+  rows.push(taskReportRow(task, generatedAt, 'summary', 'feedbackLoop', 'metric', 'promptTuningSignals', input.reviewSummary.feedbackLoop.promptTuningSignalCount, feedbackLoopItems.get(translate('auto.k2095'))?.percent, input.reviewSummary.feedbackLoop.tone, input.reviewScopeLabel));
+  rows.push(taskReportRow(task, generatedAt, 'summary', 'feedbackLoop', 'metric', 'sampleCandidates', input.reviewSummary.feedbackLoop.sampleCandidateCount, feedbackLoopItems.get(translate('auto.k2096'))?.percent, feedbackLoopItems.get(translate('auto.k2096'))?.tone, input.reviewScopeLabel));
+  rows.push(taskReportRow(task, generatedAt, 'summary', 'feedbackLoop', 'metric', 'commentCoverage', input.reviewSummary.feedbackLoop.commentCoverageCount, input.reviewSummary.feedbackLoop.commentCoveragePercent, feedbackLoopItems.get(translate('auto.k2027'))?.tone, input.reviewScopeLabel));
+  rows.push(taskReportRow(task, generatedAt, 'summary', 'feedbackLoop', 'distribution:signal', 'correction', input.reviewSummary.feedbackLoop.correctionCount, feedbackLoopItems.get(translate('auto.k2097'))?.percent, feedbackLoopItems.get(translate('auto.k2097'))?.tone, input.reviewScopeLabel));
+  rows.push(taskReportRow(task, generatedAt, 'summary', 'feedbackLoop', 'distribution:signal', 'rejected', input.reviewSummary.feedbackLoop.rejectedCount, feedbackLoopItems.get(translate('auto.k0214'))?.percent, feedbackLoopItems.get(translate('auto.k0214'))?.tone, input.reviewScopeLabel));
+  rows.push(taskReportRow(task, generatedAt, 'summary', 'feedbackLoop', 'distribution:signal', 'ignored', input.reviewSummary.feedbackLoop.ignoredCount, feedbackLoopItems.get(translate('auto.k0808'))?.percent, feedbackLoopItems.get(translate('auto.k0808'))?.tone, input.reviewScopeLabel));
   for (const warning of input.reviewSummary.feedbackLoop.warnings) {
     rows.push(taskReportRow(task, generatedAt, 'summary', 'feedbackLoop', 'warning', warning.label, warning.count, undefined, warning.tone, input.reviewScopeLabel));
   }

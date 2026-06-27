@@ -45,6 +45,7 @@ import {
   type ApiAutomationSyncResponse
 } from '../api/apiAutomation';
 import { canUseButton, hasPermission } from '../permissions';
+import { translate } from '../platform/i18n';
 
 const DIFF_STATUS_OPTIONS = ['ALL', 'NEW', 'CHANGED', 'MATCHED', 'CONFLICT', 'SKIPPED', 'UNKNOWN'] as const;
 
@@ -132,7 +133,7 @@ export function ApiAutomationWorkbench(props: { signedIn: boolean; currentUser: 
       setSpecs(specsResult.data.items);
       setLoadState({ loading: false });
     } catch (error: unknown) {
-      setLoadState({ loading: false, error: error instanceof Error ? error.message : '加载失败' });
+      setLoadState({ loading: false, error: error instanceof Error ? error.message : translate('auto.k0049') });
     }
   }, [canRead, props.signedIn]);
 
@@ -147,7 +148,7 @@ export function ApiAutomationWorkbench(props: { signedIn: boolean; currentUser: 
       setDetail(result.data);
       setDetailState({ loading: false });
     } catch (error: unknown) {
-      setDetailState({ loading: false, error: error instanceof Error ? error.message : '加载失败' });
+      setDetailState({ loading: false, error: error instanceof Error ? error.message : translate('auto.k0049') });
     }
   }, [canRead]);
 
@@ -196,7 +197,7 @@ export function ApiAutomationWorkbench(props: { signedIn: boolean; currentUser: 
     event.preventDefault();
     if (!canImport) return;
     if (!draft.projectId.trim() || !draft.name.trim() || !draft.content.trim()) {
-      setImportState({ loading: false, error: '请填写项目、名称和 OpenAPI 内容' });
+      setImportState({ loading: false, error: translate('auto.k0142') });
       return;
     }
     setImportState({ loading: true });
@@ -212,10 +213,10 @@ export function ApiAutomationWorkbench(props: { signedIn: boolean; currentUser: 
       setDraft(initialDraft);
       setSelectedSpecId(result.data.spec.id);
       setDetail(result.data);
-      setImportState({ loading: false, success: 'OpenAPI 规格已导入' });
+      setImportState({ loading: false, success: translate('auto.k0143') });
       await refreshSpecs();
     } catch (error: unknown) {
-      setImportState({ loading: false, error: error instanceof Error ? error.message : '导入失败' });
+      setImportState({ loading: false, error: error instanceof Error ? error.message : translate('auto.k0144') });
     }
   }
 
@@ -225,14 +226,14 @@ export function ApiAutomationWorkbench(props: { signedIn: boolean; currentUser: 
     try {
       const result = await parseApiAutomationSpec(selectedSpecId);
       setDetail(result.data);
-      setParseState({ loading: false, success: '解析已刷新' });
+      setParseState({ loading: false, success: translate('auto.k0145') });
       setLastSync(null);
       setLastGeneration(null);
       setLastRun(null);
       setLastRunExport(null);
       await refreshSpecs();
     } catch (error: unknown) {
-      setParseState({ loading: false, error: error instanceof Error ? error.message : '解析失败' });
+      setParseState({ loading: false, error: error instanceof Error ? error.message : translate('auto.k0146') });
     }
   }
 
@@ -244,7 +245,7 @@ export function ApiAutomationWorkbench(props: { signedIn: boolean; currentUser: 
       setDetail((current) => current ? { ...current, endpoints: result.data.endpoints } : current);
       setDiffState({ loading: false, success: diffSummaryText(result.data.counts) });
     } catch (error: unknown) {
-      setDiffState({ loading: false, error: error instanceof Error ? error.message : 'Diff 失败' });
+      setDiffState({ loading: false, error: error instanceof Error ? error.message : translate('auto.k0147') });
     }
   }
 
@@ -261,7 +262,7 @@ export function ApiAutomationWorkbench(props: { signedIn: boolean; currentUser: 
       setSyncState({ loading: false, success: syncSummaryText(result.data.counts) });
       await refreshSpecs();
     } catch (error: unknown) {
-      setSyncState({ loading: false, error: error instanceof Error ? error.message : '同步失败' });
+      setSyncState({ loading: false, error: error instanceof Error ? error.message : translate('auto.k0148') });
     }
   }
 
@@ -290,7 +291,7 @@ export function ApiAutomationWorkbench(props: { signedIn: boolean; currentUser: 
       setGenerationState({ loading: false, success: generationSummaryText(result.data) });
       await refreshGenerationHistory(detail.spec.projectId, selectedSpecId);
     } catch (error: unknown) {
-      setGenerationState({ loading: false, error: error instanceof Error ? error.message : '生成失败' });
+      setGenerationState({ loading: false, error: error instanceof Error ? error.message : translate('auto.k0149') });
     }
   }
 
@@ -305,7 +306,7 @@ export function ApiAutomationWorkbench(props: { signedIn: boolean; currentUser: 
       setReviewNote('');
       setGenerationState({ loading: false, success: generationSummaryText(result.data) });
     } catch (error: unknown) {
-      setGenerationState({ loading: false, error: error instanceof Error ? error.message : '加载生成任务失败' });
+      setGenerationState({ loading: false, error: error instanceof Error ? error.message : translate('auto.k0150') });
     }
   }
 
@@ -314,9 +315,9 @@ export function ApiAutomationWorkbench(props: { signedIn: boolean; currentUser: 
     setScriptBundleState({ loading: true });
     try {
       const result = await generateApiAutomationScriptBundle(lastGeneration.task.id);
-      mergeScriptBundle(result.data, '脚本包已生成');
+      mergeScriptBundle(result.data, translate('auto.k0151'));
     } catch (error: unknown) {
-      setScriptBundleState({ loading: false, error: error instanceof Error ? error.message : '脚本包生成失败' });
+      setScriptBundleState({ loading: false, error: error instanceof Error ? error.message : translate('auto.k0152') });
     }
   }
 
@@ -325,9 +326,9 @@ export function ApiAutomationWorkbench(props: { signedIn: boolean; currentUser: 
     setScriptBundleState({ loading: true });
     try {
       const result = await submitApiAutomationScriptBundleReview(bundle.id, { note: optionalText(reviewNote) });
-      mergeScriptBundle(result.data, '脚本包已提交评审');
+      mergeScriptBundle(result.data, translate('auto.k0153'));
     } catch (error: unknown) {
-      setScriptBundleState({ loading: false, error: error instanceof Error ? error.message : '提交评审失败' });
+      setScriptBundleState({ loading: false, error: error instanceof Error ? error.message : translate('auto.k0154') });
     }
   }
 
@@ -336,9 +337,9 @@ export function ApiAutomationWorkbench(props: { signedIn: boolean; currentUser: 
     setScriptBundleState({ loading: true });
     try {
       const result = await approveApiAutomationScriptBundle(bundle.id, { note: optionalText(reviewNote) });
-      mergeScriptBundle(result.data, '脚本包已审批通过');
+      mergeScriptBundle(result.data, translate('auto.k0155'));
     } catch (error: unknown) {
-      setScriptBundleState({ loading: false, error: error instanceof Error ? error.message : '审批失败' });
+      setScriptBundleState({ loading: false, error: error instanceof Error ? error.message : translate('auto.k0156') });
     }
   }
 
@@ -347,16 +348,16 @@ export function ApiAutomationWorkbench(props: { signedIn: boolean; currentUser: 
     setScriptBundleState({ loading: true });
     try {
       const result = await rejectApiAutomationScriptBundle(bundle.id, { note: reviewNote.trim() });
-      mergeScriptBundle(result.data, '脚本包已驳回');
+      mergeScriptBundle(result.data, translate('auto.k0157'));
     } catch (error: unknown) {
-      setScriptBundleState({ loading: false, error: error instanceof Error ? error.message : '驳回失败' });
+      setScriptBundleState({ loading: false, error: error instanceof Error ? error.message : translate('auto.k0158') });
     }
   }
 
   async function onCreateRun(bundle: ApiAutomationScriptBundle) {
     if (!canExecute) return;
     if (!runBaseUrl.trim()) {
-      setRunState({ loading: false, error: '请填写 baseUrl' });
+      setRunState({ loading: false, error: translate('auto.k0159') });
       return;
     }
     setRunState({ loading: true });
@@ -374,7 +375,7 @@ export function ApiAutomationWorkbench(props: { signedIn: boolean; currentUser: 
       setLastRunExport(null);
       setRunState({ loading: false, success: runSummaryText(result.data) });
     } catch (error: unknown) {
-      setRunState({ loading: false, error: error instanceof Error ? error.message : '运行失败' });
+      setRunState({ loading: false, error: error instanceof Error ? error.message : translate('auto.k0160') });
     }
   }
 
@@ -384,9 +385,9 @@ export function ApiAutomationWorkbench(props: { signedIn: boolean; currentUser: 
     try {
       const result = await exportApiAutomationRun(run.run.id);
       setLastRunExport(result.data);
-      setRunExportState({ loading: false, success: `导出 ${result.data.schemaVersion} · ${result.data.results.length} 条结果` });
+      setRunExportState({ loading: false, success: translate('auto.k0161', { value0: result.data.schemaVersion, value1: result.data.results.length }) });
     } catch (error: unknown) {
-      setRunExportState({ loading: false, error: error instanceof Error ? error.message : '导出失败' });
+      setRunExportState({ loading: false, error: error instanceof Error ? error.message : translate('auto.k0062') });
     }
   }
 
@@ -398,7 +399,7 @@ export function ApiAutomationWorkbench(props: { signedIn: boolean; currentUser: 
       setLastRun(result.data);
       setRunState({ loading: false, success: runSummaryText(result.data) });
     } catch (error: unknown) {
-      setRunState({ loading: false, error: error instanceof Error ? error.message : '取消失败' });
+      setRunState({ loading: false, error: error instanceof Error ? error.message : translate('auto.k0162') });
     }
   }
 
@@ -407,8 +408,8 @@ export function ApiAutomationWorkbench(props: { signedIn: boolean; currentUser: 
       <section className="panel">
         <div className="empty-state">
           <ShieldCheck className="empty-state-icon" />
-          <strong>无权访问</strong>
-          <span>需要 apiAutomation:read 权限。</span>
+          <strong>{translate('auto.k0163')}</strong>
+          <span>{translate('auto.k0164')}</span>
         </div>
       </section>
     );
@@ -417,34 +418,33 @@ export function ApiAutomationWorkbench(props: { signedIn: boolean; currentUser: 
   return (
     <section className="api-automation-console">
       <div className="metric-grid">
-        <MetricCard label="规格" value={String(specs.length)} icon={<FileText size={18} />} />
-        <MetricCard label="已解析" value={String(summary.parsed)} icon={<CheckCircle2 size={18} />} />
+        <MetricCard label={translate('auto.k0165')} value={String(specs.length)} icon={<FileText size={18} />} />
+        <MetricCard label={translate('auto.k0166')} value={String(summary.parsed)} icon={<CheckCircle2 size={18} />} />
         <MetricCard label="Endpoint" value={String(summary.endpoints)} icon={<ListChecks size={18} />} />
-        <MetricCard label="解析失败" value={String(summary.failed)} icon={<AlertTriangle size={18} />} />
+        <MetricCard label={translate('auto.k0146')} value={String(summary.failed)} icon={<AlertTriangle size={18} />} />
       </div>
 
       <section className="panel">
         <div className="panel-header">
           <div>
-            <div className="panel-title">控制面策略</div>
+            <div className="panel-title">{translate('auto.k0167')}</div>
             <div className="panel-desc">
-              {health ? `${health.service} · ${health.status}` : loadState.loading ? '加载中' : '未加载'}
+              {health ? `${health.service} · ${health.status}` : loadState.loading ? translate('auto.k0168') : translate('auto.k0169')}
             </div>
           </div>
           <button className="btn btn-ghost btn-sm" type="button" onClick={() => void refreshSpecs()} disabled={loadState.loading}>
             <RefreshCw size={15} />
-            刷新
-          </button>
+            {translate('auto.k0170')}</button>
         </div>
         <div className="panel-body compact">
           {loadState.error && <div className="document-state-line error">{loadState.error}</div>}
           <div className="api-automation-policy-grid">
             <PolicyItem label="OpenAPI" value={health?.supportedOpenApiVersions.join(', ') || '-'} />
-            <PolicyItem label="规格上限" value={health ? `${Math.round(health.specMaxBytes / 1024)} KB` : '-'} />
-            <PolicyItem label="Endpoint 上限" value={String(health?.endpointMaxCount ?? '-')} />
+            <PolicyItem label={translate('auto.k0171')} value={health ? `${Math.round(health.specMaxBytes / 1024)} KB` : '-'} />
+            <PolicyItem label={translate('auto.k0172')} value={String(health?.endpointMaxCount ?? '-')} />
             <PolicyItem label="Runner" value={health?.runnerEnabled ? 'ENABLED' : 'DISABLED'} />
             <PolicyItem label="Prompt" value={health?.promptKey ?? '-'} />
-            <PolicyItem label="URL 拉取" value={health?.policy?.['urlFetchEnabled'] ? 'ENABLED' : 'DISABLED'} />
+            <PolicyItem label={translate('auto.k0173')} value={health?.policy?.['urlFetchEnabled'] ? 'ENABLED' : 'DISABLED'} />
           </div>
         </div>
       </section>
@@ -453,26 +453,25 @@ export function ApiAutomationWorkbench(props: { signedIn: boolean; currentUser: 
         <form className="panel" onSubmit={onImport}>
           <div className="panel-header">
             <div>
-              <div className="panel-title">导入规格</div>
+              <div className="panel-title">{translate('auto.k0174')}</div>
               <div className="panel-desc">TEXT · JSON/YAML</div>
             </div>
             <button className="btn btn-primary btn-sm" type="submit" disabled={!canImport || importState.loading}>
               <Upload size={15} />
-              导入
-            </button>
+              {translate('auto.k0175')}</button>
           </div>
           <div className="panel-body">
             <div className="form-grid">
-              <Field label="项目">
+              <Field label={translate('auto.k0176')}>
                 <input value={draft.projectId} onChange={(event) => setDraftValue('projectId', event.target.value)} />
               </Field>
-              <Field label="名称">
+              <Field label={translate('auto.k0177')}>
                 <input value={draft.name} onChange={(event) => setDraftValue('name', event.target.value)} />
               </Field>
-              <Field label="版本">
+              <Field label={translate('auto.k0178')}>
                 <input value={draft.versionLabel} onChange={(event) => setDraftValue('versionLabel', event.target.value)} />
               </Field>
-              <Field label="来源">
+              <Field label={translate('auto.k0179')}>
                 <input value={draft.sourceRef} onChange={(event) => setDraftValue('sourceRef', event.target.value)} />
               </Field>
             </div>
@@ -491,8 +490,8 @@ export function ApiAutomationWorkbench(props: { signedIn: boolean; currentUser: 
         <section className="panel">
           <div className="panel-header">
             <div>
-              <div className="panel-title">规格列表</div>
-              <div className="panel-desc">{specs.length} 条</div>
+              <div className="panel-title">{translate('auto.k0180')}</div>
+              <div className="panel-desc">{specs.length} {translate('auto.k0181')}</div>
             </div>
           </div>
           <div className="panel-body compact">
@@ -500,9 +499,9 @@ export function ApiAutomationWorkbench(props: { signedIn: boolean; currentUser: 
               <table>
                 <thead>
                   <tr>
-                    <th>名称</th>
-                    <th>项目</th>
-                    <th>状态</th>
+                    <th>{translate('auto.k0177')}</th>
+                    <th>{translate('auto.k0176')}</th>
+                    <th>{translate('auto.k0182')}</th>
                     <th>Endpoint</th>
                   </tr>
                 </thead>
@@ -522,7 +521,7 @@ export function ApiAutomationWorkbench(props: { signedIn: boolean; currentUser: 
                       <td>{spec.endpointCount}</td>
                     </tr>
                   )) : (
-                    <tr><td className="table-empty" colSpan={4}>{loadState.loading ? '加载中' : '暂无规格'}</td></tr>
+                    <tr><td className="table-empty" colSpan={4}>{loadState.loading ? translate('auto.k0168') : translate('auto.k0183')}</td></tr>
                   )}
                 </tbody>
               </table>
@@ -535,7 +534,7 @@ export function ApiAutomationWorkbench(props: { signedIn: boolean; currentUser: 
         <div className="panel-header">
           <div>
             <div className="panel-title">Endpoint Snapshot</div>
-            <div className="panel-desc">{detail ? `${detail.spec.name} · ${detail.endpoints.length} 条` : '未选择规格'}</div>
+            <div className="panel-desc">{detail ? translate('auto.k0184', { value0: detail.spec.name, value1: detail.endpoints.length }) : translate('auto.k0185')}</div>
           </div>
           <div className="api-automation-panel-actions">
             <button className="btn btn-ghost btn-sm" type="button" onClick={() => void onRefreshDiff()} disabled={!selectedSpecId || diffState.loading}>
@@ -544,46 +543,43 @@ export function ApiAutomationWorkbench(props: { signedIn: boolean; currentUser: 
             </button>
             <button className="btn btn-secondary btn-sm" type="button" onClick={() => void onSync()} disabled={!selectedSpecId || !canImport || syncState.loading}>
               <Upload size={15} />
-              同步
-            </button>
+              {translate('auto.k0186')}</button>
             <button className="btn btn-secondary btn-sm" type="button" onClick={() => void onGenerateCases()} disabled={!selectedSpecId || !canGenerate || generationState.loading}>
               <ListChecks size={15} />
-              生成用例
-            </button>
+              {translate('auto.k0187')}</button>
             <button className="btn btn-ghost btn-sm" type="button" onClick={() => void onReparse()} disabled={!selectedSpecId || !canImport || parseState.loading}>
               <RotateCcw size={15} />
-              重解析
-            </button>
+              {translate('auto.k0188')}</button>
           </div>
         </div>
         <div className="panel-body compact">
           <div className="form-grid">
-            <Field label="生成模式">
+            <Field label={translate('auto.k0189')}>
               <select
                 value={Boolean(health?.policy?.modelGenerationReady) ? generationMode : 'FALLBACK_ONLY'}
                 onChange={(event) => setGenerationMode(event.target.value as 'MODEL_WITH_FALLBACK' | 'FALLBACK_ONLY')}
                 disabled={!canGenerate || generationState.loading || !health}
               >
-                {Boolean(health?.policy?.modelGenerationReady) && <option value="MODEL_WITH_FALLBACK">模型优先</option>}
-                <option value="FALLBACK_ONLY">确定模板</option>
+                {Boolean(health?.policy?.modelGenerationReady) && <option value="MODEL_WITH_FALLBACK">{translate('auto.k0190')}</option>}
+                <option value="FALLBACK_ONLY">{translate('auto.k0191')}</option>
               </select>
             </Field>
-            <Field label="WP3 用例 ID">
+            <Field label={translate('auto.k0192')}>
               <input
                 value={generationAssetTestCaseIds}
                 onChange={(event) => setGenerationAssetTestCaseIds(event.target.value)}
-                placeholder="逗号或换行分隔"
+                placeholder={translate('auto.k0193')}
                 disabled={!canGenerate || generationState.loading}
               />
             </Field>
-            <Field label="Diff 筛选">
+            <Field label={translate('auto.k0194')}>
               <select
                 value={diffStatusFilter}
                 onChange={(event) => setDiffStatusFilter(event.target.value as (typeof DIFF_STATUS_OPTIONS)[number])}
                 disabled={!detail || detailState.loading}
               >
                 {DIFF_STATUS_OPTIONS.map((status) => (
-                  <option value={status} key={status}>{status === 'ALL' ? '全部' : status}</option>
+                  <option value={status} key={status}>{status === 'ALL' ? translate('auto.k0195') : status}</option>
                 ))}
               </select>
             </Field>
@@ -696,13 +692,13 @@ function EndpointTable(props: {
       <table>
         <thead>
           <tr>
-            <th>范围</th>
-            <th>方法</th>
+            <th>{translate('auto.k0196')}</th>
+            <th>{translate('auto.k0197')}</th>
             <th>Path</th>
             <th>Operation</th>
             <th>Asset</th>
-            <th>参数</th>
-            <th>响应</th>
+            <th>{translate('auto.k0198')}</th>
+            <th>{translate('auto.k0199')}</th>
             <th>Diff</th>
           </tr>
         </thead>
@@ -711,7 +707,7 @@ function EndpointTable(props: {
             <tr key={endpoint.id}>
               <td>
                 <input
-                  aria-label={`选择 ${endpoint.httpMethod} ${endpoint.path}`}
+                  aria-label={translate('auto.k0200', { value0: endpoint.httpMethod, value1: endpoint.path })}
                   type="checkbox"
                   checked={Boolean(endpoint.assetApiId && props.selectedAssetApiIds.includes(endpoint.assetApiId))}
                   disabled={!endpoint.assetApiId}
@@ -734,7 +730,7 @@ function EndpointTable(props: {
               </td>
             </tr>
           )) : (
-            <tr><td className="table-empty" colSpan={8}>{props.loading ? '加载中' : '暂无 endpoint'}</td></tr>
+            <tr><td className="table-empty" colSpan={8}>{props.loading ? translate('auto.k0168') : translate('auto.k0201')}</td></tr>
           )}
         </tbody>
       </table>
@@ -747,7 +743,7 @@ function SyncSummary(props: { sync: ApiAutomationSyncResponse }) {
   return (
     <div className="api-automation-sync-summary">
       <span>{text}</span>
-      <span>{props.sync.items.length} 条同步明细</span>
+      <span>{props.sync.items.length} {translate('auto.k0202')}</span>
     </div>
   );
 }
@@ -761,13 +757,11 @@ function GenerationScopeSummary(props: {
   const selectableCount = selectableAssetApiIds(props.endpoints).length;
   return (
     <div className="api-automation-scope-bar">
-      <span>API 范围 {props.selectedAssetApiIds.length ? `${props.selectedAssetApiIds.length}/${selectableCount}` : `全部已同步 ${selectableCount}`}</span>
+      <span>{translate('auto.k0203')}{props.selectedAssetApiIds.length ? `${props.selectedAssetApiIds.length}/${selectableCount}` : translate('auto.k0204', { value0: selectableCount })}</span>
       <button className="btn btn-ghost btn-sm" type="button" onClick={props.onSelectAll} disabled={!selectableCount}>
-        全选
-      </button>
+        {translate('auto.k0205')}</button>
       <button className="btn btn-ghost btn-sm" type="button" onClick={props.onClear} disabled={!props.selectedAssetApiIds.length}>
-        全量
-      </button>
+        {translate('auto.k0206')}</button>
     </div>
   );
 }
@@ -782,8 +776,8 @@ function GenerationHistory(props: {
   return (
     <div className="api-automation-history">
       <div className="api-automation-history-head">
-        <span>生成任务</span>
-        <em>{props.tasks.length} 条最近记录</em>
+        <span>{translate('auto.k0207')}</span>
+        <em>{props.tasks.length} {translate('auto.k0208')}</em>
       </div>
       <div className="api-automation-history-list">
         {props.tasks.map((task) => (
@@ -843,13 +837,13 @@ function GenerationSummary(props: {
       <div className="api-automation-sync-summary">
         <span>{generationSummaryText(props.generation)}</span>
         <span>{props.generation.task.generationMode} · {props.generation.task.modelInvocationId ? shortId(props.generation.task.modelInvocationId) : 'no-model'}</span>
-        <span>{props.generation.cases.length} 条草稿</span>
+        <span>{props.generation.cases.length} {translate('auto.k0209')}</span>
       </div>
       {bundle ? (
         <div className="api-automation-script-bundle">
           <div className="api-automation-script-bundle-head">
             <div>
-              <span className="table-primary">脚本包</span>
+              <span className="table-primary">{translate('auto.k0210')}</span>
               <span className="table-secondary">{shortId(bundle.bundleDigest)} · {bundle.fileCount} files</span>
             </div>
             <div className="api-automation-panel-actions">
@@ -863,7 +857,7 @@ function GenerationSummary(props: {
             ))}
           </div>
           <div className="form-grid">
-            <Field label="备注">
+            <Field label={translate('auto.k0211')}>
               <input
                 value={props.reviewNote}
                 onChange={(event) => props.onReviewNoteChange(event.target.value)}
@@ -880,8 +874,7 @@ function GenerationSummary(props: {
                 disabled={!props.canReview || props.loading || bundle.staticCheckStatus !== 'PASSED'}
               >
                 <Send size={15} />
-                提交评审
-              </button>
+                {translate('auto.k0212')}</button>
             )}
             {bundle.status === 'REVIEWING' && (
               <>
@@ -892,8 +885,7 @@ function GenerationSummary(props: {
                   disabled={!props.canReview || props.loading}
                 >
                   <ClipboardCheck size={15} />
-                  审批
-                </button>
+                  {translate('auto.k0213')}</button>
                 <button
                   className="btn btn-secondary btn-sm"
                   type="button"
@@ -901,8 +893,7 @@ function GenerationSummary(props: {
                   disabled={!props.canReview || props.loading || !props.reviewNote.trim()}
                 >
                   <AlertTriangle size={15} />
-                  驳回
-                </button>
+                  {translate('auto.k0214')}</button>
               </>
             )}
           </div>
@@ -922,7 +913,7 @@ function GenerationSummary(props: {
                     disabled={!props.canExecute || props.runLoading}
                   />
                 </Field>
-                <Field label="环境">
+                <Field label={translate('auto.k0215')}>
                   <input
                     value={props.runEnvironmentId}
                     onChange={(event) => props.onRunEnvironmentIdChange(event.target.value)}
@@ -933,7 +924,7 @@ function GenerationSummary(props: {
                   <input
                     value={props.runCaseIds}
                     onChange={(event) => props.onRunCaseIdsChange(event.target.value)}
-                    placeholder="为空则使用全部用例"
+                    placeholder={translate('auto.k0216')}
                     disabled={!props.canExecute || props.runLoading}
                   />
                 </Field>
@@ -954,8 +945,7 @@ function GenerationSummary(props: {
                   disabled={!props.canExecute || props.runLoading || !props.runBaseUrl.trim()}
                 >
                   <Play size={15} />
-                  运行
-                </button>
+                  {translate('auto.k0217')}</button>
               </div>
               {props.lastRun && (
                 <RunSummary
@@ -980,8 +970,7 @@ function GenerationSummary(props: {
           disabled={!props.canGenerate || props.loading}
         >
           <ListChecks size={15} />
-          生成脚本包
-        </button>
+          {translate('auto.k0218')}</button>
       )}
     </div>
   );
@@ -1005,7 +994,7 @@ function RunSummary(props: {
     <div className="api-automation-run-result">
       <div className="api-automation-script-bundle-head">
         <div>
-          <span className="table-primary">运行结果</span>
+          <span className="table-primary">{translate('auto.k0219')}</span>
           <span className="table-secondary">{props.run.run.baseUrlHost ?? '-'} · {shortId(props.run.run.baseUrlDigest)}</span>
         </div>
         <div className="api-automation-panel-actions">
@@ -1028,8 +1017,7 @@ function RunSummary(props: {
             onClick={props.onCancel}
           >
             <Square size={15} />
-            取消
-          </button>
+            {translate('auto.k0220')}</button>
         )}
         <button
           className="btn btn-secondary btn-sm"
@@ -1038,8 +1026,7 @@ function RunSummary(props: {
           onClick={props.onExport}
         >
           <Download size={15} />
-          导出摘要
-        </button>
+          {translate('auto.k0221')}</button>
       </div>
       {props.run.run.errorCode && (
         <div className="api-automation-diff-reason error">
@@ -1116,15 +1103,15 @@ function diffSummaryText(counts: Record<string, number>) {
 }
 
 function syncSummaryText(counts: Record<string, number>) {
-  return `同步：CREATED ${counts.CREATED ?? 0} · UPDATED ${counts.UPDATED ?? 0} · FAILED ${counts.FAILED ?? 0}`;
+  return translate('auto.k0222', { value0: counts.CREATED ?? 0, value1: counts.UPDATED ?? 0, value2: counts.FAILED ?? 0 });
 }
 
 function generationSummaryText(generation: ApiAutomationGenerationTaskDetail) {
-  return `生成：${generation.task.status} · API ${generation.task.apiCount} · CASE ${generation.task.caseCount}`;
+  return translate('auto.k0223', { value0: generation.task.status, value1: generation.task.apiCount, value2: generation.task.caseCount });
 }
 
 function runSummaryText(run: ApiAutomationRunDetail) {
-  return `运行：${run.run.status} · CASE ${run.run.caseCount} · ${run.run.errorCode ?? 'OK'}`;
+  return translate('auto.k0224', { value0: run.run.status, value1: run.run.caseCount, value2: run.run.errorCode ?? 'OK' });
 }
 
 function activeRunStatus(status: string) {

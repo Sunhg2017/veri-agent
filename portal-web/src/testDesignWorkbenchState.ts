@@ -23,6 +23,7 @@ import type {
   EvaluationSampleDraft,
   EvaluationSampleFilters
 } from './components/TestDesignEvaluationCorpusPanel';
+import { translate } from './platform/i18n';
 
 export type RequirementFilters = {
   projectId: string;
@@ -264,7 +265,7 @@ export const initialTemplateDraft: TemplateDraft = {
 };
 
 export const initialConflictResolutionDraft: ConflictResolutionDraft = {
-  reason: '人工确认复用既有用例',
+  reason: translate('auto.k2065'),
   comment: ''
 };
 

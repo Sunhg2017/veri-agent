@@ -1,4 +1,5 @@
 import { ApiError, requestJson, requestMultipart, type ApiResponse } from './client';
+import { translate } from '../platform/i18n';
 
 export const DOCUMENT_SOURCE_TYPES = [
   'TEXT',
@@ -27,9 +28,9 @@ export const documentSourceTypeOptions: Array<{
   { value: 'PDF', label: 'PDF', reserved: false },
   { value: 'OCR', label: 'OCR', reserved: false },
   { value: 'CONFLUENCE', label: 'Confluence', reserved: true },
-  { value: 'FEISHU', label: '飞书', reserved: true },
-  { value: 'DINGTALK', label: '钉钉', reserved: true },
-  { value: 'YUQUE', label: '语雀', reserved: true }
+  { value: 'FEISHU', label: translate('auto.k0102'), reserved: true },
+  { value: 'DINGTALK', label: translate('auto.k0103'), reserved: true },
+  { value: 'YUQUE', label: translate('auto.k0104'), reserved: true }
 ];
 
 export interface DocumentInputHealth {
@@ -473,12 +474,12 @@ export function documentInputErrorMessage(error: unknown, fallback: string) {
   const message = error.message || fallback;
   const actionable = actionableDocumentInputHint(message);
   const parts = [message];
-  if (actionable && !message.includes(actionable) && !message.includes('下一步') && !message.includes('建议')) {
+  if (actionable && !message.includes(actionable) && !message.includes(translate('auto.k0105')) && !message.includes(translate('auto.k0106'))) {
     parts.push(actionable);
   }
   if (error instanceof ApiError) {
     if (error.code) {
-      parts.push(`错误码：${error.code}`);
+      parts.push(translate('auto.k0107', { value0: error.code }));
     }
     if (error.traceId) {
       parts.push(`Trace ID：${error.traceId}`);
@@ -489,17 +490,17 @@ export function documentInputErrorMessage(error: unknown, fallback: string) {
 
 function actionableDocumentInputHint(message: string) {
   const normalized = message.toLowerCase();
-  if (message.includes('OCR') || message.includes('扫描件') || message.includes('未抽取到文本') || message.includes('未识别到有效文本')) {
-    return '建议：请管理员配置 WP4_OCR_COMMAND，或上传可复制文本的 PDF/Word/Markdown。';
+  if (message.includes('OCR') || message.includes(translate('auto.k0108')) || message.includes(translate('auto.k0109')) || message.includes(translate('auto.k0110'))) {
+    return translate('auto.k0111');
   }
-  if (message.includes('PDF') && (message.includes('页数超过上限') || message.includes('时间上限'))) {
-    return '建议：拆分 PDF 后重试，或联系管理员调整 PDF 页数/解析时间限制。';
+  if (message.includes('PDF') && (message.includes(translate('auto.k0112')) || message.includes(translate('auto.k0113')))) {
+    return translate('auto.k0114');
   }
-  if (message.includes('超过上限') || normalized.includes('payload too large')) {
-    return '建议：压缩或拆分文件/事件 payload，或联系管理员调整 WP4 大小上限配置。';
+  if (message.includes(translate('auto.k0115')) || normalized.includes('payload too large')) {
+    return translate('auto.k0116');
   }
-  if (message.includes('webhook') && (message.includes('签名') || message.includes('X-VA-'))) {
-    return '建议：核对 secretRef/WP4_WEBHOOK_SECRET、raw body、签名串、时间窗口和 X-VA-* Header。';
+  if (message.includes('webhook') && (message.includes(translate('auto.k0117')) || message.includes('X-VA-'))) {
+    return translate('auto.k0118');
   }
   return '';
 }
@@ -511,7 +512,7 @@ export function normalizeDocumentSourceView(raw: unknown): DocumentSourceView {
     id,
     sourceCode: optionalString(item.sourceCode) ?? optionalString(item.source_code) ?? optionalString(item.code),
     projectId: optionalString(item.projectId) ?? optionalString(item.project_id) ?? optionalString(item.defaultProjectId) ?? optionalString(item.default_project_id),
-    title: stringValue(item.title, stringValue(item.name, id || '未命名文档源')),
+    title: stringValue(item.title, stringValue(item.name, id || translate('auto.k0119'))),
     sourceType: sourceTypeValue(item.sourceType ?? item.source_type),
     sourceRef: optionalString(item.sourceRef) ?? optionalString(item.source_ref),
     sourceUrl: optionalString(item.sourceUrl) ?? optionalString(item.source_url) ?? optionalString(item.endpointUrl) ?? optionalString(item.endpoint_url),
@@ -577,7 +578,7 @@ export function normalizeDocumentImportView(raw: unknown): DocumentImportView {
   return {
     id,
     projectId: optionalString(item.projectId) ?? optionalString(item.project_id),
-    title: stringValue(item.title, stringValue(item.sourceRef ?? item.source_ref, id || '未命名导入')),
+    title: stringValue(item.title, stringValue(item.sourceRef ?? item.source_ref, id || translate('auto.k0120'))),
     sourceType: sourceTypeValue(item.sourceType ?? item.source_type),
     sourceRef: optionalString(item.sourceRef) ?? optionalString(item.source_ref),
     sourceUrl: optionalString(item.sourceUrl) ?? optionalString(item.source_url),
@@ -598,7 +599,7 @@ export function normalizeDocumentCandidateView(raw: unknown): DocumentCandidateV
     id,
     importId: optionalString(item.importId) ?? optionalString(item.import_id),
     projectId: optionalString(item.projectId) ?? optionalString(item.project_id),
-    title: stringValue(item.title, id || '未命名候选需求'),
+    title: stringValue(item.title, id || translate('auto.k0121')),
     description: optionalString(item.description),
     priority: optionalString(item.priority),
     acceptanceCriteria: optionalString(item.acceptanceCriteria) ?? optionalString(item.acceptance_criteria),
@@ -670,7 +671,7 @@ export function normalizeDocumentPublishRecordView(raw: unknown): DocumentPublis
   const candidateId = stringValue(item.candidateId, stringValue(item.candidate_id));
   return {
     candidateId,
-    title: stringValue(item.title, candidateId || '未命名发布项'),
+    title: stringValue(item.title, candidateId || translate('auto.k0122')),
     candidateStatus: stringValue(item.candidateStatus, stringValue(item.candidate_status, 'UNKNOWN')),
     action: stringValue(item.action, 'SKIP'),
     result: stringValue(item.result, 'UNKNOWN'),
@@ -699,7 +700,7 @@ export function normalizeDocumentPublishView(raw: unknown): DocumentPublishView 
     sourceType: sourceTypeValue(item.sourceType ?? item.source_type),
     sourceRef: optionalString(item.sourceRef) ?? optionalString(item.source_ref),
     sourceUrl: optionalString(item.sourceUrl) ?? optionalString(item.source_url),
-    title: stringValue(item.title, id || '未命名发布'),
+    title: stringValue(item.title, id || translate('auto.k0123')),
     status: stringValue(item.status, 'UNKNOWN'),
     dryRun: booleanValue(item.dryRun ?? item.dry_run),
     totalParsed: numberValue(item.totalParsed ?? item.total_parsed, records.length),

@@ -1,4 +1,5 @@
 import type { TestDesignCandidateBatchActionType, TestDesignCandidateView, TestDesignPublishRecordView } from './api/testDesign';
+import { translate } from './platform/i18n';
 
 export type TestDesignConfirmationTone = 'info' | 'warning';
 
@@ -20,13 +21,13 @@ type ConflictResolutionConfirmationItem = {
 
 export function testDesignBatchActionLabel(action: string) {
   if (action === 'CONFIRM') {
-    return '确认';
+    return translate('auto.k0807');
   }
   if (action === 'REJECT') {
-    return '驳回';
+    return translate('auto.k0214');
   }
   if (action === 'IGNORE') {
-    return '忽略';
+    return translate('auto.k0808');
   }
   return action;
 }
@@ -40,14 +41,14 @@ export function buildTestDesignBatchReviewConfirmation(
   const nonReviewableCount = candidates.filter((candidate) => !['GENERATED', 'EDITED'].includes(candidate.status)).length;
   const warnings = batchReviewWarnings(action, nonReviewableCount);
   return {
-    title: `批量${actionLabel}候选`,
-    confirmLabel: `确认批量${actionLabel}`,
+    title: translate('auto.k2044', { value0: actionLabel }),
+    confirmLabel: translate('auto.k2045', { value0: actionLabel }),
     tone: action === 'CONFIRM' ? 'info' : 'warning',
     details: [
-      { label: '操作', value: actionLabel },
-      { label: '候选数', value: candidates.length },
-      { label: '评审意见', value: reviewComment.trim() || '无' },
-      { label: '版本', value: candidates.map((candidate) => `${candidate.id}@v${candidate.version}`).slice(0, 3).join(', ') || '-' }
+      { label: translate('auto.k0249'), value: actionLabel },
+      { label: translate('auto.k2046'), value: candidates.length },
+      { label: translate('auto.k1357'), value: reviewComment.trim() || translate('auto.k2047') },
+      { label: translate('auto.k0178'), value: candidates.map((candidate) => `${candidate.id}@v${candidate.version}`).slice(0, 3).join(', ') || '-' }
     ],
     warnings,
     candidateTitles: candidateTitles(candidates)
@@ -59,14 +60,14 @@ export function buildTestDesignBatchEditConfirmation(
   changedFields: readonly string[]
 ): TestDesignConfirmationSummary {
   return {
-    title: '确认批量编辑候选',
-    confirmLabel: '确认批量编辑',
+    title: translate('auto.k2048'),
+    confirmLabel: translate('auto.k2049'),
     tone: 'warning',
     details: [
-      { label: '操作', value: '批量字段编辑' },
-      { label: '候选数', value: candidates.length },
-      { label: '变更字段', value: changedFields.join('；') || '-' },
-      { label: '版本', value: candidates.map((candidate) => `${candidate.id}@v${candidate.version}`).slice(0, 3).join(', ') || '-' }
+      { label: translate('auto.k0249'), value: translate('auto.k1331') },
+      { label: translate('auto.k2046'), value: candidates.length },
+      { label: translate('auto.k2050'), value: changedFields.join('；') || '-' },
+      { label: translate('auto.k0178'), value: candidates.map((candidate) => `${candidate.id}@v${candidate.version}`).slice(0, 3).join(', ') || '-' }
     ],
     warnings: batchEditWarnings(candidates.length, changedFields.length),
     candidateTitles: candidateTitles(candidates)
@@ -81,17 +82,17 @@ export function buildTestDesignPublishConfirmation(
 ): TestDesignConfirmationSummary {
   const failedCount = candidates.filter((candidate) => candidate.status === 'FAILED').length;
   const selectedScope = selectedCandidateCount > 0
-    ? `${candidates.length} / ${selectedCandidateCount} 个已选候选可发布`
-    : '全部可发布候选';
+    ? translate('auto.k2051', { value0: candidates.length, value1: selectedCandidateCount })
+    : translate('auto.k2052');
   return {
-    title: dryRun ? '确认预发布检查' : '确认发布到资产库',
-    confirmLabel: dryRun ? '开始预发布' : '确认发布',
+    title: dryRun ? translate('auto.k2053') : translate('auto.k2054'),
+    confirmLabel: dryRun ? translate('auto.k2055') : translate('auto.k2056'),
     tone: dryRun && failedCount === 0 ? 'info' : 'warning',
     details: [
-      { label: '操作', value: dryRun ? '预发布 dryRun' : '正式发布' },
-      { label: '发布范围', value: selectedScope },
-      { label: '可发布候选', value: totalPublishableCandidates },
-      { label: '待重试候选', value: failedCount }
+      { label: translate('auto.k0249'), value: dryRun ? translate('auto.k2057') : translate('auto.k2058') },
+      { label: translate('auto.k1548'), value: selectedScope },
+      { label: translate('auto.k2059'), value: totalPublishableCandidates },
+      { label: translate('auto.k2060'), value: failedCount }
     ],
     warnings: publishWarnings(dryRun, candidates.length, failedCount),
     candidateTitles: candidateTitles(candidates)
@@ -105,15 +106,15 @@ export function buildTestDesignConflictResolutionConfirmation(
   comment: string
 ): TestDesignConfirmationSummary {
   return {
-    title: '确认处理发布冲突',
-    confirmLabel: '确认复用既有用例',
+    title: translate('auto.k2061'),
+    confirmLabel: translate('auto.k2062'),
     tone: 'warning',
     details: [
-      { label: '操作', value: '人工链接既有用例' },
-      { label: '候选', value: `${candidate.title || candidate.id}@v${candidate.version}` },
-      { label: '目标用例', value: record.assetCaseId ?? '-' },
-      { label: '处理原因', value: reason.trim() || '人工确认复用既有用例' },
-      { label: '补充说明', value: comment.trim() || '无' }
+      { label: translate('auto.k0249'), value: translate('auto.k2063') },
+      { label: translate('auto.k1428'), value: `${candidate.title || candidate.id}@v${candidate.version}` },
+      { label: translate('auto.k2064'), value: record.assetCaseId ?? '-' },
+      { label: translate('auto.k1367'), value: reason.trim() || translate('auto.k2065') },
+      { label: translate('auto.k1370'), value: comment.trim() || translate('auto.k2047') }
     ],
     warnings: conflictResolutionWarnings(record),
     candidateTitles: candidateTitles([candidate])
@@ -127,15 +128,15 @@ export function buildTestDesignBatchConflictResolutionConfirmation(
 ): TestDesignConfirmationSummary {
   const targetCaseIds = Array.from(new Set(items.map((item) => item.record.assetCaseId).filter(Boolean)));
   return {
-    title: '确认批量处理发布冲突',
-    confirmLabel: '确认批量复用',
+    title: translate('auto.k2066'),
+    confirmLabel: translate('auto.k2067'),
     tone: 'warning',
     details: [
-      { label: '操作', value: '批量人工链接既有用例' },
-      { label: '冲突数', value: items.length },
-      { label: '目标用例', value: targetCaseIds.slice(0, 3).join(', ') || '-' },
-      { label: '处理原因', value: reason.trim() || '人工确认复用既有用例' },
-      { label: '补充说明', value: comment.trim() || '无' }
+      { label: translate('auto.k0249'), value: translate('auto.k2068') },
+      { label: translate('auto.k2069'), value: items.length },
+      { label: translate('auto.k2064'), value: targetCaseIds.slice(0, 3).join(', ') || '-' },
+      { label: translate('auto.k1367'), value: reason.trim() || translate('auto.k2065') },
+      { label: translate('auto.k1370'), value: comment.trim() || translate('auto.k2047') }
     ],
     warnings: batchConflictResolutionWarnings(items),
     candidateTitles: candidateTitles(items.map((item) => item.candidate))
@@ -145,16 +146,16 @@ export function buildTestDesignBatchConflictResolutionConfirmation(
 function batchReviewWarnings(action: TestDesignCandidateBatchActionType, nonReviewableCount: number) {
   const warnings: string[] = [];
   if (nonReviewableCount > 0) {
-    warnings.push(`包含 ${nonReviewableCount} 个当前不可评审候选，提交前请刷新选择。`);
+    warnings.push(translate('auto.k2070', { value0: nonReviewableCount }));
   }
   if (action === 'CONFIRM') {
-    warnings.push('确认后候选会进入发布池，请确认标题、步骤和预期结果已完成评审。');
+    warnings.push(translate('auto.k2071'));
   }
   if (action === 'REJECT') {
-    warnings.push('驳回后候选不会进入发布池，后续需要重新编辑或重新生成。');
+    warnings.push(translate('auto.k2072'));
   }
   if (action === 'IGNORE') {
-    warnings.push('忽略后候选不会进入发布池，但仍会保留在任务记录中。');
+    warnings.push(translate('auto.k2073'));
   }
   return warnings;
 }
@@ -162,12 +163,12 @@ function batchReviewWarnings(action: TestDesignCandidateBatchActionType, nonRevi
 function batchEditWarnings(candidateCount: number, changedFieldCount: number) {
   const warnings: string[] = [];
   if (!candidateCount) {
-    warnings.push('当前没有可批量编辑候选。');
+    warnings.push(translate('auto.k2074'));
   } else {
-    warnings.push('批量编辑会逐条保存候选，并将成功项置为 EDITED。');
+    warnings.push(translate('auto.k2075'));
   }
   if (!changedFieldCount) {
-    warnings.push('尚未选择需要变更的字段。');
+    warnings.push(translate('auto.k2076'));
   }
   return warnings;
 }
@@ -175,39 +176,39 @@ function batchEditWarnings(candidateCount: number, changedFieldCount: number) {
 function publishWarnings(dryRun: boolean, candidateCount: number, failedCount: number) {
   const warnings: string[] = [];
   if (!candidateCount) {
-    warnings.push('当前没有可发布候选。');
+    warnings.push(translate('auto.k2077'));
   } else if (dryRun) {
-    warnings.push('预发布只做 dryRun 检查，不会写入 WP3 资产库。');
+    warnings.push(translate('auto.k2078'));
   } else {
-    warnings.push('正式发布会写入 WP3 测试用例并创建需求追踪关系。');
+    warnings.push(translate('auto.k2079'));
   }
   if (failedCount > 0) {
-    warnings.push(`包含 ${failedCount} 个 FAILED 候选，将作为失败重试范围重新发布。`);
+    warnings.push(translate('auto.k2080', { value0: failedCount }));
   }
   return warnings;
 }
 
 function batchConflictResolutionWarnings(items: readonly ConflictResolutionConfirmationItem[]) {
   const warnings = [
-    '确认后将逐条调用冲突处理接口，成功项会标记为 PUBLISHED，并补建 WP3 需求-用例追踪关系。'
+    translate('auto.k2081')
   ];
   const conflictSummaryCount = items.filter((item) => Boolean(item.record.errorMessage)).length;
   if (conflictSummaryCount > 0) {
-    warnings.push(`包含 ${conflictSummaryCount} 条冲突摘要，请确认目标用例均覆盖候选需求。`);
+    warnings.push(translate('auto.k2082', { value0: conflictSummaryCount }));
   } else {
-    warnings.push('请确认所有目标用例均覆盖对应候选需求。');
+    warnings.push(translate('auto.k2083'));
   }
   return warnings;
 }
 
 function conflictResolutionWarnings(record: TestDesignPublishRecordView) {
   const warnings = [
-    '确认后候选会标记为 PUBLISHED，并补建 WP3 需求-用例追踪关系。'
+    translate('auto.k2084')
   ];
   if (record.errorMessage) {
-    warnings.push(`冲突摘要：${record.errorMessage}`);
+    warnings.push(translate('auto.k2085', { value0: record.errorMessage }));
   } else {
-    warnings.push('请确认目标用例已覆盖候选需求。');
+    warnings.push(translate('auto.k2086'));
   }
   return warnings;
 }

@@ -1,4 +1,5 @@
 import { requestJson, requestText, type ApiResponse, type TextResponse } from './client';
+import { translate } from '../platform/i18n';
 
 export const TEST_DESIGN_COVERAGE_TYPES = ['SMOKE', 'FUNCTIONAL', 'EXCEPTION', 'BOUNDARY', 'PERMISSION', 'REGRESSION'] as const;
 export const TEST_DESIGN_GENERATION_STRATEGIES = ['BALANCED', 'RISK_FIRST', 'COMPLIANCE', 'EXPLORATORY'] as const;
@@ -1766,7 +1767,7 @@ export function normalizeTestDesignTask(raw: unknown): TestDesignTaskView {
   return {
     id,
     projectId: optionalString(item.projectId) ?? optionalString(item.project_id),
-    title: stringValue(item.title, id || '未命名生成任务'),
+    title: stringValue(item.title, id || translate('auto.k0130')),
     status: stringValue(item.status, 'UNKNOWN'),
     requirementIds: stringArrayValue(item.requirementIds ?? item.requirement_ids),
     coverageTypes: stringArrayValue(item.coverageTypes ?? item.coverage_types),
@@ -2282,7 +2283,7 @@ export function normalizeTestDesignCandidate(raw: unknown): TestDesignCandidateV
     projectId: optionalString(item.projectId) ?? optionalString(item.project_id),
     requirementId: optionalString(item.requirementId) ?? optionalString(item.requirement_id),
     apiId: optionalString(item.apiId) ?? optionalString(item.api_id),
-    title: stringValue(item.title, id || '未命名候选用例'),
+    title: stringValue(item.title, id || translate('auto.k0131')),
     description: optionalString(item.description),
     coverageType: stringValue(item.coverageType ?? item.coverage_type, 'FUNCTIONAL'),
     priority: stringValue(item.priority, 'MEDIUM'),
@@ -2368,7 +2369,7 @@ export function normalizeTestDesignTemplate(raw: unknown): TestDesignTemplateVie
   return {
     id: stringValue(item.id),
     projectId: optionalString(item.projectId) ?? optionalString(item.project_id),
-    name: stringValue(item.name, '未命名模板'),
+    name: stringValue(item.name, translate('auto.k0132')),
     description: optionalString(item.description),
     promptKey: stringValue(item.promptKey ?? item.prompt_key),
     promptVersion: stringValue(item.promptVersion ?? item.prompt_version),

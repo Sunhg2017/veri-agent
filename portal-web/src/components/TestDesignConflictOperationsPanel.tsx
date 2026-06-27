@@ -31,6 +31,7 @@ import {
   publishRecordKey,
   shortIdentifier
 } from './TestDesignWorkbenchShared';
+import { translate } from '../platform/i18n';
 
 export function TestDesignConflictOperationsPanel(props: {
   canRead: boolean;
@@ -63,11 +64,11 @@ export function TestDesignConflictOperationsPanel(props: {
     <section className="panel test-design-conflict-operations-panel">
       <div className="panel-header compact">
         <div>
-          <h2 className="panel-title">资产冲突运营台</h2>
+          <h2 className="panel-title">{translate('auto.k1358')}</h2>
           <p className="panel-desc">
             {props.summary
-              ? `未处理 ${props.summary.openCount} · 已处理 ${props.summary.resolvedCount}`
-              : '正式发布冲突集中处理。'}
+              ? translate('auto.k1359', { value0: props.summary.openCount, value1: props.summary.resolvedCount })
+              : translate('auto.k1360')}
           </p>
         </div>
         <div className="toolbar-actions">
@@ -78,7 +79,7 @@ export function TestDesignConflictOperationsPanel(props: {
             onClick={props.onBatchResolve}
           >
             <Link2 size={14} />
-            批量复用 {props.batchResolvableCount}
+            {translate('auto.k1361')}{props.batchResolvableCount}
           </button>
           <button
             className="btn btn-secondary btn-xs"
@@ -87,14 +88,13 @@ export function TestDesignConflictOperationsPanel(props: {
             onClick={() => props.onRefresh(0)}
           >
             <RefreshCw size={14} />
-            刷新
-          </button>
+            {translate('auto.k0170')}</button>
         </div>
       </div>
       <div className="panel-body compact main-stack">
         <div className="asset-filter-bar test-design-conflict-operations-filter">
           <label className="field">
-            <span className="field-label">项目</span>
+            <span className="field-label">{translate('auto.k0176')}</span>
             <input
               value={props.projectId}
               onChange={(event) => props.onFiltersChange((current) => ({ ...current, projectId: event.target.value }))}
@@ -103,16 +103,16 @@ export function TestDesignConflictOperationsPanel(props: {
             />
           </label>
           <label className="field">
-            <span className="field-label">任务 ID</span>
+            <span className="field-label">{translate('auto.k1362')}</span>
             <input
               value={props.filters.taskId}
               onChange={(event) => props.onFiltersChange((current) => ({ ...current, taskId: event.target.value }))}
-              placeholder={props.selectedTaskId || '全部任务'}
+              placeholder={props.selectedTaskId || translate('auto.k1363')}
               disabled={!props.canRead || props.state.loading}
             />
           </label>
           <label className="field">
-            <span className="field-label">处理状态</span>
+            <span className="field-label">{translate('auto.k1364')}</span>
             <select
               value={props.filters.resolutionStatus}
               onChange={(event) => props.onFiltersChange((current) => ({
@@ -127,24 +127,24 @@ export function TestDesignConflictOperationsPanel(props: {
             </select>
           </label>
           <label className="field">
-            <span className="field-label">候选状态</span>
+            <span className="field-label">{translate('auto.k1314')}</span>
             <select
               value={props.filters.candidateStatus}
               onChange={(event) => props.onFiltersChange((current) => ({ ...current, candidateStatus: event.target.value }))}
               disabled={!props.canRead || props.state.loading}
             >
-              <option value="">全部</option>
+              <option value="">{translate('auto.k0195')}</option>
               {TEST_DESIGN_CANDIDATE_STATUSES.map((status) => (
                 <option value={status} key={status}>{status}</option>
               ))}
             </select>
           </label>
           <label className="field">
-            <span className="field-label">关键词</span>
+            <span className="field-label">{translate('auto.k1316')}</span>
             <input
               value={props.filters.keyword}
               onChange={(event) => props.onFiltersChange((current) => ({ ...current, keyword: event.target.value }))}
-              placeholder="候选 / 任务 / 用例"
+              placeholder={translate('auto.k1365')}
               disabled={!props.canRead || props.state.loading}
             />
           </label>
@@ -156,8 +156,7 @@ export function TestDesignConflictOperationsPanel(props: {
               onClick={() => props.onFiltersChange((current) => ({ ...current, taskId: props.selectedTaskId }))}
             >
               <ClipboardCheck size={15} />
-              当前任务
-            </button>
+              {translate('auto.k1366')}</button>
             <button
               className="btn btn-ghost btn-sm"
               type="button"
@@ -165,13 +164,12 @@ export function TestDesignConflictOperationsPanel(props: {
               onClick={() => props.onFiltersChange(initialConflictOperationFilters)}
             >
               <Search size={15} />
-              重置
-            </button>
+              {translate('auto.k0254')}</button>
           </div>
         </div>
         <div className="test-design-conflict-form">
           <label className="field">
-            <span className="field-label">处理原因</span>
+            <span className="field-label">{translate('auto.k1367')}</span>
             <input
               value={props.conflictResolutionDraft.reason}
               onChange={(event) => props.onConflictResolutionDraftChange((current) => ({ ...current, reason: event.target.value }))}
@@ -179,25 +177,25 @@ export function TestDesignConflictOperationsPanel(props: {
             />
           </label>
           <label className="field">
-            <span className="field-label">用例关键词</span>
+            <span className="field-label">{translate('auto.k1368')}</span>
             <input
               value={props.conflictCaseKeyword}
               onChange={(event) => props.onConflictCaseKeywordChange(event.target.value)}
-              placeholder="标题 / 标签 / 编号"
+              placeholder={translate('auto.k1369')}
               disabled={!props.canRead || props.publishState.loading || !props.conflictCaseSearchProjectId}
             />
           </label>
           <label className="field">
-            <span className="field-label">补充说明</span>
+            <span className="field-label">{translate('auto.k1370')}</span>
             <input
               value={props.conflictResolutionDraft.comment}
               onChange={(event) => props.onConflictResolutionDraftChange((current) => ({ ...current, comment: event.target.value }))}
-              placeholder="比对说明"
+              placeholder={translate('auto.k1371')}
               disabled={!props.canPublish || props.publishState.loading}
             />
           </label>
           <div className="field test-design-conflict-search-action">
-            <span className="field-label">既有用例</span>
+            <span className="field-label">{translate('auto.k1372')}</span>
             <button
               className="btn btn-secondary btn-sm"
               type="button"
@@ -205,17 +203,16 @@ export function TestDesignConflictOperationsPanel(props: {
               onClick={props.onSearchConflictCases}
             >
               <Search size={15} />
-              搜索
-            </button>
+              {translate('auto.k1373')}</button>
           </div>
         </div>
         {props.summary && (
           <div className="detail-grid">
-            <Detail label="冲突总数" value={props.summary.totalCount} />
-            <Detail label="未处理" value={props.summary.openCount} />
-            <Detail label="已处理" value={props.summary.resolvedCount} />
-            <Detail label="人工复核" value={props.summary.duplicateReviewCount} />
-            <Detail label="最近冲突" value={props.summary.latestConflictAt ?? '-'} />
+            <Detail label={translate('auto.k1374')} value={props.summary.totalCount} />
+            <Detail label={translate('auto.k1375')} value={props.summary.openCount} />
+            <Detail label={translate('auto.k1376')} value={props.summary.resolvedCount} />
+            <Detail label={translate('auto.k1377')} value={props.summary.duplicateReviewCount} />
+            <Detail label={translate('auto.k1378')} value={props.summary.latestConflictAt ?? '-'} />
           </div>
         )}
         <div className="test-design-conflict-operations-list">
@@ -228,7 +225,7 @@ export function TestDesignConflictOperationsPanel(props: {
                 <span>
                   <strong>{item.candidateTitle ?? record.title ?? item.candidateId ?? '-'}</strong>
                   <em>{item.taskTitle ?? item.taskId ?? '-'} · {item.candidateStatus ?? '-'}@v{item.candidateVersion}</em>
-                  <em>{targetCaseId ? `目标用例 ${targetCaseId}` : `推荐用例 ${item.recommendedCaseId ?? '-'}`}</em>
+                  <em>{targetCaseId ? translate('auto.k1379', { value0: targetCaseId }) : translate('auto.k1380', { value0: item.recommendedCaseId ?? '-' })}</em>
                   {record.errorMessage && <small>{record.errorMessage}</small>}
                 </span>
                 <div className="test-design-conflict-controls">
@@ -247,9 +244,9 @@ export function TestDesignConflictOperationsPanel(props: {
                     }}
                     disabled={!props.canPublish || props.publishState.loading || !item.resolvable}
                   >
-                    <option value="">{record.assetCaseId ? '清空目标' : '选择目标用例'}</option>
+                    <option value="">{record.assetCaseId ? translate('auto.k1381') : translate('auto.k1382')}</option>
                     {record.assetCaseId && (
-                      <option value={record.assetCaseId}>推荐 {shortIdentifier(record.assetCaseId)}</option>
+                      <option value={record.assetCaseId}>{translate('auto.k1383')}{shortIdentifier(record.assetCaseId)}</option>
                     )}
                     {props.conflictCaseResults.filter((testCase) => testCase.id !== record.assetCaseId).map((testCase) => (
                       <option value={testCase.id} key={`${record.candidateId}-${testCase.id}`}>
@@ -264,17 +261,16 @@ export function TestDesignConflictOperationsPanel(props: {
                     onClick={() => props.onResolveConflict(record)}
                   >
                     <Link2 size={14} />
-                    复用
-                  </button>
+                    {translate('auto.k1384')}</button>
                 </div>
               </div>
             );
           }) : (
-            <div className="notice info">{props.projectId ? '暂无匹配冲突' : '请先填写项目 ID'}</div>
+            <div className="notice info">{props.projectId ? translate('auto.k1385') : translate('auto.k1386')}</div>
           )}
         </div>
         {props.page.total > TEST_DESIGN_CONFLICT_OPERATION_PAGE_SIZE && (
-          <div className="test-design-pagination" aria-label="资产冲突分页">
+          <div className="test-design-pagination" aria-label={translate('auto.k1387')}>
             <span>
               {props.page.items.length
                 ? `${props.page.start}-${props.page.end} / ${props.page.total}`
@@ -287,16 +283,14 @@ export function TestDesignConflictOperationsPanel(props: {
               onClick={() => props.onRefresh(Math.max(0, props.page.index - 1))}
             >
               <ChevronLeft size={14} />
-              上一页
-            </button>
+              {translate('auto.k1325')}</button>
             <button
               className="btn btn-secondary btn-xs"
               type="button"
               disabled={(props.page.index + 1) * TEST_DESIGN_CONFLICT_OPERATION_PAGE_SIZE >= props.page.total || props.state.loading}
               onClick={() => props.onRefresh(props.page.index + 1)}
             >
-              下一页
-              <ChevronRight size={14} />
+              {translate('auto.k1327')}<ChevronRight size={14} />
             </button>
           </div>
         )}

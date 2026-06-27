@@ -4,6 +4,7 @@ import {
   type UpdateTestDesignCandidatePayload
 } from './api/testDesign';
 import { canReviewTestDesignCandidate } from './testDesignSelection';
+import { translate } from './platform/i18n';
 
 export type TestDesignBatchEditTagMode = 'append' | 'replace';
 
@@ -44,16 +45,16 @@ export function hasTestDesignBatchEditChanges(draft: TestDesignBatchEditDraft) {
 export function validateTestDesignBatchEditDraft(draft: TestDesignBatchEditDraft): TestDesignBatchEditIssue[] {
   const issues: TestDesignBatchEditIssue[] = [];
   if (draft.coverageType && !TEST_DESIGN_COVERAGE_TYPES.includes(draft.coverageType as (typeof TEST_DESIGN_COVERAGE_TYPES)[number])) {
-    issues.push({ field: 'coverageType', message: `覆盖类型不支持：${draft.coverageType}` });
+    issues.push({ field: 'coverageType', message: translate('auto.k2037', { value0: draft.coverageType }) });
   }
   if (draft.priority && !SUPPORTED_PRIORITIES.includes(draft.priority as (typeof SUPPORTED_PRIORITIES)[number])) {
-    issues.push({ field: 'priority', message: `优先级不支持：${draft.priority}` });
+    issues.push({ field: 'priority', message: translate('auto.k2038', { value0: draft.priority }) });
   }
   if (draft.tags.length > MAX_TAG_TEXT_LENGTH) {
-    issues.push({ field: 'tags', message: `标签长度不能超过 ${MAX_TAG_TEXT_LENGTH}` });
+    issues.push({ field: 'tags', message: translate('auto.k2039', { value0: MAX_TAG_TEXT_LENGTH }) });
   }
   if (SENSITIVE_TAG_PATTERN.test(draft.tags)) {
-    issues.push({ field: 'tags', message: '标签包含疑似敏感信息' });
+    issues.push({ field: 'tags', message: translate('auto.k2040') });
   }
   return issues;
 }
@@ -82,13 +83,13 @@ export function buildTestDesignBatchEditPayload(
 export function testDesignBatchEditFieldLabels(draft: TestDesignBatchEditDraft) {
   const labels: string[] = [];
   if (draft.coverageType) {
-    labels.push(`覆盖类型=${draft.coverageType}`);
+    labels.push(translate('auto.k2041', { value0: draft.coverageType }));
   }
   if (draft.priority) {
-    labels.push(`优先级=${draft.priority}`);
+    labels.push(translate('auto.k2042', { value0: draft.priority }));
   }
   if (draft.tags.trim()) {
-    labels.push(`${draft.tagMode === 'replace' ? '替换' : '追加'}标签=${parseTags(draft.tags).join(', ')}`);
+    labels.push(translate('auto.k2043', { value0: draft.tagMode === 'replace' ? translate('auto.k2598') : translate('auto.k2599'), value1: parseTags(draft.tags).join(', ') }));
   }
   return labels;
 }

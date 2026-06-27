@@ -1,5 +1,6 @@
 import type { TestDesignCandidateView, TestDesignQualitySummaryView } from './api/testDesign';
 import { canPublishTestDesignCandidate, canReviewTestDesignCandidate } from './testDesignSelection';
+import { translate } from './platform/i18n';
 
 export type TestDesignQualitySummaryTone = 'success' | 'warning' | 'danger' | 'info' | 'neutral';
 
@@ -114,25 +115,25 @@ export function buildTestDesignQualitySummary(
     errorCount,
     metrics: [
       {
-        label: '可评审',
+        label: translate('auto.k2145'),
         value: reviewableCount,
         desc: formatRatio(reviewableCount, pageTotal),
         tone: reviewableCount > 0 ? 'info' : 'neutral'
       },
       {
-        label: '可发布',
+        label: translate('auto.k2146'),
         value: publishableCount,
         desc: formatRatio(publishableCount, pageTotal),
         tone: publishableCount > 0 ? 'success' : 'neutral'
       },
       {
-        label: '步骤完整',
+        label: translate('auto.k2147'),
         value: stepCompleteCount,
         desc: formatRatio(stepCompleteCount, pageTotal),
         tone: stepIncompleteCount > 0 ? 'warning' : 'success'
       },
       {
-        label: '预期完整',
+        label: translate('auto.k2148'),
         value: expectedCompleteCount,
         desc: formatRatio(expectedCompleteCount, pageTotal),
         tone: missingExpectedCount > 0 ? 'warning' : 'success'
@@ -140,15 +141,15 @@ export function buildTestDesignQualitySummary(
     ],
     distributions: [
       {
-        label: '状态',
+        label: translate('auto.k0182'),
         items: buildDistribution(candidates, (candidate) => candidate.status, STATUS_ORDER, pageTotal, statusTone)
       },
       {
-        label: '覆盖',
+        label: translate('auto.k0538'),
         items: buildDistribution(candidates, (candidate) => candidate.coverageType, COVERAGE_ORDER, pageTotal)
       },
       {
-        label: '优先级',
+        label: translate('auto.k0419'),
         items: buildDistribution(candidates, (candidate) => candidate.priority, PRIORITY_ORDER, pageTotal, priorityTone)
       }
     ],
@@ -178,13 +179,13 @@ export function qualitySummaryFromServer(summary: TestDesignQualitySummaryView |
     errorCount: summary.errorCount
   });
   if (summary.missingRequirementCount > 0) {
-    warnings.push({ label: '缺少需求关联', count: summary.missingRequirementCount, tone: 'warning' });
+    warnings.push({ label: translate('auto.k2149'), count: summary.missingRequirementCount, tone: 'warning' });
   }
   if (summary.missingTitleCount > 0) {
-    warnings.push({ label: '缺少标题', count: summary.missingTitleCount, tone: 'warning' });
+    warnings.push({ label: translate('auto.k2150'), count: summary.missingTitleCount, tone: 'warning' });
   }
   if (summary.duplicateKeyCollisionCount > 0) {
-    warnings.push({ label: '重复键冲突', count: summary.duplicateKeyCollisionCount, tone: 'danger' });
+    warnings.push({ label: translate('auto.k2151'), count: summary.duplicateKeyCollisionCount, tone: 'danger' });
   }
 
   return {
@@ -201,25 +202,25 @@ export function qualitySummaryFromServer(summary: TestDesignQualitySummaryView |
     errorCount: summary.errorCount,
     metrics: [
       {
-        label: '可评审',
+        label: translate('auto.k2145'),
         value: summary.reviewableCount,
         desc: formatFullTaskRatio(summary.reviewableCount, total),
         tone: summary.reviewableCount > 0 ? 'info' : 'neutral'
       },
       {
-        label: '可发布',
+        label: translate('auto.k2146'),
         value: summary.publishableCount,
         desc: formatFullTaskRatio(summary.publishableCount, total),
         tone: summary.publishableCount > 0 ? 'success' : 'neutral'
       },
       {
-        label: '步骤完整',
+        label: translate('auto.k2147'),
         value: summary.stepCompleteCount,
         desc: formatFullTaskRatio(summary.stepCompleteCount, total),
         tone: stepIncompleteCount > 0 ? 'warning' : 'success'
       },
       {
-        label: '预期完整',
+        label: translate('auto.k2148'),
         value: summary.expectedCompleteCount,
         desc: formatFullTaskRatio(summary.expectedCompleteCount, total),
         tone: missingExpectedCount > 0 ? 'warning' : 'success'
@@ -227,15 +228,15 @@ export function qualitySummaryFromServer(summary: TestDesignQualitySummaryView |
     ],
     distributions: [
       {
-        label: '状态',
+        label: translate('auto.k0182'),
         items: mapServerDistribution(summary.distributions.status, statusTone)
       },
       {
-        label: '覆盖',
+        label: translate('auto.k0538'),
         items: mapServerDistribution(summary.distributions.coverageType)
       },
       {
-        label: '优先级',
+        label: translate('auto.k0419'),
         items: mapServerDistribution(summary.distributions.priority, priorityTone)
       }
     ],
@@ -264,16 +265,16 @@ function normalizeCount(value: number) {
 
 function formatRatio(count: number, total: number) {
   if (!total) {
-    return '当前页 0';
+    return translate('auto.k2152');
   }
-  return `当前页 ${count}/${total}`;
+  return translate('auto.k2153', { value0: count, value1: total });
 }
 
 function formatFullTaskRatio(count: number, total: number) {
   if (!total) {
-    return '任务全量 0';
+    return translate('auto.k2154');
   }
-  return `任务全量 ${count}/${total}`;
+  return translate('auto.k2155', { value0: count, value1: total });
 }
 
 function mapServerDistribution(
@@ -296,7 +297,7 @@ function buildDistribution(
   toneOf: (label: string) => TestDesignQualitySummaryTone = () => 'neutral'
 ): TestDesignQualityDistributionItem[] {
   const counts = candidates.reduce<Record<string, number>>((current, candidate) => {
-    const label = valueOf(candidate)?.trim() || '未填写';
+    const label = valueOf(candidate)?.trim() || translate('auto.k2156');
     current[label] = (current[label] ?? 0) + 1;
     return current;
   }, {});
@@ -356,11 +357,11 @@ function buildWarnings(counts: {
   errorCount: number;
 }): TestDesignQualityWarning[] {
   const warnings: TestDesignQualityWarning[] = [
-    { label: '失败候选', count: counts.failedCount, tone: 'danger' },
-    { label: '步骤不完整', count: counts.stepIncompleteCount, tone: 'warning' },
-    { label: '缺少最终预期', count: counts.missingExpectedCount, tone: 'warning' },
-    { label: '低置信度', count: counts.lowConfidenceCount, tone: 'warning' },
-    { label: '错误摘要', count: counts.errorCount, tone: 'danger' }
+    { label: translate('auto.k2157'), count: counts.failedCount, tone: 'danger' },
+    { label: translate('auto.k2158'), count: counts.stepIncompleteCount, tone: 'warning' },
+    { label: translate('auto.k2159'), count: counts.missingExpectedCount, tone: 'warning' },
+    { label: translate('auto.k2160'), count: counts.lowConfidenceCount, tone: 'warning' },
+    { label: translate('auto.k2161'), count: counts.errorCount, tone: 'danger' }
   ];
   return warnings.filter((warning) => warning.count > 0);
 }
@@ -391,15 +392,15 @@ function mapServerReadiness(readiness: TestDesignQualitySummaryView['readiness']
 
 export function readinessStatusLabel(status: string) {
   if (status === 'PASSED') {
-    return '准出通过';
+    return translate('auto.k2133');
   }
   if (status === 'BLOCKED') {
-    return '准出阻断';
+    return translate('auto.k2112');
   }
   if (status === 'WARNING') {
-    return '准出风险';
+    return translate('auto.k2113');
   }
-  return '准出未知';
+  return translate('auto.k2162');
 }
 
 export function readinessTone(status: string): TestDesignQualitySummaryTone {

@@ -76,6 +76,7 @@ import {
   type PageKey,
   type UserLifecycleAction
 } from '../permissions';
+import { translate } from '../platform/i18n';
 
 function optionalBoolean(value: string | undefined): boolean | undefined {
   if (value === 'true') return true;
@@ -110,12 +111,12 @@ export function ManagementPage(props: ManagementPageProps) {
   if (page === 'organizations') {
     return (
       <DataSection
-        eyebrow="组织架构"
-        title="部门结构"
+        eyebrow={translate('auto.k0229')}
+        title={translate('auto.k0230')}
         icon={GitBranch}
-        action="新增部门"
+        action={translate('auto.k0231')}
         createResource="departments"
-        columns={['部门', '上级部门', '负责人', '成员', '状态']}
+        columns={[translate('auto.k0232'), translate('auto.k0233'), translate('auto.k0234'), translate('auto.k0235'), translate('auto.k0182')]}
         rows={data.departments.map((d: DepartmentView) => [d.name, d.parent, d.lead, d.members, d.status])}
         loadState={loadState}
         signedIn={signedIn}
@@ -124,23 +125,23 @@ export function ManagementPage(props: ManagementPageProps) {
         onRefresh={props.onRefresh}
         sidePanel={
           <ResourceLifecyclePanel<DepartmentView>
-            title="部门详情"
-            resourceLabel="部门"
-            emptyLabel="暂无部门"
+            title={translate('auto.k0236')}
+            resourceLabel={translate('auto.k0232')}
+            emptyLabel={translate('auto.k0237')}
             resources={data.departments.map((d) => d.name)}
-            fields={[{ key: 'name', label: '部门名称', placeholder: '输入部门名称' }]}
+            fields={[{ key: 'name', label: translate('auto.k0238'), placeholder: translate('auto.k0239') }]}
             signedIn={signedIn}
             canEdit={hasPermission(currentUser, 'department:edit')}
             statusOptions={[
-              hasPermission(currentUser, 'department:enable') ? { value: 'ENABLED', label: '启用部门', icon: Power } as StatusOption : undefined,
-              hasPermission(currentUser, 'department:disable') ? { value: 'DISABLED', label: '停用部门', icon: Power } as StatusOption : undefined,
+              hasPermission(currentUser, 'department:enable') ? { value: 'ENABLED', label: translate('auto.k0240'), icon: Power } as StatusOption : undefined,
+              hasPermission(currentUser, 'department:disable') ? { value: 'DISABLED', label: translate('auto.k0241'), icon: Power } as StatusOption : undefined,
             ].filter(Boolean) as StatusOption[]}
             fetchDetail={fetchDepartment}
             updateDetail={(key, draft) => updateDepartment(key, { name: draft.name })}
             changeStatus={changeDepartmentStatus}
             detailTitle={(d) => d.name}
             draftFromDetail={(d) => ({ name: d.name })}
-            detailRows={(d) => [['上级部门', d.parent], ['负责人', d.lead], ['成员数', d.members], ['状态', d.status]]}
+            detailRows={(d) => [[translate('auto.k0233'), d.parent], [translate('auto.k0234'), d.lead], [translate('auto.k0242'), d.members], [translate('auto.k0182'), d.status]]}
             onChanged={props.onRefresh}
           />
         }
@@ -160,12 +161,12 @@ export function ManagementPage(props: ManagementPageProps) {
     const canMutateUsers = canEnable || canDisable || canLock || canResetPassword || canAssignRole || canUnassignRole;
     return (
       <DataSection
-        eyebrow="账号管理"
-        title="账号与角色"
+        eyebrow={translate('auto.k0243')}
+        title={translate('auto.k0244')}
         icon={ShieldCheck}
-        action="邀请用户"
+        action={translate('auto.k0245')}
         createResource="users"
-        columns={canMutateUsers ? ['用户名', '角色', '部门', '状态', '最近访问', '操作'] : ['用户名', '角色', '部门', '状态', '最近访问']}
+        columns={canMutateUsers ? [translate('auto.k0246'), translate('auto.k0247'), translate('auto.k0232'), translate('auto.k0182'), translate('auto.k0248'), translate('auto.k0249')] : [translate('auto.k0246'), translate('auto.k0247'), translate('auto.k0232'), translate('auto.k0182'), translate('auto.k0248')]}
         rows={data.users.map((item: UserView) => [
           item.username,
           item.role,
@@ -187,27 +188,24 @@ export function ManagementPage(props: ManagementPageProps) {
               />
               {canEnable && (
                 <button className="btn btn-xs btn-secondary" disabled={!signedIn || loadState.loading}
-                  onClick={() => props.onUserLifecycleAction(item.username, item.status === '已锁定' ? 'unlock' : 'enable')}>
-                  <CheckCircle2 size={13} />{item.status === '已锁定' ? '解锁' : '启用'}
+                  onClick={() => props.onUserLifecycleAction(item.username, item.status === translate('auto.k0068') ? 'unlock' : 'enable')}>
+                  <CheckCircle2 size={13} />{item.status === translate('auto.k0068') ? translate('auto.k0250') : translate('auto.k0251')}
                 </button>
               )}
               {canLock && (
-                <button className="btn btn-xs btn-secondary" disabled={!signedIn || loadState.loading || item.username === currentUser?.username || item.status === '已锁定'}
+                <button className="btn btn-xs btn-secondary" disabled={!signedIn || loadState.loading || item.username === currentUser?.username || item.status === translate('auto.k0068')}
                   onClick={() => props.onUserLifecycleAction(item.username, 'lock')}>
-                  <LockKeyhole size={13} />锁定
-                </button>
+                  <LockKeyhole size={13} />{translate('auto.k0252')}</button>
               )}
               {canDisable && (
                 <button className="btn btn-xs btn-secondary" disabled={!signedIn || loadState.loading || item.username === currentUser?.username}
                   onClick={() => props.onUserLifecycleAction(item.username, 'disable')}>
-                  <LockKeyhole size={13} />停用
-                </button>
+                  <LockKeyhole size={13} />{translate('auto.k0253')}</button>
               )}
               {canResetPassword && (
                 <button className="btn btn-xs btn-secondary" disabled={!signedIn || loadState.loading}
                   onClick={() => props.onResetPassword(item.username)}>
-                  <KeyRound size={13} />重置
-                </button>
+                  <KeyRound size={13} />{translate('auto.k0254')}</button>
               )}
             </div>
           )] : [])
@@ -219,11 +217,11 @@ export function ManagementPage(props: ManagementPageProps) {
         onRefresh={props.onRefresh}
         sidePanel={
           <ResourceLifecyclePanel<UserView>
-            title="用户详情"
-            resourceLabel="用户"
-            emptyLabel="暂无用户"
+            title={translate('auto.k0255')}
+            resourceLabel={translate('auto.k0256')}
+            emptyLabel={translate('auto.k0257')}
             resources={data.users.map((u) => u.username)}
-            fields={[{ key: 'display_name', label: '显示名称', placeholder: '输入显示名称' }, { key: 'email', label: '邮箱', placeholder: 'user@example.com' }]}
+            fields={[{ key: 'display_name', label: translate('auto.k0258'), placeholder: translate('auto.k0259') }, { key: 'email', label: translate('auto.k0260'), placeholder: 'user@example.com' }]}
             signedIn={signedIn}
             canEdit={canEdit}
             statusOptions={[]}
@@ -232,7 +230,7 @@ export function ManagementPage(props: ManagementPageProps) {
             changeStatus={() => Promise.resolve()}
             detailTitle={(d) => d.display_name || d.username}
             draftFromDetail={(d) => ({ display_name: d.display_name, email: d.email })}
-            detailRows={(d) => [['账号', d.username], ['邮箱', d.email || '-'], ['角色', d.role], ['部门', d.department], ['状态', d.status], ['最近访问', d.last_seen]]}
+            detailRows={(d) => [[translate('auto.k0261'), d.username], [translate('auto.k0260'), d.email || '-'], [translate('auto.k0247'), d.role], [translate('auto.k0232'), d.department], [translate('auto.k0182'), d.status], [translate('auto.k0248'), d.last_seen]]}
             onChanged={props.onRefresh}
           />
         }
@@ -245,10 +243,10 @@ export function ManagementPage(props: ManagementPageProps) {
     return (
       <DataSection
         eyebrow="RBAC"
-        title="角色定义"
+        title={translate('auto.k0262')}
         icon={ShieldCheck}
-        action="刷新"
-        columns={['角色', '作用域', '状态', '说明']}
+        action={translate('auto.k0170')}
+        columns={[translate('auto.k0247'), translate('auto.k0263'), translate('auto.k0182'), translate('auto.k0264')]}
         rows={data.roles.map((item: RoleView) => [
           <span key={item.code}>
             <div className="management-primary-text">{item.name}</div>
@@ -277,21 +275,21 @@ export function ManagementPage(props: ManagementPageProps) {
   // ===================== Projects
   if (page === 'projects') {
     const sensitivityOptions = [
-      { value: '', label: '保持不变' }, { value: 'PUBLIC', label: 'PUBLIC' },
+      { value: '', label: translate('auto.k0265') }, { value: 'PUBLIC', label: 'PUBLIC' },
       { value: 'INTERNAL', label: 'INTERNAL' }, { value: 'CONFIDENTIAL', label: 'CONFIDENTIAL' },
       { value: 'STRICT', label: 'STRICT' }
     ];
     const publicModelOptions = [
-      { value: '', label: '保持不变' }, { value: 'true', label: '允许公有云模型' }, { value: 'false', label: '禁用公有云模型' }
+      { value: '', label: translate('auto.k0265') }, { value: 'true', label: translate('auto.k0266') }, { value: 'false', label: translate('auto.k0267') }
     ];
     return (
       <DataSection
-        eyebrow="工作空间"
-        title="项目空间"
+        eyebrow={translate('auto.k0268')}
+        title={translate('auto.k0027')}
         icon={DatabaseZap}
-        action="创建项目"
+        action={translate('auto.k0269')}
         createResource="projects"
-        columns={['项目', '归属部门', '负责人', '应用数', '状态']}
+        columns={[translate('auto.k0176'), translate('auto.k0270'), translate('auto.k0234'), translate('auto.k0271'), translate('auto.k0182')]}
         rows={data.projects.map((item: ProjectView) => [item.name, item.department, item.owner, item.apps, <StatusBadge key={item.name} status={item.status} />])}
         loadState={loadState}
         signedIn={signedIn}
@@ -301,22 +299,22 @@ export function ManagementPage(props: ManagementPageProps) {
         sidePanel={
           <>
             <ResourceLifecyclePanel<ProjectView>
-              title="项目详情"
-              resourceLabel="项目"
-              emptyLabel="暂无项目"
+              title={translate('auto.k0272')}
+              resourceLabel={translate('auto.k0176')}
+              emptyLabel={translate('auto.k0273')}
               resources={data.projects.map((p) => p.name)}
               fields={[
-                { key: 'name', label: '项目名称', placeholder: '输入项目名称' },
-                { key: 'sensitivity_level', label: '敏感级别', kind: 'select' as const, options: sensitivityOptions },
-                { key: 'allow_public_model', label: '公有云模型', kind: 'public-model' as const, options: publicModelOptions }
+                { key: 'name', label: translate('auto.k0274'), placeholder: translate('auto.k0275') },
+                { key: 'sensitivity_level', label: translate('auto.k0276'), kind: 'select' as const, options: sensitivityOptions },
+                { key: 'allow_public_model', label: translate('auto.k0277'), kind: 'public-model' as const, options: publicModelOptions }
               ]}
               signedIn={signedIn}
               canEdit={hasPermission(currentUser, 'project:edit')}
               statusOptions={[
-                hasPermission(currentUser, 'project:edit') ? { value: 'ACTIVE', label: '设为进行中', icon: Power } as StatusOption : undefined,
-                hasPermission(currentUser, 'project:edit') ? { value: 'PREPARING', label: '设为规划中', icon: Pencil } as StatusOption : undefined,
-                hasPermission(currentUser, 'project:archive') ? { value: 'ARCHIVED', label: '归档项目', icon: Archive } as StatusOption : undefined,
-                hasPermission(currentUser, 'project:disable') ? { value: 'DISABLED', label: '停用项目', icon: Power } as StatusOption : undefined
+                hasPermission(currentUser, 'project:edit') ? { value: 'ACTIVE', label: translate('auto.k0278'), icon: Power } as StatusOption : undefined,
+                hasPermission(currentUser, 'project:edit') ? { value: 'PREPARING', label: translate('auto.k0279'), icon: Pencil } as StatusOption : undefined,
+                hasPermission(currentUser, 'project:archive') ? { value: 'ARCHIVED', label: translate('auto.k0280'), icon: Archive } as StatusOption : undefined,
+                hasPermission(currentUser, 'project:disable') ? { value: 'DISABLED', label: translate('auto.k0281'), icon: Power } as StatusOption : undefined
               ].filter(Boolean) as StatusOption[]}
               fetchDetail={fetchProject}
               updateDetail={(key, draft) => updateProject(key, {
@@ -327,13 +325,13 @@ export function ManagementPage(props: ManagementPageProps) {
               changeStatus={changeProjectStatus}
               detailTitle={(d) => d.name}
               draftFromDetail={(d) => ({ name: d.name })}
-              detailRows={(d) => [['归属部门', d.department], ['负责人', d.owner], ['应用数', d.apps], ['状态', d.status]]}
+              detailRows={(d) => [[translate('auto.k0270'), d.department], [translate('auto.k0234'), d.owner], [translate('auto.k0271'), d.apps], [translate('auto.k0182'), d.status]]}
               onChanged={props.onRefresh}
             />
             <ScopedRolePanel
-              title="项目成员"
-              resourceLabel="项目"
-              emptyLabel="暂无项目"
+              title={translate('auto.k0282')}
+              resourceLabel={translate('auto.k0176')}
+              emptyLabel={translate('auto.k0273')}
               resources={data.projects.map((p) => p.name)}
               roles={['ProjectOwner', 'Tester', 'Developer', 'Auditor']}
               signedIn={signedIn}
@@ -352,25 +350,25 @@ export function ManagementPage(props: ManagementPageProps) {
   // ===================== Applications
   if (page === 'applications') {
     const sensitivityOptions = [
-      { value: '', label: '保持不变' }, { value: 'PUBLIC', label: 'PUBLIC' },
+      { value: '', label: translate('auto.k0265') }, { value: 'PUBLIC', label: 'PUBLIC' },
       { value: 'INTERNAL', label: 'INTERNAL' }, { value: 'CONFIDENTIAL', label: 'CONFIDENTIAL' },
       { value: 'STRICT', label: 'STRICT' }
     ];
     const publicModelOptions = [
-      { value: '', label: '保持不变' }, { value: 'true', label: '允许公有云模型' }, { value: 'false', label: '禁用公有云模型' }
+      { value: '', label: translate('auto.k0265') }, { value: 'true', label: translate('auto.k0266') }, { value: 'false', label: translate('auto.k0267') }
     ];
     const appTypeOptions = [
-      { value: '', label: '保持不变' }, { value: 'Web', label: 'Web' }, { value: 'Backend', label: 'Backend' },
+      { value: '', label: translate('auto.k0265') }, { value: 'Web', label: 'Web' }, { value: 'Backend', label: 'Backend' },
       { value: 'Frontend', label: 'Frontend' }, { value: 'Mobile', label: 'Mobile' }, { value: 'Service', label: 'Service' }, { value: 'API', label: 'API' }
     ];
     return (
       <DataSection
-        eyebrow="应用管理"
-        title="应用清单"
+        eyebrow={translate('auto.k0029')}
+        title={translate('auto.k0283')}
         icon={AppWindow}
-        action="登记应用"
+        action={translate('auto.k0284')}
         createResource="applications"
-        columns={['应用', '类型', '负责团队', '版本', '状态']}
+        columns={[translate('auto.k0285'), translate('auto.k0286'), translate('auto.k0287'), translate('auto.k0178'), translate('auto.k0182')]}
         rows={data.applications.map((item: ApplicationView) => [item.name, item.type, item.owner, item.version, <StatusBadge key={item.name} status={item.status} />])}
         loadState={loadState}
         signedIn={signedIn}
@@ -380,23 +378,23 @@ export function ManagementPage(props: ManagementPageProps) {
         sidePanel={
           <>
             <ResourceLifecyclePanel<ApplicationView>
-              title="应用详情"
-              resourceLabel="应用"
-              emptyLabel="暂无应用"
+              title={translate('auto.k0288')}
+              resourceLabel={translate('auto.k0285')}
+              emptyLabel={translate('auto.k0289')}
               resources={data.applications.map((a) => a.name)}
               fields={[
-                { key: 'name', label: '应用名称', placeholder: '输入应用名称' },
-                { key: 'app_type', label: '应用类型', kind: 'select' as const, options: appTypeOptions },
+                { key: 'name', label: translate('auto.k0290'), placeholder: translate('auto.k0291') },
+                { key: 'app_type', label: translate('auto.k0292'), kind: 'select' as const, options: appTypeOptions },
                 { key: 'default_web_url', label: 'Web URL', placeholder: 'https://web.example.test' },
                 { key: 'default_api_base_url', label: 'API Base URL', placeholder: 'https://api.example.test' },
-                { key: 'sensitivity_level', label: '敏感级别', kind: 'select' as const, options: sensitivityOptions },
-                { key: 'allow_public_model', label: '公有云模型', kind: 'public-model' as const, options: publicModelOptions }
+                { key: 'sensitivity_level', label: translate('auto.k0276'), kind: 'select' as const, options: sensitivityOptions },
+                { key: 'allow_public_model', label: translate('auto.k0277'), kind: 'public-model' as const, options: publicModelOptions }
               ]}
               signedIn={signedIn}
               canEdit={hasPermission(currentUser, 'application:edit')}
               statusOptions={[
-                hasPermission(currentUser, 'application:edit') ? { value: 'ENABLED', label: '启用应用', icon: Power } as StatusOption : undefined,
-                hasPermission(currentUser, 'application:disable') ? { value: 'DISABLED', label: '停用应用', icon: Power } as StatusOption : undefined,
+                hasPermission(currentUser, 'application:edit') ? { value: 'ENABLED', label: translate('auto.k0293'), icon: Power } as StatusOption : undefined,
+                hasPermission(currentUser, 'application:disable') ? { value: 'DISABLED', label: translate('auto.k0294'), icon: Power } as StatusOption : undefined,
               ].filter(Boolean) as StatusOption[]}
               fetchDetail={fetchApplication}
               updateDetail={(key, draft) => updateApplication(key, {
@@ -407,13 +405,13 @@ export function ManagementPage(props: ManagementPageProps) {
               changeStatus={changeApplicationStatus}
               detailTitle={(d) => d.name}
               draftFromDetail={(d) => ({ name: d.name, app_type: d.type })}
-              detailRows={(d) => [['类型', d.type], ['负责团队', d.owner], ['版本', d.version], ['状态', d.status]]}
+              detailRows={(d) => [[translate('auto.k0286'), d.type], [translate('auto.k0287'), d.owner], [translate('auto.k0178'), d.version], [translate('auto.k0182'), d.status]]}
               onChanged={props.onRefresh}
             />
             <ScopedRolePanel
-              title="应用负责人"
-              resourceLabel="应用"
-              emptyLabel="暂无应用"
+              title={translate('auto.k0295')}
+              resourceLabel={translate('auto.k0285')}
+              emptyLabel={translate('auto.k0289')}
               resources={data.applications.map((a) => a.name)}
               roles={['AppOwner']}
               signedIn={signedIn}
@@ -432,17 +430,17 @@ export function ManagementPage(props: ManagementPageProps) {
   // ===================== Environments
   if (page === 'environments') {
     const envTypeOptions = [
-      { value: '', label: '保持不变' }, { value: 'DEV', label: 'DEV' }, { value: 'TEST', label: 'TEST' },
+      { value: '', label: translate('auto.k0265') }, { value: 'DEV', label: 'DEV' }, { value: 'TEST', label: 'TEST' },
       { value: 'STAGING', label: 'STAGING' }, { value: 'PREPROD', label: 'PREPROD' }, { value: 'PROD', label: 'PROD' }
     ];
     return (
       <DataSection
-        eyebrow="环境管理"
-        title="环境配置"
+        eyebrow={translate('auto.k0031')}
+        title={translate('auto.k0296')}
         icon={ServerCog}
-        action="新增环境"
+        action={translate('auto.k0297')}
         createResource="environments"
-        columns={['环境', '集群', 'Endpoint', '状态']}
+        columns={[translate('auto.k0215'), translate('auto.k0298'), 'Endpoint', translate('auto.k0182')]}
         rows={data.environments.map((item: EnvironmentView) => [item.name, item.cluster, item.endpoint, <StatusBadge key={item.name} status={item.status} />])}
         loadState={loadState}
         signedIn={signedIn}
@@ -452,21 +450,21 @@ export function ManagementPage(props: ManagementPageProps) {
         sidePanel={
           <>
             <ResourceLifecyclePanel<EnvironmentView>
-              title="环境详情"
-              resourceLabel="环境"
-              emptyLabel="暂无环境"
+              title={translate('auto.k0299')}
+              resourceLabel={translate('auto.k0215')}
+              emptyLabel={translate('auto.k0300')}
               resources={data.environments.map((e) => e.name)}
               fields={[
-                { key: 'name', label: '环境名称', placeholder: '输入环境名称' },
-                { key: 'env_type', label: '环境类型', kind: 'select' as const, options: envTypeOptions },
+                { key: 'name', label: translate('auto.k0301'), placeholder: translate('auto.k0302') },
+                { key: 'env_type', label: translate('auto.k0303'), kind: 'select' as const, options: envTypeOptions },
                 { key: 'web_url', label: 'Web URL', placeholder: 'https://web.env.test' },
                 { key: 'api_base_url', label: 'API Base URL', placeholder: 'https://api.env.test' }
               ]}
               signedIn={signedIn}
               canEdit={hasPermission(currentUser, 'environment:edit')}
               statusOptions={[
-                hasPermission(currentUser, 'environment:edit') ? { value: 'ENABLED', label: '启用环境', icon: Power } as StatusOption : undefined,
-                hasPermission(currentUser, 'environment:disable') ? { value: 'DISABLED', label: '停用环境', icon: Power } as StatusOption : undefined,
+                hasPermission(currentUser, 'environment:edit') ? { value: 'ENABLED', label: translate('auto.k0304'), icon: Power } as StatusOption : undefined,
+                hasPermission(currentUser, 'environment:disable') ? { value: 'DISABLED', label: translate('auto.k0305'), icon: Power } as StatusOption : undefined,
               ].filter(Boolean) as StatusOption[]}
               fetchDetail={fetchEnvironment}
               updateDetail={(key, draft) => updateEnvironment(key, {
@@ -475,7 +473,7 @@ export function ManagementPage(props: ManagementPageProps) {
               changeStatus={changeEnvironmentStatus}
               detailTitle={(d) => d.name}
               draftFromDetail={(d) => ({ name: d.name, api_base_url: d.endpoint })}
-              detailRows={(d) => [['集群', d.cluster], ['Endpoint', d.endpoint], ['状态', d.status]]}
+              detailRows={(d) => [[translate('auto.k0298'), d.cluster], ['Endpoint', d.endpoint], [translate('auto.k0182'), d.status]]}
               onChanged={props.onRefresh}
             />
             <EnvironmentConnectivityPanel
@@ -485,9 +483,9 @@ export function ManagementPage(props: ManagementPageProps) {
               onChanged={props.onRefresh}
             />
             <ScopedRolePanel
-              title="环境授权用户"
-              resourceLabel="环境"
-              emptyLabel="暂无环境"
+              title={translate('auto.k0306')}
+              resourceLabel={translate('auto.k0215')}
+              emptyLabel={translate('auto.k0300')}
               resources={data.environments.map((e) => e.name)}
               roles={['Developer', 'Tester']}
               signedIn={signedIn}
@@ -507,12 +505,12 @@ export function ManagementPage(props: ManagementPageProps) {
   if (page === 'integrations') {
     return (
       <DataSection
-        eyebrow="集成管理"
-        title="集成配置"
+        eyebrow={translate('auto.k0307')}
+        title={translate('auto.k0033')}
         icon={Link2}
-        action="新增集成"
+        action={translate('auto.k0308')}
         createResource="integrations"
-        columns={['集成', '类别', '范围', '状态']}
+        columns={[translate('auto.k0309'), translate('auto.k0310'), translate('auto.k0196'), translate('auto.k0182')]}
         rows={data.integrations.map((item: IntegrationView) => [item.name, item.category, item.scope, <StatusBadge key={item.name} status={item.status} />])}
         loadState={loadState}
         signedIn={signedIn}
@@ -521,20 +519,20 @@ export function ManagementPage(props: ManagementPageProps) {
         onRefresh={props.onRefresh}
         sidePanel={
           <ResourceLifecyclePanel<IntegrationView>
-            title="集成详情"
-            resourceLabel="集成"
-            emptyLabel="暂无集成"
+            title={translate('auto.k0311')}
+            resourceLabel={translate('auto.k0309')}
+            emptyLabel={translate('auto.k0312')}
             resources={data.integrations.map((i) => i.name)}
             fields={[
-              { key: 'name', label: '集成名称', placeholder: '输入集成名称' },
-              { key: 'category', label: '类别', placeholder: '代码仓库 / CI/CD / 通知' },
-              { key: 'scope', label: '范围', placeholder: '全局 / 平台级 / 项目级' }
+              { key: 'name', label: translate('auto.k0313'), placeholder: translate('auto.k0314') },
+              { key: 'category', label: translate('auto.k0310'), placeholder: translate('auto.k0315') },
+              { key: 'scope', label: translate('auto.k0196'), placeholder: translate('auto.k0316') }
             ]}
             signedIn={signedIn}
             canEdit={hasPermission(currentUser, 'config:edit')}
             statusOptions={[
-              hasPermission(currentUser, 'config:edit') ? { value: 'ENABLED', label: '启用集成', icon: Power } as StatusOption : undefined,
-              hasPermission(currentUser, 'config:edit') ? { value: 'DISABLED', label: '停用集成', icon: Power } as StatusOption : undefined,
+              hasPermission(currentUser, 'config:edit') ? { value: 'ENABLED', label: translate('auto.k0317'), icon: Power } as StatusOption : undefined,
+              hasPermission(currentUser, 'config:edit') ? { value: 'DISABLED', label: translate('auto.k0318'), icon: Power } as StatusOption : undefined,
             ].filter(Boolean) as StatusOption[]}
             fetchDetail={fetchIntegration}
             updateDetail={(key, draft) => updateIntegration(key, {
@@ -543,7 +541,7 @@ export function ManagementPage(props: ManagementPageProps) {
             changeStatus={changeIntegrationStatus}
             detailTitle={(d) => d.name}
             draftFromDetail={(d) => ({ name: d.name, category: d.category, scope: d.scope })}
-            detailRows={(d) => [['类别', d.category], ['范围', d.scope], ['状态', d.status]]}
+            detailRows={(d) => [[translate('auto.k0310'), d.category], [translate('auto.k0196'), d.scope], [translate('auto.k0182'), d.status]]}
             onChanged={props.onRefresh}
           />
         }
@@ -560,34 +558,34 @@ export function ManagementPage(props: ManagementPageProps) {
   if (page === 'settings') {
     return (
       <DataSection
-        eyebrow="系统配置"
-        title="系统设置"
+        eyebrow={translate('auto.k0319')}
+        title={translate('auto.k0037')}
         icon={Settings}
-        action="刷新"
-        columns={['配置项', '键', '值', '状态']}
+        action={translate('auto.k0170')}
+        columns={[translate('auto.k0320'), translate('auto.k0321'), translate('auto.k0322'), translate('auto.k0182')]}
         rows={data.settings.map((item: SettingView) => [item.name, item.key, item.value, <StatusBadge key={item.key} status={item.status} />])}
         loadState={loadState}
         signedIn={signedIn}
         onRefresh={props.onRefresh}
         sidePanel={
           <ResourceLifecyclePanel<SettingView>
-            title="设置详情"
-            resourceLabel="设置"
-            emptyLabel="暂无设置"
+            title={translate('auto.k0323')}
+            resourceLabel={translate('auto.k0324')}
+            emptyLabel={translate('auto.k0325')}
             resources={data.settings.map((s) => s.key)}
-            fields={[{ key: 'value', label: '值', placeholder: '输入新值' }]}
+            fields={[{ key: 'value', label: translate('auto.k0322'), placeholder: translate('auto.k0326') }]}
             signedIn={signedIn}
             canEdit={hasPermission(currentUser, 'config:edit')}
             statusOptions={[
-              hasPermission(currentUser, 'config:edit') ? { value: 'ENABLED', label: '启用', icon: Power } as StatusOption : undefined,
-              hasPermission(currentUser, 'config:edit') ? { value: 'DISABLED', label: '停用', icon: Power } as StatusOption : undefined,
+              hasPermission(currentUser, 'config:edit') ? { value: 'ENABLED', label: translate('auto.k0251'), icon: Power } as StatusOption : undefined,
+              hasPermission(currentUser, 'config:edit') ? { value: 'DISABLED', label: translate('auto.k0253'), icon: Power } as StatusOption : undefined,
             ].filter(Boolean) as StatusOption[]}
             fetchDetail={fetchSetting}
             updateDetail={(key, draft) => updateSetting(key, { value: draft.value })}
             changeStatus={changeSettingStatus}
             detailTitle={(d) => d.name}
             draftFromDetail={(d) => ({ value: d.value })}
-            detailRows={(d) => [['键', d.key], ['值', d.value], ['状态', d.status]]}
+            detailRows={(d) => [[translate('auto.k0321'), d.key], [translate('auto.k0322'), d.value], [translate('auto.k0182'), d.status]]}
             onChanged={props.onRefresh}
           />
         }
@@ -600,23 +598,23 @@ export function ManagementPage(props: ManagementPageProps) {
 
 function StatusBadge({ status }: { status: string }) {
   const map: Record<string, string> = {
-    '同步正常': 'badge-success',
-    '已连接': 'badge-success',
+    [translate('auto.k0375')]: 'badge-success',
+    [translate('auto.k0380')]: 'badge-success',
     'ENABLED': 'badge-success',
     'ACTIVE': 'badge-success',
-    '进行中': 'badge-success',
-    '已启用': 'badge-success',
-    '解锁': 'badge-success',
-    '已解锁': 'badge-success',
-    '正常': 'badge-success',
+    [translate('auto.k0377')]: 'badge-success',
+    [translate('auto.k0065')]: 'badge-success',
+    [translate('auto.k0250')]: 'badge-success',
+    [translate('auto.k0066')]: 'badge-success',
+    [translate('auto.k0095')]: 'badge-success',
     'DISABLED': 'badge-warning',
-    '停用': 'badge-danger',
-    '已停用': 'badge-danger',
-    '锁定': 'badge-danger',
-    '已锁定': 'badge-danger',
+    [translate('auto.k0253')]: 'badge-danger',
+    [translate('auto.k0067')]: 'badge-danger',
+    [translate('auto.k0252')]: 'badge-danger',
+    [translate('auto.k0068')]: 'badge-danger',
     'PREPARING': 'badge-warning',
     'ARCHIVED': 'badge-neutral',
-    '规划中': 'badge-warning',
+    [translate('auto.k2605')]: 'badge-warning',
     'DISCONNECTED': 'badge-warning',
     'DRAFT': 'badge-warning'
   };
@@ -664,7 +662,13 @@ function DataSection(props: DataSectionProps) {
               <div className="management-quick-create">
                 <input
                   type="text"
-                  placeholder={`输入${props.action.replace('新增', '').replace('创建', '').replace('邀请', '') || '名称'}`}
+                  placeholder={translate('auto.k0327', {
+                    value0: props.action
+                      .replace(translate('auto.k0894'), '')
+                      .replace(translate('auto.k0862'), '')
+                      .replace(translate('auto.k2606'), '')
+                      || translate('auto.k0177')
+                  })}
                   value={quickCreateValue}
                   onChange={(e) => setQuickCreateValue(e.target.value)}
                   disabled={!props.signedIn}
@@ -680,8 +684,7 @@ function DataSection(props: DataSectionProps) {
             )}
             {props.onRefresh && (
               <button className="btn btn-secondary btn-sm" onClick={props.onRefresh} disabled={props.loadState.loading}>
-                刷新
-              </button>
+                {translate('auto.k0170')}</button>
             )}
           </div>
         </div>
@@ -692,8 +695,8 @@ function DataSection(props: DataSectionProps) {
           {props.rows.length === 0 && !props.loadState.loading ? (
             <div className="empty-state">
               <div className="empty-state-icon"><Icon size={32} opacity={0.4} /></div>
-              <strong>暂无数据</strong>
-              <span>当前没有{props.title}，请先创建或同步数据。</span>
+              <strong>{translate('auto.k0328')}</strong>
+              <span>{translate('auto.k0329')}{props.title}{translate('auto.k0330')}</span>
             </div>
           ) : (
             <div className="table-wrap">
@@ -764,7 +767,7 @@ function ResourceLifecyclePanel<T extends object>(props: ResourceLifecyclePanelP
     setError('');
     props.fetchDetail(selectedKey)
       .then((r) => { setDetail(r.data); setEditDraft(props.draftFromDetail(r.data)); setLoading(false); })
-      .catch((err: unknown) => { setError(err instanceof Error ? err.message : '加载失败'); setLoading(false); });
+      .catch((err: unknown) => { setError(err instanceof Error ? err.message : translate('auto.k0049')); setLoading(false); });
   }, [selectedKey, props]);
 
   async function save() {
@@ -776,7 +779,7 @@ function ResourceLifecyclePanel<T extends object>(props: ResourceLifecyclePanelP
       setDetail(null); setEditDraft(null); setSelectedKey('');
       props.onChanged();
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : '保存失败');
+      setError(err instanceof Error ? err.message : translate('auto.k0331'));
       setLoading(false);
     }
   }
@@ -790,7 +793,7 @@ function ResourceLifecyclePanel<T extends object>(props: ResourceLifecyclePanelP
       setDetail(null); setEditDraft(null); setSelectedKey('');
       props.onChanged();
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : '状态变更失败');
+      setError(err instanceof Error ? err.message : translate('auto.k0332'));
       setLoading(false);
     }
   }
@@ -799,7 +802,7 @@ function ResourceLifecyclePanel<T extends object>(props: ResourceLifecyclePanelP
     <div className="panel">
       <div className="panel-body">
         <div className="management-side-heading">
-          <div className="text-tertiary text-xs font-semibold">详情</div>
+          <div className="text-tertiary text-xs font-semibold">{translate('auto.k0333')}</div>
           <h3 className="panel-title">{props.title}</h3>
         </div>
 
@@ -809,7 +812,7 @@ function ResourceLifecyclePanel<T extends object>(props: ResourceLifecyclePanelP
             onChange={(e) => setSelectedKey(e.target.value)}
             disabled={!props.signedIn}
           >
-            <option value="">选择{props.resourceLabel}...</option>
+            <option value="">{translate('auto.k0334')}{props.resourceLabel}...</option>
             {props.resources.map((r) => (
               <option key={r} value={r}>{r}</option>
             ))}
@@ -858,7 +861,7 @@ function ResourceLifecyclePanel<T extends object>(props: ResourceLifecyclePanelP
                     </div>
                   ))}
                   <button className="btn btn-primary btn-sm" onClick={save} disabled={loading}>
-                    {loading ? '保存中...' : '保存修改'}
+                    {loading ? translate('auto.k0335') : translate('auto.k0336')}
                   </button>
                 </div>
               </>
@@ -908,7 +911,7 @@ function RoleBindingControls(props: {
             onChange={(e) => setSelectedRole(e.target.value)}
             disabled={!props.signedIn}
           >
-            <option value="">角色</option>
+            <option value="">{translate('auto.k0247')}</option>
             {props.roles.map((r) => <option key={r.code} value={r.code}>{r.name}</option>)}
           </select>
           <button
@@ -916,8 +919,7 @@ function RoleBindingControls(props: {
             disabled={!props.signedIn || props.loading || !selectedRole}
             onClick={() => { props.onAction(props.username, 'assign-role', selectedRole); setSelectedRole(''); }}
           >
-            分配
-          </button>
+            {translate('auto.k0337')}</button>
         </>
       )}
       {props.canUnassign && selectedRole && (
@@ -926,8 +928,7 @@ function RoleBindingControls(props: {
           disabled={!props.signedIn || props.loading}
           onClick={() => { props.onAction(props.username, 'unassign-role', selectedRole); setSelectedRole(''); }}
         >
-          解绑
-        </button>
+          {translate('auto.k0338')}</button>
       )}
     </div>
   );
@@ -968,7 +969,7 @@ function ScopedRolePanel(props: {
     setError('');
     props.fetchMembers(selectedKey)
       .then((r) => { setMembers(scopedMembers(r.data)); setLoading(false); })
-      .catch((err: unknown) => { setError(err instanceof Error ? err.message : '加载失败'); setLoading(false); });
+      .catch((err: unknown) => { setError(err instanceof Error ? err.message : translate('auto.k0049')); setLoading(false); });
   }, [selectedKey, props]);
 
   async function add() {
@@ -983,7 +984,7 @@ function ScopedRolePanel(props: {
       setMembers(scopedMembers(r.data));
       setLoading(false);
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : '添加失败');
+      setError(err instanceof Error ? err.message : translate('auto.k0339'));
       setLoading(false);
     }
   }
@@ -999,7 +1000,7 @@ function ScopedRolePanel(props: {
       setMembers(scopedMembers(r.data));
       setLoading(false);
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : '移除失败');
+      setError(err instanceof Error ? err.message : translate('auto.k0340'));
       setLoading(false);
     }
   }
@@ -1008,7 +1009,7 @@ function ScopedRolePanel(props: {
     <div className="panel">
       <div className="panel-body">
         <div className="management-side-heading">
-          <div className="text-tertiary text-xs font-semibold management-eyebrow">成员</div>
+          <div className="text-tertiary text-xs font-semibold management-eyebrow">{translate('auto.k0235')}</div>
           <h3 className="panel-title management-side-title">{props.title}</h3>
         </div>
 
@@ -1019,7 +1020,7 @@ function ScopedRolePanel(props: {
             disabled={!props.signedIn}
             className="management-full-control"
           >
-            <option value="">选择{props.resourceLabel}...</option>
+            <option value="">{translate('auto.k0334')}{props.resourceLabel}...</option>
             {props.resources.map((r) => <option key={r} value={r}>{r}</option>)}
           </select>
         </div>
@@ -1032,7 +1033,7 @@ function ScopedRolePanel(props: {
               <div className="skeleton skeleton-text" />
             ) : members.length === 0 ? (
               <div className="empty-state management-empty-compact">
-                <span>暂无成员</span>
+                <span>{translate('auto.k0341')}</span>
               </div>
             ) : (
               <div className="management-item-list">
@@ -1043,7 +1044,7 @@ function ScopedRolePanel(props: {
                       <div className="text-tertiary text-xs">{m.role}</div>
                     </div>
                     {props.canManage && (
-                      <button className="btn btn-xs btn-secondary" onClick={() => remove(m.username)} disabled={loading}>移除</button>
+                      <button className="btn btn-xs btn-secondary" onClick={() => remove(m.username)} disabled={loading}>{translate('auto.k0342')}</button>
                     )}
                   </div>
                 ))}
@@ -1054,7 +1055,7 @@ function ScopedRolePanel(props: {
               <div className="management-member-add-grid">
                 <input
                   type="text"
-                  placeholder="输入用户名"
+                  placeholder={translate('auto.k0343')}
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
                   className="management-compact-control"
@@ -1066,7 +1067,7 @@ function ScopedRolePanel(props: {
                 >
                   {props.roles.map((role) => <option key={role} value={role}>{role}</option>)}
                 </select>
-                <button className="btn btn-primary btn-sm" onClick={add} disabled={loading || !username.trim()}>添加</button>
+                <button className="btn btn-primary btn-sm" onClick={add} disabled={loading || !username.trim()}>{translate('auto.k0344')}</button>
               </div>
             )}
           </>
@@ -1101,7 +1102,7 @@ function EnvironmentConnectivityPanel(props: {
       setLoading(false);
       props.onChanged();
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : '连通性检查失败');
+      setError(err instanceof Error ? err.message : translate('auto.k0345'));
       setLoading(false);
     }
   }
@@ -1110,8 +1111,8 @@ function EnvironmentConnectivityPanel(props: {
     <div className="panel">
       <div className="panel-body">
         <div className="management-side-heading">
-          <div className="text-tertiary text-xs font-semibold management-eyebrow">连通性</div>
-          <h3 className="panel-title management-side-title">环境连通性检查</h3>
+          <div className="text-tertiary text-xs font-semibold management-eyebrow">{translate('auto.k0346')}</div>
+          <h3 className="panel-title management-side-title">{translate('auto.k0347')}</h3>
         </div>
 
         <div className="field management-select-field">
@@ -1121,14 +1122,14 @@ function EnvironmentConnectivityPanel(props: {
             disabled={!props.signedIn}
             className="management-full-control"
           >
-            <option value="">选择环境...</option>
+            <option value="">{translate('auto.k0348')}</option>
             {props.resources.map((r) => <option key={r} value={r}>{r}</option>)}
           </select>
         </div>
 
         {props.canRun && selectedKey && (
           <button className="btn btn-primary btn-sm management-full-action" onClick={check} disabled={loading}>
-            {loading ? '检查中...' : '执行连通性检查'}
+            {loading ? translate('auto.k0349') : translate('auto.k0350')}
           </button>
         )}
 
@@ -1169,15 +1170,15 @@ function RoleDefinitionPanel(props: {
     setError('');
     fetchRole(selectedCode)
       .then((r) => { setDetail(r.data); setLoading(false); })
-      .catch((err: unknown) => { setError(err instanceof Error ? err.message : '加载失败'); setLoading(false); });
+      .catch((err: unknown) => { setError(err instanceof Error ? err.message : translate('auto.k0049')); setLoading(false); });
   }, [selectedCode]);
 
   return (
     <div className="panel">
       <div className="panel-body">
         <div className="management-side-heading">
-          <div className="text-tertiary text-xs font-semibold management-eyebrow">角色定义</div>
-          <h3 className="panel-title management-side-title">角色详情</h3>
+          <div className="text-tertiary text-xs font-semibold management-eyebrow">{translate('auto.k0262')}</div>
+          <h3 className="panel-title management-side-title">{translate('auto.k0351')}</h3>
         </div>
 
         <div className="field management-select-field">
@@ -1187,7 +1188,7 @@ function RoleDefinitionPanel(props: {
             disabled={!props.signedIn}
             className="management-full-control"
           >
-            <option value="">选择角色...</option>
+            <option value="">{translate('auto.k0352')}</option>
             {props.roles.map((r) => <option key={r.code} value={r.code}>{r.name} ({r.code})</option>)}
           </select>
         </div>
@@ -1200,27 +1201,27 @@ function RoleDefinitionPanel(props: {
             <div className="divider" />
             <div className="detail-grid">
               <div className="detail-row">
-                <span className="detail-label">名称</span>
+                <span className="detail-label">{translate('auto.k0177')}</span>
                 <span className="detail-value">{detail.name}</span>
               </div>
               <div className="detail-row">
-                <span className="detail-label">编码</span>
+                <span className="detail-label">{translate('auto.k0353')}</span>
                 <span className="detail-value">{detail.code}</span>
               </div>
               <div className="detail-row">
-                <span className="detail-label">状态</span>
+                <span className="detail-label">{translate('auto.k0182')}</span>
                 <span className="detail-value"><StatusBadge status={detail.status} /></span>
               </div>
               {detail.description && (
                 <div className="detail-row">
-                  <span className="detail-label">说明</span>
+                  <span className="detail-label">{translate('auto.k0264')}</span>
                   <span className="detail-value">{detail.description}</span>
                 </div>
               )}
             </div>
 
             <div className="divider" />
-            <div className="text-tertiary text-xs font-semibold management-permission-heading">权限点 ({rolePermissions.length})</div>
+            <div className="text-tertiary text-xs font-semibold management-permission-heading">{translate('auto.k0354')}{rolePermissions.length})</div>
             {rolePermissions.length > 0 ? (
               <div className="management-chip-list">
                 {rolePermissions.map((p: string) => (
@@ -1228,7 +1229,7 @@ function RoleDefinitionPanel(props: {
                 ))}
               </div>
             ) : (
-              <div className="text-tertiary text-sm">暂无权限点</div>
+              <div className="text-tertiary text-sm">{translate('auto.k0355')}</div>
             )}
           </>
         )}
@@ -1253,16 +1254,16 @@ function AuditPage(props: ManagementPageProps) {
             <div className="management-section-heading">
               <div className="section-icon management-section-icon"><ScrollText size={17} /></div>
               <div>
-                <div className="text-tertiary text-xs font-semibold management-eyebrow">审计</div>
-                <h2 className="panel-title">审计日志</h2>
+                <div className="text-tertiary text-xs font-semibold management-eyebrow">{translate('auto.k0356')}</div>
+                <h2 className="panel-title">{translate('auto.k0035')}</h2>
               </div>
             </div>
           </div>
           <div className="toolbar-actions">
             <button className="btn btn-secondary btn-sm" onClick={onAuditExport} disabled={!signedIn || auditExportState.loading || !canExport}>
-              {auditExportState.loading ? '导出中...' : '导出 CSV'}
+              {auditExportState.loading ? translate('auto.k0357') : translate('auto.k0358')}
             </button>
-            <button className="btn btn-secondary btn-sm" onClick={props.onRefresh} disabled={loadState.loading}>刷新</button>
+            <button className="btn btn-secondary btn-sm" onClick={props.onRefresh} disabled={loadState.loading}>{translate('auto.k0170')}</button>
           </div>
         </div>
         <div className="panel-body">
@@ -1270,20 +1271,20 @@ function AuditPage(props: ManagementPageProps) {
           {data.auditLogs.length === 0 && !loadState.loading ? (
             <div className="empty-state">
               <div className="empty-state-icon"><ScrollText size={32} opacity={0.4} /></div>
-              <strong>暂无审计日志</strong>
-              <span>系统操作日志将在此处显示。</span>
+              <strong>{translate('auto.k0359')}</strong>
+              <span>{translate('auto.k0360')}</span>
             </div>
           ) : (
             <div className="table-wrap">
               <table>
                 <thead>
                   <tr>
-                    <th>时间</th>
-                    <th>操作人</th>
-                    <th>动作</th>
-                    <th>资源</th>
-                    <th>结果</th>
-                    <th>详情</th>
+                    <th>{translate('auto.k0361')}</th>
+                    <th>{translate('auto.k0362')}</th>
+                    <th>{translate('auto.k0363')}</th>
+                    <th>{translate('auto.k0364')}</th>
+                    <th>{translate('auto.k0365')}</th>
+                    <th>{translate('auto.k0333')}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -1324,7 +1325,7 @@ function AuditOutboxPanel(props: ManagementPageProps) {
     <div className="panel">
       <div className="panel-body">
         <div className="management-side-heading">
-          <div className="text-tertiary text-xs font-semibold management-eyebrow">待处理</div>
+          <div className="text-tertiary text-xs font-semibold management-eyebrow">{translate('auto.k0366')}</div>
           <h3 className="panel-title management-side-title">Audit Outbox</h3>
         </div>
 
@@ -1334,10 +1335,10 @@ function AuditOutboxPanel(props: ManagementPageProps) {
             onChange={(e) => props.onAuditOutboxFiltersChange({ ...props.auditOutboxFilters, status: e.target.value })}
             className="management-compact-control"
           >
-            <option value="">全部状态</option>
-            <option value="PENDING">待处理</option>
-            <option value="SUCCESS">成功</option>
-            <option value="FAILED">失败</option>
+            <option value="">{translate('auto.k0367')}</option>
+            <option value="PENDING">{translate('auto.k0366')}</option>
+            <option value="SUCCESS">{translate('auto.k0368')}</option>
+            <option value="FAILED">{translate('auto.k0369')}</option>
           </select>
           <input
             type="text" placeholder="Trace ID"
@@ -1347,14 +1348,14 @@ function AuditOutboxPanel(props: ManagementPageProps) {
           />
         </div>
         <input
-          type="text" placeholder="搜索资源 ID..."
+          type="text" placeholder={translate('auto.k0370')}
           value={props.auditOutboxFilters.search}
           onChange={(e) => props.onAuditOutboxFiltersChange({ ...props.auditOutboxFilters, search: e.target.value })}
           className="management-compact-control management-search-control"
         />
 
         <button className="btn btn-secondary btn-sm management-full-action" onClick={() => props.onAuditOutboxRefresh()} disabled={props.auditOutboxLoad.loading}>
-          {props.auditOutboxLoad.loading ? '加载中...' : '查询'}
+          {props.auditOutboxLoad.loading ? translate('auto.k0371') : translate('auto.k0372')}
         </button>
 
         {props.auditOutboxLoad.error && (
@@ -1363,7 +1364,7 @@ function AuditOutboxPanel(props: ManagementPageProps) {
 
         <div className="management-item-list">
           {props.data.auditOutbox.length === 0 && !props.auditOutboxLoad.loading ? (
-            <div className="text-tertiary text-sm">暂无待处理事件</div>
+            <div className="text-tertiary text-sm">{translate('auto.k0373')}</div>
           ) : (
             props.data.auditOutbox.map((item: AuditOutboxView, idx: number) => (
               <div key={idx} className="management-outbox-item">

@@ -12,6 +12,7 @@ import {
   type TemplateDraft
 } from '../testDesignWorkbenchState';
 import { StateLine, type WorkState } from './TestDesignOverviewPanels';
+import { translate } from '../platform/i18n';
 
 export function TestDesignTemplateManagementPanel(props: {
   canRead: boolean;
@@ -37,10 +38,10 @@ export function TestDesignTemplateManagementPanel(props: {
     <section className="panel">
       <div className="panel-header compact">
         <div>
-          <h2 className="panel-title">模板管理</h2>
-          <p className="panel-desc">{props.templatePageTotal ? `${props.templatePageTotal} 个可用模板` : '生成参数预配置。'}</p>
+          <h2 className="panel-title">{translate('auto.k1629')}</h2>
+          <p className="panel-desc">{props.templatePageTotal ? translate('auto.k1630', { value0: props.templatePageTotal }) : translate('auto.k1631')}</p>
         </div>
-        <button className="btn btn-secondary btn-xs" type="button" disabled={!props.canRead || props.state.loading} title="刷新模板" onClick={props.onRefresh}>
+        <button className="btn btn-secondary btn-xs" type="button" disabled={!props.canRead || props.state.loading} title={translate('auto.k1632')} onClick={props.onRefresh}>
           <RefreshCw size={14} />
         </button>
       </div>
@@ -48,12 +49,12 @@ export function TestDesignTemplateManagementPanel(props: {
         <form className="main-stack" onSubmit={props.onSave}>
           <div className="test-design-template-toolbar">
             <label className="field">
-              <span className="field-label">当前模板</span>
+              <span className="field-label">{translate('auto.k1633')}</span>
               <select value={props.selectedTemplateManageId} onChange={(event) => props.onSelectedTemplateManageIdChange(event.target.value)} disabled={props.state.loading}>
-                <option value="">新建模板</option>
+                <option value="">{translate('auto.k1634')}</option>
                 {props.templates.map((template) => (
                   <option key={template.id} value={template.id}>
-                    {template.enabled ? '' : '禁用 · '}{template.projectId ? '项目' : '全局'} · {template.name}
+                    {template.enabled ? '' : translate('auto.k1635')}{template.projectId ? translate('auto.k0176') : translate('auto.k1605')} · {template.name}
                   </option>
                 ))}
               </select>
@@ -61,7 +62,7 @@ export function TestDesignTemplateManagementPanel(props: {
             <button
               className="btn btn-secondary btn-icon btn-sm"
               type="button"
-              title="新建模板"
+              title={translate('auto.k1634')}
               disabled={props.state.loading}
               onClick={() => {
                 props.onSelectedTemplateManageIdChange('');
@@ -72,40 +73,40 @@ export function TestDesignTemplateManagementPanel(props: {
             </button>
           </div>
           <label className="field">
-            <span className="field-label">名称</span>
+            <span className="field-label">{translate('auto.k0177')}</span>
             <input value={draft.name} onChange={(event) => props.onTemplateDraftChange((current) => ({ ...current, name: event.target.value }))} disabled={!props.canPolicyManage || props.state.loading} />
           </label>
           <label className="field">
-            <span className="field-label">作用域项目 ID</span>
-            <input value={draft.projectId} onChange={(event) => props.onTemplateDraftChange((current) => ({ ...current, projectId: event.target.value }))} placeholder="留空为全局模板" disabled={!props.canPolicyManage || props.state.loading || Boolean(props.selectedManagedTemplate)} />
+            <span className="field-label">{translate('auto.k1636')}</span>
+            <input value={draft.projectId} onChange={(event) => props.onTemplateDraftChange((current) => ({ ...current, projectId: event.target.value }))} placeholder={translate('auto.k1637')} disabled={!props.canPolicyManage || props.state.loading || Boolean(props.selectedManagedTemplate)} />
           </label>
           <label className="field">
-            <span className="field-label">说明</span>
+            <span className="field-label">{translate('auto.k0264')}</span>
             <input value={draft.description} onChange={(event) => props.onTemplateDraftChange((current) => ({ ...current, description: event.target.value }))} disabled={!props.canPolicyManage || props.state.loading} />
           </label>
           <div className="test-design-template-inline-grid">
             <label className="field">
               <span className="field-label">Prompt Key</span>
-              <input value={draft.promptKey} onChange={(event) => props.onTemplateDraftChange((current) => ({ ...current, promptKey: event.target.value }))} placeholder={props.health?.promptKey ?? '默认'} disabled={!props.canPolicyManage || props.state.loading} />
+              <input value={draft.promptKey} onChange={(event) => props.onTemplateDraftChange((current) => ({ ...current, promptKey: event.target.value }))} placeholder={props.health?.promptKey ?? translate('auto.k1638')} disabled={!props.canPolicyManage || props.state.loading} />
             </label>
             <label className="field">
-              <span className="field-label">版本</span>
-              <input value={draft.promptVersion} onChange={(event) => props.onTemplateDraftChange((current) => ({ ...current, promptVersion: event.target.value }))} placeholder={props.health?.promptVersion ?? '默认'} disabled={!props.canPolicyManage || props.state.loading} />
+              <span className="field-label">{translate('auto.k0178')}</span>
+              <input value={draft.promptVersion} onChange={(event) => props.onTemplateDraftChange((current) => ({ ...current, promptVersion: event.target.value }))} placeholder={props.health?.promptVersion ?? translate('auto.k1638')} disabled={!props.canPolicyManage || props.state.loading} />
             </label>
           </div>
           <div className="test-design-template-inline-grid">
             <label className="field">
-              <span className="field-label">每需求数</span>
+              <span className="field-label">{translate('auto.k1639')}</span>
               <input value={draft.caseCountPerRequirement} type="number" min="1" max="6" onChange={(event) => props.onTemplateDraftChange((current) => ({ ...current, caseCountPerRequirement: event.target.value }))} disabled={!props.canPolicyManage || props.state.loading} />
             </label>
             <label className="field">
-              <span className="field-label">环境 Key</span>
+              <span className="field-label">{translate('auto.k1611')}</span>
               <input value={draft.environmentKey} onChange={(event) => props.onTemplateDraftChange((current) => ({ ...current, environmentKey: event.target.value }))} disabled={!props.canPolicyManage || props.state.loading} />
             </label>
           </div>
           <div className="test-design-template-inline-grid">
             <label className="field">
-              <span className="field-label">生成策略</span>
+              <span className="field-label">{translate('auto.k1640')}</span>
               <select value={draft.generationStrategy} onChange={(event) => props.onTemplateDraftChange((current) => ({ ...current, generationStrategy: event.target.value }))} disabled={!props.canPolicyManage || props.state.loading}>
                 {TEST_DESIGN_GENERATION_STRATEGIES.map((strategy) => (
                   <option key={strategy} value={strategy}>{strategy}</option>
@@ -113,7 +114,7 @@ export function TestDesignTemplateManagementPanel(props: {
               </select>
             </label>
             <label className="field">
-              <span className="field-label">覆盖策略</span>
+              <span className="field-label">{translate('auto.k1641')}</span>
               <select value={draft.coverageStrategy} onChange={(event) => props.onTemplateDraftChange((current) => ({ ...current, coverageStrategy: event.target.value }))} disabled={!props.canPolicyManage || props.state.loading}>
                 {TEST_DESIGN_COVERAGE_STRATEGIES.map((strategy) => (
                   <option key={strategy} value={strategy}>{strategy}</option>
@@ -122,19 +123,19 @@ export function TestDesignTemplateManagementPanel(props: {
             </label>
           </div>
           <label className="field">
-            <span className="field-label">上下文 API ID</span>
+            <span className="field-label">{translate('auto.k1612')}</span>
             <input value={draft.contextApiIds} onChange={(event) => props.onTemplateDraftChange((current) => ({ ...current, contextApiIds: event.target.value }))} disabled={!props.canPolicyManage || props.state.loading} />
           </label>
           <label className="field">
-            <span className="field-label">上下文页面 ID</span>
+            <span className="field-label">{translate('auto.k1614')}</span>
             <input value={draft.contextPageIds} onChange={(event) => props.onTemplateDraftChange((current) => ({ ...current, contextPageIds: event.target.value }))} disabled={!props.canPolicyManage || props.state.loading} />
           </label>
           <label className="field">
-            <span className="field-label">上下文业务流 ID</span>
+            <span className="field-label">{translate('auto.k1615')}</span>
             <input value={draft.contextFlowIds} onChange={(event) => props.onTemplateDraftChange((current) => ({ ...current, contextFlowIds: event.target.value }))} disabled={!props.canPolicyManage || props.state.loading} />
           </label>
           <div className="field">
-            <span className="field-label">覆盖类型</span>
+            <span className="field-label">{translate('auto.k1315')}</span>
             <div className="test-design-checks">
               {TEST_DESIGN_COVERAGE_TYPES.map((type) => (
                 <label key={type}>
@@ -146,17 +147,16 @@ export function TestDesignTemplateManagementPanel(props: {
           </div>
           <label className="test-design-template-enabled">
             <input type="checkbox" checked={draft.enabled} onChange={(event) => props.onTemplateDraftChange((current) => ({ ...current, enabled: event.target.checked }))} disabled={!props.canPolicyManage || props.state.loading} />
-            <span>启用</span>
+            <span>{translate('auto.k0251')}</span>
           </label>
           <div className="toolbar-actions">
             <button className="btn btn-secondary btn-sm" type="submit" disabled={!props.canPolicyManage || props.state.loading || !draft.name.trim()}>
               <Layers3 size={15} />
-              {props.selectedManagedTemplate ? '更新' : '创建'}
+              {props.selectedManagedTemplate ? translate('auto.k1008') : translate('auto.k0862')}
             </button>
             <button className="btn btn-ghost btn-sm" type="button" disabled={!props.canPolicyManage || props.state.loading || !props.selectedManagedTemplate || !props.selectedManagedTemplate.enabled} onClick={props.onDisableTemplate}>
               <Trash2 size={15} />
-              禁用
-            </button>
+              {translate('auto.k1272')}</button>
           </div>
           <StateLine state={props.state} />
         </form>

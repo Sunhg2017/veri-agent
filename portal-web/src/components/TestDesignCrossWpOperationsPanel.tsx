@@ -17,6 +17,7 @@ import type {
   TestDesignQueuedEventReplayResult
 } from '../api/testDesign';
 import { StateLine, type WorkState } from './TestDesignOverviewPanels';
+import { translate } from '../platform/i18n';
 
 export type CrossWpOperationsFilters = {
   projectId: string;
@@ -115,18 +116,17 @@ export function CrossWpOperationsPanel(props: {
     <section className="panel test-design-cross-wp-operations">
       <div className="panel-header compact">
         <div>
-          <h2 className="panel-title">跨 WP 统一运营</h2>
+          <h2 className="panel-title">{translate('auto.k1424')}</h2>
           <p className="panel-desc">
-            {dashboard?.projectId || projectId || '平台聚合'}
+            {dashboard?.projectId || projectId || translate('auto.k1425')}
             {' · '}
-            {dashboard?.promptKey || promptKey || '全部 Prompt'}
+            {dashboard?.promptKey || promptKey || translate('auto.k1426')}
           </p>
         </div>
         <div className="toolbar-actions">
           <button className="btn btn-secondary btn-sm" type="button" disabled={props.state.loading} onClick={props.onRefresh}>
             <RefreshCw size={15} />
-            刷新
-          </button>
+            {translate('auto.k0170')}</button>
         </div>
       </div>
       <div className="panel-body compact main-stack">
@@ -134,7 +134,7 @@ export function CrossWpOperationsPanel(props: {
 
         <div className="form-grid test-design-cross-wp-filter">
           <label className="field">
-            <span className="field-label">项目 ID</span>
+            <span className="field-label">{translate('auto.k1389')}</span>
             <input
               value={projectId}
               onChange={(event) => props.onFiltersChange((current) => ({ ...current, projectId: event.target.value }))}
@@ -155,44 +155,44 @@ export function CrossWpOperationsPanel(props: {
           <>
             <div className="test-design-quality-metrics test-design-cross-wp-metrics">
               <div className="test-design-quality-metric tone-info">
-                <span>任务/候选</span>
+                <span>{translate('auto.k1427')}</span>
                 <strong>{dashboard.taskCount}</strong>
-                <small>候选 {dashboard.candidateCount} · 发布 {dashboard.publishRecordCount}</small>
+                <small>{translate('auto.k1428')}{dashboard.candidateCount} {translate('auto.k1429')}{dashboard.publishRecordCount}</small>
               </div>
               <div className={`test-design-quality-metric tone-${dashboard.candidateScopeMismatchCount + dashboard.publishScopeMismatchCount > 0 ? 'warning' : 'success'}`}>
-                <span>Scope 覆盖</span>
+                <span>{translate('auto.k1430')}</span>
                 <strong>{formatPercent(dashboard.candidateScopeCoveragePercent)}</strong>
-                <small>发布 {formatPercent(dashboard.publishScopeCoveragePercent)}</small>
+                <small>{translate('auto.k0779')}{formatPercent(dashboard.publishScopeCoveragePercent)}</small>
               </div>
               <div className="test-design-quality-metric tone-info">
-                <span>WP1 审计</span>
+                <span>{translate('auto.k1431')}</span>
                 <strong>{auditDashboard?.wp1AuditEventCount ?? 0}</strong>
-                <small>成功 {auditDashboard?.wp1AuditSuccessCount ?? 0} · 拒绝 {auditDashboard?.wp1AuditDeniedCount ?? 0}</small>
+                <small>{translate('auto.k0368')}{auditDashboard?.wp1AuditSuccessCount ?? 0} {translate('auto.k1432')}{auditDashboard?.wp1AuditDeniedCount ?? 0}</small>
               </div>
               <div className={`test-design-quality-metric tone-${(auditOutbox?.replayEligibleCount ?? 0) > 0 ? 'warning' : 'success'}`}>
-                <span>Outbox 可重放</span>
+                <span>{translate('auto.k1433')}</span>
                 <strong>{auditOutbox?.replayEligibleCount ?? 0}</strong>
-                <small>失败 {auditOutbox?.failedCount ?? 0} · 死信 {auditOutbox?.deadCount ?? 0}</small>
+                <small>{translate('auto.k0369')}{auditOutbox?.failedCount ?? 0} {translate('auto.k1434')}{auditOutbox?.deadCount ?? 0}</small>
               </div>
               <div className={`test-design-quality-metric tone-${(queueAlerts?.activeWarningCount ?? 0) > 0 ? 'warning' : 'success'}`}>
-                <span>队列告警</span>
+                <span>{translate('auto.k1435')}</span>
                 <strong>{queueAlerts?.activeWarningCount ?? 0}</strong>
-                <small>订阅 {queueAlerts?.enabledSubscriptionCount ?? 0}/{queueAlerts?.subscriptionCount ?? 0}</small>
+                <small>{translate('auto.k1436')}{queueAlerts?.enabledSubscriptionCount ?? 0}/{queueAlerts?.subscriptionCount ?? 0}</small>
               </div>
               <div className={`test-design-quality-metric tone-${(runbook?.eligibleCandidateCount ?? 0) > 0 ? 'warning' : 'success'}`}>
-                <span>补偿候选</span>
+                <span>{translate('auto.k1437')}</span>
                 <strong>{runbook?.eligibleCandidateCount ?? 0}</strong>
-                <small>批量 {runbook?.effectiveBatchSize ?? 0} · 手工 {runbook?.manualRunSupported ? 'ready' : 'blocked'}</small>
+                <small>{translate('auto.k1348')}{runbook?.effectiveBatchSize ?? 0} {translate('auto.k1438')}{runbook?.manualRunSupported ? 'ready' : 'blocked'}</small>
               </div>
               <div className="test-design-quality-metric tone-info">
-                <span>模型观测</span>
+                <span>{translate('auto.k1439')}</span>
                 <strong>{modelDrilldown?.totalInvocationCount ?? 0}</strong>
-                <small>桶 {modelDrilldown?.buckets.length ?? 0} · fallback {modelDrilldown?.fallbackCount ?? 0}</small>
+                <small>{translate('auto.k1440')}{modelDrilldown?.buckets.length ?? 0} · fallback {modelDrilldown?.fallbackCount ?? 0}</small>
               </div>
               <div className="test-design-quality-metric tone-info">
-                <span>明细审计</span>
+                <span>{translate('auto.k1441')}</span>
                 <strong>{detailAuditReport?.rowCount ?? 0}</strong>
-                <small>模板 {auditTemplate?.sections.length ?? 0} 分区</small>
+                <small>{translate('auto.k1442')}{auditTemplate?.sections.length ?? 0} {translate('auto.k1443')}</small>
               </div>
             </div>
 
@@ -210,34 +210,34 @@ export function CrossWpOperationsPanel(props: {
             <div className="test-design-cross-wp-grid">
               <div className="test-design-cross-wp-group">
                 <div className="test-design-evaluation-list-heading">
-                  <strong>审计链聚合</strong>
+                  <strong>{translate('auto.k1444')}</strong>
                   <span>{dashboard.generatedAt ?? '-'}</span>
                 </div>
                 <div className="test-design-cross-wp-row">
-                  <span>WP2 调用</span>
+                  <span>{translate('auto.k1445')}</span>
                   <strong>{auditDashboard?.wp2InvocationCount ?? 0}</strong>
-                  <small>成功 {auditDashboard?.wp2InvocationSucceededCount ?? 0} · fallback {auditDashboard?.wp2FallbackCount ?? 0}</small>
+                  <small>{translate('auto.k0368')}{auditDashboard?.wp2InvocationSucceededCount ?? 0} · fallback {auditDashboard?.wp2FallbackCount ?? 0}</small>
                 </div>
                 <div className="test-design-cross-wp-row">
-                  <span>WP3 发布</span>
+                  <span>{translate('auto.k1446')}</span>
                   <strong>{auditDashboard?.wp3PublishedCaseCount ?? 0}</strong>
                   <small>trace link {auditDashboard?.wp3TraceLinkCount ?? 0}</small>
                 </div>
                 <div className="test-design-cross-wp-row">
-                  <span>标识导出</span>
+                  <span>{translate('auto.k1447')}</span>
                   <strong>{dashboard.detailIdentifiersExported ? 'ON' : 'OFF'}</strong>
-                  <small>trace/model/sourceRef 均为聚合信号</small>
+                  <small>{translate('auto.k1448')}</small>
                 </div>
               </div>
 
               <form className="test-design-cross-wp-group" onSubmit={props.onRequeue}>
                 <div className="test-design-evaluation-list-heading">
                   <strong>Audit outbox</strong>
-                  <span>总数 {auditOutbox?.totalCount ?? 0}</span>
+                  <span>{translate('auto.k1449')}{auditOutbox?.totalCount ?? 0}</span>
                 </div>
                 <div className="form-grid test-design-cross-wp-requeue-grid">
                   <label className="field">
-                    <span className="field-label">项目 ID</span>
+                    <span className="field-label">{translate('auto.k1389')}</span>
                     <input
                       value={props.requeueDraft.projectId}
                       onChange={(event) => props.onRequeueDraftChange((current) => ({ ...current, projectId: event.target.value }))}
@@ -246,7 +246,7 @@ export function CrossWpOperationsPanel(props: {
                     />
                   </label>
                   <label className="field">
-                    <span className="field-label">状态</span>
+                    <span className="field-label">{translate('auto.k0182')}</span>
                     <select
                       value={props.requeueDraft.status}
                       onChange={(event) => props.onRequeueDraftChange((current) => ({ ...current, status: event.target.value }))}
@@ -258,7 +258,7 @@ export function CrossWpOperationsPanel(props: {
                     </select>
                   </label>
                   <label className="field">
-                    <span className="field-label">上限</span>
+                    <span className="field-label">{translate('auto.k1450')}</span>
                     <input
                       type="number"
                       min={1}
@@ -270,7 +270,7 @@ export function CrossWpOperationsPanel(props: {
                   </label>
                 </div>
                 <label className="field">
-                  <span className="field-label">原因</span>
+                  <span className="field-label">{translate('auto.k0878')}</span>
                   <textarea
                     value={props.requeueDraft.reason}
                     onChange={(event) => props.onRequeueDraftChange((current) => ({ ...current, reason: event.target.value }))}
@@ -281,8 +281,7 @@ export function CrossWpOperationsPanel(props: {
                 <div className="toolbar-actions test-design-cross-wp-actions">
                   <button className="btn btn-primary btn-sm" type="submit" disabled={!canRequeue}>
                     <Repeat2 size={15} />
-                    重新排队
-                  </button>
+                    {translate('auto.k1451')}</button>
                   {props.requeueResult && (
                     <span className="test-design-cross-wp-result">
                       {props.requeueResult.requestedStatus} · {props.requeueResult.requeuedCount}/{props.requeueResult.requestedLimit}
@@ -295,12 +294,12 @@ export function CrossWpOperationsPanel(props: {
             <div className="test-design-cross-wp-grid">
               <form className="test-design-cross-wp-group" onSubmit={props.onQueueAlertSubscriptionSubmit}>
                 <div className="test-design-evaluation-list-heading">
-                  <strong>队列告警订阅</strong>
+                  <strong>{translate('auto.k1452')}</strong>
                   <span>{queueAlerts?.subscriptionCount ?? props.queueAlertSubscriptions.length}</span>
                 </div>
                 <div className="form-grid test-design-cross-wp-requeue-grid">
                   <label className="field">
-                    <span className="field-label">项目 ID</span>
+                    <span className="field-label">{translate('auto.k1389')}</span>
                     <input
                       value={props.queueAlertSubscriptionDraft.projectId}
                       onChange={(event) => props.onQueueAlertSubscriptionDraftChange((current) => ({ ...current, projectId: event.target.value }))}
@@ -313,12 +312,12 @@ export function CrossWpOperationsPanel(props: {
                     <input
                       value={props.queueAlertSubscriptionDraft.promptKey}
                       onChange={(event) => props.onQueueAlertSubscriptionDraftChange((current) => ({ ...current, promptKey: event.target.value }))}
-                      placeholder="可为空"
+                      placeholder={translate('auto.k1453')}
                       disabled={!props.canPolicyManage}
                     />
                   </label>
                   <label className="field">
-                    <span className="field-label">类型</span>
+                    <span className="field-label">{translate('auto.k0286')}</span>
                     <select
                       value={props.queueAlertSubscriptionDraft.alertType}
                       onChange={(event) => props.onQueueAlertSubscriptionDraftChange((current) => ({ ...current, alertType: event.target.value }))}
@@ -330,7 +329,7 @@ export function CrossWpOperationsPanel(props: {
                     </select>
                   </label>
                   <label className="field">
-                    <span className="field-label">渠道</span>
+                    <span className="field-label">{translate('auto.k1454')}</span>
                     <select
                       value={props.queueAlertSubscriptionDraft.channel}
                       onChange={(event) => props.onQueueAlertSubscriptionDraftChange((current) => ({ ...current, channel: event.target.value }))}
@@ -342,19 +341,19 @@ export function CrossWpOperationsPanel(props: {
                     </select>
                   </label>
                   <label className="field">
-                    <span className="field-label">阈值秒数</span>
+                    <span className="field-label">{translate('auto.k1455')}</span>
                     <input
                       type="number"
                       min={0}
                       max={86400}
                       value={props.queueAlertSubscriptionDraft.thresholdSeconds}
                       onChange={(event) => props.onQueueAlertSubscriptionDraftChange((current) => ({ ...current, thresholdSeconds: event.target.value }))}
-                      placeholder="使用系统阈值"
+                      placeholder={translate('auto.k1456')}
                       disabled={!props.canPolicyManage}
                     />
                   </label>
                   <label className="field">
-                    <span className="field-label">启用</span>
+                    <span className="field-label">{translate('auto.k0251')}</span>
                     <input
                       type="checkbox"
                       checked={props.queueAlertSubscriptionDraft.enabled}
@@ -364,7 +363,7 @@ export function CrossWpOperationsPanel(props: {
                   </label>
                 </div>
                 <label className="field">
-                  <span className="field-label">目标引用</span>
+                  <span className="field-label">{translate('auto.k1457')}</span>
                   <input
                     value={props.queueAlertSubscriptionDraft.targetRef}
                     onChange={(event) => props.onQueueAlertSubscriptionDraftChange((current) => ({ ...current, targetRef: event.target.value }))}
@@ -374,8 +373,7 @@ export function CrossWpOperationsPanel(props: {
                 <div className="toolbar-actions test-design-cross-wp-actions">
                   <button className="btn btn-primary btn-sm" type="submit" disabled={!canQueueAlertSave}>
                     <Save size={15} />
-                    保存订阅
-                  </button>
+                    {translate('auto.k1458')}</button>
                   {props.queueAlertSubscriptionResult && (
                     <span className="test-design-cross-wp-result">
                       {props.queueAlertSubscriptionResult.alertType} · {props.queueAlertSubscriptionResult.channel}
@@ -386,12 +384,12 @@ export function CrossWpOperationsPanel(props: {
 
               <form className="test-design-cross-wp-group" onSubmit={props.onQueuedEventReplaySubmit}>
                 <div className="test-design-evaluation-list-heading">
-                  <strong>人工重放</strong>
+                  <strong>{translate('auto.k1459')}</strong>
                   <span>{queueAlerts?.queuedTaskCount ?? 0} / {queueAlerts?.publishQueuedCandidateCount ?? 0}</span>
                 </div>
                 <div className="form-grid test-design-cross-wp-requeue-grid">
                   <label className="field">
-                    <span className="field-label">项目 ID</span>
+                    <span className="field-label">{translate('auto.k1389')}</span>
                     <input
                       value={props.queuedEventReplayDraft.projectId}
                       onChange={(event) => props.onQueuedEventReplayDraftChange((current) => ({ ...current, projectId: event.target.value }))}
@@ -404,12 +402,12 @@ export function CrossWpOperationsPanel(props: {
                     <input
                       value={props.queuedEventReplayDraft.promptKey}
                       onChange={(event) => props.onQueuedEventReplayDraftChange((current) => ({ ...current, promptKey: event.target.value }))}
-                      placeholder="可为空"
+                      placeholder={translate('auto.k1453')}
                       disabled={!props.canPolicyManage}
                     />
                   </label>
                   <label className="field">
-                    <span className="field-label">类型</span>
+                    <span className="field-label">{translate('auto.k0286')}</span>
                     <select
                       value={props.queuedEventReplayDraft.replayType}
                       onChange={(event) => props.onQueuedEventReplayDraftChange((current) => ({ ...current, replayType: event.target.value }))}
@@ -421,7 +419,7 @@ export function CrossWpOperationsPanel(props: {
                     </select>
                   </label>
                   <label className="field">
-                    <span className="field-label">上限</span>
+                    <span className="field-label">{translate('auto.k1450')}</span>
                     <input
                       type="number"
                       min={1}
@@ -433,7 +431,7 @@ export function CrossWpOperationsPanel(props: {
                   </label>
                 </div>
                 <label className="field">
-                  <span className="field-label">原因</span>
+                  <span className="field-label">{translate('auto.k0878')}</span>
                   <textarea
                     value={props.queuedEventReplayDraft.reason}
                     onChange={(event) => props.onQueuedEventReplayDraftChange((current) => ({ ...current, reason: event.target.value }))}
@@ -444,8 +442,7 @@ export function CrossWpOperationsPanel(props: {
                 <div className="toolbar-actions test-design-cross-wp-actions">
                   <button className="btn btn-primary btn-sm" type="submit" disabled={!canReplayQueuedEvents}>
                     <Send size={15} />
-                    重放队列
-                  </button>
+                    {translate('auto.k1460')}</button>
                   {props.queuedEventReplayResult && (
                     <span className="test-design-cross-wp-result">
                       {props.queuedEventReplayResult.replayType} · {props.queuedEventReplayResult.generationTaskEvents}/{props.queuedEventReplayResult.publishCandidateEvents}
@@ -458,7 +455,7 @@ export function CrossWpOperationsPanel(props: {
             <div className="test-design-cross-wp-grid">
               <form className="test-design-cross-wp-group" onSubmit={props.onPublishCompensationRunSubmit}>
                 <div className="test-design-evaluation-list-heading">
-                  <strong>补偿运行手册</strong>
+                  <strong>{translate('auto.k1461')}</strong>
                   <span>{runbook?.effectiveBatchSize ?? 0} · {runbook?.eligibleCandidateCount ?? 0}</span>
                 </div>
                 <div className="test-design-cross-wp-readiness">
@@ -470,7 +467,7 @@ export function CrossWpOperationsPanel(props: {
                 </div>
                 <div className="form-grid test-design-cross-wp-requeue-grid">
                   <label className="field">
-                    <span className="field-label">项目 ID</span>
+                    <span className="field-label">{translate('auto.k1389')}</span>
                     <input
                       value={props.publishCompensationRunDraft.projectId}
                       onChange={(event) => props.onPublishCompensationRunDraftChange((current) => ({ ...current, projectId: event.target.value }))}
@@ -483,12 +480,12 @@ export function CrossWpOperationsPanel(props: {
                     <input
                       value={props.publishCompensationRunDraft.promptKey}
                       onChange={(event) => props.onPublishCompensationRunDraftChange((current) => ({ ...current, promptKey: event.target.value }))}
-                      placeholder="可为空"
+                      placeholder={translate('auto.k1453')}
                       disabled={!props.canPolicyManage}
                     />
                   </label>
                   <label className="field">
-                    <span className="field-label">上限</span>
+                    <span className="field-label">{translate('auto.k1450')}</span>
                     <input
                       type="number"
                       min={1}
@@ -500,7 +497,7 @@ export function CrossWpOperationsPanel(props: {
                   </label>
                 </div>
                 <label className="field">
-                  <span className="field-label">原因</span>
+                  <span className="field-label">{translate('auto.k0878')}</span>
                   <textarea
                     value={props.publishCompensationRunDraft.reason}
                     onChange={(event) => props.onPublishCompensationRunDraftChange((current) => ({ ...current, reason: event.target.value }))}
@@ -511,8 +508,7 @@ export function CrossWpOperationsPanel(props: {
                 <div className="toolbar-actions test-design-cross-wp-actions">
                   <button className="btn btn-primary btn-sm" type="submit" disabled={!canRunCompensation}>
                     <Sparkles size={15} />
-                    运行补偿
-                  </button>
+                    {translate('auto.k1462')}</button>
                   {props.publishCompensationRunResult && (
                     <span className="test-design-cross-wp-result">
                       {props.publishCompensationRunResult.scannedCandidates} · {props.publishCompensationRunResult.succeededCandidates}
@@ -523,24 +519,24 @@ export function CrossWpOperationsPanel(props: {
 
               <div className="test-design-cross-wp-group">
                 <div className="test-design-evaluation-list-heading">
-                  <strong>运营审计报表</strong>
+                  <strong>{translate('auto.k1463')}</strong>
                   <span>{auditReport?.totalOperationCount ?? 0}</span>
                 </div>
                 <div className="test-design-quality-metrics">
                   <div className="test-design-quality-metric tone-info">
-                    <span>成功</span>
+                    <span>{translate('auto.k0368')}</span>
                     <strong>{auditReport?.successCount ?? 0}</strong>
-                    <small>失败 {auditReport?.failedCount ?? 0} · 拒绝 {auditReport?.deniedCount ?? 0}</small>
+                    <small>{translate('auto.k0369')}{auditReport?.failedCount ?? 0} {translate('auto.k1432')}{auditReport?.deniedCount ?? 0}</small>
                   </div>
                   <div className="test-design-quality-metric tone-info">
-                    <span>订阅变更</span>
+                    <span>{translate('auto.k1464')}</span>
                     <strong>{auditReport?.queueAlertSubscriptionMutationCount ?? 0}</strong>
                     <small>queued replay {auditReport?.queuedEventReplayCount ?? 0}</small>
                   </div>
                   <div className="test-design-quality-metric tone-info">
-                    <span>补偿运行</span>
+                    <span>{translate('auto.k1465')}</span>
                     <strong>{auditReport?.publishCompensationRunCount ?? 0}</strong>
-                    <small>outbox 重排 {auditReport?.auditOutboxRequeueCount ?? 0}</small>
+                    <small>{translate('auto.k1466')}{auditReport?.auditOutboxRequeueCount ?? 0}</small>
                   </div>
                 </div>
                 <div className="test-design-cross-wp-readiness">
@@ -552,9 +548,9 @@ export function CrossWpOperationsPanel(props: {
                   </span>
                 </div>
                 <div className="test-design-cross-wp-row">
-                  <span>最近操作</span>
+                  <span>{translate('auto.k1467')}</span>
                   <strong>{auditReport?.latestOperationAt ?? '-'}</strong>
-                  <small>trace/actor/detail 保持聚合</small>
+                  <small>{translate('auto.k1468')}</small>
                 </div>
               </div>
             </div>
@@ -562,7 +558,7 @@ export function CrossWpOperationsPanel(props: {
             <div className="test-design-cross-wp-grid">
               <div className="test-design-cross-wp-group">
                 <div className="test-design-evaluation-list-heading">
-                  <strong>审计报表模板</strong>
+                  <strong>{translate('auto.k1469')}</strong>
                   <span>{auditTemplate?.templateVersion ?? '-'}</span>
                 </div>
                 <div className="test-design-cross-wp-readiness">
@@ -586,30 +582,30 @@ export function CrossWpOperationsPanel(props: {
                       <span className="badge badge-info">{section.fields.length} fields</span>
                     </div>
                   ))}
-                  {!auditTemplate?.sections.length && <div className="notice info">暂无模板字段</div>}
+                  {!auditTemplate?.sections.length && <div className="notice info">{translate('auto.k1470')}</div>}
                 </div>
               </div>
 
               <div className="test-design-cross-wp-group">
                 <div className="test-design-evaluation-list-heading">
-                  <strong>模型观测聚合钻取</strong>
+                  <strong>{translate('auto.k1471')}</strong>
                   <span>{modelDrilldown?.totalInvocationCount ?? 0}</span>
                 </div>
                 <div className="test-design-quality-metrics">
                   <div className="test-design-quality-metric tone-info">
                     <span>token</span>
                     <strong>{(modelDrilldown?.inputTokenTotal ?? 0) + (modelDrilldown?.outputTokenTotal ?? 0)}</strong>
-                    <small>输入 {modelDrilldown?.inputTokenTotal ?? 0} · 输出 {modelDrilldown?.outputTokenTotal ?? 0}</small>
+                    <small>{translate('auto.k1472')}{modelDrilldown?.inputTokenTotal ?? 0} {translate('auto.k1473')}{modelDrilldown?.outputTokenTotal ?? 0}</small>
                   </div>
                   <div className="test-design-quality-metric tone-info">
-                    <span>耗时/成本</span>
+                    <span>{translate('auto.k1474')}</span>
                     <strong>{modelDrilldown?.averageLatencyMs ?? 0}ms</strong>
                     <small>cost {modelDrilldown?.totalCostText ?? '0'}</small>
                   </div>
                   <div className={`test-design-quality-metric tone-${(modelDrilldown?.failedCount ?? 0) + (modelDrilldown?.blockedCount ?? 0) > 0 ? 'warning' : 'success'}`}>
-                    <span>失败/阻断</span>
+                    <span>{translate('auto.k1475')}</span>
                     <strong>{(modelDrilldown?.failedCount ?? 0) + (modelDrilldown?.blockedCount ?? 0)}</strong>
-                    <small>trace 信号 {modelDrilldown?.traceSignalCount ?? 0} · job {modelDrilldown?.jobSignalCount ?? 0}</small>
+                    <small>{translate('auto.k1476')}{modelDrilldown?.traceSignalCount ?? 0} · job {modelDrilldown?.jobSignalCount ?? 0}</small>
                   </div>
                 </div>
                 <div className="test-design-cross-wp-list">
@@ -617,20 +613,20 @@ export function CrossWpOperationsPanel(props: {
                     <div className="test-design-cross-wp-row" key={`${bucket.dimension}-${bucket.bucketKey}`}>
                       <span>
                         <strong>{bucket.dimension} · {bucket.bucketLabel}</strong>
-                        <em>成功 {bucket.succeededCount} · 失败 {bucket.failedCount} · 阻断 {bucket.blockedCount}</em>
+                        <em>{translate('auto.k0368')}{bucket.succeededCount} {translate('auto.k1477')}{bucket.failedCount} {translate('auto.k1478')}{bucket.blockedCount}</em>
                         <small>token {bucket.inputTokenTotal + bucket.outputTokenTotal} · avg {bucket.averageLatencyMs}ms</small>
                       </span>
                       <span className="badge badge-info">{bucket.invocationCount}</span>
                     </div>
                   ))}
-                  {!modelDrilldown?.buckets.length && <div className="notice info">暂无模型观测聚合</div>}
+                  {!modelDrilldown?.buckets.length && <div className="notice info">{translate('auto.k1479')}</div>}
                 </div>
               </div>
             </div>
 
             <div className="test-design-cross-wp-group">
               <div className="test-design-evaluation-list-heading">
-                <strong>跨 WP 明细审计报表</strong>
+                <strong>{translate('auto.k1480')}</strong>
                 <span>{detailAuditReport?.rowCount ?? 0}</span>
               </div>
               <div className="test-design-cross-wp-readiness">
@@ -649,13 +645,13 @@ export function CrossWpOperationsPanel(props: {
                   <div className="test-design-cross-wp-row" key={`${row.section}-${row.category}-${row.status}`}>
                     <span>
                       <strong>{row.section} · {row.category}</strong>
-                      <em>{row.status} · 成功 {row.successCount} · 失败 {row.failedCount} · 告警 {row.warningCount}</em>
+                      <em>{row.status} {translate('auto.k1481')}{row.successCount} {translate('auto.k1477')}{row.failedCount} {translate('auto.k1482')}{row.warningCount}</em>
                       <small>{row.latestEventAt ?? '-'}</small>
                     </span>
                     <span className="badge badge-info">{row.eventCount}</span>
                   </div>
                 ))}
-                {!detailAuditReport?.rows.length && <div className="notice info">暂无跨 WP 明细审计行</div>}
+                {!detailAuditReport?.rows.length && <div className="notice info">{translate('auto.k1483')}</div>}
               </div>
             </div>
 
@@ -663,28 +659,28 @@ export function CrossWpOperationsPanel(props: {
               <div className="test-design-cross-wp-grid">
                 <div className="test-design-cross-wp-group">
                   <div className="test-design-evaluation-list-heading">
-                    <strong>队列聚合</strong>
+                    <strong>{translate('auto.k1484')}</strong>
                     <span>{queueAlerts.generatedAt ?? '-'}</span>
                   </div>
                   <div className="test-design-cross-wp-row">
-                    <span>生成排队</span>
+                    <span>{translate('auto.k1485')}</span>
                     <strong>{queueAlerts.queuedTaskCount}</strong>
-                    <small>最老 {queueAlerts.oldestGenerationQueuedAgeSeconds}s · 阈值 {queueAlerts.generationQueueLagWarningSeconds}s</small>
+                    <small>{translate('auto.k1486')}{queueAlerts.oldestGenerationQueuedAgeSeconds}{translate('auto.k1487')}{queueAlerts.generationQueueLagWarningSeconds}s</small>
                   </div>
                   <div className="test-design-cross-wp-row">
-                    <span>发布排队</span>
+                    <span>{translate('auto.k1488')}</span>
                     <strong>{queueAlerts.publishQueuedCandidateCount}</strong>
-                    <small>最老 {queueAlerts.oldestPublishQueuedAgeSeconds}s · 阈值 {queueAlerts.publishQueueLagWarningSeconds}s</small>
+                    <small>{translate('auto.k1486')}{queueAlerts.oldestPublishQueuedAgeSeconds}{translate('auto.k1487')}{queueAlerts.publishQueueLagWarningSeconds}s</small>
                   </div>
                   <div className="test-design-cross-wp-row">
-                    <span>补偿待处理</span>
+                    <span>{translate('auto.k1489')}</span>
                     <strong>{queueAlerts.compensationEligibleCandidateCount}</strong>
-                    <small>运行超时 {queueAlerts.staleRunningTaskCount} · 发布超时 {queueAlerts.stalePublishingCandidateCount}</small>
+                    <small>{translate('auto.k1490')}{queueAlerts.staleRunningTaskCount} {translate('auto.k1491')}{queueAlerts.stalePublishingCandidateCount}</small>
                   </div>
                 </div>
                 <div className="test-design-cross-wp-group">
                   <div className="test-design-evaluation-list-heading">
-                    <strong>订阅清单</strong>
+                    <strong>{translate('auto.k1492')}</strong>
                     <span>{props.queueAlertSubscriptions.length}</span>
                   </div>
                   <div className="test-design-cross-wp-list">
@@ -694,7 +690,7 @@ export function CrossWpOperationsPanel(props: {
                           <span>
                             <strong>{subscription.alertType}</strong>
                             <em>{subscription.channel} · {subscription.targetRef}</em>
-                            <small>{subscription.promptKey || '项目级'}</small>
+                            <small>{subscription.promptKey || translate('auto.k1493')}</small>
                           </span>
                           <span className={`badge badge-${subscription.enabled ? 'success' : 'neutral'}`}>
                             {subscription.enabled ? 'ENABLED' : 'DISABLED'}
@@ -702,7 +698,7 @@ export function CrossWpOperationsPanel(props: {
                         </div>
                       ))
                     ) : (
-                      <div className="notice info">暂无队列告警订阅</div>
+                      <div className="notice info">{translate('auto.k1494')}</div>
                     )}
                   </div>
                 </div>
@@ -712,19 +708,19 @@ export function CrossWpOperationsPanel(props: {
             {props.publishCompensationRunResult && (
               <div className="test-design-cross-wp-group">
                 <div className="test-design-evaluation-list-heading">
-                  <strong>补偿运行结果</strong>
+                  <strong>{translate('auto.k1495')}</strong>
                   <span>{props.publishCompensationRunResult.runAt ?? '-'}</span>
                 </div>
                 <div className="test-design-cross-wp-row">
-                  <span>扫描/成功</span>
+                  <span>{translate('auto.k1496')}</span>
                   <strong>{props.publishCompensationRunResult.scannedCandidates}</strong>
-                  <small>{props.publishCompensationRunResult.succeededCandidates} 成功 · {props.publishCompensationRunResult.failedCandidates} 失败 · {props.publishCompensationRunResult.skippedCandidates} 跳过</small>
+                  <small>{props.publishCompensationRunResult.succeededCandidates} {translate('auto.k1497')}{props.publishCompensationRunResult.failedCandidates} {translate('auto.k1498')}{props.publishCompensationRunResult.skippedCandidates} {translate('auto.k0789')}</small>
                 </div>
               </div>
             )}
           </>
         ) : (
-          <div className="notice info">暂无跨 WP 运营数据</div>
+          <div className="notice info">{translate('auto.k1499')}</div>
         )}
       </div>
     </section>

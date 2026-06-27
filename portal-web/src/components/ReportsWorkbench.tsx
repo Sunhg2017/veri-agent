@@ -40,6 +40,7 @@ import {
   type ReportSummary
 } from '../api/reports';
 import { canUseButton, hasPermission } from '../permissions';
+import { translate } from '../platform/i18n';
 
 type WorkState = {
   loading: boolean;
@@ -155,7 +156,7 @@ export function ReportsWorkbench(props: { signedIn: boolean; currentUser: Curren
       setSelectedReportIds((current) => current.filter((id) => reportResult.data.items.some((report) => report.id === id)));
       setLoadState({ loading: false, traceId: reportResult.trace_id });
     } catch (error: unknown) {
-      setLoadState({ loading: false, error: error instanceof Error ? error.message : '加载报告失败' });
+      setLoadState({ loading: false, error: error instanceof Error ? error.message : translate('auto.k1091') });
     }
   }, [canRead, filters.executionRunId, filters.projectId, filters.status, props.signedIn]);
 
@@ -177,7 +178,7 @@ export function ReportsWorkbench(props: { signedIn: boolean; currentUser: Curren
       setCompareState({ loading: false });
       setDetailState({ loading: false, traceId: result.trace_id });
     } catch (error: unknown) {
-      setDetailState({ loading: false, error: error instanceof Error ? error.message : '加载报告详情失败' });
+      setDetailState({ loading: false, error: error instanceof Error ? error.message : translate('auto.k1092') });
     }
   }, [canRead]);
 
@@ -190,11 +191,11 @@ export function ReportsWorkbench(props: { signedIn: boolean; currentUser: Curren
   }, [refreshDetail, selectedReportId]);
 
   if (!props.signedIn) {
-    return <div className="notice warning">请先登录后查看报告诊断。</div>;
+    return <div className="notice warning">{translate('auto.k1093')}</div>;
   }
 
   if (!canRead) {
-    return <div className="notice error">当前账号缺少 report:read 权限。</div>;
+    return <div className="notice error">{translate('auto.k1094')}</div>;
   }
 
   async function onGenerateReport(event: FormEvent<HTMLFormElement>) {
@@ -221,12 +222,12 @@ export function ReportsWorkbench(props: { signedIn: boolean; currentUser: Curren
       setReports((current) => [summaryFromDetail(result.data), ...current.filter((report) => report.id !== result.data.id)]);
       setGenerateState({
         loading: false,
-        success: result.data.idempotentReplay ? '已回放既有报告' : '报告快照已生成',
+        success: result.data.idempotentReplay ? translate('auto.k1095') : translate('auto.k1096'),
         traceId: result.trace_id
       });
       setGenerateDraft((current) => ({ ...current, requestKey: '', reason: '' }));
     } catch (error: unknown) {
-      setGenerateState({ loading: false, error: error instanceof Error ? error.message : '生成报告失败' });
+      setGenerateState({ loading: false, error: error instanceof Error ? error.message : translate('auto.k1097') });
     }
   }
 
@@ -236,9 +237,9 @@ export function ReportsWorkbench(props: { signedIn: boolean; currentUser: Curren
     try {
       const result = await retryReport(detail.id);
       applyDetail(result.data);
-      setGenerateState({ loading: false, success: '报告已重试生成', traceId: result.trace_id });
+      setGenerateState({ loading: false, success: translate('auto.k1098'), traceId: result.trace_id });
     } catch (error: unknown) {
-      setGenerateState({ loading: false, error: error instanceof Error ? error.message : '重试失败' });
+      setGenerateState({ loading: false, error: error instanceof Error ? error.message : translate('auto.k0841') });
     }
   }
 
@@ -248,9 +249,9 @@ export function ReportsWorkbench(props: { signedIn: boolean; currentUser: Curren
     try {
       const result = await archiveReport(detail.id);
       applyDetail(result.data);
-      setDetailState({ loading: false, success: '报告已归档', traceId: result.trace_id });
+      setDetailState({ loading: false, success: translate('auto.k1099'), traceId: result.trace_id });
     } catch (error: unknown) {
-      setDetailState({ loading: false, error: error instanceof Error ? error.message : '归档失败' });
+      setDetailState({ loading: false, error: error instanceof Error ? error.message : translate('auto.k1100') });
     }
   }
 
@@ -272,9 +273,9 @@ export function ReportsWorkbench(props: { signedIn: boolean; currentUser: Curren
           }
         }
         : report));
-      setDiagnosisState({ loading: false, success: '失败诊断已更新', traceId: result.trace_id });
+      setDiagnosisState({ loading: false, success: translate('auto.k1101'), traceId: result.trace_id });
     } catch (error: unknown) {
-      setDiagnosisState({ loading: false, error: error instanceof Error ? error.message : '诊断失败' });
+      setDiagnosisState({ loading: false, error: error instanceof Error ? error.message : translate('auto.k1102') });
     }
   }
 
@@ -295,9 +296,9 @@ export function ReportsWorkbench(props: { signedIn: boolean; currentUser: Curren
       setReports((current) => current.map((report) => report.id === detail.id
         ? { ...report, summary: { ...report.summary, defectDraftCount: numberFrom(report.summary.defectDraftCount) + 1 } }
         : report));
-      setDefectState({ loading: false, success: '缺陷草稿已生成', traceId: result.trace_id });
+      setDefectState({ loading: false, success: translate('auto.k1103'), traceId: result.trace_id });
     } catch (error: unknown) {
-      setDefectState({ loading: false, error: error instanceof Error ? error.message : '生成草稿失败' });
+      setDefectState({ loading: false, error: error instanceof Error ? error.message : translate('auto.k1104') });
     }
   }
 
@@ -311,9 +312,9 @@ export function ReportsWorkbench(props: { signedIn: boolean; currentUser: Curren
         defectDrafts: current.defectDrafts.map((item) => item.id === result.data.id ? result.data : item)
       } : current);
       setCompareResult(null);
-      setDefectState({ loading: false, success: `草稿状态已更新为 ${result.data.status}`, traceId: result.trace_id });
+      setDefectState({ loading: false, success: translate('auto.k1105', { value0: result.data.status }), traceId: result.trace_id });
     } catch (error: unknown) {
-      setDefectState({ loading: false, error: error instanceof Error ? error.message : '更新草稿失败' });
+      setDefectState({ loading: false, error: error instanceof Error ? error.message : translate('auto.k1106') });
     }
   }
 
@@ -325,11 +326,11 @@ export function ReportsWorkbench(props: { signedIn: boolean; currentUser: Curren
       setLatestExport(result.data);
       setExportState({
         loading: false,
-        success: result.data.downloadReady ? `${exportType} 报告已生成，可下载文件` : `${exportType} 报告已生成`,
+        success: result.data.downloadReady ? translate('auto.k1107', { value0: exportType }) : translate('auto.k1108', { value0: exportType }),
         traceId: result.trace_id
       });
     } catch (error: unknown) {
-      setExportState({ loading: false, error: error instanceof Error ? error.message : '导出失败' });
+      setExportState({ loading: false, error: error instanceof Error ? error.message : translate('auto.k0062') });
     }
   }
 
@@ -351,11 +352,11 @@ export function ReportsWorkbench(props: { signedIn: boolean; currentUser: Curren
       );
       setExportState({
         loading: false,
-        success: `${selectedReportIds.length} 份 ${exportType} 报告已打包导出`,
+        success: translate('auto.k1109', { value0: selectedReportIds.length, value1: exportType }),
         traceId: response.traceId
       });
     } catch (error: unknown) {
-      setExportState({ loading: false, error: error instanceof Error ? error.message : '批量导出失败' });
+      setExportState({ loading: false, error: error instanceof Error ? error.message : translate('auto.k1110') });
     }
   }
 
@@ -369,16 +370,16 @@ export function ReportsWorkbench(props: { signedIn: boolean; currentUser: Curren
         response.filename || latestExport.downloadFileName || fallbackExportFileName(detail.id, latestExport.exportType),
         response.contentType || latestExport.downloadContentType || 'application/octet-stream'
       );
-      setExportState({ loading: false, success: `${latestExport.exportType} 文件已下载`, traceId: response.traceId });
+      setExportState({ loading: false, success: translate('auto.k1111', { value0: latestExport.exportType }), traceId: response.traceId });
     } catch (error: unknown) {
-      setExportState({ loading: false, error: error instanceof Error ? error.message : '下载导出文件失败' });
+      setExportState({ loading: false, error: error instanceof Error ? error.message : translate('auto.k1112') });
     }
   }
 
   async function onCompareReport() {
     if (!detail) return;
     if (!baselineReportId) {
-      setCompareState({ loading: false, error: '请选择一个 baseline 报告' });
+      setCompareState({ loading: false, error: translate('auto.k1113') });
       return;
     }
     setCompareState({ loading: true });
@@ -387,12 +388,12 @@ export function ReportsWorkbench(props: { signedIn: boolean; currentUser: Curren
       setCompareResult(result.data);
       setCompareState({
         loading: false,
-        success: result.data.unchanged ? '两次报告没有聚合差异' : `发现 ${result.data.changedFields.length} 项聚合差异`,
+        success: result.data.unchanged ? translate('auto.k1114') : translate('auto.k1115', { value0: result.data.changedFields.length }),
         traceId: result.trace_id
       });
     } catch (error: unknown) {
       setCompareResult(null);
-      setCompareState({ loading: false, error: error instanceof Error ? error.message : '加载报告对比失败' });
+      setCompareState({ loading: false, error: error instanceof Error ? error.message : translate('auto.k1116') });
     }
   }
 
@@ -420,21 +421,20 @@ export function ReportsWorkbench(props: { signedIn: boolean; currentUser: Curren
   return (
     <div className="reports-workbench" data-testid="reports-workbench">
       <section className="metrics-grid reports-metrics">
-        <Metric icon={<CheckCircle2 size={20} />} label="READY 报告" value={String(summary.ready)} desc={health?.schemaVersion || '等待加载'} tone="success" />
-        <Metric icon={<RefreshCw size={20} />} label="生成中" value={String(summary.generating)} desc={health?.generateEnabled ? '生成开关 ON' : '生成开关 OFF'} tone="info" />
-        <Metric icon={<AlertTriangle size={20} />} label="失败报告" value={String(summary.failed)} desc={health?.diagnosisEnabled ? '诊断开关 ON' : '诊断开关 OFF'} tone="warning" />
-        <Metric icon={<Bug size={20} />} label="缺陷草稿" value={String(summary.drafts)} desc={health?.defectDraftEnabled ? '草稿开关 ON' : '草稿开关 OFF'} tone="danger" />
+        <Metric icon={<CheckCircle2 size={20} />} label={translate('auto.k1117')} value={String(summary.ready)} desc={health?.schemaVersion || translate('auto.k1118')} tone="success" />
+        <Metric icon={<RefreshCw size={20} />} label={translate('auto.k1119')} value={String(summary.generating)} desc={health?.generateEnabled ? translate('auto.k1120') : translate('auto.k1121')} tone="info" />
+        <Metric icon={<AlertTriangle size={20} />} label={translate('auto.k1122')} value={String(summary.failed)} desc={health?.diagnosisEnabled ? translate('auto.k1123') : translate('auto.k1124')} tone="warning" />
+        <Metric icon={<Bug size={20} />} label={translate('auto.k1125')} value={String(summary.drafts)} desc={health?.defectDraftEnabled ? translate('auto.k1126') : translate('auto.k1127')} tone="danger" />
       </section>
 
       <div className="reports-layout">
         <section className="reports-list-column">
           <Panel
-            title="报告筛选"
-            desc={health ? `${health.service} · ${health.status} · fieldSet ${health.fieldSetVersion}` : '加载报告健康摘要'}
+            title={translate('auto.k1128')}
+            desc={health ? `${health.service} · ${health.status} · fieldSet ${health.fieldSetVersion}` : translate('auto.k1129')}
             action={(
               <button className="btn btn-secondary btn-sm" type="button" onClick={() => void refreshReports()} disabled={loadState.loading}>
-                <RefreshCw size={15} />刷新
-              </button>
+                <RefreshCw size={15} />{translate('auto.k0170')}</button>
             )}
           >
             <form className="report-filter-grid" onSubmit={(event) => { event.preventDefault(); void refreshReports(); }}>
@@ -446,7 +446,7 @@ export function ReportsWorkbench(props: { signedIn: boolean; currentUser: Curren
               </Field>
               <Field label="status">
                 <select value={filters.status} onChange={(event) => setFilters((current) => ({ ...current, status: event.target.value }))}>
-                  <option value="">全部</option>
+                  <option value="">{translate('auto.k0195')}</option>
                   <option value="READY">READY</option>
                   <option value="FAILED">FAILED</option>
                   <option value="QUEUED">QUEUED</option>
@@ -456,14 +456,13 @@ export function ReportsWorkbench(props: { signedIn: boolean; currentUser: Curren
               </Field>
               <div className="report-filter-actions">
                 <button className="btn btn-secondary" type="submit" disabled={loadState.loading}>
-                  <Search size={16} />筛选
-                </button>
+                  <Search size={16} />{translate('auto.k1130')}</button>
               </div>
             </form>
             <StateLine state={loadState} />
           </Panel>
 
-          <Panel title="生成报告" desc="基于 WP9 execution run 创建 aggregate-only 报告快照。" testId="report-generate-panel">
+          <Panel title={translate('auto.k1131')} desc={translate('auto.k1132')} testId="report-generate-panel">
             <form className="report-generate-form" onSubmit={onGenerateReport}>
               <div className="form-grid">
                 <Field label="projectId">
@@ -473,20 +472,18 @@ export function ReportsWorkbench(props: { signedIn: boolean; currentUser: Curren
                   <input value={generateDraft.executionRunId} onChange={(event) => setGenerateDraftValue('executionRunId', event.target.value)} placeholder="UUID" disabled={!canGenerate || generateState.loading} />
                 </Field>
                 <Field label="requestKey">
-                  <input value={generateDraft.requestKey} onChange={(event) => setGenerateDraftValue('requestKey', event.target.value)} placeholder="可选幂等键" disabled={!canGenerate || generateState.loading} />
+                  <input value={generateDraft.requestKey} onChange={(event) => setGenerateDraftValue('requestKey', event.target.value)} placeholder={translate('auto.k1133')} disabled={!canGenerate || generateState.loading} />
                 </Field>
                 <Field label="reason">
-                  <input value={generateDraft.reason} onChange={(event) => setGenerateDraftValue('reason', event.target.value)} placeholder="可选生成原因" disabled={!canGenerate || generateState.loading} />
+                  <input value={generateDraft.reason} onChange={(event) => setGenerateDraftValue('reason', event.target.value)} placeholder={translate('auto.k1134')} disabled={!canGenerate || generateState.loading} />
                 </Field>
               </div>
               <div className="report-actions-row">
                 <button className="btn btn-primary" type="submit" disabled={!canGenerate || generateState.loading}>
-                  <FileText size={16} />生成报告
-                </button>
+                  <FileText size={16} />{translate('auto.k1131')}</button>
                 {detail?.status === 'FAILED' && (
                   <button className="btn btn-secondary" type="button" onClick={() => void onRetryReport()} disabled={!canGenerate || generateState.loading}>
-                    <RefreshCw size={16} />重试生成
-                  </button>
+                    <RefreshCw size={16} />{translate('auto.k1135')}</button>
                 )}
               </div>
               <StateLine state={generateState} />
@@ -494,8 +491,8 @@ export function ReportsWorkbench(props: { signedIn: boolean; currentUser: Curren
           </Panel>
 
           <Panel
-            title="报告列表"
-            desc={`当前页 ${reports.length} 条`}
+            title={translate('auto.k1136')}
+            desc={translate('auto.k1137', { value0: reports.length })}
             testId="reports-list"
             action={reports.length ? (
               <label className="field field-inline report-list-toggle">
@@ -506,28 +503,25 @@ export function ReportsWorkbench(props: { signedIn: boolean; currentUser: Curren
                     onChange={(event) => toggleReadySelection(event.target.checked)}
                     disabled={loadState.loading || readyReportCount === 0}
                   />
-                  <span>全选 READY</span>
+                  <span>{translate('auto.k1138')}</span>
                 </span>
-                <small>批量导出仅建议选择 READY 报告。</small>
+                <small>{translate('auto.k1139')}</small>
               </label>
             ) : undefined}
           >
             {selectedReportIds.length ? (
               <div className="report-selection-toolbar">
                 <div className="report-selection-summary">
-                  <strong>已选 {selectedReportIds.length} 条</strong>
-                  <span>{selectedReadyCount === selectedReportIds.length ? '全部为 READY，可直接批量导出。' : '包含非 READY 报告，批量导出时后端可能返回状态校验失败。'}</span>
+                  <strong>{translate('auto.k0799')}{selectedReportIds.length} {translate('auto.k0181')}</strong>
+                  <span>{selectedReadyCount === selectedReportIds.length ? translate('auto.k1140') : translate('auto.k1141')}</span>
                 </div>
                 <div className="report-actions-row compact">
                   <button className="btn btn-secondary btn-sm" type="button" onClick={() => void onBatchExport('HTML')} disabled={!canExport || exportState.loading}>
-                    <FileCode size={15} />批量 HTML
-                  </button>
+                    <FileCode size={15} />{translate('auto.k1142')}</button>
                   <button className="btn btn-secondary btn-sm" type="button" onClick={() => void onBatchExport('EXCEL')} disabled={!canExport || exportState.loading}>
-                    <FileSpreadsheet size={15} />批量 Excel
-                  </button>
+                    <FileSpreadsheet size={15} />{translate('auto.k1143')}</button>
                   <button className="btn btn-secondary btn-sm" type="button" onClick={() => void setSelectedReportIds([])} disabled={exportState.loading}>
-                    <Archive size={15} />清空选择
-                  </button>
+                    <Archive size={15} />{translate('auto.k1144')}</button>
                 </div>
               </div>
             ) : null}
@@ -540,7 +534,7 @@ export function ReportsWorkbench(props: { signedIn: boolean; currentUser: Curren
                     key={report.id}
                     className={`report-list-item${selectedReportId === report.id ? ' active' : ''}${selectedReportIds.includes(report.id) ? ' selected' : ''}`}
                   >
-                    <label className="report-list-selector" aria-label={`选择报告 ${report.id}`}>
+                    <label className="report-list-selector" aria-label={translate('auto.k1145', { value0: report.id })}>
                       <input
                         type="checkbox"
                         checked={selectedReportIds.includes(report.id)}
@@ -563,8 +557,8 @@ export function ReportsWorkbench(props: { signedIn: boolean; currentUser: Curren
               ) : (
                 <div className="empty-state">
                   <FileText className="empty-state-icon" size={30} />
-                  <strong>暂无报告</strong>
-                  <span>输入 executionRunId 后生成第一份 WP10 报告快照。</span>
+                  <strong>{translate('auto.k1146')}</strong>
+                  <span>{translate('auto.k1147')}</span>
                 </div>
               )}
             </div>
@@ -573,11 +567,11 @@ export function ReportsWorkbench(props: { signedIn: boolean; currentUser: Curren
 
         <section className="reports-detail-column">
           {!detail ? (
-            <Panel title="报告详情" desc="请选择或生成报告。" testId="report-detail">
+            <Panel title={translate('auto.k1148')} desc={translate('auto.k1149')} testId="report-detail">
               <div className="empty-state">
                 <FileText className="empty-state-icon" size={30} />
-                <strong>{detailState.loading ? '加载详情中' : '未选择报告'}</strong>
-                <span>列表中选择报告后会展示 run summary、证据 manifest、诊断、草稿和导出。</span>
+                <strong>{detailState.loading ? translate('auto.k1150') : translate('auto.k1151')}</strong>
+                <span>{translate('auto.k1152')}</span>
               </div>
             </Panel>
           ) : (
@@ -645,14 +639,13 @@ function ReportDetailPanel(props: {
   const summary = props.detail.summary;
   return (
     <Panel
-      title="报告详情"
+      title={translate('auto.k1148')}
       desc={`${props.detail.schemaVersion} · ${props.detail.projectId}`}
       testId="report-detail"
       action={props.detail.status !== 'ARCHIVED' ? (
         <button className="btn btn-secondary btn-sm" type="button" onClick={props.onArchive} disabled={!props.canManage || props.state.loading}>
-          <Archive size={15} />归档
-        </button>
-      ) : <span className="badge badge-neutral">只读</span>}
+          <Archive size={15} />{translate('auto.k0871')}</button>
+      ) : <span className="badge badge-neutral">{translate('auto.k1153')}</span>}
     >
       <div className="report-detail-header">
         <span className={`badge badge-${statusTone(props.detail.status)}`}>{props.detail.status}</span>
@@ -665,8 +658,8 @@ function ReportDetailPanel(props: {
         <SummaryTile label="evidence" value={stringFrom(summary.evidenceManifestCount, String(props.detail.evidenceManifests.length))} />
       </div>
       <div className="report-section-grid">
-        <InfoBlock title="节点状态" value={formatRecord(summary.nodeStatusCounts)} />
-        <InfoBlock title="失败桶" value={formatRecord(summary.failureBucketCounts)} />
+        <InfoBlock title={translate('auto.k1154')} value={formatRecord(summary.nodeStatusCounts)} />
+        <InfoBlock title={translate('auto.k1155')} value={formatRecord(summary.failureBucketCounts)} />
         <InfoBlock title="sourceRunDigest" value={props.detail.sourceRunDigest || '-'} />
         <InfoBlock title="traceId" value={props.detail.traceId || props.state.traceId || '-'} />
       </div>
@@ -689,13 +682,12 @@ function DiagnosisPanel(props: {
   const disabled = !props.canDiagnose || props.state.loading || props.detail.status !== 'READY';
   return (
     <Panel
-      title="失败诊断"
-      desc="AI 结果只作为建议，最终判断需要人工确认。"
+      title={translate('auto.k1156')}
+      desc={translate('auto.k1157')}
       testId="report-diagnosis"
       action={(
         <button className="btn btn-primary btn-sm" type="button" onClick={props.onDiagnose} disabled={disabled}>
-          <Sparkles size={15} />触发诊断
-        </button>
+          <Sparkles size={15} />{translate('auto.k1158')}</button>
       )}
     >
       {props.diagnosis ? (
@@ -706,16 +698,16 @@ function DiagnosisPanel(props: {
           <SummaryTile label="manualReview" value={props.diagnosis.manualReviewRequired ? 'required' : 'optional'} tone="warning" />
         </div>
       ) : (
-        <div className="notice info">尚无诊断快照，READY 报告可触发诊断。</div>
+        <div className="notice info">{translate('auto.k1159')}</div>
       )}
       {props.diagnosis?.errorCode && (
-        <div className="notice warning">诊断降级：{props.diagnosis.errorCode}</div>
+        <div className="notice warning">{translate('auto.k1160')}{props.diagnosis.errorCode}</div>
       )}
       {candidates.length > 0 && (
         <div className="report-card-list">
           {candidates.slice(0, 4).map((candidate, index) => (
             <div className="report-mini-card" key={index}>
-              <strong>{stringFrom(recordValue(candidate, 'category'), `候选 ${index + 1}`)}</strong>
+              <strong>{stringFrom(recordValue(candidate, 'category'), translate('auto.k1161', { value0: index + 1 }))}</strong>
               <span>{stringFrom(recordValue(candidate, 'summary'), '-')}</span>
               <small>{formatRecord(recordValue(candidate, 'nextActions'))}</small>
             </div>
@@ -739,8 +731,8 @@ function ComparePanel(props: {
 }) {
   return (
     <Panel
-      title="报告对比"
-      desc="选择同项目历史快照，对比两次运行的聚合差异。"
+      title={translate('auto.k1162')}
+      desc={translate('auto.k1163')}
       testId="report-compare-panel"
       action={(
         <div className="report-actions-row compact">
@@ -750,8 +742,7 @@ function ComparePanel(props: {
             onClick={props.onCompare}
             disabled={props.state.loading || !props.baselineReportId}
           >
-            <RefreshCw size={15} />开始对比
-          </button>
+            <RefreshCw size={15} />{translate('auto.k1164')}</button>
         </div>
       )}
     >
@@ -761,7 +752,7 @@ function ComparePanel(props: {
             value={props.baselineReportId}
             onChange={(event) => props.onBaselineChange(event.target.value)}
           >
-            <option value="">请选择历史报告</option>
+            <option value="">{translate('auto.k1165')}</option>
             {props.reports.map((report) => (
               <option key={report.id} value={report.id}>
                 {report.status} · {shortId(report.executionRunId)} · {report.generatedAt ? formatDateTime(report.generatedAt) : shortId(report.id)}
@@ -771,7 +762,7 @@ function ComparePanel(props: {
         </Field>
       </div>
       {props.reports.length === 0 && (
-        <div className="notice info">当前项目还没有其他可作为 baseline 的报告。</div>
+        <div className="notice info">{translate('auto.k1166')}</div>
       )}
       {props.compareResult ? (
         <>
@@ -782,12 +773,12 @@ function ComparePanel(props: {
             <SummaryTile label="current" value={shortId(props.compareResult.reportId)} />
           </div>
           {props.compareResult.unchanged ? (
-            <div className="notice success">当前报告与所选 baseline 在聚合摘要上没有差异。</div>
+            <div className="notice success">{translate('auto.k1167')}</div>
           ) : (
             <>
-              <CompareDiffList title="元数据差异" diffs={props.compareResult.metadataDiffs} />
-              <CompareDiffList title="摘要差异" diffs={props.compareResult.summaryDiffs} />
-              <CompareDiffList title="诊断差异" diffs={props.compareResult.diagnosisDiffs} />
+              <CompareDiffList title={translate('auto.k1168')} diffs={props.compareResult.metadataDiffs} />
+              <CompareDiffList title={translate('auto.k1169')} diffs={props.compareResult.summaryDiffs} />
+              <CompareDiffList title={translate('auto.k1170')} diffs={props.compareResult.diagnosisDiffs} />
               <div className="report-section-grid">
                 <InfoBlock
                   title="evidence count"
@@ -828,7 +819,7 @@ function ComparePanel(props: {
           )}
         </>
       ) : (
-        <div className="notice info">选择 baseline 后可查看 run summary、诊断、evidence 与草稿的聚合差异。</div>
+        <div className="notice info">{translate('auto.k1171')}</div>
       )}
       <StateLine state={props.state} />
     </Panel>
@@ -845,13 +836,12 @@ function DefectDraftPanel(props: {
 }) {
   return (
     <Panel
-      title="缺陷草稿"
-      desc="平台内草稿，不会自动写入外部缺陷系统。"
+      title={translate('auto.k1125')}
+      desc={translate('auto.k1172')}
       testId="report-defect-drafts"
       action={(
         <button className="btn btn-primary btn-sm" type="button" onClick={props.onCreateDraft} disabled={!props.canGenerate || props.state.loading || props.detail.status !== 'READY'}>
-          <Bug size={15} />生成缺陷草稿
-        </button>
+          <Bug size={15} />{translate('auto.k1173')}</button>
       )}
     >
       {props.detail.defectDrafts.length ? (
@@ -859,7 +849,7 @@ function DefectDraftPanel(props: {
           {props.detail.defectDrafts.map((draft) => (
             <div className="report-mini-card" key={draft.id}>
               <div className="report-card-heading">
-                <strong>{draft.title || '未命名草稿'}</strong>
+                <strong>{draft.title || translate('auto.k1174')}</strong>
                 <span className={`badge badge-${statusTone(draft.status)}`}>{draft.status}</span>
               </div>
               <span>{draft.reproductionSummary || '-'}</span>
@@ -871,17 +861,15 @@ function DefectDraftPanel(props: {
               </div>
               <div className="report-actions-row">
                 <button className="btn btn-secondary btn-sm" type="button" disabled={!props.canManage || props.state.loading || draft.status === 'REVIEWED'} onClick={() => props.onReviewDraft(draft, 'REVIEWED')}>
-                  <CheckCircle2 size={15} />审阅草稿
-                </button>
+                  <CheckCircle2 size={15} />{translate('auto.k1175')}</button>
                 <button className="btn btn-secondary btn-sm" type="button" disabled={!props.canManage || props.state.loading || draft.status === 'DISMISSED'} onClick={() => props.onReviewDraft(draft, 'DISMISSED')}>
-                  <Archive size={15} />驳回草稿
-                </button>
+                  <Archive size={15} />{translate('auto.k1176')}</button>
               </div>
             </div>
           ))}
         </div>
       ) : (
-        <div className="notice info">暂无缺陷草稿。生成后可标记 REVIEWED 或 DISMISSED。</div>
+        <div className="notice info">{translate('auto.k1177')}</div>
       )}
       <StateLine state={props.state} />
     </Panel>
@@ -920,33 +908,26 @@ function ExportPanel(props: {
   const domClean = props.latestExport ? domSensitiveScan(props.latestExport) : true;
   return (
     <Panel
-      title="导出报告"
-      desc="导出 aggregate-only 脱敏报告，支持 JSON、Markdown、HTML、PDF、Word 和 Excel。"
+      title={translate('auto.k1178')}
+      desc={translate('auto.k1179')}
       testId="report-export-panel"
       action={(
         <div className="report-actions-row compact">
           <button className="btn btn-secondary btn-sm" type="button" onClick={() => props.onExport('JSON')} disabled={!props.canExport || props.state.loading || props.detail.status !== 'READY'}>
-            <FileJson size={15} />导出 JSON
-          </button>
+            <FileJson size={15} />{translate('auto.k1180')}</button>
           <button className="btn btn-secondary btn-sm" type="button" onClick={() => props.onExport('MARKDOWN')} disabled={!props.canExport || props.state.loading || props.detail.status !== 'READY'}>
-            <FileText size={15} />导出 Markdown
-          </button>
+            <FileText size={15} />{translate('auto.k1181')}</button>
           <button className="btn btn-secondary btn-sm" type="button" onClick={() => props.onExport('HTML')} disabled={!props.canExport || props.state.loading || props.detail.status !== 'READY'}>
-            <FileCode size={15} />导出 HTML
-          </button>
+            <FileCode size={15} />{translate('auto.k1182')}</button>
           <button className="btn btn-secondary btn-sm" type="button" onClick={() => props.onExport('PDF')} disabled={!props.canExport || props.state.loading || props.detail.status !== 'READY'}>
-            <Download size={15} />导出 PDF
-          </button>
+            <Download size={15} />{translate('auto.k1183')}</button>
           <button className="btn btn-secondary btn-sm" type="button" onClick={() => props.onExport('WORD')} disabled={!props.canExport || props.state.loading || props.detail.status !== 'READY'}>
-            <FileText size={15} />导出 Word
-          </button>
+            <FileText size={15} />{translate('auto.k1184')}</button>
           <button className="btn btn-secondary btn-sm" type="button" onClick={() => props.onExport('EXCEL')} disabled={!props.canExport || props.state.loading || props.detail.status !== 'READY'}>
-            <FileSpreadsheet size={15} />导出 Excel
-          </button>
+            <FileSpreadsheet size={15} />{translate('auto.k1185')}</button>
           {props.latestExport?.downloadReady ? (
             <button className="btn btn-secondary btn-sm" type="button" onClick={props.onDownloadExport} disabled={!props.canExport || props.state.loading}>
-              <Package size={15} />下载文件
-            </button>
+              <Package size={15} />{translate('auto.k1186')}</button>
           ) : null}
         </div>
       )}
@@ -963,7 +944,7 @@ function ExportPanel(props: {
           <InfoBlock title="DOM scan" value={domClean ? 'clean' : 'blocked term detected'} />
         </div>
       ) : (
-        <div className="notice info">选择导出格式后展示 manifest、digest 和脱敏策略。</div>
+        <div className="notice info">{translate('auto.k1187')}</div>
       )}
       <PolicySummary policy={props.latestExport?.redactionPolicy ?? { aggregateOnly: true }} />
       <StateLine state={props.state} />
@@ -973,7 +954,7 @@ function ExportPanel(props: {
 
 function EvidenceList(props: { manifests: ReportDetail['evidenceManifests'] }) {
   if (!props.manifests.length) {
-    return <div className="notice info">暂无 evidence manifest。</div>;
+    return <div className="notice info">{translate('auto.k1188')}</div>;
   }
   return (
     <div className="report-card-list">
@@ -996,7 +977,7 @@ function PolicySummary(props: { policy: Record<string, unknown> }) {
   if (!entries.length) return null;
   return (
     <div className="report-policy-list">
-      <div className="report-policy-title"><ShieldCheck size={15} />脱敏策略</div>
+      <div className="report-policy-title"><ShieldCheck size={15} />{translate('auto.k1189')}</div>
       {entries.map(([key, value]) => (
         <span key={key}>{key}={formatRecord(value)}</span>
       ))}
@@ -1063,7 +1044,7 @@ function InfoBlock(props: { title: string; value: string }) {
 
 function StateLine(props: { state: WorkState }) {
   if (props.state.loading) {
-    return <span className="document-state-line">处理中...</span>;
+    return <span className="document-state-line">{translate('auto.k1062')}</span>;
   }
   if (props.state.error) {
     return <span className="document-state-line error">{props.state.error}{props.state.traceId ? ` · ${props.state.traceId}` : ''}</span>;
@@ -1093,13 +1074,13 @@ function ListSkeleton() {
 
 function validateGenerateDraft(draft: GenerateDraft) {
   const issues: string[] = [];
-  if (!draft.projectId.trim()) issues.push('请填写 projectId');
-  if (!uuidPattern.test(draft.executionRunId.trim())) issues.push('executionRunId 需要是 UUID');
+  if (!draft.projectId.trim()) issues.push(translate('auto.k1190'));
+  if (!uuidPattern.test(draft.executionRunId.trim())) issues.push(translate('auto.k1191'));
   if (draft.requestKey.trim() && !requestKeyPattern.test(draft.requestKey.trim())) {
-    issues.push('requestKey 只能包含字母、数字、-、_、.、:，且不超过 128 字符');
+    issues.push(translate('auto.k1192'));
   }
-  if (draft.reason.length > 200) issues.push('reason 最多 200 字符');
-  if (hasSensitiveText(draft.reason)) issues.push('reason 不能包含明显敏感字段');
+  if (draft.reason.length > 200) issues.push(translate('auto.k1193'));
+  if (hasSensitiveText(draft.reason)) issues.push(translate('auto.k1194'));
   return issues;
 }
 

@@ -1,5 +1,6 @@
 import type { TestDesignReviewRecordView } from './api/testDesign';
 import type { TestDesignQualitySummaryTone } from './testDesignQualitySummary';
+import { translate } from './platform/i18n';
 
 export type TestDesignReviewSummaryMetric = {
   label: string;
@@ -79,25 +80,25 @@ export function buildTestDesignReviewSummary(
     reviewerCount,
     metrics: [
       {
-        label: '历史记录',
+        label: translate('auto.k2163'),
         value: pageTotal,
-        desc: total === pageTotal ? `当前页 ${pageTotal}` : `当前页 ${pageTotal} / 全量 ${total}`,
+        desc: total === pageTotal ? translate('auto.k2164', { value0: pageTotal }) : translate('auto.k2165', { value0: pageTotal, value1: total }),
         tone: pageTotal > 0 ? 'info' : 'neutral'
       },
       {
-        label: '状态流转',
+        label: translate('auto.k2166'),
         value: statusChangeCount,
         desc: formatRatio(statusChangeCount, pageTotal),
         tone: statusChangeCount > 0 ? 'success' : 'neutral'
       },
       {
-        label: '字段变更',
+        label: translate('auto.k2167'),
         value: fieldChangeCount,
         desc: formatRatio(fieldChangeCount, pageTotal),
         tone: fieldChangeCount > 0 ? 'warning' : 'neutral'
       },
       {
-        label: '评审说明',
+        label: translate('auto.k2168'),
         value: commentCount,
         desc: formatRatio(commentCount, pageTotal),
         tone: commentCount > 0 ? 'info' : 'neutral'
@@ -105,15 +106,15 @@ export function buildTestDesignReviewSummary(
     ],
     groups: [
       {
-        label: '动作',
+        label: translate('auto.k0363'),
         items: buildDistribution(records, (record) => normalizeLabel(record.action), ACTION_ORDER, pageTotal, actionTone)
       },
       {
-        label: '评审人',
+        label: translate('auto.k2169'),
         items: buildDistribution(records, (record) => normalizeLabel(record.reviewer), [], pageTotal)
       },
       {
-        label: '字段',
+        label: translate('auto.k2020'),
         items: buildFieldDistribution(records, pageTotal)
       }
     ],
@@ -138,7 +139,7 @@ function hasVersionChange(record: TestDesignReviewRecordView) {
 }
 
 function normalizeLabel(value?: string) {
-  return value?.trim() || '未记录';
+  return value?.trim() || translate('auto.k2170');
 }
 
 function normalizeCount(value: number) {
@@ -147,9 +148,9 @@ function normalizeCount(value: number) {
 
 function formatRatio(count: number, total: number) {
   if (!total) {
-    return '当前页 0';
+    return translate('auto.k2152');
   }
-  return `当前页 ${count}/${total}`;
+  return translate('auto.k2153', { value0: count, value1: total });
 }
 
 function countDistinct(
@@ -252,17 +253,17 @@ function buildWarnings(counts: {
 
   const warnings: TestDesignReviewSummaryWarning[] = [
     {
-      label: '无评审说明',
+      label: translate('auto.k2171'),
       count: Math.max(counts.pageTotal - counts.commentCount, 0),
       tone: 'warning'
     },
     {
-      label: '无字段摘要',
+      label: translate('auto.k2172'),
       count: Math.max(counts.pageTotal - counts.fieldChangeCount, 0),
       tone: 'warning'
     },
     {
-      label: '版本流转',
+      label: translate('auto.k2173'),
       count: counts.versionChangeCount,
       tone: 'info'
     }
@@ -301,37 +302,37 @@ function buildFeedbackLoop(
     tone,
     items: [
       {
-        label: '反馈信号',
+        label: translate('auto.k2095'),
         count: promptTuningSignalCount,
         percent: formatPercent(promptTuningSignalCount, pageTotal),
         tone
       },
       {
-        label: '涉及候选',
+        label: translate('auto.k2096'),
         count: sampleCandidateCount,
         percent: formatPercent(sampleCandidateCount, pageTotal),
         tone
       },
       {
-        label: '人工修正',
+        label: translate('auto.k2097'),
         count: correctionRecords.length,
         percent: formatPercent(correctionRecords.length, pageTotal),
         tone: correctionRecords.length > 0 ? 'info' : 'neutral'
       },
       {
-        label: '驳回',
+        label: translate('auto.k0214'),
         count: rejectedRecords.length,
         percent: formatPercent(rejectedRecords.length, pageTotal),
         tone: rejectedRecords.length > 0 ? 'warning' : 'neutral'
       },
       {
-        label: '忽略',
+        label: translate('auto.k0808'),
         count: ignoredRecords.length,
         percent: formatPercent(ignoredRecords.length, pageTotal),
         tone: ignoredRecords.length > 0 ? 'warning' : 'neutral'
       },
       {
-        label: '说明覆盖',
+        label: translate('auto.k2027'),
         count: commentCoverageCount,
         percent: commentCoveragePercent,
         tone: commentCoveragePercent >= 80 || promptTuningSignalCount === 0 ? 'success' : 'warning'
@@ -388,7 +389,7 @@ function buildFeedbackWarnings(
 
   const warnings: TestDesignReviewSummaryWarning[] = [
     {
-      label: '调优样本缺说明',
+      label: translate('auto.k2174'),
       count: Math.max(promptTuningSignalCount - commentCoverageCount, 0),
       tone: 'warning'
     }

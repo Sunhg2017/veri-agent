@@ -2,6 +2,7 @@ import { Bell, CheckCheck, LoaderCircle } from 'lucide-react';
 import dayjs from 'dayjs';
 import { useEffect, useMemo, useRef } from 'react';
 import type { UserNotification } from '../api/notifications';
+import { translate } from '../platform/i18n';
 
 export interface NotificationCenterProps {
   open: boolean;
@@ -55,7 +56,7 @@ export function NotificationCenter(props: NotificationCenterProps) {
         className="btn btn-ghost btn-sm btn-icon notification-trigger"
         type="button"
         onClick={props.onToggle}
-        aria-label="站内通知"
+        aria-label={translate('auto.k1081')}
         aria-expanded={props.open}
       >
         <Bell size={16} />
@@ -66,8 +67,8 @@ export function NotificationCenter(props: NotificationCenterProps) {
         <div className="notification-panel">
           <div className="notification-panel-header">
             <div>
-              <strong>站内通知</strong>
-              <span>{props.unreadCount > 0 ? `未读 ${props.unreadCount}` : '已全部读完'}</span>
+              <strong>{translate('auto.k1081')}</strong>
+              <span>{props.unreadCount > 0 ? translate('auto.k1082', { value0: props.unreadCount }) : translate('auto.k1083')}</span>
             </div>
             <button
               className="btn btn-ghost btn-xs"
@@ -76,18 +77,17 @@ export function NotificationCenter(props: NotificationCenterProps) {
               disabled={props.loading || props.unreadCount === 0}
             >
               <CheckCheck size={14} />
-              全部已读
-            </button>
+              {translate('auto.k1084')}</button>
           </div>
 
           {props.loading ? (
             <div className="notification-empty">
               <LoaderCircle size={16} className="spin" />
-              <span>通知加载中...</span>
+              <span>{translate('auto.k1085')}</span>
             </div>
           ) : props.items.length === 0 ? (
             <div className="notification-empty">
-              <span>暂无站内通知</span>
+              <span>{translate('auto.k1086')}</span>
             </div>
           ) : (
             <div className="notification-list">
@@ -103,13 +103,12 @@ export function NotificationCenter(props: NotificationCenterProps) {
                   <p>{item.body}</p>
                   <div className="notification-item-foot">
                     <span className={`status-badge ${item.unread ? 'danger' : 'neutral'}`}>
-                      {item.unread ? '未读' : '已读'}
+                      {item.unread ? translate('auto.k1087') : translate('auto.k1088')}
                     </span>
                     <div className="notification-item-actions">
                       {item.link ? (
                         <a className="btn btn-ghost btn-xs" href={item.link}>
-                          查看
-                        </a>
+                          {translate('auto.k1089')}</a>
                       ) : null}
                       {item.unread ? (
                         <button
@@ -117,8 +116,7 @@ export function NotificationCenter(props: NotificationCenterProps) {
                           type="button"
                           onClick={() => props.onMarkRead(item.id)}
                         >
-                          标记已读
-                        </button>
+                          {translate('auto.k1090')}</button>
                       ) : null}
                     </div>
                   </div>

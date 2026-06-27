@@ -5,6 +5,7 @@ import {
   readinessTone,
   type TestDesignQualitySummaryTone
 } from './testDesignQualitySummary';
+import { translate } from './platform/i18n';
 
 export type TestDesignPromptTrendMetric = {
   label: string;
@@ -44,8 +45,8 @@ export function buildTestDesignPromptTrendSummary(
   const latestBucket = buckets.find((bucket) => bucket.latestTaskCreatedAt) ?? buckets[0];
   const feedbackBucketCount = buckets.filter((bucket) => bucket.correctionCount + bucket.rejectedCount + bucket.ignoredCount > 0).length;
   const readinessDistribution = promptReadinessDistribution(trend, buckets);
-  const blockedVersionCount = readinessDistribution.find((item) => item.label === '准出阻断')?.count ?? 0;
-  const warningVersionCount = readinessDistribution.find((item) => item.label === '准出风险')?.count ?? 0;
+  const blockedVersionCount = readinessDistribution.find((item) => item.label === translate('auto.k2112'))?.count ?? 0;
+  const warningVersionCount = readinessDistribution.find((item) => item.label === translate('auto.k2113'))?.count ?? 0;
   return {
     scopeLabel: scopeLabel(trend),
     totalTasks,
@@ -53,33 +54,33 @@ export function buildTestDesignPromptTrendSummary(
     latestVersion: latestBucket?.promptVersion,
     metrics: [
       {
-        label: '版本数',
+        label: translate('auto.k2114'),
         value: buckets.length,
-        desc: totalTasks ? `${totalTasks} 个任务` : '暂无任务',
+        desc: totalTasks ? translate('auto.k2115', { value0: totalTasks }) : translate('auto.k2116'),
         tone: buckets.length > 0 ? 'info' : 'neutral'
       },
       {
-        label: '候选数',
+        label: translate('auto.k2046'),
         value: totalCandidates,
-        desc: totalCandidates ? `${totalCandidates} 个候选` : '暂无候选',
+        desc: totalCandidates ? translate('auto.k2117', { value0: totalCandidates }) : translate('auto.k2118'),
         tone: totalCandidates > 0 ? 'success' : 'neutral'
       },
       {
-        label: '有反馈版本',
+        label: translate('auto.k2119'),
         value: feedbackBucketCount,
-        desc: buckets.length ? `${feedbackBucketCount}/${buckets.length}` : '暂无版本',
+        desc: buckets.length ? `${feedbackBucketCount}/${buckets.length}` : translate('auto.k2120'),
         tone: feedbackBucketCount > 0 ? 'info' : 'neutral'
       },
       {
-        label: '阻断版本',
+        label: translate('auto.k2121'),
         value: blockedVersionCount,
-        desc: buckets.length ? `${blockedVersionCount}/${buckets.length}` : '暂无版本',
+        desc: buckets.length ? `${blockedVersionCount}/${buckets.length}` : translate('auto.k2120'),
         tone: blockedVersionCount > 0 ? 'danger' : 'success'
       },
       {
-        label: '风险版本',
+        label: translate('auto.k2122'),
         value: warningVersionCount,
-        desc: buckets.length ? `${warningVersionCount}/${buckets.length}` : '暂无版本',
+        desc: buckets.length ? `${warningVersionCount}/${buckets.length}` : translate('auto.k2120'),
         tone: warningVersionCount > 0 ? 'warning' : 'success'
       }
     ],
@@ -104,13 +105,13 @@ function toBucket(bucket: TestDesignPromptTrendBucketView): TestDesignPromptTren
       : riskCount > 0
         ? 'warning'
         : bucket.stepCompletePercent >= 100 && bucket.expectedCompletePercent >= 100 ? 'success' : 'info',
-    qualityText: `步骤 ${formatPercent(bucket.stepCompletePercent)} · 预期 ${formatPercent(bucket.expectedCompletePercent)}`,
-    feedbackText: `反馈 ${formatPercent(bucket.feedbackSignalPercent)} · 修正 ${bucket.correctionCount} · 驳回 ${bucket.rejectedCount} · 忽略 ${bucket.ignoredCount}`,
-    riskText: `低置信 ${formatPercent(bucket.lowConfidencePercent)} · 错误 ${formatPercent(bucket.errorPercent)} · 重复 ${bucket.duplicateKeyCollisionCount}`,
+    qualityText: translate('auto.k2123', { value0: formatPercent(bucket.stepCompletePercent), value1: formatPercent(bucket.expectedCompletePercent) }),
+    feedbackText: translate('auto.k2124', { value0: formatPercent(bucket.feedbackSignalPercent), value1: bucket.correctionCount, value2: bucket.rejectedCount, value3: bucket.ignoredCount }),
+    riskText: translate('auto.k2125', { value0: formatPercent(bucket.lowConfidencePercent), value1: formatPercent(bucket.errorPercent), value2: bucket.duplicateKeyCollisionCount }),
     readinessLabel: readinessStatusLabel(bucket.readiness?.status ?? ''),
     readinessText: bucket.readiness
-      ? `阻断 ${bucket.readiness.blockingCount} · 风险 ${bucket.readiness.warningCount}`
-      : '准出未计算',
+      ? translate('auto.k2126', { value0: bucket.readiness.blockingCount, value1: bucket.readiness.warningCount })
+      : translate('auto.k2127'),
     readinessTone: bucketReadinessTone
   };
 }
@@ -123,19 +124,19 @@ function buildWarnings(buckets: TestDesignPromptTrendBucket[]) {
   const duplicateBuckets = buckets.filter((bucket) => bucket.duplicateKeyCollisionCount > 0).length;
   const lowStepBuckets = buckets.filter((bucket) => bucket.candidateCount > 0 && bucket.stepCompletePercent < 100).length;
   if (blockedBuckets > 0) {
-    warnings.push({ label: '准出阻断版本', count: blockedBuckets, tone: 'danger' });
+    warnings.push({ label: translate('auto.k2128'), count: blockedBuckets, tone: 'danger' });
   }
   if (warningBuckets > 0) {
-    warnings.push({ label: '准出风险版本', count: warningBuckets, tone: 'warning' });
+    warnings.push({ label: translate('auto.k2129'), count: warningBuckets, tone: 'warning' });
   }
   if (errorBuckets > 0) {
-    warnings.push({ label: '错误版本', count: errorBuckets, tone: 'danger' });
+    warnings.push({ label: translate('auto.k2130'), count: errorBuckets, tone: 'danger' });
   }
   if (duplicateBuckets > 0) {
-    warnings.push({ label: '重复冲突版本', count: duplicateBuckets, tone: 'danger' });
+    warnings.push({ label: translate('auto.k2131'), count: duplicateBuckets, tone: 'danger' });
   }
   if (lowStepBuckets > 0) {
-    warnings.push({ label: '步骤未满版本', count: lowStepBuckets, tone: 'warning' });
+    warnings.push({ label: translate('auto.k2132'), count: lowStepBuckets, tone: 'warning' });
   }
   return warnings;
 }
@@ -173,13 +174,13 @@ function fallbackReadinessDistribution(
 }
 
 function readinessOrder(label: string) {
-  if (label === '准出阻断') {
+  if (label === translate('auto.k2112')) {
     return 0;
   }
-  if (label === '准出风险') {
+  if (label === translate('auto.k2113')) {
     return 1;
   }
-  if (label === '准出通过') {
+  if (label === translate('auto.k2133')) {
     return 2;
   }
   return 3;
@@ -187,16 +188,16 @@ function readinessOrder(label: string) {
 
 function scopeLabel(trend: TestDesignPromptTrendView | null | undefined) {
   if (!trend) {
-    return 'Prompt 版本趋势未加载';
+    return translate('auto.k2134');
   }
   const parts: string[] = [];
   if (trend.projectId) {
-    parts.push(`项目 ${sanitize(trend.projectId, 32)}`);
+    parts.push(translate('auto.k2034', { value0: sanitize(trend.projectId, 32) }));
   }
   if (trend.promptKey) {
     parts.push(`Prompt ${sanitize(trend.promptKey, 48)}`);
   }
-  parts.push(`最近 ${normalizeCount(trend.taskCount)} 个任务`);
+  parts.push(translate('auto.k2135', { value0: normalizeCount(trend.taskCount) }));
   return parts.join(' · ');
 }
 

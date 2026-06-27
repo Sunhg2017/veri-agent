@@ -41,6 +41,7 @@ import {
 import { hasPermission } from '../permissions';
 import type { AssetNavigationKey } from './AssetStructuredWorkbench';
 import { AssetTraceTopologyPanel, describeTopologyFocus } from './AssetTraceTopologyPanel';
+import { translate } from '../platform/i18n';
 
 type AssetNavigationTab = {
   key: AssetNavigationKey;
@@ -113,15 +114,15 @@ const initialFilters: TraceFilters = {
 };
 
 const coverageLabels: Record<CoverageStatus, string> = {
-  covered: '全覆盖',
-  partial: '部分覆盖',
-  uncovered: '未覆盖'
+  covered: translate('auto.k0521'),
+  partial: translate('auto.k0522'),
+  uncovered: translate('auto.k0523')
 };
 
 const impactLabels: Record<ImpactLevel, string> = {
-  low: '低',
-  medium: '中',
-  high: '高'
+  low: translate('auto.k0524'),
+  medium: translate('auto.k0525'),
+  high: translate('auto.k0526')
 };
 
 export function AssetTraceWorkbench(props: {
@@ -207,7 +208,7 @@ export function AssetTraceWorkbench(props: {
       setHealth(healthResult.value.data);
       traceIds.push(healthResult.value.trace_id);
     } else {
-      errors.push(errorMessage(healthResult.reason, '资产服务健康检查失败'));
+      errors.push(errorMessage(healthResult.reason, translate('auto.k0392')));
     }
 
     if (requirementResult.status === 'fulfilled') {
@@ -215,7 +216,7 @@ export function AssetTraceWorkbench(props: {
       traceIds.push(requirementResult.value.trace_id);
     } else {
       setRequirements([]);
-      errors.push(errorMessage(requirementResult.reason, '需求资产加载失败'));
+      errors.push(errorMessage(requirementResult.reason, translate('auto.k0527')));
     }
 
     if (apiResult.status === 'fulfilled') {
@@ -223,7 +224,7 @@ export function AssetTraceWorkbench(props: {
       traceIds.push(apiResult.value.trace_id);
     } else {
       setApis([]);
-      errors.push(errorMessage(apiResult.reason, 'API 资产加载失败'));
+      errors.push(errorMessage(apiResult.reason, translate('auto.k0528')));
     }
 
     if (pageResult.status === 'fulfilled') {
@@ -231,7 +232,7 @@ export function AssetTraceWorkbench(props: {
       traceIds.push(pageResult.value.trace_id);
     } else {
       setPages([]);
-      errors.push(errorMessage(pageResult.reason, '页面资产加载失败'));
+      errors.push(errorMessage(pageResult.reason, translate('auto.k0529')));
     }
 
     if (flowResult.status === 'fulfilled') {
@@ -239,7 +240,7 @@ export function AssetTraceWorkbench(props: {
       traceIds.push(flowResult.value.trace_id);
     } else {
       setFlows([]);
-      errors.push(errorMessage(flowResult.reason, '业务流资产加载失败'));
+      errors.push(errorMessage(flowResult.reason, translate('auto.k0530')));
     }
 
     if (caseResult.status === 'fulfilled') {
@@ -247,7 +248,7 @@ export function AssetTraceWorkbench(props: {
       traceIds.push(caseResult.value.trace_id);
     } else {
       setCases([]);
-      errors.push(errorMessage(caseResult.reason, '测试用例加载失败'));
+      errors.push(errorMessage(caseResult.reason, translate('auto.k0393')));
     }
 
     if (linkResult.status === 'fulfilled') {
@@ -255,7 +256,7 @@ export function AssetTraceWorkbench(props: {
       traceIds.push(linkResult.value.trace_id);
     } else {
       setLinks([]);
-      errors.push(errorMessage(linkResult.reason, '追踪链接加载失败'));
+      errors.push(errorMessage(linkResult.reason, translate('auto.k0531')));
     }
 
     setLoadState({
@@ -388,7 +389,7 @@ export function AssetTraceWorkbench(props: {
               </div>
               <div>
                 <span className="eyebrow">Trace Matrix</span>
-                <h2>资产追踪矩阵</h2>
+                <h2>{translate('auto.k0532')}</h2>
               </div>
             </div>
             <button
@@ -398,11 +399,10 @@ export function AssetTraceWorkbench(props: {
               onClick={refreshTrace}
             >
               <RefreshCw size={16} />
-              刷新
-            </button>
+              {translate('auto.k0170')}</button>
           </div>
 
-          <div className="asset-tab-strip" aria-label="资产类型">
+          <div className="asset-tab-strip" aria-label={translate('auto.k0413')}>
             {props.tabs.map((tab) => {
               const Icon = tab.icon;
               return (
@@ -433,87 +433,87 @@ export function AssetTraceWorkbench(props: {
               />
             </label>
             <label className="field" htmlFor="asset-trace-filter-requirement-status">
-              <span>需求状态</span>
+              <span>{translate('auto.k0533')}</span>
               <select
                 id="asset-trace-filter-requirement-status"
                 value={filters.requirementStatus}
                 disabled={disabled}
                 onChange={(event) => setFilters((current) => ({ ...current, requirementStatus: event.target.value }))}
               >
-                <option value="">全部</option>
+                <option value="">{translate('auto.k0195')}</option>
                 {ASSET_REQUIREMENT_STATUSES.map((status) => (
                   <option key={status} value={status}>{status}</option>
                 ))}
               </select>
             </label>
             <label className="field" htmlFor="asset-trace-filter-api-status">
-              <span>API 状态</span>
+              <span>{translate('auto.k0534')}</span>
               <select
                 id="asset-trace-filter-api-status"
                 value={filters.apiStatus}
                 disabled={disabled}
                 onChange={(event) => setFilters((current) => ({ ...current, apiStatus: event.target.value }))}
               >
-                <option value="">全部</option>
+                <option value="">{translate('auto.k0195')}</option>
                 {ASSET_API_STATUSES.map((status) => (
                   <option key={status} value={status}>{status}</option>
                 ))}
               </select>
             </label>
             <label className="field" htmlFor="asset-trace-filter-page-status">
-              <span>页面状态</span>
+              <span>{translate('auto.k0535')}</span>
               <select
                 id="asset-trace-filter-page-status"
                 value={filters.pageStatus}
                 disabled={disabled}
                 onChange={(event) => setFilters((current) => ({ ...current, pageStatus: event.target.value }))}
               >
-                <option value="">全部</option>
+                <option value="">{translate('auto.k0195')}</option>
                 {ASSET_PAGE_STATUSES.map((status) => (
                   <option key={status} value={status}>{status}</option>
                 ))}
               </select>
             </label>
             <label className="field" htmlFor="asset-trace-filter-flow-status">
-              <span>业务流状态</span>
+              <span>{translate('auto.k0536')}</span>
               <select
                 id="asset-trace-filter-flow-status"
                 value={filters.flowStatus}
                 disabled={disabled}
                 onChange={(event) => setFilters((current) => ({ ...current, flowStatus: event.target.value }))}
               >
-                <option value="">全部</option>
+                <option value="">{translate('auto.k0195')}</option>
                 {ASSET_FLOW_STATUSES.map((status) => (
                   <option key={status} value={status}>{status}</option>
                 ))}
               </select>
             </label>
             <label className="field" htmlFor="asset-trace-filter-case-status">
-              <span>用例状态</span>
+              <span>{translate('auto.k0537')}</span>
               <select
                 id="asset-trace-filter-case-status"
                 value={filters.caseStatus}
                 disabled={disabled}
                 onChange={(event) => setFilters((current) => ({ ...current, caseStatus: event.target.value }))}
               >
-                <option value="">全部</option>
+                <option value="">{translate('auto.k0195')}</option>
                 {ASSET_TEST_CASE_STATUSES.map((status) => (
                   <option key={status} value={status}>{status}</option>
                 ))}
               </select>
             </label>
             <label className="field" htmlFor="asset-trace-filter-coverage">
-              <span>覆盖</span>
+              <span>{translate('auto.k0538')}</span>
               <select
                 id="asset-trace-filter-coverage"
                 value={filters.coverage}
                 disabled={disabled}
                 onChange={(event) => setFilters((current) => ({ ...current, coverage: event.target.value }))}
               >
-                <option value="">全部</option>
-                <option value="covered">全覆盖</option>
-                <option value="partial">部分覆盖</option>
-                <option value="uncovered">未覆盖</option>
+                <option value="">{translate('auto.k0195')}</option>
+                <option value="covered">{translate('auto.k0521')}</option>
+                <option value="partial">{translate('auto.k0522')}</option>
+                <option value="uncovered">{translate('auto.k0523')}</option>
               </select>
             </label>
             <label className="field" htmlFor="asset-trace-filter-keyword">
@@ -523,18 +523,16 @@ export function AssetTraceWorkbench(props: {
                 value={filters.keyword}
                 disabled={disabled}
                 onChange={(event) => setFilters((current) => ({ ...current, keyword: event.target.value }))}
-                placeholder="需求 / API / 页面 / 业务流 / 用例"
+                placeholder={translate('auto.k0539')}
               />
             </label>
             <div className="asset-filter-actions">
               <button className="mini-button" type="button" disabled={disabled} onClick={submitFilters}>
                 <Search size={14} />
-                查询
-              </button>
+                {translate('auto.k0372')}</button>
               <button className="mini-button" type="button" disabled={disabled} onClick={resetFilters}>
                 <XCircle size={14} />
-                清空
-              </button>
+                {translate('auto.k0416')}</button>
             </div>
           </form>
 
@@ -542,14 +540,14 @@ export function AssetTraceWorkbench(props: {
             <table>
               <thead>
                 <tr>
-                  <th>需求</th>
-                  <th>覆盖状态</th>
-                  <th>关联 API</th>
-                  <th>页面 / 业务流</th>
-                  <th>关联用例</th>
-                  <th>缺口</th>
-                  <th>更新时间</th>
-                  <th>操作</th>
+                  <th>{translate('auto.k0133')}</th>
+                  <th>{translate('auto.k0540')}</th>
+                  <th>{translate('auto.k0541')}</th>
+                  <th>{translate('auto.k0542')}</th>
+                  <th>{translate('auto.k0543')}</th>
+                  <th>{translate('auto.k0544')}</th>
+                  <th>{translate('auto.k0421')}</th>
+                  <th>{translate('auto.k0249')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -565,12 +563,12 @@ export function AssetTraceWorkbench(props: {
                       </td>
                       <td>
                         <CoveragePill status={row.coverage} />
-                        <span className={`impact-pill ${row.impactLevel}`}>影响 {impactLabels[row.impactLevel]}</span>
+                        <span className={`impact-pill ${row.impactLevel}`}>{translate('auto.k0545')}{impactLabels[row.impactLevel]}</span>
                       </td>
                       <td>
                         <LinkedList
                           items={row.apis}
-                          empty="无关联 API"
+                          empty={translate('auto.k0546')}
                           render={(api) => (
                             <>
                               <strong>{api.httpMethod} {api.path}</strong>
@@ -582,7 +580,7 @@ export function AssetTraceWorkbench(props: {
                       <td>
                         <LinkedList
                           items={requirementContextItems(row.pages, row.flows)}
-                          empty="无页面 / 业务流"
+                          empty={translate('auto.k0547')}
                           render={(item) => (
                             <>
                               <strong>{item.primary}</strong>
@@ -594,7 +592,7 @@ export function AssetTraceWorkbench(props: {
                       <td>
                         <LinkedList
                           items={row.cases}
-                          empty="无关联用例"
+                          empty={translate('auto.k0548')}
                           render={(item) => (
                             <>
                               <strong>{item.title}</strong>
@@ -615,15 +613,14 @@ export function AssetTraceWorkbench(props: {
                           onClick={() => selectSubject({ type: 'requirement', id: row.requirement.id })}
                         >
                           <Eye size={14} />
-                          拓扑
-                        </button>
+                          {translate('auto.k0549')}</button>
                       </td>
                     </tr>
                   ))
                 ) : (
                   <tr>
                     <td className="table-empty" colSpan={8}>
-                      {props.signedIn ? (loadState.loading ? '加载中' : '暂无追踪矩阵数据') : '请先登录'}
+                      {props.signedIn ? (loadState.loading ? translate('auto.k0168') : translate('auto.k0550')) : translate('auto.k0454')}
                     </td>
                   </tr>
                 )}
@@ -641,15 +638,15 @@ export function AssetTraceWorkbench(props: {
               </div>
               <div>
                 <span className="eyebrow">Trace Gaps</span>
-                <h2>缺口与反向影响</h2>
+                <h2>{translate('auto.k0551')}</h2>
               </div>
             </div>
           </div>
           <div className="trace-gap-grid">
             <GapBucket
-              title="无需求关联 API"
+              title={translate('auto.k0552')}
               items={orphanApis}
-              empty="API 均已关联需求"
+              empty={translate('auto.k0553')}
               render={(api) => (
                 <button className="trace-chip" type="button" onClick={() => selectSubject({ type: 'api', id: api.id })}>
                   <strong>{api.httpMethod} {api.path}</strong>
@@ -658,9 +655,9 @@ export function AssetTraceWorkbench(props: {
               )}
             />
             <GapBucket
-              title="无用例覆盖 API"
+              title={translate('auto.k0554')}
               items={apisWithoutCases}
-              empty="API 均有用例覆盖"
+              empty={translate('auto.k0555')}
               render={(api) => (
                 <button className="trace-chip" type="button" onClick={() => selectSubject({ type: 'api', id: api.id })}>
                   <strong>{api.httpMethod} {api.path}</strong>
@@ -669,9 +666,9 @@ export function AssetTraceWorkbench(props: {
               )}
             />
             <GapBucket
-              title="无需求关联页面"
+              title={translate('auto.k0556')}
               items={orphanPages}
-              empty="页面均已关联需求"
+              empty={translate('auto.k0557')}
               render={(page) => (
                 <button className="trace-chip" type="button" onClick={() => selectSubject({ type: 'page', id: page.id })}>
                   <strong>{page.name}</strong>
@@ -680,9 +677,9 @@ export function AssetTraceWorkbench(props: {
               )}
             />
             <GapBucket
-              title="无需求关联业务流"
+              title={translate('auto.k0558')}
               items={orphanFlows}
-              empty="业务流均已关联需求"
+              empty={translate('auto.k0559')}
               render={(flow) => (
                 <button className="trace-chip" type="button" onClick={() => selectSubject({ type: 'flow', id: flow.id })}>
                   <strong>{flow.name}</strong>
@@ -691,9 +688,9 @@ export function AssetTraceWorkbench(props: {
               )}
             />
             <GapBucket
-              title="无需求关联用例"
+              title={translate('auto.k0560')}
               items={orphanCases}
-              empty="用例均已关联需求"
+              empty={translate('auto.k0561')}
               render={(item) => (
                 <button className="trace-chip" type="button" onClick={() => selectSubject({ type: 'case', id: item.id })}>
                   <strong>{item.title}</strong>
@@ -712,14 +709,14 @@ export function AssetTraceWorkbench(props: {
               </div>
               <div>
                 <span className="eyebrow">Asset Topology</span>
-                <h2>资产关系拓扑图</h2>
+                <h2>{translate('auto.k0562')}</h2>
               </div>
             </div>
             {selectedSubject && <SubjectPill subject={selectedSubject} />}
           </div>
           <div className="trace-topology-heading">
             <strong>{topologyFocusLabel}</strong>
-            <span>基于需求、API、页面、业务流、用例与追踪链接构建</span>
+            <span>{translate('auto.k0563')}</span>
           </div>
           <AssetTraceTopologyPanel
             graph={topologyGraph}
@@ -731,28 +728,28 @@ export function AssetTraceWorkbench(props: {
 
       <aside className="side-stack asset-side-stack">
         <section className="panel insight-panel">
-          <h2>矩阵统计</h2>
+          <h2>{translate('auto.k0564')}</h2>
           <div className="document-health-grid">
-            <StatusMetric label="服务" value={health?.service ?? 'asset-service'} />
-            <StatusMetric label="状态" value={health?.status ?? (props.signedIn ? '等待响应' : '等待登录')} pill />
-            <StatusMetric label="需求" value={String(requirements.length)} />
+            <StatusMetric label={translate('auto.k0427')} value={health?.service ?? 'asset-service'} />
+            <StatusMetric label={translate('auto.k0182')} value={health?.status ?? (props.signedIn ? translate('auto.k0428') : translate('auto.k0429'))} pill />
+            <StatusMetric label={translate('auto.k0133')} value={String(requirements.length)} />
             <StatusMetric label="API" value={String(apis.length)} />
-            <StatusMetric label="页面" value={String(pages.length)} />
-            <StatusMetric label="业务流" value={String(flows.length)} />
-            <StatusMetric label="用例" value={String(cases.length)} />
-            <StatusMetric label="全覆盖" value={String(stats.covered)} />
-            <StatusMetric label="部分覆盖" value={String(stats.partial)} />
-            <StatusMetric label="未覆盖" value={String(stats.uncovered)} />
+            <StatusMetric label={translate('auto.k0134')} value={String(pages.length)} />
+            <StatusMetric label={translate('auto.k0135')} value={String(flows.length)} />
+            <StatusMetric label={translate('auto.k0136')} value={String(cases.length)} />
+            <StatusMetric label={translate('auto.k0521')} value={String(stats.covered)} />
+            <StatusMetric label={translate('auto.k0522')} value={String(stats.partial)} />
+            <StatusMetric label={translate('auto.k0523')} value={String(stats.uncovered)} />
           </div>
           <div className="trace-summary-strip">
-            <span>孤立 API {orphanApis.length}</span>
-            <span>孤立页面 {orphanPages.length}</span>
-            <span>孤立业务流 {orphanFlows.length}</span>
-            <span>孤立用例 {orphanCases.length}</span>
+            <span>{translate('auto.k0565')}{orphanApis.length}</span>
+            <span>{translate('auto.k0566')}{orphanPages.length}</span>
+            <span>{translate('auto.k0567')}{orphanFlows.length}</span>
+            <span>{translate('auto.k0568')}{orphanCases.length}</span>
           </div>
           {loadState.error && (
             <div className="inline-error">
-              <strong>同步失败</strong>
+              <strong>{translate('auto.k0148')}</strong>
               <span>{loadState.error}</span>
             </div>
           )}
@@ -760,7 +757,7 @@ export function AssetTraceWorkbench(props: {
 
         <section className="panel insight-panel asset-detail-panel">
           <div className="panel-title-row">
-            <h2>焦点资产详情</h2>
+            <h2>{translate('auto.k0569')}</h2>
             {selectedSubject && <SubjectPill subject={selectedSubject} />}
           </div>
           <ImpactPanel
@@ -911,16 +908,16 @@ function coverageFor(apiCount: number, pageCount: number, flowCount: number, cas
 function gapsFor(apiCount: number, pageCount: number, flowCount: number, caseCount: number) {
   const gaps: string[] = [];
   if (apiCount === 0) {
-    gaps.push('缺 API 覆盖');
+    gaps.push(translate('auto.k0570'));
   }
   if (pageCount === 0) {
-    gaps.push('缺页面覆盖');
+    gaps.push(translate('auto.k0571'));
   }
   if (flowCount === 0) {
-    gaps.push('缺业务流覆盖');
+    gaps.push(translate('auto.k0572'));
   }
   if (caseCount === 0) {
-    gaps.push('缺用例覆盖');
+    gaps.push(translate('auto.k0573'));
   }
   return gaps;
 }
@@ -1036,8 +1033,8 @@ function ImpactPanel(props: {
       <div className="empty-state compact">
         <GitBranch size={20} />
         <div>
-          <strong>暂无焦点资产</strong>
-          <span>从矩阵、缺口清单或拓扑图中选择资产</span>
+          <strong>{translate('auto.k0574')}</strong>
+          <span>{translate('auto.k0575')}</span>
         </div>
       </div>
     );
@@ -1058,16 +1055,16 @@ function ImpactPanel(props: {
           <div><span>id</span><em>{row.requirement.id}</em></div>
         </div>
         <div className="asset-source-trace">
-          <strong>影响说明</strong>
-          <div><span>覆盖</span><em>{coverageLabels[row.coverage]}</em></div>
-          <div><span>影响等级</span><em>{impactLabels[row.impactLevel]}</em></div>
-          <div><span>缺口</span><em>{row.gaps.length ? row.gaps.join('，') : '暂无缺口'}</em></div>
-          <div><span>口径</span><em>基于直连追踪链接的一跳分析</em></div>
+          <strong>{translate('auto.k0576')}</strong>
+          <div><span>{translate('auto.k0538')}</span><em>{coverageLabels[row.coverage]}</em></div>
+          <div><span>{translate('auto.k0577')}</span><em>{impactLabels[row.impactLevel]}</em></div>
+          <div><span>{translate('auto.k0544')}</span><em>{row.gaps.length ? row.gaps.join('，') : translate('auto.k0578')}</em></div>
+          <div><span>{translate('auto.k0579')}</span><em>{translate('auto.k0580')}</em></div>
         </div>
         <ImpactAssetList
-          title="关联 API"
+          title={translate('auto.k0541')}
           items={row.apis}
-          empty="暂无关联 API"
+          empty={translate('auto.k0581')}
           render={(api) => (
             <TraceAssetButton
               onImpact={() => props.onSelectSubject({ type: 'api', id: api.id })}
@@ -1078,9 +1075,9 @@ function ImpactPanel(props: {
           )}
         />
         <ImpactAssetList
-          title="关联页面"
+          title={translate('auto.k0582')}
           items={row.pages}
-          empty="暂无关联页面"
+          empty={translate('auto.k0583')}
           render={(page) => (
             <TraceAssetButton
               onImpact={() => props.onSelectSubject({ type: 'page', id: page.id })}
@@ -1091,9 +1088,9 @@ function ImpactPanel(props: {
           )}
         />
         <ImpactAssetList
-          title="关联业务流"
+          title={translate('auto.k0584')}
           items={row.flows}
-          empty="暂无关联业务流"
+          empty={translate('auto.k0585')}
           render={(flow) => (
             <TraceAssetButton
               onImpact={() => props.onSelectSubject({ type: 'flow', id: flow.id })}
@@ -1104,9 +1101,9 @@ function ImpactPanel(props: {
           )}
         />
         <ImpactAssetList
-          title="关联用例"
+          title={translate('auto.k0543')}
           items={row.cases}
-          empty="暂无关联用例"
+          empty={translate('auto.k0586')}
           render={(item) => (
             <TraceAssetButton
               onImpact={() => props.onSelectSubject({ type: 'case', id: item.id })}
@@ -1118,8 +1115,7 @@ function ImpactPanel(props: {
         />
         <button className="mini-button" type="button" onClick={() => props.onOpenAsset('requirements', row.requirement.id)}>
           <Eye size={14} />
-          打开需求详情
-        </button>
+          {translate('auto.k0587')}</button>
       </div>
     );
   }
@@ -1141,16 +1137,16 @@ function ImpactPanel(props: {
           <div><span>id</span><em>{api.id}</em></div>
         </div>
         <div className="asset-source-trace">
-          <strong>影响说明</strong>
-          <div><span>需求</span><em>{requirements.length}</em></div>
-          <div><span>用例</span><em>{cases.length}</em></div>
-          <div><span>缺口</span><em>{requirements.length && cases.length ? '暂无缺口' : apiGaps(requirements.length, cases.length).join('，')}</em></div>
-          <div><span>口径</span><em>基于 API 直连需求和用例的一跳反查</em></div>
+          <strong>{translate('auto.k0576')}</strong>
+          <div><span>{translate('auto.k0133')}</span><em>{requirements.length}</em></div>
+          <div><span>{translate('auto.k0136')}</span><em>{cases.length}</em></div>
+          <div><span>{translate('auto.k0544')}</span><em>{requirements.length && cases.length ? translate('auto.k0578') : apiGaps(requirements.length, cases.length).join('，')}</em></div>
+          <div><span>{translate('auto.k0579')}</span><em>{translate('auto.k0588')}</em></div>
         </div>
         <ImpactAssetList
-          title="关联需求"
+          title={translate('auto.k0589')}
           items={requirements}
-          empty="暂无需求关联"
+          empty={translate('auto.k0590')}
           render={(requirement) => (
             <TraceAssetButton
               onImpact={() => props.onSelectSubject({ type: 'requirement', id: requirement.id })}
@@ -1161,9 +1157,9 @@ function ImpactPanel(props: {
           )}
         />
         <ImpactAssetList
-          title="关联用例"
+          title={translate('auto.k0543')}
           items={cases}
-          empty="暂无用例覆盖"
+          empty={translate('auto.k0591')}
           render={(item) => (
             <TraceAssetButton
               onImpact={() => props.onSelectSubject({ type: 'case', id: item.id })}
@@ -1175,8 +1171,7 @@ function ImpactPanel(props: {
         />
         <button className="mini-button" type="button" onClick={() => props.onOpenAsset('apis', api.id)}>
           <Eye size={14} />
-          打开 API 详情
-        </button>
+          {translate('auto.k0592')}</button>
       </div>
     );
   }
@@ -1197,16 +1192,16 @@ function ImpactPanel(props: {
           <div><span>id</span><em>{page.id}</em></div>
         </div>
         <div className="asset-source-trace">
-          <strong>影响说明</strong>
-          <div><span>需求</span><em>{requirements.length}</em></div>
-          <div><span>来源</span><em>{page.source}</em></div>
-          <div><span>缺口</span><em>{requirements.length ? '暂无需求缺口' : '缺需求关联'}</em></div>
-          <div><span>口径</span><em>基于页面直连需求的一跳反查</em></div>
+          <strong>{translate('auto.k0576')}</strong>
+          <div><span>{translate('auto.k0133')}</span><em>{requirements.length}</em></div>
+          <div><span>{translate('auto.k0179')}</span><em>{page.source}</em></div>
+          <div><span>{translate('auto.k0544')}</span><em>{requirements.length ? translate('auto.k0593') : translate('auto.k0594')}</em></div>
+          <div><span>{translate('auto.k0579')}</span><em>{translate('auto.k0595')}</em></div>
         </div>
         <ImpactAssetList
-          title="关联需求"
+          title={translate('auto.k0589')}
           items={requirements}
-          empty="暂无需求关联"
+          empty={translate('auto.k0590')}
           render={(requirement) => (
             <TraceAssetButton
               onImpact={() => props.onSelectSubject({ type: 'requirement', id: requirement.id })}
@@ -1218,8 +1213,7 @@ function ImpactPanel(props: {
         />
         <button className="mini-button" type="button" onClick={() => props.onOpenAsset('pages', page.id)}>
           <Eye size={14} />
-          打开页面详情
-        </button>
+          {translate('auto.k0596')}</button>
       </div>
     );
   }
@@ -1240,16 +1234,16 @@ function ImpactPanel(props: {
           <div><span>id</span><em>{flow.id}</em></div>
         </div>
         <div className="asset-source-trace">
-          <strong>影响说明</strong>
-          <div><span>需求</span><em>{requirements.length}</em></div>
-          <div><span>说明</span><em>{flow.description ?? '-'}</em></div>
-          <div><span>缺口</span><em>{requirements.length ? '暂无需求缺口' : '缺需求关联'}</em></div>
-          <div><span>口径</span><em>基于业务流直连需求的一跳反查</em></div>
+          <strong>{translate('auto.k0576')}</strong>
+          <div><span>{translate('auto.k0133')}</span><em>{requirements.length}</em></div>
+          <div><span>{translate('auto.k0264')}</span><em>{flow.description ?? '-'}</em></div>
+          <div><span>{translate('auto.k0544')}</span><em>{requirements.length ? translate('auto.k0593') : translate('auto.k0594')}</em></div>
+          <div><span>{translate('auto.k0579')}</span><em>{translate('auto.k0597')}</em></div>
         </div>
         <ImpactAssetList
-          title="关联需求"
+          title={translate('auto.k0589')}
           items={requirements}
-          empty="暂无需求关联"
+          empty={translate('auto.k0590')}
           render={(requirement) => (
             <TraceAssetButton
               onImpact={() => props.onSelectSubject({ type: 'requirement', id: requirement.id })}
@@ -1261,8 +1255,7 @@ function ImpactPanel(props: {
         />
         <button className="mini-button" type="button" onClick={() => props.onOpenAsset('flows', flow.id)}>
           <Eye size={14} />
-          打开业务流详情
-        </button>
+          {translate('auto.k0598')}</button>
       </div>
     );
   }
@@ -1283,16 +1276,16 @@ function ImpactPanel(props: {
         <div><span>id</span><em>{testCase.id}</em></div>
       </div>
       <div className="asset-source-trace">
-        <strong>影响说明</strong>
-        <div><span>需求</span><em>{requirements.length}</em></div>
+        <strong>{translate('auto.k0576')}</strong>
+        <div><span>{translate('auto.k0133')}</span><em>{requirements.length}</em></div>
         <div><span>API</span><em>{apis.length}</em></div>
-        <div><span>缺口</span><em>{requirements.length ? '暂无需求缺口' : '缺需求关联'}</em></div>
-        <div><span>口径</span><em>基于用例直连需求和 API 的一跳反查</em></div>
+        <div><span>{translate('auto.k0544')}</span><em>{requirements.length ? translate('auto.k0593') : translate('auto.k0594')}</em></div>
+        <div><span>{translate('auto.k0579')}</span><em>{translate('auto.k0599')}</em></div>
       </div>
       <ImpactAssetList
-        title="验证需求"
+        title={translate('auto.k0600')}
         items={requirements}
-        empty="暂无需求关联"
+        empty={translate('auto.k0590')}
         render={(requirement) => (
           <TraceAssetButton
             onImpact={() => props.onSelectSubject({ type: 'requirement', id: requirement.id })}
@@ -1303,9 +1296,9 @@ function ImpactPanel(props: {
         )}
       />
       <ImpactAssetList
-        title="覆盖 API"
+        title={translate('auto.k0601')}
         items={apis}
-        empty="暂无 API 关联"
+        empty={translate('auto.k0602')}
         render={(api) => (
           <TraceAssetButton
             onImpact={() => props.onSelectSubject({ type: 'api', id: api.id })}
@@ -1317,8 +1310,7 @@ function ImpactPanel(props: {
       />
       <button className="mini-button" type="button" onClick={() => props.onOpenAsset('cases', testCase.id)}>
         <Eye size={14} />
-        打开用例详情
-      </button>
+        {translate('auto.k0603')}</button>
     </div>
   );
 }
@@ -1353,7 +1345,7 @@ function LinkedList<T>(props: { empty: string; items: T[]; render: (item: T) => 
 
 function GapList(props: { gaps: string[] }) {
   if (!props.gaps.length) {
-    return <span className="trace-list-empty">暂无缺口</span>;
+    return <span className="trace-list-empty">{translate('auto.k0578')}</span>;
   }
   return (
     <div className="trace-gap-list">
@@ -1401,7 +1393,7 @@ function TraceAssetButton(props: { onImpact: () => void; onOpen: () => void; pri
         <strong>{props.primary}</strong>
         <span>{props.secondary ?? '-'}</span>
       </button>
-      <button className="mini-button icon-only" type="button" onClick={props.onOpen} title="打开详情">
+      <button className="mini-button icon-only" type="button" onClick={props.onOpen} title={translate('auto.k0604')}>
         <Eye size={14} />
       </button>
     </div>
@@ -1413,8 +1405,8 @@ function MissingSubject() {
     <div className="empty-state compact">
       <Link2 size={20} />
       <div>
-        <strong>资产未在当前筛选结果中</strong>
-        <span>调整筛选条件或刷新矩阵后再查看影响范围</span>
+        <strong>{translate('auto.k0605')}</strong>
+        <span>{translate('auto.k0606')}</span>
       </div>
     </div>
   );
@@ -1431,7 +1423,7 @@ function StatusMetric(props: { label: string; value: string; pill?: boolean }) {
 
 function StateLine(props: { state: WorkState }) {
   if (props.state.loading) {
-    return <span className="document-state-line">加载中...</span>;
+    return <span className="document-state-line">{translate('auto.k0371')}</span>;
   }
   if (props.state.error) {
     return <span className="document-state-line error">{props.state.error}</span>;
@@ -1483,10 +1475,10 @@ function formatDate(value?: string) {
 function apiGaps(requirementCount: number, caseCount: number) {
   const gaps: string[] = [];
   if (requirementCount === 0) {
-    gaps.push('缺需求关联');
+    gaps.push(translate('auto.k0594'));
   }
   if (caseCount === 0) {
-    gaps.push('缺用例覆盖');
+    gaps.push(translate('auto.k0573'));
   }
   return gaps;
 }

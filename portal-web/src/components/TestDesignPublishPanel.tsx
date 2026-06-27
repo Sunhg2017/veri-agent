@@ -41,6 +41,7 @@ import {
   reportArchiveStatusTone,
   shortIdentifier
 } from './TestDesignWorkbenchShared';
+import { translate } from '../platform/i18n';
 
 export function TestDesignPublishPanel(props: {
   canRead: boolean;
@@ -118,28 +119,26 @@ export function TestDesignPublishPanel(props: {
     <section className="panel">
       <div className="panel-header compact">
         <div>
-          <h2 className="panel-title">发布</h2>
-          <p className="panel-desc">发布范围 {props.publishScopeLabel}。</p>
+          <h2 className="panel-title">{translate('auto.k0779')}</h2>
+          <p className="panel-desc">{translate('auto.k1548')}{props.publishScopeLabel}。</p>
         </div>
       </div>
       <div className="panel-body compact main-stack">
         {props.selectedCandidateCount > 0 ? (
-          <div className="notice info">已按勾选候选中的可发布项发布：{props.selectedPublishableCount} / {props.selectedCandidateCount}。</div>
+          <div className="notice info">{translate('auto.k1549')}{props.selectedPublishableCount} / {props.selectedCandidateCount}。</div>
         ) : (
-          <div className="notice info">当前将覆盖全部可发布候选。</div>
+          <div className="notice info">{translate('auto.k1550')}</div>
         )}
         <button className="btn btn-secondary" type="button" disabled={!props.canPublish || props.taskState.loading || props.publishState.loading || !props.canPublishCurrentScope} onClick={() => props.onPublish(true)}>
           <Eye size={16} />
-          预发布
-        </button>
+          {translate('auto.k1551')}</button>
         <button className="btn btn-primary" type="button" disabled={!props.canPublish || props.taskState.loading || props.publishState.loading || !props.canPublishCurrentScope} onClick={() => props.onPublish(false)}>
           <Send size={16} />
-          发布到资产库
-        </button>
+          {translate('auto.k1552')}</button>
         <StateLine state={props.publishState} />
         <div className="test-design-release-readiness-panel">
           <div className="test-design-release-readiness-heading">
-            <span>发布准出审批</span>
+            <span>{translate('auto.k1553')}</span>
             <div className="toolbar-actions">
               {props.currentReleaseReadiness && (
                 <span className={`badge badge-${releaseReadinessStatusTone(props.currentReleaseReadiness.status)}`}>
@@ -153,19 +152,18 @@ export function TestDesignPublishPanel(props: {
                 onClick={() => props.onRefreshReleaseReadiness(props.selectedTaskId)}
               >
                 <RefreshCw size={14} />
-                刷新
-              </button>
+                {translate('auto.k0170')}</button>
             </div>
           </div>
           <div className="detail-grid">
-            <Detail label="当前阻断" value={props.currentReleaseReadiness?.blockingCount ?? '-'} />
-            <Detail label="当前风险" value={props.currentReleaseReadiness?.warningCount ?? '-'} />
-            <Detail label="审批记录" value={props.releaseReadinessApprovals.length} />
-            <Detail label="当前摘要" value={releaseReadinessDigestText(props.selectedReleaseReadinessApproval?.readinessDigest)} />
+            <Detail label={translate('auto.k1554')} value={props.currentReleaseReadiness?.blockingCount ?? '-'} />
+            <Detail label={translate('auto.k1555')} value={props.currentReleaseReadiness?.warningCount ?? '-'} />
+            <Detail label={translate('auto.k1556')} value={props.releaseReadinessApprovals.length} />
+            <Detail label={translate('auto.k1557')} value={releaseReadinessDigestText(props.selectedReleaseReadinessApproval?.readinessDigest)} />
           </div>
           <form className="test-design-release-readiness-form" onSubmit={props.onRequestReleaseReadinessApproval}>
             <label className="field">
-              <span className="field-label">例外原因</span>
+              <span className="field-label">{translate('auto.k1558')}</span>
               <select
                 value={releaseDraft.exceptionReasonCode}
                 onChange={(event) => props.onReleaseReadinessDraftChange((current) => ({ ...current, exceptionReasonCode: event.target.value }))}
@@ -177,7 +175,7 @@ export function TestDesignPublishPanel(props: {
               </select>
             </label>
             <label className="field">
-              <span className="field-label">工单编号</span>
+              <span className="field-label">{translate('auto.k1398')}</span>
               <input
                 value={releaseDraft.workOrderKey}
                 onChange={(event) => props.onReleaseReadinessDraftChange((current) => ({ ...current, workOrderKey: event.target.value }))}
@@ -186,7 +184,7 @@ export function TestDesignPublishPanel(props: {
               />
             </label>
             <label className="field">
-              <span className="field-label">工单标题</span>
+              <span className="field-label">{translate('auto.k1399')}</span>
               <input
                 value={releaseDraft.workOrderTitle}
                 onChange={(event) => props.onReleaseReadinessDraftChange((current) => ({ ...current, workOrderTitle: event.target.value }))}
@@ -194,7 +192,7 @@ export function TestDesignPublishPanel(props: {
               />
             </label>
             <label className="field">
-              <span className="field-label">工单 URL</span>
+              <span className="field-label">{translate('auto.k1400')}</span>
               <input
                 value={releaseDraft.workOrderUrl}
                 onChange={(event) => props.onReleaseReadinessDraftChange((current) => ({ ...current, workOrderUrl: event.target.value }))}
@@ -203,7 +201,7 @@ export function TestDesignPublishPanel(props: {
               />
             </label>
             <label className="field test-design-release-readiness-wide">
-              <span className="field-label">例外摘要</span>
+              <span className="field-label">{translate('auto.k1559')}</span>
               <textarea
                 value={releaseDraft.exceptionSummary}
                 maxLength={1000}
@@ -213,7 +211,7 @@ export function TestDesignPublishPanel(props: {
               />
             </label>
             <label className="field test-design-release-readiness-wide">
-              <span className="field-label">风险缓释</span>
+              <span className="field-label">{translate('auto.k1560')}</span>
               <textarea
                 value={releaseDraft.riskMitigation}
                 maxLength={1000}
@@ -223,7 +221,7 @@ export function TestDesignPublishPanel(props: {
               />
             </label>
             <label className="field test-design-release-readiness-wide">
-              <span className="field-label">申请备注</span>
+              <span className="field-label">{translate('auto.k1403')}</span>
               <textarea
                 value={releaseDraft.requestNote}
                 maxLength={1000}
@@ -238,12 +236,12 @@ export function TestDesignPublishPanel(props: {
               disabled={!props.canPublish || props.releaseReadinessSubmitBlocked}
             >
               <Save size={15} />
-              {props.selectedPendingReleaseReadinessApproval ? '更新例外' : '提交例外'}
+              {props.selectedPendingReleaseReadinessApproval ? translate('auto.k1561') : translate('auto.k1562')}
             </button>
           </form>
           <div className="test-design-release-readiness-review-grid">
             <label className="field">
-              <span className="field-label">审批原因</span>
+              <span className="field-label">{translate('auto.k1409')}</span>
               <select
                 value={releaseDraft.approvalReasonCode}
                 onChange={(event) => props.onReleaseReadinessDraftChange((current) => ({ ...current, approvalReasonCode: event.target.value }))}
@@ -255,20 +253,20 @@ export function TestDesignPublishPanel(props: {
               </select>
             </label>
             <label className="field">
-              <span className="field-label">工单状态</span>
+              <span className="field-label">{translate('auto.k1410')}</span>
               <select
                 value={releaseDraft.workOrderStatus}
                 onChange={(event) => props.onReleaseReadinessDraftChange((current) => ({ ...current, workOrderStatus: event.target.value }))}
                 disabled={!props.canPublish || props.releaseReadinessState.loading || !props.selectedPendingReleaseReadinessApproval}
               >
-                <option value="">跟随审批</option>
+                <option value="">{translate('auto.k1411')}</option>
                 {props.releaseReadinessWorkOrderStatuses.map((status) => (
                   <option key={status} value={status}>{status}</option>
                 ))}
               </select>
             </label>
             <label className="field test-design-release-readiness-wide">
-              <span className="field-label">审批备注</span>
+              <span className="field-label">{translate('auto.k1412')}</span>
               <textarea
                 value={releaseDraft.reviewNote}
                 maxLength={1000}
@@ -285,8 +283,7 @@ export function TestDesignPublishPanel(props: {
                 onClick={() => props.selectedPendingReleaseReadinessApproval && props.onReviewReleaseReadinessApproval(props.selectedPendingReleaseReadinessApproval.id, 'approve')}
               >
                 <CheckCircle2 size={15} />
-                通过
-              </button>
+                {translate('auto.k1022')}</button>
               <button
                 className="btn btn-ghost btn-sm"
                 type="button"
@@ -294,8 +291,7 @@ export function TestDesignPublishPanel(props: {
                 onClick={() => props.selectedPendingReleaseReadinessApproval && props.onReviewReleaseReadinessApproval(props.selectedPendingReleaseReadinessApproval.id, 'reject')}
               >
                 <XCircle size={15} />
-                驳回
-              </button>
+                {translate('auto.k0214')}</button>
             </div>
           </div>
           <div className="test-design-release-readiness-approvals">
@@ -303,10 +299,10 @@ export function TestDesignPublishPanel(props: {
               <div className={`test-design-release-readiness-approval${props.selectedReleaseReadinessApprovalId === approval.id ? ' selected' : ''}`} key={approval.id}>
                 <div>
                   <strong>{approval.workOrderKey ?? approval.id}</strong>
-                  <em>{approval.qualityGateStatus} · 阻断 {approval.blockingCount} · 风险 {approval.warningCount}</em>
-                  <small>{releaseReadinessDigestText(approval.readinessDigest)} · 备注 {approval.noteCount ?? 0}</small>
+                  <em>{approval.qualityGateStatus} {translate('auto.k1478')}{approval.blockingCount} {translate('auto.k1535')}{approval.warningCount}</em>
+                  <small>{releaseReadinessDigestText(approval.readinessDigest)} {translate('auto.k1417')}{approval.noteCount ?? 0}</small>
                   <small>{approval.requestedBy ?? '-'} · {approval.createdAt ?? '-'}</small>
-                  {approval.latestNotePreview ? <small>最新备注：{approval.latestNotePreview}</small> : null}
+                  {approval.latestNotePreview ? <small>{translate('auto.k1418')}{approval.latestNotePreview}</small> : null}
                 </div>
                 <div className="test-design-release-readiness-approval-actions">
                   <span className={`badge badge-${releaseReadinessStatusTone(approval.status)}`}>{approval.status}</span>
@@ -317,17 +313,17 @@ export function TestDesignPublishPanel(props: {
                     onClick={() => props.onSelectReleaseReadinessApproval(approval)}
                   >
                     <FileText size={14} />
-                    {approval.status === 'PENDING' ? '编辑' : '流转'}
+                    {approval.status === 'PENDING' ? translate('auto.k0746') : translate('auto.k1419')}
                   </button>
                 </div>
               </div>
             )) : (
-              <div className="notice info">暂无发布准出审批记录</div>
+              <div className="notice info">{translate('auto.k1563')}</div>
             )}
           </div>
           <div className="test-design-release-readiness-note-form">
             <label className="field">
-              <span className="field-label">备注类型</span>
+              <span className="field-label">{translate('auto.k1413')}</span>
               <select
                 value={releaseDraft.noteType}
                 onChange={(event) => props.onReleaseReadinessDraftChange((current) => ({ ...current, noteType: event.target.value === 'WORK_ORDER' ? 'WORK_ORDER' : 'COMMENT' }))}
@@ -338,7 +334,7 @@ export function TestDesignPublishPanel(props: {
               </select>
             </label>
             <label className="field test-design-release-readiness-wide">
-              <span className="field-label">流转备注</span>
+              <span className="field-label">{translate('auto.k1414')}</span>
               <textarea
                 value={releaseDraft.noteText}
                 maxLength={1000}
@@ -354,11 +350,10 @@ export function TestDesignPublishPanel(props: {
               onClick={props.onAddReleaseReadinessNote}
             >
               <Plus size={15} />
-              追加备注
-            </button>
+              {translate('auto.k1415')}</button>
           </div>
           <div className="test-design-release-readiness-notes">
-            <strong>备注流转 · {props.selectedReleaseReadinessApproval?.workOrderKey ?? (props.selectedReleaseReadinessApprovalId || '-')}</strong>
+            <strong>{translate('auto.k1421')}{props.selectedReleaseReadinessApproval?.workOrderKey ?? (props.selectedReleaseReadinessApprovalId || '-')}</strong>
             {props.selectedReleaseReadinessApprovalId ? (
               props.releaseReadinessNotes.length ? props.releaseReadinessNotes.slice(-6).map((note) => (
                 <div className="test-design-release-readiness-note" key={note.id}>
@@ -367,10 +362,10 @@ export function TestDesignPublishPanel(props: {
                   <small>{note.createdBy ?? '-'} · {note.createdAt ?? '-'}</small>
                 </div>
               )) : (
-                <div className="notice info">暂无备注流转记录</div>
+                <div className="notice info">{translate('auto.k1422')}</div>
               )
             ) : (
-              <div className="notice info">未选择发布准出审批记录</div>
+              <div className="notice info">{translate('auto.k1564')}</div>
             )}
           </div>
           <StateLine state={props.releaseReadinessState} />
@@ -408,15 +403,14 @@ export function TestDesignPublishPanel(props: {
             <div className="toolbar-actions test-design-export-actions">
               <button className="btn btn-secondary btn-sm" type="button" disabled={!props.canExport} onClick={props.onExportPublishResult}>
                 <Download size={15} />
-                导出发布摘要
-              </button>
+                {translate('auto.k1565')}</button>
             </div>
             <div className="detail-grid">
-              <Detail label="总数" value={publishResult.total} />
-              <Detail label="创建" value={publishResult.created} />
-              <Detail label="跳过" value={publishResult.skipped} />
-              <Detail label="失败" value={publishResult.failed} />
-              <Detail label="用例" value={publishResult.createdCaseIds.join(', ') || '-'} />
+              <Detail label={translate('auto.k1449')} value={publishResult.total} />
+              <Detail label={translate('auto.k0862')} value={publishResult.created} />
+              <Detail label={translate('auto.k0789')} value={publishResult.skipped} />
+              <Detail label={translate('auto.k0369')} value={publishResult.failed} />
+              <Detail label={translate('auto.k0136')} value={publishResult.createdCaseIds.join(', ') || '-'} />
             </div>
             {props.publishIssueRecords.length > 0 && (
               <div className="notice warning test-design-publish-issues">
@@ -497,7 +491,7 @@ function ReportArchivePanel(props: {
   return (
     <div className="test-design-release-readiness-panel">
       <div className="test-design-release-readiness-heading">
-        <span>报告归档</span>
+        <span>{translate('auto.k1566')}</span>
         <div className="toolbar-actions">
           {props.selectedArchive && (
             <span className={`badge badge-${reportArchiveStatusTone(props.selectedArchive.status)}`}>
@@ -511,23 +505,22 @@ function ReportArchivePanel(props: {
             onClick={() => props.onRefresh(props.selectedTaskId)}
           >
             <RefreshCw size={14} />
-            刷新
-          </button>
+            {translate('auto.k0170')}</button>
         </div>
       </div>
       <div className="detail-grid">
-        <Detail label="归档记录" value={props.archives.length} />
-        <Detail label="归档审批" value={props.selectedArchive?.archiveApprovalStatus ?? '-'} />
-        <Detail label="外发审批" value={props.selectedArchive?.externalApprovalStatus ?? '-'} />
-        <Detail label="完整性索引" value={props.archiveIntegrity ? `${props.archiveIntegrity.indexedRowCount}/${props.archiveIntegrity.reportRowCount}` : '-'} />
+        <Detail label={translate('auto.k1567')} value={props.archives.length} />
+        <Detail label={translate('auto.k1568')} value={props.selectedArchive?.archiveApprovalStatus ?? '-'} />
+        <Detail label={translate('auto.k1569')} value={props.selectedArchive?.externalApprovalStatus ?? '-'} />
+        <Detail label={translate('auto.k1570')} value={props.archiveIntegrity ? `${props.archiveIntegrity.indexedRowCount}/${props.archiveIntegrity.reportRowCount}` : '-'} />
       </div>
       <div className="test-design-release-readiness-approvals">
         {props.archives.length ? props.archives.slice(0, 5).map((archive) => (
           <div className={`test-design-release-readiness-approval${props.selectedArchiveId === archive.id ? ' selected' : ''}`} key={archive.id}>
             <div>
               <strong>{archive.storageBackend ?? 'DATABASE'} · {archive.contentSizeBytes} bytes</strong>
-              <em>行 {archive.reportRowCount} · 索引 {archive.lineIntegrityCount} · 保留至 {archive.retentionUntil ?? '-'}</em>
-              <small>{archive.contentDigest ? `sha256:${archive.contentDigest.slice(0, 12)}` : '-'} · 内容存储 {archive.archiveContentStored ? 'ready' : 'pending'}</small>
+              <em>{translate('auto.k1571')}{archive.reportRowCount} {translate('auto.k1572')}{archive.lineIntegrityCount} {translate('auto.k1573')}{archive.retentionUntil ?? '-'}</em>
+              <small>{archive.contentDigest ? `sha256:${archive.contentDigest.slice(0, 12)}` : '-'} {translate('auto.k1574')}{archive.archiveContentStored ? 'ready' : 'pending'}</small>
             </div>
             <div className="test-design-release-readiness-approval-actions">
               <span className={`badge badge-${reportArchiveStatusTone(archive.status)}`}>{archive.status}</span>
@@ -538,17 +531,16 @@ function ReportArchivePanel(props: {
                 onClick={() => props.onSelectArchive(archive)}
               >
                 <FileText size={14} />
-                查看
-              </button>
+                {translate('auto.k1089')}</button>
             </div>
           </div>
         )) : (
-          <div className="notice info">暂无报告归档记录</div>
+          <div className="notice info">{translate('auto.k1575')}</div>
         )}
       </div>
       <form className="test-design-release-readiness-form" onSubmit={props.onRequestApproval}>
         <label className="field">
-          <span className="field-label">审批类型</span>
+          <span className="field-label">{translate('auto.k1576')}</span>
           <select
             value={props.draft.approvalType}
             onChange={(event) => props.onDraftChange((current) => ({ ...current, approvalType: event.target.value === 'EXTERNAL_SHARE' ? 'EXTERNAL_SHARE' : 'ARCHIVE' }))}
@@ -560,7 +552,7 @@ function ReportArchivePanel(props: {
           </select>
         </label>
         <label className="field">
-          <span className="field-label">申请原因</span>
+          <span className="field-label">{translate('auto.k1577')}</span>
           <select
             value={props.draft.reasonCode}
             onChange={(event) => props.onDraftChange((current) => ({ ...current, reasonCode: event.target.value }))}
@@ -572,7 +564,7 @@ function ReportArchivePanel(props: {
           </select>
         </label>
         <label className="field">
-          <span className="field-label">工单编号</span>
+          <span className="field-label">{translate('auto.k1398')}</span>
           <input
             value={props.draft.workOrderKey}
             onChange={(event) => props.onDraftChange((current) => ({ ...current, workOrderKey: event.target.value }))}
@@ -581,7 +573,7 @@ function ReportArchivePanel(props: {
           />
         </label>
         <label className="field">
-          <span className="field-label">工单 URL</span>
+          <span className="field-label">{translate('auto.k1400')}</span>
           <input
             value={props.draft.workOrderUrl}
             onChange={(event) => props.onDraftChange((current) => ({ ...current, workOrderUrl: event.target.value }))}
@@ -590,7 +582,7 @@ function ReportArchivePanel(props: {
           />
         </label>
         <label className="field test-design-release-readiness-wide">
-          <span className="field-label">申请摘要</span>
+          <span className="field-label">{translate('auto.k1578')}</span>
           <textarea
             value={props.draft.requestSummary}
             maxLength={1000}
@@ -600,7 +592,7 @@ function ReportArchivePanel(props: {
           />
         </label>
         <label className="field test-design-release-readiness-wide">
-          <span className="field-label">申请备注</span>
+          <span className="field-label">{translate('auto.k1403')}</span>
           <textarea
             value={props.draft.requestNote}
             maxLength={1000}
@@ -615,12 +607,11 @@ function ReportArchivePanel(props: {
           disabled={!props.canExport || props.state.loading || !props.selectedArchiveId || !props.draft.requestSummary.trim()}
         >
           <Save size={15} />
-          提交审批
-        </button>
+          {translate('auto.k1579')}</button>
       </form>
       <div className="test-design-release-readiness-review-grid">
         <label className="field">
-          <span className="field-label">审批原因</span>
+          <span className="field-label">{translate('auto.k1409')}</span>
           <select
             value={props.draft.approvalReasonCode}
             onChange={(event) => props.onDraftChange((current) => ({ ...current, approvalReasonCode: event.target.value }))}
@@ -632,20 +623,20 @@ function ReportArchivePanel(props: {
           </select>
         </label>
         <label className="field">
-          <span className="field-label">工单状态</span>
+          <span className="field-label">{translate('auto.k1410')}</span>
           <select
             value={props.draft.workOrderStatus}
             onChange={(event) => props.onDraftChange((current) => ({ ...current, workOrderStatus: event.target.value }))}
             disabled={!props.canExport || props.state.loading || !props.selectedPendingApproval}
           >
-            <option value="">跟随审批</option>
+            <option value="">{translate('auto.k1411')}</option>
             {props.workOrderStatuses.map((status) => (
               <option key={status} value={status}>{status}</option>
             ))}
           </select>
         </label>
         <label className="field test-design-release-readiness-wide">
-          <span className="field-label">审批备注</span>
+          <span className="field-label">{translate('auto.k1412')}</span>
           <textarea
             value={props.draft.reviewNote}
             maxLength={1000}
@@ -662,8 +653,7 @@ function ReportArchivePanel(props: {
             onClick={() => props.selectedPendingApproval && props.onReviewApproval(props.selectedPendingApproval.id, 'approve')}
           >
             <CheckCircle2 size={15} />
-            通过
-          </button>
+            {translate('auto.k1022')}</button>
           <button
             className="btn btn-ghost btn-sm"
             type="button"
@@ -671,8 +661,7 @@ function ReportArchivePanel(props: {
             onClick={() => props.selectedPendingApproval && props.onReviewApproval(props.selectedPendingApproval.id, 'reject')}
           >
             <XCircle size={15} />
-            驳回
-          </button>
+            {translate('auto.k0214')}</button>
         </div>
       </div>
       <div className="test-design-release-readiness-approvals">
@@ -681,8 +670,8 @@ function ReportArchivePanel(props: {
             <div>
               <strong>{approval.workOrderKey ?? approval.id}</strong>
               <em>{approval.approvalType} · {approval.workOrderStatus ?? '-'}</em>
-              <small>{approval.requestSummaryDigest ? `sha256:${approval.requestSummaryDigest.slice(0, 12)}` : '-'} · 备注 {approval.noteCount ?? 0}</small>
-              {approval.latestNotePreview ? <small>最新备注：{approval.latestNotePreview}</small> : null}
+              <small>{approval.requestSummaryDigest ? `sha256:${approval.requestSummaryDigest.slice(0, 12)}` : '-'} {translate('auto.k1417')}{approval.noteCount ?? 0}</small>
+              {approval.latestNotePreview ? <small>{translate('auto.k1418')}{approval.latestNotePreview}</small> : null}
             </div>
             <div className="test-design-release-readiness-approval-actions">
               <span className={`badge badge-${reportArchiveStatusTone(approval.status)}`}>{approval.status}</span>
@@ -693,17 +682,16 @@ function ReportArchivePanel(props: {
                 onClick={() => props.onSelectApproval(approval)}
               >
                 <FileText size={14} />
-                流转
-              </button>
+                {translate('auto.k1419')}</button>
             </div>
           </div>
         )) : (
-          <div className="notice info">暂无归档审批工单</div>
+          <div className="notice info">{translate('auto.k1580')}</div>
         )}
       </div>
       <div className="test-design-release-readiness-note-form">
         <label className="field">
-          <span className="field-label">备注类型</span>
+          <span className="field-label">{translate('auto.k1413')}</span>
           <select
             value={props.draft.noteType}
             onChange={(event) => props.onDraftChange((current) => ({ ...current, noteType: event.target.value === 'WORK_ORDER' ? 'WORK_ORDER' : 'COMMENT' }))}
@@ -714,7 +702,7 @@ function ReportArchivePanel(props: {
           </select>
         </label>
         <label className="field test-design-release-readiness-wide">
-          <span className="field-label">流转备注</span>
+          <span className="field-label">{translate('auto.k1414')}</span>
           <textarea
             value={props.draft.noteText}
             maxLength={1000}
@@ -730,11 +718,10 @@ function ReportArchivePanel(props: {
           onClick={props.onAddNote}
         >
           <Plus size={15} />
-          追加备注
-        </button>
+          {translate('auto.k1415')}</button>
       </div>
       <div className="test-design-release-readiness-notes">
-        <strong>备注流转 · {props.selectedApproval?.workOrderKey ?? (props.selectedApprovalId || '-')}</strong>
+        <strong>{translate('auto.k1421')}{props.selectedApproval?.workOrderKey ?? (props.selectedApprovalId || '-')}</strong>
         {props.selectedApprovalId ? (
           props.notes.length ? props.notes.slice(-6).map((note) => (
             <div className="test-design-release-readiness-note" key={note.id}>
@@ -743,10 +730,10 @@ function ReportArchivePanel(props: {
               <small>{note.createdBy ?? '-'} · {note.createdAt ?? '-'}</small>
             </div>
           )) : (
-            <div className="notice info">暂无归档备注</div>
+            <div className="notice info">{translate('auto.k1581')}</div>
           )
         ) : (
-          <div className="notice info">未选择归档审批工单</div>
+          <div className="notice info">{translate('auto.k1582')}</div>
         )}
       </div>
       <StateLine state={props.state} />
@@ -776,7 +763,7 @@ function PublishConflictPanel(props: {
   return (
     <div className="test-design-conflict-panel">
       <div className="test-design-conflict-heading">
-        <span>冲突处理 {props.records.length} 条</span>
+        <span>{translate('auto.k1583')}{props.records.length} {translate('auto.k0181')}</span>
         <div className="toolbar-actions">
           <button
             className="btn btn-secondary btn-xs"
@@ -785,14 +772,14 @@ function PublishConflictPanel(props: {
             onClick={props.onBatchResolve}
           >
             <Link2 size={14} />
-            批量复用 {props.batchResolvableCount}
+            {translate('auto.k1361')}{props.batchResolvableCount}
           </button>
-          <span className="badge badge-warning">需人工确认</span>
+          <span className="badge badge-warning">{translate('auto.k1584')}</span>
         </div>
       </div>
       <div className="test-design-conflict-form">
         <label className="field">
-          <span className="field-label">处理原因</span>
+          <span className="field-label">{translate('auto.k1367')}</span>
           <input
             value={props.conflictResolutionDraft.reason}
             onChange={(event) => props.onConflictResolutionDraftChange((current) => ({ ...current, reason: event.target.value }))}
@@ -800,25 +787,25 @@ function PublishConflictPanel(props: {
           />
         </label>
         <label className="field">
-          <span className="field-label">用例关键词</span>
+          <span className="field-label">{translate('auto.k1368')}</span>
           <input
             value={props.conflictCaseKeyword}
             onChange={(event) => props.onConflictCaseKeywordChange(event.target.value)}
-            placeholder="标题 / 标签 / 编号"
+            placeholder={translate('auto.k1369')}
             disabled={!props.canRead || props.publishState.loading || !props.conflictCaseSearchProjectId}
           />
         </label>
         <label className="field">
-          <span className="field-label">补充说明</span>
+          <span className="field-label">{translate('auto.k1370')}</span>
           <input
             value={props.conflictResolutionDraft.comment}
             onChange={(event) => props.onConflictResolutionDraftChange((current) => ({ ...current, comment: event.target.value }))}
-            placeholder="比对说明"
+            placeholder={translate('auto.k1371')}
             disabled={!props.canPublish || props.publishState.loading}
           />
         </label>
         <div className="field test-design-conflict-search-action">
-          <span className="field-label">既有用例</span>
+          <span className="field-label">{translate('auto.k1372')}</span>
           <button
             className="btn btn-secondary btn-sm"
             type="button"
@@ -826,8 +813,7 @@ function PublishConflictPanel(props: {
             onClick={props.onSearchConflictCases}
           >
             <Search size={15} />
-            搜索
-          </button>
+            {translate('auto.k1373')}</button>
         </div>
       </div>
       <div className="test-design-conflict-list">
@@ -838,10 +824,10 @@ function PublishConflictPanel(props: {
             <div className="test-design-conflict-row" key={publishRecordKey(record)}>
               <span>
                 <strong>{record.title ?? record.candidateId ?? '-'}</strong>
-                <em>{targetCaseId ? `目标用例 ${targetCaseId}` : '目标用例 -'}</em>
-                {candidate && <em>候选 {candidate.status}@v{candidate.version}</em>}
+                <em>{targetCaseId ? translate('auto.k1379', { value0: targetCaseId }) : translate('auto.k1585')}</em>
+                {candidate && <em>{translate('auto.k1428')}{candidate.status}@v{candidate.version}</em>}
                 {record.errorMessage && <small>{record.errorMessage}</small>}
-                {!candidate && <small>发布记录缺少候选版本，重新预发布后可处理。</small>}
+                {!candidate && <small>{translate('auto.k1586')}</small>}
               </span>
               <div className="test-design-conflict-controls">
                 <select
@@ -858,9 +844,9 @@ function PublishConflictPanel(props: {
                   }}
                   disabled={!props.canPublish || props.publishState.loading}
                 >
-                  <option value="">{record.assetCaseId ? '清空目标' : '选择目标用例'}</option>
+                  <option value="">{record.assetCaseId ? translate('auto.k1381') : translate('auto.k1382')}</option>
                   {record.assetCaseId && (
-                    <option value={record.assetCaseId}>推荐 {shortIdentifier(record.assetCaseId)}</option>
+                    <option value={record.assetCaseId}>{translate('auto.k1383')}{shortIdentifier(record.assetCaseId)}</option>
                   )}
                   {props.conflictCaseResults.filter((testCase) => testCase.id !== record.assetCaseId).map((testCase) => (
                     <option value={testCase.id} key={`${record.candidateId}-${testCase.id}`}>
@@ -875,8 +861,7 @@ function PublishConflictPanel(props: {
                   onClick={() => props.onResolveConflict(record)}
                 >
                   <Link2 size={14} />
-                  复用
-                </button>
+                  {translate('auto.k1384')}</button>
               </div>
             </div>
           );

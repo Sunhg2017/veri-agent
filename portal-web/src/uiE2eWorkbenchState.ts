@@ -19,6 +19,7 @@ import type {
   UpdateUiE2eScenePayload,
   UpsertUiE2eFlakyMarkPayload
 } from './api/uiE2e';
+import { translate } from './platform/i18n';
 
 export type UiE2eSceneStepDraft = {
   stepType: string;
@@ -383,39 +384,39 @@ export function buildUiE2eWorkbenchOverview(
 
   const notices: UiE2eWorkbenchNotice[] = [];
   if (health?.status && health.status !== 'UP') {
-    notices.push({ tone: 'warning', message: `健康状态为 ${health.status}，请先确认控制面服务可用性。` });
+    notices.push({ tone: 'warning', message: translate('auto.k2332', { value0: health.status }) });
   }
   if (health && !health.runnerEnabled) {
-    notices.push({ tone: 'warning', message: '当前 runner 默认关闭，手动创建运行会返回 BLOCKED 摘要，用于验证控制面与权限链路。' });
+    notices.push({ tone: 'warning', message: translate('auto.k2333') });
   }
   if (health && !health.allowlistEnabled) {
-    notices.push({ tone: 'warning', message: 'baseUrl allowlist 当前关闭，发布前应确认受控目标范围已经收口。' });
+    notices.push({ tone: 'warning', message: translate('auto.k2334') });
   }
   if (health) {
     const queuedTasks = numberFromUnknown(health.runnerCapacity?.queuedTasks);
     const saturated = booleanFromUnknown(health.runnerCapacity?.saturated);
     const backfillReady = booleanFromUnknown(health.runnerCapacity?.summaryBackfillReady, true);
     if (saturated) {
-      notices.push({ tone: 'warning', message: '共享浏览器池当前已饱和，新的浏览器尝试可能进入排队。' });
+      notices.push({ tone: 'warning', message: translate('auto.k2335') });
     }
     if (queuedTasks > 0) {
-      notices.push({ tone: 'info', message: `当前 runner 队列中仍有 ${queuedTasks} 个待处理任务，批量运行可能需要等待空闲槽位。` });
+      notices.push({ tone: 'info', message: translate('auto.k2336', { value0: queuedTasks }) });
     }
     if (!backfillReady) {
-      notices.push({ tone: 'info', message: '运行摘要 backfill 当前未就绪，执行前请先确认控制面版本和健康状态。' });
+      notices.push({ tone: 'info', message: translate('auto.k2337') });
     }
   }
   if (recentFailures > 0) {
-    notices.push({ tone: 'warning', message: `最近列表中有 ${recentFailures} 条 FAILED/TIMEOUT 运行，建议优先查看 failureCode 和 traceId。` });
+    notices.push({ tone: 'warning', message: translate('auto.k2338', { value0: recentFailures }) });
   }
   if (blockedRuns > 0) {
-    notices.push({ tone: 'info', message: `最近列表中有 ${blockedRuns} 条 BLOCKED 运行，通常需要复核 runner、租借或审批状态。` });
+    notices.push({ tone: 'info', message: translate('auto.k2339', { value0: blockedRuns }) });
   }
   if (confirmedFlaky > 0) {
-    notices.push({ tone: 'info', message: `当前共有 ${confirmedFlaky} 条 CONFIRMED_FLAKY 标记，可作为后续诊断和治理输入。` });
+    notices.push({ tone: 'info', message: translate('auto.k2340', { value0: confirmedFlaky }) });
   }
 
-  const runnerLabel = health ? `${health.runnerEnabled ? 'ON' : 'OFF'} · ${health.runnerMode || 'UNKNOWN'}` : '等待加载';
+  const runnerLabel = health ? `${health.runnerEnabled ? 'ON' : 'OFF'} · ${health.runnerMode || 'UNKNOWN'}` : translate('auto.k1118');
   const runnerTone: UiE2eWorkbenchTone = !health
     ? 'info'
     : health.status !== 'UP'
@@ -423,7 +424,7 @@ export function buildUiE2eWorkbenchOverview(
       : health.runnerEnabled
         ? 'success'
         : 'warning';
-  const allowlistLabel = health ? (health.allowlistEnabled ? `ON (${health.allowlistHostCount})` : 'OFF') : '等待加载';
+  const allowlistLabel = health ? (health.allowlistEnabled ? `ON (${health.allowlistHostCount})` : 'OFF') : translate('auto.k1118');
   const allowlistTone: UiE2eWorkbenchTone = !health ? 'info' : health.allowlistEnabled ? 'success' : 'warning';
 
   return {
@@ -446,36 +447,36 @@ export function buildUiE2eSceneQueueOverview(scenes: UiE2eSceneSummary[]): UiE2e
     focusOptions: [
       {
         mode: 'approved',
-        label: '已批准',
-        desc: '聚焦 APPROVED，优先定位可继续生成 bundle 的场景。',
+        label: translate('auto.k2341'),
+        desc: translate('auto.k2342'),
         count: filterUiE2eScenesByFocusMode(scenes, 'approved').length,
         tone: 'success'
       },
       {
         mode: 'reviewing',
-        label: '待评审',
-        desc: '聚焦 REVIEWING，优先确认是否已达到通过条件。',
+        label: translate('auto.k2343'),
+        desc: translate('auto.k2344'),
         count: filterUiE2eScenesByFocusMode(scenes, 'reviewing').length,
         tone: 'info'
       },
       {
         mode: 'draft',
-        label: '草稿',
-        desc: '聚焦 DRAFT，优先补全步骤模板、定位和断言摘要。',
+        label: translate('auto.k2345'),
+        desc: translate('auto.k2346'),
         count: filterUiE2eScenesByFocusMode(scenes, 'draft').length,
         tone: 'warning'
       },
       {
         mode: 'highRisk',
-        label: '高风险',
-        desc: '聚焦 HIGH/CRITICAL，优先复核关键路径覆盖和审批状态。',
+        label: translate('auto.k1012'),
+        desc: translate('auto.k2347'),
         count: filterUiE2eScenesByFocusMode(scenes, 'highRisk').length,
         tone: 'danger'
       },
       {
         mode: 'disabled',
-        label: '已停用',
-        desc: '聚焦 DISABLED，确认是否需要恢复或保持退出运行链路。',
+        label: translate('auto.k0067'),
+        desc: translate('auto.k2348'),
         count: filterUiE2eScenesByFocusMode(scenes, 'disabled').length,
         tone: 'warning'
       }
@@ -504,18 +505,18 @@ export function filterUiE2eScenesByFocusMode(scenes: UiE2eSceneSummary[], mode: 
 export function labelUiE2eSceneFocusMode(mode: UiE2eSceneFocusMode) {
   switch (mode) {
     case 'approved':
-      return '已批准';
+      return translate('auto.k2341');
     case 'reviewing':
-      return '待评审';
+      return translate('auto.k2343');
     case 'draft':
-      return '草稿';
+      return translate('auto.k2345');
     case 'highRisk':
-      return '高风险';
+      return translate('auto.k1012');
     case 'disabled':
-      return '已停用';
+      return translate('auto.k0067');
     case 'all':
     default:
-      return '全部场景';
+      return translate('auto.k2349');
   }
 }
 
@@ -537,30 +538,30 @@ export function buildUiE2eSceneListSummary(scene: UiE2eSceneSummary): UiE2eScene
 
   let detail: string;
   if (scene.status === 'APPROVED') {
-    detail = '场景已批准，可继续生成 bundle 或串联运行链路。';
+    detail = translate('auto.k2350');
   } else if (scene.status === 'REVIEWING') {
-    detail = '场景已进入评审，建议先核对步骤模板、来源摘要和风险等级。';
+    detail = translate('auto.k2351');
   } else if (scene.status === 'DRAFT') {
-    detail = '场景仍在草稿态，可继续补全步骤模板、定位策略和断言摘要。';
+    detail = translate('auto.k2352');
   } else if (scene.status === 'DISABLED') {
-    detail = '场景已停用，恢复前不会进入 bundle/运行链路。';
+    detail = translate('auto.k2353');
   } else if (scene.status === 'ARCHIVED') {
-    detail = '场景已归档，不再参与新的 bundle 生成。';
+    detail = translate('auto.k2354');
   } else {
-    detail = '场景摘要已生成，可继续查看步骤模板和来源摘要。';
+    detail = translate('auto.k2355');
   }
 
   return {
     headline: scene.status === 'APPROVED'
-      ? '可生成 bundle'
+      ? translate('auto.k2356')
       : scene.status === 'REVIEWING'
-        ? '待场景评审'
+        ? translate('auto.k2357')
         : scene.status === 'DRAFT'
-          ? '草稿待补全'
+          ? translate('auto.k2358')
           : scene.status === 'DISABLED'
-            ? '已停用'
+            ? translate('auto.k0067')
             : scene.status === 'ARCHIVED'
-              ? '已归档'
+              ? translate('auto.k2359')
               : `risk=${scene.riskLevel}`,
     detail,
     signals
@@ -594,36 +595,36 @@ export function buildUiE2eBundleQueueOverview(bundles: UiE2eBundleSummary[]): Ui
     focusOptions: [
       {
         mode: 'reviewing',
-        label: '待审批',
-        desc: '聚焦 REVIEWING，方便快速处理批准或驳回决策。',
+        label: translate('auto.k1021'),
+        desc: translate('auto.k2360'),
         count: filterUiE2eBundlesByFocusMode(bundles, 'reviewing').length,
         tone: 'info'
       },
       {
         mode: 'submittable',
-        label: '待送审',
-        desc: '聚焦 DRAFT/REJECTED/STATIC_CHECK_FAILED，确认是否已满足再次送审条件。',
+        label: translate('auto.k2361'),
+        desc: translate('auto.k2362'),
         count: filterUiE2eBundlesByFocusMode(bundles, 'submittable').length,
         tone: 'warning'
       },
       {
         mode: 'approved',
-        label: '可执行',
-        desc: '聚焦 APPROVED，优先挑选可直接进入运行链路的 bundle。',
+        label: translate('auto.k2363'),
+        desc: translate('auto.k2364'),
         count: filterUiE2eBundlesByFocusMode(bundles, 'approved').length,
         tone: 'success'
       },
       {
         mode: 'staticFailed',
-        label: '静态校验失败',
-        desc: '聚焦静态校验未通过的 bundle，优先复核摘要中的失败项。',
+        label: translate('auto.k2365'),
+        desc: translate('auto.k2366'),
         count: filterUiE2eBundlesByFocusMode(bundles, 'staticFailed').length,
         tone: 'danger'
       },
       {
         mode: 'rejected',
-        label: '已驳回',
-        desc: '聚焦 REJECTED，回看评审意见后决定是否修正重提。',
+        label: translate('auto.k2367'),
+        desc: translate('auto.k2368'),
         count: filterUiE2eBundlesByFocusMode(bundles, 'rejected').length,
         tone: 'danger'
       }
@@ -652,18 +653,18 @@ export function filterUiE2eBundlesByFocusMode(bundles: UiE2eBundleSummary[], mod
 export function labelUiE2eBundleFocusMode(mode: UiE2eBundleFocusMode) {
   switch (mode) {
     case 'reviewing':
-      return '待审批';
+      return translate('auto.k1021');
     case 'submittable':
-      return '待送审';
+      return translate('auto.k2361');
     case 'approved':
-      return '可执行';
+      return translate('auto.k2363');
     case 'staticFailed':
-      return '静态校验失败';
+      return translate('auto.k2365');
     case 'rejected':
-      return '已驳回';
+      return translate('auto.k2367');
     case 'all':
     default:
-      return '全部脚本包';
+      return translate('auto.k2369');
   }
 }
 
@@ -694,28 +695,28 @@ export function buildUiE2eBundleListSummary(bundle: UiE2eBundleSummary): UiE2eBu
 
   let detail: string;
   if (isUiE2eBundleStaticFailed(bundle)) {
-    detail = '静态校验未通过，建议先处理摘要中的失败项后再送审。';
+    detail = translate('auto.k2370');
   } else if (bundle.status === 'REVIEWING') {
-    detail = '脚本包已送审，待 review 决定是否允许进入运行链路。';
+    detail = translate('auto.k2371');
   } else if (bundle.status === 'APPROVED') {
-    detail = '脚本包已批准，可继续用于创建 UI 运行。';
+    detail = translate('auto.k2372');
   } else if (bundle.status === 'REJECTED') {
-    detail = '脚本包已驳回，修正后可再次送审。';
+    detail = translate('auto.k2373');
   } else if (bundle.status === 'ARCHIVED') {
-    detail = '脚本包已归档，不再参与新的运行申请。';
+    detail = translate('auto.k2374');
   } else {
-    detail = '脚本包已生成，可先查看静态校验摘要与场景状态。';
+    detail = translate('auto.k2375');
   }
 
   let headline: string;
   if (isUiE2eBundleStaticFailed(bundle)) {
     headline = staticCheckLabel || 'STATIC_CHECK_FAILED';
   } else if (bundle.status === 'REVIEWING') {
-    headline = '等待审批';
+    headline = translate('auto.k2376');
   } else if (bundle.status === 'APPROVED') {
-    headline = '可创建运行';
+    headline = translate('auto.k2377');
   } else if (bundle.status === 'REJECTED') {
-    headline = '需要修正后重提';
+    headline = translate('auto.k2378');
   } else {
     headline = staticCheckLabel ? `static=${staticCheckLabel}` : bundle.status;
   }
@@ -732,36 +733,36 @@ export function buildUiE2eRunQueueOverview(runs: UiE2eRunSummary[]): UiE2eRunQue
     focusOptions: [
       {
         mode: 'active',
-        label: '活跃运行',
-        desc: '聚焦 QUEUED/RUNNING，便于盯住自动刷新中的 run。',
+        label: translate('auto.k1884'),
+        desc: translate('auto.k2379'),
         count: filterUiE2eRunsByFocusMode(runs, 'active').length,
         tone: 'info'
       },
       {
         mode: 'failures',
-        label: '失败/超时',
-        desc: '聚焦 FAILED/TIMEOUT，优先排查 failureCode 与 traceId。',
+        label: translate('auto.k0856'),
+        desc: translate('auto.k2380'),
         count: filterUiE2eRunsByFocusMode(runs, 'failures').length,
         tone: 'danger'
       },
       {
         mode: 'blocked',
-        label: '阻断运行',
-        desc: '聚焦 BLOCKED，优先复核 runner、租借、审批与 allowlist。',
+        label: translate('auto.k2381'),
+        desc: translate('auto.k2382'),
         count: filterUiE2eRunsByFocusMode(runs, 'blocked').length,
         tone: 'warning'
       },
       {
         mode: 'flaky',
         label: 'Confirmed Flaky',
-        desc: '聚焦已标记 CONFIRMED_FLAKY 的运行，方便做抖动治理。',
+        desc: translate('auto.k2383'),
         count: filterUiE2eRunsByFocusMode(runs, 'flaky').length,
         tone: 'warning'
       },
       {
         mode: 'runnerDisabled',
         label: 'Runner Off',
-        desc: '聚焦 UI_E2E_RUNNER_DISABLED，确认 aggregate-only 控制面链路。',
+        desc: translate('auto.k2384'),
         count: filterUiE2eRunsByFocusMode(runs, 'runnerDisabled').length,
         tone: 'warning'
       }
@@ -790,18 +791,18 @@ export function filterUiE2eRunsByFocusMode(runs: UiE2eRunSummary[], mode: UiE2eR
 export function labelUiE2eRunFocusMode(mode: UiE2eRunFocusMode) {
   switch (mode) {
     case 'active':
-      return '活跃运行';
+      return translate('auto.k1884');
     case 'failures':
-      return '失败/超时';
+      return translate('auto.k0856');
     case 'blocked':
-      return '阻断运行';
+      return translate('auto.k2381');
     case 'flaky':
       return 'Confirmed Flaky';
     case 'runnerDisabled':
       return 'Runner Off';
     case 'all':
     default:
-      return '全部运行';
+      return translate('auto.k2385');
   }
 }
 
@@ -832,19 +833,19 @@ export function buildUiE2eRunListSummary(run: UiE2eRunSummary): UiE2eRunListSumm
 
   let detail: string;
   if (run.failureCode === 'UI_E2E_RUNNER_DISABLED') {
-    detail = 'runner 默认关闭，控制面返回 BLOCKED 摘要。';
+    detail = translate('auto.k2386');
   } else if (run.status === 'BLOCKED') {
-    detail = '运行在执行前被阻断，建议优先复核审批、租借与 allowlist。';
+    detail = translate('auto.k2387');
   } else if (isUiE2eRunFailureStatus(run.status)) {
-    detail = '建议优先查看 failureCode、traceId 和运行详情诊断。';
+    detail = translate('auto.k2388');
   } else if (run.status === 'CANCELED') {
-    detail = '运行已取消，可继续确认外部 runner 是否同步停止。';
+    detail = translate('auto.k2389');
   } else if (isUiE2eRunActiveStatus(run.status)) {
-    detail = '运行进行中，详情面板会自动刷新最新快照。';
+    detail = translate('auto.k2390');
   } else if (run.flakyStatus === 'CONFIRMED_FLAKY') {
-    detail = '运行已完成，但当前已标记为 CONFIRMED_FLAKY。';
+    detail = translate('auto.k2391');
   } else {
-    detail = '运行已完成，可继续查看步骤结果和 artifact 摘要。';
+    detail = translate('auto.k2392');
   }
 
   return {
@@ -910,8 +911,8 @@ export function buildUiE2eRunCreationReadiness(input: {
     return {
       ready: false,
       tone: 'info',
-      label: '填写运行参数',
-      summary: `请先补全 ${missingFields.join(' / ')}，再触发单次 UI 运行。`,
+      label: translate('auto.k2393'),
+      summary: translate('auto.k2394', { value0: missingFields.join(' / ') }),
       checks
     };
   }
@@ -921,7 +922,7 @@ export function buildUiE2eRunCreationReadiness(input: {
       ready: false,
       tone: 'warning',
       label: 'Runner Disabled',
-      summary: '当前环境 runner 默认关闭，工作台只验证控制面链路，不会创建真实浏览器运行。',
+      summary: translate('auto.k2395'),
       checks
     };
   }
@@ -931,7 +932,7 @@ export function buildUiE2eRunCreationReadiness(input: {
       ready: false,
       tone: 'warning',
       label: 'Scene Not Ready',
-      summary: `当前场景 ${scene.code || draft.sceneId} 状态为 ${scene.status}，需先到 APPROVED 才能进入运行链路。`,
+      summary: translate('auto.k2396', { value0: scene.code || draft.sceneId, value1: scene.status }),
       checks
     };
   }
@@ -941,7 +942,7 @@ export function buildUiE2eRunCreationReadiness(input: {
       ready: false,
       tone: 'warning',
       label: 'Bundle Not Ready',
-      summary: `当前脚本包 ${bundle.sceneCode || draft.bundleId} 状态为 ${bundle.status}，需先批准后再创建运行。`,
+      summary: translate('auto.k2397', { value0: bundle.sceneCode || draft.bundleId, value1: bundle.status }),
       checks
     };
   }
@@ -951,7 +952,7 @@ export function buildUiE2eRunCreationReadiness(input: {
       ready: false,
       tone: 'warning',
       label: 'Scene Bundle Mismatch',
-      summary: `当前 bundle 关联的场景状态为 ${bundle.sceneStatus}，建议先确认场景仍处于 APPROVED。`,
+      summary: translate('auto.k2398', { value0: bundle.sceneStatus }),
       checks
     };
   }
@@ -960,7 +961,7 @@ export function buildUiE2eRunCreationReadiness(input: {
     ready: true,
     tone: 'success',
     label: 'Ready To Run',
-    summary: '当前参数已满足前端已知准入条件；提交后仍会由后端继续校验 allowlist、账号租借和幂等约束。',
+    summary: translate('auto.k2399'),
     checks
   };
 }
@@ -971,34 +972,34 @@ export function buildUiE2eBatchRunPayload(draft: UiE2eBatchRunDraft): { payload?
   const sceneIds = uniqueOrderedRunIds(draft.sceneIdsText);
   const browsers = splitTags(draft.browsersText || '').map((item) => item.toUpperCase());
 
-  if (!projectId) issues.push('请填写 batch projectId');
-  if (!sceneIds.length) issues.push('请至少填写一个 sceneId');
-  if (sceneIds.length > 100) issues.push('sceneIds 最多支持 100 个');
+  if (!projectId) issues.push(translate('auto.k2400'));
+  if (!sceneIds.length) issues.push(translate('auto.k2401'));
+  if (sceneIds.length > 100) issues.push(translate('auto.k2402'));
   if (sceneIds.length) {
     const invalidSceneId = sceneIds.find((sceneId) => !uuidPattern.test(sceneId));
     if (invalidSceneId) {
-      issues.push(`sceneId 需要是 UUID：${invalidSceneId}`);
+      issues.push(translate('auto.k2403', { value0: invalidSceneId }));
     }
   }
-  if (!draft.baseUrlRef.trim()) issues.push('请填写 batch baseUrlRef');
-  if (!uuidPattern.test(draft.accountLeaseRef.trim())) issues.push('accountLeaseRef 需要是 UUID');
-  if (!browsers.length) issues.push('至少指定一个浏览器（CHROMIUM/FIREFOX/WEBKIT）');
+  if (!draft.baseUrlRef.trim()) issues.push(translate('auto.k2404'));
+  if (!uuidPattern.test(draft.accountLeaseRef.trim())) issues.push(translate('auto.k2405'));
+  if (!browsers.length) issues.push(translate('auto.k2406'));
   if (browsers.some((item) => !['CHROMIUM', 'FIREFOX', 'WEBKIT'].includes(item))) {
-    issues.push('浏览器仅支持 CHROMIUM / FIREFOX / WEBKIT');
+    issues.push(translate('auto.k2407'));
   }
   if (draft.visualRegressionEnabled && draft.baselineRunId.trim() && !uuidPattern.test(draft.baselineRunId.trim())) {
-    issues.push('baselineRunId 需要是 UUID');
+    issues.push(translate('auto.k2408'));
   }
   if (draft.visualMismatchThreshold.trim()) {
     const threshold = Number(draft.visualMismatchThreshold.trim());
     if (Number.isNaN(threshold) || threshold < 0 || threshold > 1) {
-      issues.push('visualMismatchThreshold 需要在 0 到 1 之间');
+      issues.push(translate('auto.k2409'));
     }
   }
   if (draft.requestKeyPrefix.trim() && !requestKeyPattern.test(draft.requestKeyPrefix.trim())) {
-    issues.push('requestKeyPrefix 只能包含字母、数字、-、_、.、:，且不超过 128 字符');
+    issues.push(translate('auto.k2410'));
   }
-  if (draft.reason.length > 512) issues.push('reason 最多 512 字符');
+  if (draft.reason.length > 512) issues.push(translate('auto.k2411'));
 
   if (issues.length) {
     return { issues };
@@ -1058,8 +1059,8 @@ export function buildUiE2eBatchRunReadiness(input: {
     return {
       ready: false,
       tone: 'info',
-      label: '填写 Batch 参数',
-      summary: issues[0] || '请先补全批量运行参数。',
+      label: translate('auto.k2412'),
+      summary: issues[0] || translate('auto.k2413'),
       checks
     };
   }
@@ -1069,7 +1070,7 @@ export function buildUiE2eBatchRunReadiness(input: {
       ready: false,
       tone: 'warning',
       label: 'Batch Size Exceeded',
-      summary: `当前控制面单次批量最多支持 ${health.maxScenesPerRun} 个场景，请缩小本次 sceneId 范围。`,
+      summary: translate('auto.k2414', { value0: health.maxScenesPerRun }),
       checks
     };
   }
@@ -1079,7 +1080,7 @@ export function buildUiE2eBatchRunReadiness(input: {
       ready: false,
       tone: 'warning',
       label: 'Runner Disabled',
-      summary: '当前环境 runner 默认关闭，批量运行不会创建真实浏览器执行。',
+      summary: translate('auto.k2415'),
       checks
     };
   }
@@ -1089,7 +1090,7 @@ export function buildUiE2eBatchRunReadiness(input: {
       ready: false,
       tone: 'warning',
       label: 'Batch Pending',
-      summary: '当前控制面尚未声明 batch run ready，建议先确认健康状态和部署版本。',
+      summary: translate('auto.k2416'),
       checks
     };
   }
@@ -1099,7 +1100,7 @@ export function buildUiE2eBatchRunReadiness(input: {
       ready: false,
       tone: 'warning',
       label: 'Scene Not Ready',
-      summary: `当前列表中有 ${nonApprovedScenes.length} 个场景不是 APPROVED，建议先处理后再批量运行。`,
+      summary: translate('auto.k2417', { value0: nonApprovedScenes.length }),
       checks
     };
   }
@@ -1108,7 +1109,7 @@ export function buildUiE2eBatchRunReadiness(input: {
     ready: true,
     tone: 'success',
     label: 'Batch Ready',
-    summary: `将按 ${payload.sceneIds.length} 个场景展开独立运行请求，逐条复用后端既有准入校验。`,
+    summary: translate('auto.k2418', { value0: payload.sceneIds.length }),
     checks
   };
 }
@@ -1120,21 +1121,21 @@ export function buildUiE2eRunBackfillPayload(draft: UiE2eRunBackfillDraft): { pa
   const limit = optionalPositiveInteger(draft.limit);
 
   if (!projectId) {
-    issues.push('请填写 backfill projectId');
+    issues.push(translate('auto.k2419'));
   }
   if (!runIds.length && limit == null) {
-    issues.push('请填写 runIds 或 limit');
+    issues.push(translate('auto.k2420'));
   }
   if (runIds.length > 200) {
-    issues.push('runIds 最多支持 200 个');
+    issues.push(translate('auto.k2421'));
   }
   if (draft.limit.trim() && limit == null) {
-    issues.push('limit 需要是 1 到 200 的整数');
+    issues.push(translate('auto.k2422'));
   }
   if (runIds.length) {
     const invalidRunId = runIds.find((runId) => !uuidPattern.test(runId));
     if (invalidRunId) {
-      issues.push(`runId 需要是 UUID：${invalidRunId}`);
+      issues.push(translate('auto.k2423', { value0: invalidRunId }));
     }
   }
 
@@ -1176,8 +1177,8 @@ export function buildUiE2eRunBackfillReadiness(input: {
     return {
       ready: false,
       tone: 'info',
-      label: '填写 Backfill 参数',
-      summary: issues[0] || '请先填写 runIds 或 limit，再执行运行摘要回填。',
+      label: translate('auto.k2424'),
+      summary: issues[0] || translate('auto.k2425'),
       checks
     };
   }
@@ -1187,7 +1188,7 @@ export function buildUiE2eRunBackfillReadiness(input: {
       ready: false,
       tone: 'warning',
       label: 'Backfill Pending',
-      summary: '当前控制面尚未声明 backfill ready，建议先确认健康状态和部署版本。',
+      summary: translate('auto.k2426'),
       checks
     };
   }
@@ -1197,8 +1198,8 @@ export function buildUiE2eRunBackfillReadiness(input: {
     tone: 'success',
     label: 'Backfill Ready',
     summary: payload.runIds?.length
-      ? `将按指定的 ${payload.runIds.length} 个 runId 重算聚合摘要。`
-      : `将按项目最近 ${payload.limit || 0} 条运行重算聚合摘要。`,
+      ? translate('auto.k2427', { value0: payload.runIds.length })
+      : translate('auto.k2428', { value0: payload.limit || 0 }),
     checks
   };
 }
@@ -1227,8 +1228,8 @@ export function buildUiE2eRunBackfillSummary(result: UiE2eRunSummaryBackfill): U
       tone: result.updatedCount > 0 ? 'warning' : 'error',
       label: result.updatedCount > 0 ? 'Backfill Partially Failed' : 'Backfill Failed',
       summary: result.updatedCount > 0
-        ? `本次回填已更新 ${result.updatedCount} 条运行摘要，但仍有 ${result.failedCount} 条失败。`
-        : `本次回填失败 ${result.failedCount} 条，请优先排查错误项。`,
+        ? translate('auto.k2429', { value0: result.updatedCount, value1: result.failedCount })
+        : translate('auto.k2430', { value0: result.failedCount }),
       signals,
       failedItems
     };
@@ -1238,7 +1239,7 @@ export function buildUiE2eRunBackfillSummary(result: UiE2eRunSummaryBackfill): U
     return {
       tone: 'success',
       label: 'Backfill Updated',
-      summary: `本次回填已更新 ${result.updatedCount} 条运行摘要，其余 ${result.unchangedCount} 条保持不变。`,
+      summary: translate('auto.k2431', { value0: result.updatedCount, value1: result.unchangedCount }),
       signals,
       failedItems
     };
@@ -1247,7 +1248,7 @@ export function buildUiE2eRunBackfillSummary(result: UiE2eRunSummaryBackfill): U
   return {
     tone: 'info',
     label: 'Backfill Unchanged',
-    summary: `本次回填未发现需要重写的摘要，共检查 ${result.requestedCount} 条运行。`,
+    summary: translate('auto.k2432', { value0: result.requestedCount }),
     signals,
     failedItems
   };
@@ -1269,8 +1270,8 @@ export function buildUiE2eBatchRunSummary(result: UiE2eBatchRun): UiE2eBatchRunS
       tone: result.createdCount > 0 || result.replayedCount > 0 ? 'warning' : 'error',
       label: result.createdCount > 0 || result.replayedCount > 0 ? 'Batch Partially Failed' : 'Batch Failed',
       summary: result.createdCount > 0 || result.replayedCount > 0
-        ? `本次批量运行已创建 ${result.createdCount} 条、回放 ${result.replayedCount} 条，但仍有 ${result.failedCount} 条失败。`
-        : `本次批量运行失败 ${result.failedCount} 条，请先排查失败项。`,
+        ? translate('auto.k2433', { value0: result.createdCount, value1: result.replayedCount, value2: result.failedCount })
+        : translate('auto.k2434', { value0: result.failedCount }),
       signals,
       failedItems
     };
@@ -1280,7 +1281,7 @@ export function buildUiE2eBatchRunSummary(result: UiE2eBatchRun): UiE2eBatchRunS
     return {
       tone: 'success',
       label: 'Batch Replayed',
-      summary: `本次批量运行全部成功，其中新建 ${result.createdCount} 条、回放既有运行 ${result.replayedCount} 条。`,
+      summary: translate('auto.k2435', { value0: result.createdCount, value1: result.replayedCount }),
       signals,
       failedItems
     };
@@ -1289,7 +1290,7 @@ export function buildUiE2eBatchRunSummary(result: UiE2eBatchRun): UiE2eBatchRunS
   return {
     tone: 'success',
     label: 'Batch Created',
-    summary: `本次批量运行已成功创建 ${result.createdCount} 条运行请求。`,
+    summary: translate('auto.k2436', { value0: result.createdCount }),
     signals,
     failedItems
   };
@@ -1342,13 +1343,13 @@ export function buildUiE2eRunDiagnosis(detail: UiE2eRunDetail): UiE2eRunDiagnosi
     pushUnique(signals, 'flakyStatus=CONFIRMED_FLAKY');
   }
   if (booleanFromUnknown(executionSummary.aggregateOnly)) {
-    pushUnique(signals, 'aggregateOnly=true，当前详情不包含 secretRef 明文与原始 artifact 正文');
+    pushUnique(signals, translate('auto.k2437'));
   }
   if (!rawArtifactDownloadReady && detail.artifacts.length > 0) {
-    pushUnique(signals, 'rawArtifactDownloadReady=false，artifact 仅提供 manifest 摘要');
+    pushUnique(signals, translate('auto.k2438'));
   }
   if (stepResultCount === 0 && !isUiE2eRunActiveStatus(detail.status)) {
-    pushUnique(signals, 'stepResultCount=0，阻断发生在实际步骤执行之前');
+    pushUnique(signals, translate('auto.k2439'));
   }
   if (browserTypes.length) {
     pushUnique(signals, `browserTypes=${browserTypes.join(',')}`);
@@ -1384,8 +1385,8 @@ export function buildUiE2eRunDiagnosis(detail: UiE2eRunDetail): UiE2eRunDiagnosi
   if (isUiE2eRunActiveStatus(detail.status)) {
     tone = 'info';
     label = detail.status;
-    summary = `运行仍在进行中，当前已聚合 ${stepResultCount} 个步骤结果和 ${detail.artifacts.length} 个 artifact manifest。`;
-    pushUnique(nextActions, '继续观察工作台自动刷新，并结合 traceId 对照 runner/控制面日志。');
+    summary = translate('auto.k2440', { value0: stepResultCount, value1: detail.artifacts.length });
+    pushUnique(nextActions, translate('auto.k2441'));
   } else if (failureCodeDiagnosis) {
     tone = failureCodeDiagnosis.tone;
     label = failureCodeDiagnosis.label;
@@ -1395,32 +1396,32 @@ export function buildUiE2eRunDiagnosis(detail: UiE2eRunDetail): UiE2eRunDiagnosi
     tone = flakyStatus === 'CONFIRMED_FLAKY' ? 'warning' : 'error';
     label = flakyStatus === 'CONFIRMED_FLAKY' ? 'CONFIRMED_FLAKY' : 'FAILED';
     summary = primaryFailureBucketEntry
-      ? `运行失败，主要失败桶为 ${primaryFailureBucketEntry[0]}。`
-      : '运行失败，请优先查看失败步骤摘要、errorCode 和 traceId。';
+      ? translate('auto.k2442', { value0: primaryFailureBucketEntry[0] })
+      : translate('auto.k2443');
   } else if (detail.status === 'TIMEOUT') {
     tone = 'error';
     label = 'TIMEOUT';
-    summary = '运行超时，通常需要先排查环境等待、账号状态或 runner 执行耗时。';
+    summary = translate('auto.k2444');
   } else if (detail.status === 'BLOCKED') {
     tone = 'warning';
     label = 'BLOCKED';
     summary = primaryFailureBucketEntry?.[0] === 'RUNNER'
-      ? '运行被控制面阻断，优先检查 runner 开关、执行节点可用性和审批链路。'
-      : '运行在执行前被阻断，建议优先复核租借、审批和目标范围。';
+      ? translate('auto.k2445')
+      : translate('auto.k2446');
   } else if (detail.status === 'CANCELED') {
     tone = 'warning';
     label = 'CANCELED';
-    summary = '运行已取消，当前摘要可用于确认取消链路已经回写到控制面。';
+    summary = translate('auto.k2447');
   } else if (detail.status === 'SUCCEEDED') {
     tone = blockedArtifacts.length ? 'warning' : 'success';
     label = blockedArtifacts.length ? 'SUCCEEDED_WITH_WARNINGS' : 'SUCCEEDED';
     summary = blockedArtifacts.length
-      ? `运行已成功，但有 ${blockedArtifacts.length} 个 artifact 未形成可下载引用。`
-      : '运行已成功，步骤与 artifact 摘要已完成聚合。';
+      ? translate('auto.k2448', { value0: blockedArtifacts.length })
+      : translate('auto.k2449');
   } else {
     tone = 'info';
     label = detail.status || 'UNKNOWN';
-    summary = '运行摘要已返回，可结合步骤结果、artifact manifest 和 traceId 继续诊断。';
+    summary = translate('auto.k2450');
   }
 
   collectFailureBucketActions(detail.stepResults, failureBucketCounts).forEach((item) => pushUnique(nextActions, item));
@@ -1428,20 +1429,20 @@ export function buildUiE2eRunDiagnosis(detail: UiE2eRunDetail): UiE2eRunDiagnosi
     .map((reason) => artifactBlockedReasonAction(reason))
     .forEach((item) => pushUnique(nextActions, item));
   if (visualRegressionEnabled && visualComparisonCount === 0) {
-    pushUnique(nextActions, '确认基线运行是否具备同浏览器截图产物，避免视觉回归仅打开但没有实际对比样本。');
+    pushUnique(nextActions, translate('auto.k2451'));
   }
   if (visualMismatchBrowsers.length) {
-    pushUnique(nextActions, `优先复核 ${visualMismatchBrowsers.join(' / ')} 浏览器上的布局、样式和截图基线是否仍匹配。`);
+    pushUnique(nextActions, translate('auto.k2452', { value0: visualMismatchBrowsers.join(' / ') }));
   }
 
   if (detail.status === 'CANCELED' || detail.failureCode === 'UI_E2E_RUNNER_CANCELED') {
-    pushUnique(nextActions, '确认外部 runner 侧任务是否同步停止，再决定是否重新发起 run。');
+    pushUnique(nextActions, translate('auto.k2453'));
   }
   if (flakyStatus === 'CONFIRMED_FLAKY') {
-    pushUnique(nextActions, '当前运行已标记为 CONFIRMED_FLAKY，可优先按不稳定场景治理而不是直接回归 blocker。');
+    pushUnique(nextActions, translate('auto.k2454'));
   }
   if (!nextActions.length) {
-    pushUnique(nextActions, '保留 traceId，并结合 scene、bundle 和 runner 配置继续排查。');
+    pushUnique(nextActions, translate('auto.k2455'));
   }
 
   return {
@@ -1467,8 +1468,8 @@ export function buildUiE2eRunFlakyGuidance(detail: UiE2eRunDetail): UiE2eRunFlak
   if (isUiE2eRunActiveStatus(detail.status)) {
     return {
       tone: 'info',
-      label: '等待终态',
-      summary: '运行仍在进行中，建议待终态后再决定是否标记为 Flaky。',
+      label: translate('auto.k2456'),
+      summary: translate('auto.k2457'),
       presets: []
     };
   }
@@ -1476,22 +1477,22 @@ export function buildUiE2eRunFlakyGuidance(detail: UiE2eRunDetail): UiE2eRunFlak
   if (currentStatus === 'CONFIRMED_FLAKY') {
     return {
       tone: 'warning',
-      label: '已确认抖动',
-      summary: '当前运行已经进入 CONFIRMED_FLAKY 治理池，可继续豁免或回退为候选观察。',
+      label: translate('auto.k2458'),
+      summary: translate('auto.k2459'),
       presets: [
         {
           status: 'WAIVED',
-          label: '标记豁免',
+          label: translate('auto.k2460'),
           tone: 'info',
           reasonCode,
-          reasonSummary: `${reasonLead} 人工复核后暂时豁免，不作为当前回归阻断依据。`
+          reasonSummary: translate('auto.k2461', { value0: reasonLead })
         },
         {
           status: 'FLAKY_CANDIDATE',
-          label: '回退候选',
+          label: translate('auto.k2462'),
           tone: 'info',
           reasonCode,
-          reasonSummary: `${reasonLead} 当前先回退为候选抖动，继续观察后续运行表现。`
+          reasonSummary: translate('auto.k2463', { value0: reasonLead })
         }
       ]
     };
@@ -1500,22 +1501,22 @@ export function buildUiE2eRunFlakyGuidance(detail: UiE2eRunDetail): UiE2eRunFlak
   if (currentStatus === 'FLAKY_CANDIDATE') {
     return {
       tone: 'info',
-      label: '候选已记录',
-      summary: '当前运行已被记录为 FLAKY_CANDIDATE，可继续升级为确认抖动或豁免。',
+      label: translate('auto.k2464'),
+      summary: translate('auto.k2465'),
       presets: [
         {
           status: 'CONFIRMED_FLAKY',
-          label: '确认抖动',
+          label: translate('auto.k2466'),
           tone: 'warning',
           reasonCode,
-          reasonSummary: `${reasonLead} 经人工复核后确认属于稳定复现的抖动样本。`
+          reasonSummary: translate('auto.k2467', { value0: reasonLead })
         },
         {
           status: 'WAIVED',
-          label: '标记豁免',
+          label: translate('auto.k2460'),
           tone: 'info',
           reasonCode,
-          reasonSummary: `${reasonLead} 当前先豁免，不作为版本回归阻断项。`
+          reasonSummary: translate('auto.k2468', { value0: reasonLead })
         }
       ]
     };
@@ -1524,22 +1525,22 @@ export function buildUiE2eRunFlakyGuidance(detail: UiE2eRunDetail): UiE2eRunFlak
   if (currentStatus === 'WAIVED') {
     return {
       tone: 'info',
-      label: '当前已豁免',
-      summary: '该运行已经被豁免；如果环境或场景再次波动，可以重新回到候选或确认状态。',
+      label: translate('auto.k2469'),
+      summary: translate('auto.k2470'),
       presets: [
         {
           status: 'FLAKY_CANDIDATE',
-          label: '重新候选',
+          label: translate('auto.k2471'),
           tone: 'info',
           reasonCode,
-          reasonSummary: `${reasonLead} 当前重新纳入候选抖动观察范围。`
+          reasonSummary: translate('auto.k2472', { value0: reasonLead })
         },
         {
           status: 'CONFIRMED_FLAKY',
-          label: '恢复确认',
+          label: translate('auto.k2473'),
           tone: 'warning',
           reasonCode,
-          reasonSummary: `${reasonLead} 当前恢复为已确认抖动，继续纳入治理池。`
+          reasonSummary: translate('auto.k2474', { value0: reasonLead })
         }
       ]
     };
@@ -1548,24 +1549,24 @@ export function buildUiE2eRunFlakyGuidance(detail: UiE2eRunDetail): UiE2eRunFlak
   if (detail.status === 'FAILED' || detail.status === 'TIMEOUT') {
     return {
       tone: 'warning',
-      label: '建议记录候选',
+      label: translate('auto.k2475'),
       summary: primaryFailureBucket
-        ? `当前运行落在 ${primaryFailureBucket} 失败桶，可先记录为候选抖动并持续观察。`
-        : '当前运行已失败/超时，可先记录为候选抖动，再结合 traceId 和失败摘要复核。',
+        ? translate('auto.k2476', { value0: primaryFailureBucket })
+        : translate('auto.k2477'),
       presets: [
         {
           status: 'FLAKY_CANDIDATE',
-          label: '标记候选',
+          label: translate('auto.k2478'),
           tone: 'info',
           reasonCode,
-          reasonSummary: `${reasonLead} 建议先作为候选抖动继续观察。`
+          reasonSummary: translate('auto.k2479', { value0: reasonLead })
         },
         {
           status: 'CONFIRMED_FLAKY',
-          label: '直接确认',
+          label: translate('auto.k2480'),
           tone: 'warning',
           reasonCode,
-          reasonSummary: `${reasonLead} 结合当前运行信号，人工判断已可直接确认抖动。`
+          reasonSummary: translate('auto.k2481', { value0: reasonLead })
         }
       ]
     };
@@ -1574,16 +1575,16 @@ export function buildUiE2eRunFlakyGuidance(detail: UiE2eRunDetail): UiE2eRunFlak
   if (detail.status === 'SUCCEEDED') {
     return {
       tone: 'success',
-      label: '当前运行稳定',
-      summary: '本次运行已成功，暂无额外 Flaky 标记建议；如属于长期波动场景，可按场景维度继续治理。',
+      label: translate('auto.k2482'),
+      summary: translate('auto.k2483'),
       presets: []
     };
   }
 
   return {
     tone: 'info',
-    label: '暂不建议标记',
-    summary: '当前运行更适合先处理控制面阻断、取消或上下文问题，再决定是否进入 Flaky 治理。',
+    label: translate('auto.k2484'),
+    summary: translate('auto.k2485'),
     presets: []
   };
 }
@@ -1594,10 +1595,10 @@ export function buildUiE2eRunAuditTimeline(detail: UiE2eRunDetail): UiE2eRunAudi
   pushUiE2eRunAuditTimelineEvent(events, {
     id: `${detail.id}:created`,
     kindLabel: 'RUN',
-    title: '运行创建',
+    title: translate('auto.k2486'),
     detail: detail.requestKey
-      ? `控制面已接收 requestKey=${detail.requestKey} 的运行请求。`
-      : '控制面已接收运行请求并开始写入聚合摘要。',
+      ? translate('auto.k2487', { value0: detail.requestKey })
+      : translate('auto.k2488'),
     occurredAt: detail.createdAt,
     tone: 'info',
     sortOrder: 10
@@ -1607,8 +1608,8 @@ export function buildUiE2eRunAuditTimeline(detail: UiE2eRunDetail): UiE2eRunAudi
     pushUiE2eRunAuditTimelineEvent(events, {
       id: `${detail.id}:replay`,
       kindLabel: 'RUN',
-      title: '幂等回放',
-      detail: '当前请求命中已有运行摘要，本次未重复创建新的外部执行。',
+      title: translate('auto.k2489'),
+      detail: translate('auto.k2490'),
       occurredAt: undefined,
       tone: 'info',
       sortOrder: 450
@@ -1619,8 +1620,8 @@ export function buildUiE2eRunAuditTimeline(detail: UiE2eRunDetail): UiE2eRunAudi
     pushUiE2eRunAuditTimelineEvent(events, {
       id: `${detail.id}:started`,
       kindLabel: 'RUN',
-      title: '执行开始',
-      detail: `runner=${detail.runnerMode}，运行已进入 ${detail.status} 链路。`,
+      title: translate('auto.k2491'),
+      detail: translate('auto.k2492', { value0: detail.runnerMode, value1: detail.status }),
       occurredAt: detail.startedAt,
       tone: isUiE2eRunActiveStatus(detail.status) ? 'info' : 'success',
       sortOrder: 30
@@ -1631,7 +1632,7 @@ export function buildUiE2eRunAuditTimeline(detail: UiE2eRunDetail): UiE2eRunAudi
     pushUiE2eRunAuditTimelineEvent(events, {
       id: `${detail.id}:step:${step.id || index}`,
       kindLabel: 'STEP',
-      title: `步骤 ${step.stepOrder} · ${step.status}`,
+      title: translate('auto.k2493', { value0: step.stepOrder, value1: step.status }),
       detail: buildUiE2eRunStepAuditDetail(step),
       occurredAt: step.updatedAt || step.createdAt,
       tone: uiE2eToneFromStatus(step.status),
@@ -1655,7 +1656,7 @@ export function buildUiE2eRunAuditTimeline(detail: UiE2eRunDetail): UiE2eRunAudi
     pushUiE2eRunAuditTimelineEvent(events, {
       id: `${detail.id}:flaky:${detail.flakyMark.id}`,
       kindLabel: 'FLAKY',
-      title: `Flaky 标记 · ${detail.flakyMark.status}`,
+      title: translate('auto.k2494', { value0: detail.flakyMark.status }),
       detail: buildUiE2eFlakyAuditDetail(detail.flakyMark),
       occurredAt: detail.flakyMark.updatedAt || detail.flakyMark.createdAt,
       tone: detail.flakyMark.status === 'CONFIRMED_FLAKY' ? 'warning' : uiE2eToneFromStatus(detail.flakyMark.status),
@@ -1667,7 +1668,7 @@ export function buildUiE2eRunAuditTimeline(detail: UiE2eRunDetail): UiE2eRunAudi
     pushUiE2eRunAuditTimelineEvent(events, {
       id: `${detail.id}:finished`,
       kindLabel: 'RUN',
-      title: `运行终态 · ${detail.status}`,
+      title: translate('auto.k2495', { value0: detail.status }),
       detail: buildUiE2eRunTerminalAuditDetail(detail),
       occurredAt: detail.finishedAt || detail.updatedAt,
       tone: uiE2eToneFromStatus(detail.status),
@@ -1683,36 +1684,36 @@ export function buildUiE2eFlakyQueueOverview(flakyMarks: UiE2eFlakyMark[]): UiE2
     focusOptions: [
       {
         mode: 'candidates',
-        label: '待确认',
-        desc: '聚焦 FLAKY_CANDIDATE，优先复核是否需要升级为确认抖动。',
+        label: translate('auto.k2496'),
+        desc: translate('auto.k2497'),
         count: filterUiE2eFlakyMarksByFocusMode(flakyMarks, 'candidates').length,
         tone: 'info'
       },
       {
         mode: 'confirmed',
-        label: '已确认',
-        desc: '聚焦 CONFIRMED_FLAKY，方便沉淀治理池和回归观察名单。',
+        label: translate('auto.k2498'),
+        desc: translate('auto.k2499'),
         count: filterUiE2eFlakyMarksByFocusMode(flakyMarks, 'confirmed').length,
         tone: 'warning'
       },
       {
         mode: 'waived',
-        label: '已豁免',
-        desc: '聚焦 WAIVED，快速回看豁免原因与审计信息。',
+        label: translate('auto.k2500'),
+        desc: translate('auto.k2501'),
         count: filterUiE2eFlakyMarksByFocusMode(flakyMarks, 'waived').length,
         tone: 'info'
       },
       {
         mode: 'runLinked',
-        label: '关联运行',
-        desc: '聚焦带 runId 的标记，优先结合具体运行结果做定位。',
+        label: translate('auto.k2502'),
+        desc: translate('auto.k2503'),
         count: filterUiE2eFlakyMarksByFocusMode(flakyMarks, 'runLinked').length,
         tone: 'info'
       },
       {
         mode: 'sceneOnly',
-        label: '仅场景',
-        desc: '聚焦未绑定 runId 的场景级标记，方便做长期治理跟踪。',
+        label: translate('auto.k2504'),
+        desc: translate('auto.k2505'),
         count: filterUiE2eFlakyMarksByFocusMode(flakyMarks, 'sceneOnly').length,
         tone: 'warning'
       }
@@ -1741,18 +1742,18 @@ export function filterUiE2eFlakyMarksByFocusMode(flakyMarks: UiE2eFlakyMark[], m
 export function labelUiE2eFlakyFocusMode(mode: UiE2eFlakyFocusMode) {
   switch (mode) {
     case 'candidates':
-      return '待确认';
+      return translate('auto.k2496');
     case 'confirmed':
-      return '已确认';
+      return translate('auto.k2498');
     case 'waived':
-      return '已豁免';
+      return translate('auto.k2500');
     case 'runLinked':
-      return '关联运行';
+      return translate('auto.k2502');
     case 'sceneOnly':
-      return '仅场景';
+      return translate('auto.k2504');
     case 'all':
     default:
-      return '全部 Flaky';
+      return translate('auto.k2506');
   }
 }
 
@@ -1777,27 +1778,27 @@ export function buildUiE2eFlakyListSummary(mark: UiE2eFlakyMark): UiE2eFlakyList
   let detail = compactUiE2eText(mark.reasonSummary);
   if (!detail) {
     if (mark.status === 'CONFIRMED_FLAKY') {
-      detail = '该标记已进入治理池，可结合失败分类和运行证据持续跟踪。';
+      detail = translate('auto.k2507');
     } else if (mark.status === 'FLAKY_CANDIDATE') {
-      detail = '该记录仍是候选抖动，建议先复核失败分类与运行摘要。';
+      detail = translate('auto.k2508');
     } else if (mark.status === 'WAIVED') {
-      detail = '该记录已豁免，保留原因用于审计和后续复盘。';
+      detail = translate('auto.k2509');
     } else if (mark.status === 'NONE') {
-      detail = '当前记录已回落为 NONE，可继续观察后续运行是否再次波动。';
+      detail = translate('auto.k2510');
     } else {
-      detail = 'Flaky 标记已生成，可继续查看关联运行和原因摘要。';
+      detail = translate('auto.k2511');
     }
   }
 
   let headline: string;
   if (mark.status === 'CONFIRMED_FLAKY') {
-    headline = '已确认抖动';
+    headline = translate('auto.k2458');
   } else if (mark.status === 'FLAKY_CANDIDATE') {
-    headline = '待人工确认';
+    headline = translate('auto.k2512');
   } else if (mark.status === 'WAIVED') {
-    headline = '已豁免';
+    headline = translate('auto.k2500');
   } else if (mark.status === 'NONE') {
-    headline = '已回落为 NONE';
+    headline = translate('auto.k2513');
   } else {
     headline = mark.status;
   }
@@ -1827,10 +1828,10 @@ export function buildUiE2eFlakyDetailInsight(mark: UiE2eFlakyMark): UiE2eFlakyDe
   if (mark.status === 'CONFIRMED_FLAKY') {
     return {
       tone: mark.sceneRiskLevel === 'HIGH' || mark.sceneRiskLevel === 'CRITICAL' ? 'warning' : 'info',
-      label: '治理池',
+      label: translate('auto.k2514'),
       summary: mark.linkedRunCount > 1
-        ? `该场景已有 ${mark.linkedRunCount} 次关联运行，建议结合最近失败桶继续做稳定性治理。`
-        : '该记录已进入 CONFIRMED_FLAKY 治理池，建议结合失败分类和审计信息持续跟踪。',
+        ? translate('auto.k2515', { value0: mark.linkedRunCount })
+        : translate('auto.k2516'),
       signals
     };
   }
@@ -1838,10 +1839,10 @@ export function buildUiE2eFlakyDetailInsight(mark: UiE2eFlakyMark): UiE2eFlakyDe
   if (mark.status === 'FLAKY_CANDIDATE') {
     return {
       tone: 'info',
-      label: '待复核',
+      label: translate('auto.k2517'),
       summary: mark.latestFailureBucket
-        ? `最近失败信号集中在 ${mark.latestFailureBucket}，建议人工复核后决定是否升级为确认抖动。`
-        : '该记录仍处于候选阶段，建议优先补看关联运行和失败分类。',
+        ? translate('auto.k2518', { value0: mark.latestFailureBucket })
+        : translate('auto.k2519'),
       signals
     };
   }
@@ -1849,16 +1850,16 @@ export function buildUiE2eFlakyDetailInsight(mark: UiE2eFlakyMark): UiE2eFlakyDe
   if (mark.status === 'WAIVED') {
     return {
       tone: 'info',
-      label: '已豁免',
-      summary: '该记录当前处于豁免状态，建议保留原因摘要与审计字段用于后续复盘。',
+      label: translate('auto.k2500'),
+      summary: translate('auto.k2520'),
       signals
     };
   }
 
   return {
     tone: mark.sceneRiskLevel === 'CRITICAL' ? 'warning' : 'info',
-    label: '观察中',
-    summary: '当前 Flaky 详情已返回，可结合风险级别、关联运行和失败信号继续观察。',
+    label: translate('auto.k2521'),
+    summary: translate('auto.k2522'),
     signals
   };
 }
@@ -1866,23 +1867,23 @@ export function buildUiE2eFlakyDetailInsight(mark: UiE2eFlakyMark): UiE2eFlakyDe
 export function explainUiE2eFailureBucket(bucket?: string) {
   switch ((bucket || '').trim().toUpperCase()) {
     case 'LOCATOR':
-      return '定位器未命中目标元素，通常需要核对 scene/bundle 中 locator 策略与页面版本是否一致。';
+      return translate('auto.k2523');
     case 'AUTHORIZATION':
-      return '权限或登录态不足，建议复核账号租借角色、会话状态和目标环境授权。';
+      return translate('auto.k2524');
     case 'ENVIRONMENT_TIMEOUT':
-      return '环境等待超时，优先检查页面可达性、等待策略和 runner 超时配置。';
+      return translate('auto.k2525');
     case 'ACCOUNT':
-      return '账号上下文异常，通常需要确认租借是否仍有效或是否被其他流程回收。';
+      return translate('auto.k2526');
     case 'TEST_DATA':
-      return '前置数据或幂等键不满足预期，建议先复核测试数据准备与清理链路。';
+      return translate('auto.k2527');
     case 'RUNNER':
-      return '问题集中在执行器链路，优先确认 runner 开关、节点可用性和回写状态。';
+      return translate('auto.k2528');
     case 'ASSERTION':
-      return '断言未满足预期，需要对照步骤 summary 判断是产品变更还是用例漂移。';
+      return translate('auto.k2529');
     case 'UNKNOWN':
-      return '失败已被归入 UNKNOWN，建议保留 traceId 并补看 runner/控制面日志。';
+      return translate('auto.k2530');
     default:
-      return bucket ? `failureBucket=${bucket}` : '当前步骤没有失败桶摘要。';
+      return bucket ? `failureBucket=${bucket}` : translate('auto.k2531');
   }
 }
 
@@ -1894,11 +1895,11 @@ export function extractUiE2eArtifactCaptureBlockedReason(redactionFlags: Record<
 export function explainUiE2eArtifactCaptureBlockedReason(reason?: string) {
   switch ((reason || '').trim()) {
     case 'runnerDisabled':
-      return 'runner 默认关闭，控制面不会生成真实截图、HAR 或日志正文。';
+      return translate('auto.k2532');
     case 'artifactRefIncomplete':
-      return 'runner 回传了 CAPTURED，但 storageRef 或 digest 缺失，manifest 被降级为 BLOCKED。';
+      return translate('auto.k2533');
     default:
-      return reason ? `captureBlockedReason=${reason}` : 'artifact capture 被阻断，请结合 redactionFlags 和 runner 回传排查。';
+      return reason ? `captureBlockedReason=${reason}` : translate('auto.k2534');
   }
 }
 
@@ -1922,7 +1923,7 @@ export function buildUiE2eArtifactDownloadState(artifact: UiE2eArtifactManifest)
       canDownload: false,
       downloadReady: false,
       tone: 'error',
-      summary: 'artifact 捕获失败，当前没有可下载的原始文件。'
+      summary: translate('auto.k2535')
     };
   }
 
@@ -1931,7 +1932,7 @@ export function buildUiE2eArtifactDownloadState(artifact: UiE2eArtifactManifest)
       canDownload: false,
       downloadReady: false,
       tone: 'info',
-      summary: 'artifact 本次未采集，因此只保留 manifest 摘要。'
+      summary: translate('auto.k2536')
     };
   }
 
@@ -1940,7 +1941,7 @@ export function buildUiE2eArtifactDownloadState(artifact: UiE2eArtifactManifest)
       canDownload: false,
       downloadReady: false,
       tone: 'info',
-      summary: 'artifact 仍在等待采集或回写，稍后刷新运行详情查看。'
+      summary: translate('auto.k2537')
     };
   }
 
@@ -1950,8 +1951,8 @@ export function buildUiE2eArtifactDownloadState(artifact: UiE2eArtifactManifest)
       downloadReady: true,
       tone: 'success',
       summary: captureStatus === 'REDACTED'
-        ? 'artifact 已完成脱敏落盘，可按权限下载当前产物。'
-        : 'artifact 已入受控存储，可按权限下载原始产物。'
+        ? translate('auto.k2538')
+        : translate('auto.k2539')
     };
   }
 
@@ -1960,7 +1961,7 @@ export function buildUiE2eArtifactDownloadState(artifact: UiE2eArtifactManifest)
       canDownload: false,
       downloadReady: false,
       tone: 'warning',
-      summary: 'artifact 已采集，但当前仅提供 manifest 摘要，原始下载未就绪。'
+      summary: translate('auto.k2540')
     };
   }
 
@@ -1968,14 +1969,14 @@ export function buildUiE2eArtifactDownloadState(artifact: UiE2eArtifactManifest)
     canDownload: false,
     downloadReady: false,
     tone: 'info',
-    summary: `artifact 当前处于 ${captureStatus || 'UNKNOWN'} 状态，请结合 manifest 摘要继续排查。`
+    summary: translate('auto.k2541', { value0: captureStatus || 'UNKNOWN' })
   };
 }
 
 export function buildUiE2eScenePayload(draft: UiE2eSceneDraft): { payload?: CreateUiE2eScenePayload; issues: string[] } {
   const { payload: partialPayload, issues } = buildUiE2eScenePayloadBase(draft);
-  if (!draft.projectId.trim()) issues.push('请填写 scene projectId');
-  if (!draft.code.trim()) issues.push('请填写 scene code');
+  if (!draft.projectId.trim()) issues.push(translate('auto.k2542'));
+  if (!draft.code.trim()) issues.push(translate('auto.k2543'));
 
   if (!partialPayload || issues.length) {
     return { issues };
@@ -2065,8 +2066,8 @@ function buildUiE2eScenePayloadBase(
   draft: UiE2eSceneDraft
 ): { payload?: Omit<CreateUiE2eScenePayload, 'projectId' | 'code'>; issues: string[] } {
   const issues: string[] = [];
-  if (!draft.name.trim()) issues.push('请填写 scene name');
-  if (!draft.steps.length) issues.push('至少保留一个步骤');
+  if (!draft.name.trim()) issues.push(translate('auto.k2544'));
+  if (!draft.steps.length) issues.push(translate('auto.k2545'));
 
   const sourceSummary = parseObjectText(draft.sourceSummaryText, 'sourceSummary', issues);
   const steps = draft.steps
@@ -2074,7 +2075,7 @@ function buildUiE2eScenePayloadBase(
     .filter((value): value is UiE2eSceneStepPayload => Boolean(value));
 
   if (steps.length === 0) {
-    issues.push('至少提供一个合法步骤');
+    issues.push(translate('auto.k2546'));
   }
 
   if (issues.length) {
@@ -2099,28 +2100,28 @@ function buildUiE2eScenePayloadBase(
 export function buildUiE2eRunPayload(draft: UiE2eRunDraft): { payload?: CreateUiE2eRunPayload; issues: string[] } {
   const issues: string[] = [];
   const browsers = splitTags(draft.browsersText || '').map((item) => item.toUpperCase());
-  if (!draft.projectId.trim()) issues.push('请填写 run projectId');
-  if (!uuidPattern.test(draft.sceneId.trim())) issues.push('sceneId 需要是 UUID');
-  if (!uuidPattern.test(draft.bundleId.trim())) issues.push('bundleId 需要是 UUID');
-  if (!draft.baseUrlRef.trim()) issues.push('请填写 baseUrlRef');
-  if (!uuidPattern.test(draft.accountLeaseRef.trim())) issues.push('accountLeaseRef 需要是 UUID');
-  if (!browsers.length) issues.push('至少指定一个浏览器（CHROMIUM/FIREFOX/WEBKIT）');
+  if (!draft.projectId.trim()) issues.push(translate('auto.k2547'));
+  if (!uuidPattern.test(draft.sceneId.trim())) issues.push(translate('auto.k2548'));
+  if (!uuidPattern.test(draft.bundleId.trim())) issues.push(translate('auto.k2549'));
+  if (!draft.baseUrlRef.trim()) issues.push(translate('auto.k2550'));
+  if (!uuidPattern.test(draft.accountLeaseRef.trim())) issues.push(translate('auto.k2405'));
+  if (!browsers.length) issues.push(translate('auto.k2406'));
   if (browsers.some((item) => !['CHROMIUM', 'FIREFOX', 'WEBKIT'].includes(item))) {
-    issues.push('浏览器仅支持 CHROMIUM / FIREFOX / WEBKIT');
+    issues.push(translate('auto.k2407'));
   }
   if (draft.visualRegressionEnabled && draft.baselineRunId.trim() && !uuidPattern.test(draft.baselineRunId.trim())) {
-    issues.push('baselineRunId 需要是 UUID');
+    issues.push(translate('auto.k2408'));
   }
   if (draft.visualMismatchThreshold.trim()) {
     const threshold = Number(draft.visualMismatchThreshold.trim());
     if (Number.isNaN(threshold) || threshold < 0 || threshold > 1) {
-      issues.push('visualMismatchThreshold 需要在 0 到 1 之间');
+      issues.push(translate('auto.k2409'));
     }
   }
   if (draft.requestKey.trim() && !requestKeyPattern.test(draft.requestKey.trim())) {
-    issues.push('requestKey 只能包含字母、数字、-、_、.、:，且不超过 128 字符');
+    issues.push(translate('auto.k1192'));
   }
-  if (draft.reason.length > 512) issues.push('reason 最多 512 字符');
+  if (draft.reason.length > 512) issues.push(translate('auto.k2411'));
 
   if (issues.length) {
     return { issues };
@@ -2147,13 +2148,13 @@ export function buildUiE2eRunPayload(draft: UiE2eRunDraft): { payload?: CreateUi
 
 export function buildUiE2eFlakyPayload(draft: UiE2eFlakyDraft): { payload?: UpsertUiE2eFlakyMarkPayload; issues: string[] } {
   const issues: string[] = [];
-  if (!draft.projectId.trim()) issues.push('请填写 flaky projectId');
-  if (!draft.sceneId.trim() && !draft.runId.trim()) issues.push('sceneId 和 runId 至少填写一个');
-  if (draft.sceneId.trim() && !uuidPattern.test(draft.sceneId.trim())) issues.push('sceneId 需要是 UUID');
-  if (draft.runId.trim() && !uuidPattern.test(draft.runId.trim())) issues.push('runId 需要是 UUID');
-  if (!draft.status.trim()) issues.push('请选择 flaky status');
-  if (draft.status.trim() !== 'NONE' && !draft.reasonSummary.trim()) issues.push('请填写 flaky reasonSummary');
-  if (draft.reasonSummary.length > 512) issues.push('reasonSummary 最多 512 字符');
+  if (!draft.projectId.trim()) issues.push(translate('auto.k2551'));
+  if (!draft.sceneId.trim() && !draft.runId.trim()) issues.push(translate('auto.k2552'));
+  if (draft.sceneId.trim() && !uuidPattern.test(draft.sceneId.trim())) issues.push(translate('auto.k2548'));
+  if (draft.runId.trim() && !uuidPattern.test(draft.runId.trim())) issues.push(translate('auto.k2553'));
+  if (!draft.status.trim()) issues.push(translate('auto.k2554'));
+  if (draft.status.trim() !== 'NONE' && !draft.reasonSummary.trim()) issues.push(translate('auto.k2555'));
+  if (draft.reasonSummary.length > 512) issues.push(translate('auto.k2556'));
 
   if (issues.length) {
     return { issues };
@@ -2214,7 +2215,7 @@ function buildUiE2eSceneStepPayload(
   const waitPolicy = parseObjectText(step.waitPolicyText, `steps[${index}].waitPolicy`, issues);
   const dataBinding = parseObjectText(step.dataBindingText, `steps[${index}].dataBinding`, issues);
   if (!step.stepType.trim()) {
-    issues.push(`步骤 ${index + 1} 缺少 stepType`);
+    issues.push(translate('auto.k2557', { value0: index + 1 }));
     return undefined;
   }
   return {
@@ -2237,10 +2238,10 @@ function parseObjectText(text: string, label: string, issues: string[]) {
     if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
       return parsed as Record<string, unknown>;
     }
-    issues.push(`${label} 必须是 JSON object`);
+    issues.push(translate('auto.k2558', { value0: label }));
     return {};
   } catch {
-    issues.push(`${label} 不是合法 JSON`);
+    issues.push(translate('auto.k2559', { value0: label }));
     return {};
   }
 }
@@ -2256,83 +2257,83 @@ function buildFailureCodeDiagnosis(failureCode?: string) {
       return {
         tone: 'warning' as const,
         label: 'RUNNER_DISABLED',
-        summary: '当前环境 runner 默认关闭，本次运行被控制面安全地标记为 BLOCKED。',
+        summary: translate('auto.k2560'),
         actions: [
-          '如需真实浏览器执行，请先切换到 runner 已启用的环境或打开对应开关。',
-          '继续核对审批、租借和 aggregate-only 导出链路是否按预期工作。'
+          translate('auto.k2561'),
+          translate('auto.k2562')
         ]
       };
     case 'UI_E2E_RUNNER_CANCELED':
       return {
         tone: 'warning' as const,
         label: 'RUNNER_CANCELED',
-        summary: '运行已收到取消结果，控制面摘要已经转入终态。',
+        summary: translate('auto.k2563'),
         actions: [
-          '确认取消请求是否同步回送到外部 runner，并检查是否还有残留执行实例。'
+          translate('auto.k2564')
         ]
       };
     case 'UI_E2E_ACCOUNT_LEASE_INVALID':
       return {
         tone: 'error' as const,
         label: 'ACCOUNT_LEASE_INVALID',
-        summary: '账号租借失效或作用域不匹配，控制面拒绝继续执行。',
+        summary: translate('auto.k2565'),
         actions: [
-          '重新申请有效 lease，并确认 project/environment 与 run 请求保持同域。'
+          translate('auto.k2566')
         ]
       };
     case 'UI_E2E_BASE_URL_NOT_ALLOWED':
       return {
         tone: 'error' as const,
         label: 'BASE_URL_NOT_ALLOWED',
-        summary: 'baseUrlRef 不在 allowlist 内，运行在执行前被安全拒绝。',
+        summary: translate('auto.k2567'),
         actions: [
-          '确认 baseUrlRef 对应主机是否应进入 allowlist，并复核环境映射。'
+          translate('auto.k2568')
         ]
       };
     case 'UI_E2E_RESOURCE_SCOPE_DENIED':
       return {
         tone: 'error' as const,
         label: 'RESOURCE_SCOPE_DENIED',
-        summary: 'project、scene、bundle 或环境作用域不一致，控制面拒绝执行。',
+        summary: translate('auto.k2569'),
         actions: [
-          '检查 projectId、sceneId、bundleId、environmentId 是否来自同一受控范围。'
+          translate('auto.k2570')
         ]
       };
     case 'UI_E2E_SCENE_NOT_READY':
       return {
         tone: 'warning' as const,
         label: 'SCENE_NOT_READY',
-        summary: 'scene 尚未达到 APPROVED，当前不允许发起运行。',
+        summary: translate('auto.k2571'),
         actions: [
-          '先完成 scene 审批，再重新创建 bundle/run。'
+          translate('auto.k2572')
         ]
       };
     case 'UI_E2E_BUNDLE_NOT_READY':
       return {
         tone: 'warning' as const,
         label: 'BUNDLE_NOT_READY',
-        summary: 'bundle 未通过 APPROVED 或与 scene 不匹配，运行被拦截。',
+        summary: translate('auto.k2573'),
         actions: [
-          '先确认 bundle 审批状态与 scene 关联，再重新发起运行。'
+          translate('auto.k2574')
         ]
       };
     case 'UI_E2E_EXPORT_DISABLED':
       return {
         tone: 'warning' as const,
         label: 'EXPORT_DISABLED',
-        summary: '当前环境禁用了运行摘要导出，只能在控制面内查看聚合结果。',
+        summary: translate('auto.k2575'),
         actions: [
-          '如需对外共享摘要，请先确认 export 开关是否允许在该环境打开。'
+          translate('auto.k2576')
         ]
       };
     case 'UI_E2E_VISUAL_REGRESSION_FAILED':
       return {
         tone: 'error' as const,
         label: 'VISUAL_REGRESSION_FAILED',
-        summary: '截图 Diff 已完成，但至少一个浏览器的像素差异超过阈值，运行被判定为失败。',
+        summary: translate('auto.k2577'),
         actions: [
-          '优先查看 DIFF/BASELINE/ACTUAL 三类截图产物，确认是预期 UI 变更还是样式回归。',
-          '如属于预期改版，请更新基线运行；如属于噪声波动，再评估是否需要放宽 mismatch threshold。'
+          translate('auto.k2578'),
+          translate('auto.k2579')
         ]
       };
     default:
@@ -2349,28 +2350,28 @@ function collectFailureBucketActions(stepResults: UiE2eRunStepResult[], failureB
   buckets.forEach((bucket) => {
     switch ((bucket || '').trim().toUpperCase()) {
       case 'LOCATOR':
-        pushUnique(actions, '核对 scene/bundle 中 locator 策略是否与当前页面结构一致。');
+        pushUnique(actions, translate('auto.k2580'));
         break;
       case 'AUTHORIZATION':
-        pushUnique(actions, '复核账号权限、登录态和环境角色配置是否满足场景要求。');
+        pushUnique(actions, translate('auto.k2581'));
         break;
       case 'ENVIRONMENT_TIMEOUT':
-        pushUnique(actions, '检查环境可达性、页面等待策略和 runner 超时配置。');
+        pushUnique(actions, translate('auto.k2582'));
         break;
       case 'ACCOUNT':
-        pushUnique(actions, '确认账号租借仍有效，必要时重新申请 lease 后再试。');
+        pushUnique(actions, translate('auto.k2583'));
         break;
       case 'TEST_DATA':
-        pushUnique(actions, '核对测试数据准备、幂等键和清理链路是否满足前置条件。');
+        pushUnique(actions, translate('auto.k2584'));
         break;
       case 'RUNNER':
-        pushUnique(actions, '优先确认 runner 开关、执行节点可用性和回写链路状态。');
+        pushUnique(actions, translate('auto.k2585'));
         break;
       case 'ASSERTION':
-        pushUnique(actions, '对照步骤 summary 与断言预期，判断是产品变更还是用例漂移。');
+        pushUnique(actions, translate('auto.k2586'));
         break;
       case 'UNKNOWN':
-        pushUnique(actions, '保留 traceId，并对照 runner/控制面日志补齐失败归类。');
+        pushUnique(actions, translate('auto.k2587'));
         break;
       default:
         break;
@@ -2382,11 +2383,11 @@ function collectFailureBucketActions(stepResults: UiE2eRunStepResult[], failureB
 function artifactBlockedReasonAction(reason?: string) {
   switch ((reason || '').trim()) {
     case 'runnerDisabled':
-      return 'runner 默认关闭时不会生成真实 artifact，可继续用 aggregate-only 摘要验证控制面链路。';
+      return translate('auto.k2588');
     case 'artifactRefIncomplete':
-      return '检查 runner 回传的 artifact storageRef 与 digest 是否完整。';
+      return translate('auto.k2589');
     default:
-      return reason ? `复核 artifact captureBlockedReason=${reason} 对应的 runner 回传逻辑。` : undefined;
+      return reason ? translate('auto.k2590', { value0: reason }) : undefined;
   }
 }
 
@@ -2437,12 +2438,12 @@ function runFlakyReasonCode(failureCode?: string, failureBucket?: string) {
 
 function runFlakyReasonLead(detail: UiE2eRunDetail, failureBucket?: string) {
   if (failureBucket) {
-    return `运行在 ${failureBucket} 失败桶出现波动。`;
+    return translate('auto.k2591', { value0: failureBucket });
   }
   if (detail.failureCode) {
-    return `运行返回 ${detail.failureCode} 失败信号。`;
+    return translate('auto.k2592', { value0: detail.failureCode });
   }
-  return `运行当前状态为 ${detail.status}，建议结合 traceId 和步骤摘要继续观察。`;
+  return translate('auto.k2593', { value0: detail.status });
 }
 
 function buildUiE2eRunStepAuditDetail(step: UiE2eRunStepResult) {
@@ -2456,7 +2457,7 @@ function buildUiE2eRunStepAuditDetail(step: UiE2eRunStepResult) {
   if (step.durationMs > 0) {
     parts.push(`duration=${step.durationMs}ms`);
   }
-  return parts.length ? parts.join(' · ') : '步骤结果已回写到控制面摘要。';
+  return parts.length ? parts.join(' · ') : translate('auto.k2594');
 }
 
 function buildUiE2eArtifactAuditDetail(artifact: UiE2eArtifactManifest) {
@@ -2475,7 +2476,7 @@ function buildUiE2eArtifactAuditDetail(artifact: UiE2eArtifactManifest) {
   if (artifact.sizeBytes > 0) {
     parts.push(`size=${artifact.sizeBytes}B`);
   }
-  return parts.length ? parts.join(' · ') : 'artifact manifest 已记录，可继续查看脱敏摘要。';
+  return parts.length ? parts.join(' · ') : translate('auto.k2595');
 }
 
 function buildUiE2eFlakyAuditDetail(mark: UiE2eFlakyMark) {
@@ -2487,7 +2488,7 @@ function buildUiE2eFlakyAuditDetail(mark: UiE2eFlakyMark) {
   if (summary) {
     parts.push(summary);
   }
-  return parts.length ? parts.join(' · ') : 'Flaky 标记已写入治理记录。';
+  return parts.length ? parts.join(' · ') : translate('auto.k2596');
 }
 
 function buildUiE2eRunTerminalAuditDetail(detail: UiE2eRunDetail) {
@@ -2502,7 +2503,7 @@ function buildUiE2eRunTerminalAuditDetail(detail: UiE2eRunDetail) {
   if (detail.traceId) {
     parts.push(`traceId=${detail.traceId}`);
   }
-  return parts.length ? parts.join(' · ') : '运行已进入终态，聚合摘要已稳定。';
+  return parts.length ? parts.join(' · ') : translate('auto.k2597');
 }
 
 function pushUiE2eRunAuditTimelineEvent(

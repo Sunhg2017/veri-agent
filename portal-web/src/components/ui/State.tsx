@@ -1,7 +1,8 @@
 import { Inbox, LoaderCircle } from 'lucide-react';
 import type { ReactNode } from 'react';
+import { translate } from '../../platform/i18n';
 
-export function Spinner({ label = '加载中' }: { label?: string }) {
+export function Spinner({ label = translate('auto.k0168') }: { label?: string }) {
   return (
     <span className="ui-spinner" role="status" aria-live="polite">
       <LoaderCircle size={16} className="spin" />

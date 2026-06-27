@@ -3,6 +3,7 @@ import type {
   TestDesignContextPolicyEffectiveView,
   TestDesignContextPolicyOverrideView
 } from './api/testDesign';
+import { translate } from './platform/i18n';
 
 export const TEST_DESIGN_CONTEXT_POLICY_REASON_CODES = [
   'QUALITY_BASELINE',
@@ -103,42 +104,42 @@ const numericFields: Array<{
   {
     field: 'linkedAssetsPerRequirement',
     payloadKey: 'contextLinkedAssetsPerRequirement',
-    label: '关联资产'
+    label: translate('auto.k0431')
   },
   {
     field: 'explicitAssetsPerType',
     payloadKey: 'contextExplicitAssetsPerType',
-    label: '显式资产'
+    label: translate('auto.k1393')
   },
   {
     field: 'existingCasesPerRequirement',
     payloadKey: 'contextExistingCasesPerRequirement',
-    label: '历史用例'
+    label: translate('auto.k1394')
   },
   {
     field: 'requirementDescriptionChars',
     payloadKey: 'contextRequirementDescriptionChars',
-    label: '需求摘要'
+    label: translate('auto.k1395')
   },
   {
     field: 'acceptanceCriteriaChars',
     payloadKey: 'contextAcceptanceCriteriaChars',
-    label: '验收摘要'
+    label: translate('auto.k1396')
   },
   {
     field: 'assetSchemaChars',
     payloadKey: 'contextAssetSchemaChars',
-    label: '资产摘要'
+    label: translate('auto.k1397')
   }
 ];
 
 const limitLabels: Record<string, string> = {
-  linkedAssetsPerRequirement: '关联资产',
-  explicitAssetsPerType: '显式资产',
-  existingCasesPerRequirement: '历史用例',
-  requirementDescriptionChars: '需求摘要',
-  acceptanceCriteriaChars: '验收摘要',
-  linkedAssetSchemaChars: '资产摘要'
+  linkedAssetsPerRequirement: translate('auto.k0431'),
+  explicitAssetsPerType: translate('auto.k1393'),
+  existingCasesPerRequirement: translate('auto.k1394'),
+  requirementDescriptionChars: translate('auto.k1395'),
+  acceptanceCriteriaChars: translate('auto.k1396'),
+  linkedAssetSchemaChars: translate('auto.k1397')
 };
 
 export function validateTestDesignContextPolicyDraft(
@@ -146,10 +147,10 @@ export function validateTestDesignContextPolicyDraft(
 ): TestDesignContextPolicyIssue[] {
   const issues: TestDesignContextPolicyIssue[] = [];
   if (!draft.projectId.trim()) {
-    issues.push({ field: 'projectId', message: '请输入项目 ID' });
+    issues.push({ field: 'projectId', message: translate('auto.k1682') });
   }
   if (draft.scopeType === 'ENVIRONMENT' && !draft.environmentKey.trim()) {
-    issues.push({ field: 'environmentKey', message: '环境级覆盖需要环境键' });
+    issues.push({ field: 'environmentKey', message: translate('auto.k2087') });
   }
   let hasLimit = false;
   for (const config of numericFields) {
@@ -161,29 +162,29 @@ export function validateTestDesignContextPolicyDraft(
     const value = Number(raw);
     const max = itemFields.has(config.field) ? 50 : 2000;
     if (!Number.isInteger(value) || value < 1 || value > max) {
-      issues.push({ field: config.field, message: `${config.label}必须为 1..${max} 的整数` });
+      issues.push({ field: config.field, message: translate('auto.k2088', { value0: config.label, value1: max }) });
     }
   }
   if (!hasLimit) {
-    issues.push({ field: 'linkedAssetsPerRequirement', message: '至少填写一个上下文裁剪上限' });
+    issues.push({ field: 'linkedAssetsPerRequirement', message: translate('auto.k2089') });
   }
   if (!TEST_DESIGN_CONTEXT_POLICY_REASON_CODES.includes(draft.changeReasonCode)) {
-    issues.push({ field: 'changeReasonCode', message: '请选择允许的变更原因编码' });
+    issues.push({ field: 'changeReasonCode', message: translate('auto.k2090') });
   }
   if (!TEST_DESIGN_CONTEXT_POLICY_REASON_CODES.includes(draft.approvalReasonCode)) {
-    issues.push({ field: 'approvalReasonCode', message: '请选择允许的审批原因编码' });
+    issues.push({ field: 'approvalReasonCode', message: translate('auto.k2091') });
   }
-  validateTextField(issues, draft.policyBody, 'policyBody', '策略正文', 4000);
-  validateTextField(issues, draft.policyDiffSummary, 'policyDiffSummary', '策略 diff', 1000);
-  validateTextField(issues, draft.workOrderKey, 'workOrderKey', '工单编号', 128, /^[A-Za-z0-9_.:-]+$/);
-  validateTextField(issues, draft.workOrderTitle, 'workOrderTitle', '工单标题', 256);
-  validateTextField(issues, draft.workOrderUrl, 'workOrderUrl', '工单 URL', 512, /^https?:\/\/\S+$/);
+  validateTextField(issues, draft.policyBody, 'policyBody', translate('auto.k1401'), 4000);
+  validateTextField(issues, draft.policyDiffSummary, 'policyDiffSummary', translate('auto.k1402'), 1000);
+  validateTextField(issues, draft.workOrderKey, 'workOrderKey', translate('auto.k1398'), 128, /^[A-Za-z0-9_.:-]+$/);
+  validateTextField(issues, draft.workOrderTitle, 'workOrderTitle', translate('auto.k1399'), 256);
+  validateTextField(issues, draft.workOrderUrl, 'workOrderUrl', translate('auto.k1400'), 512, /^https?:\/\/\S+$/);
   if (draft.workOrderStatus && !TEST_DESIGN_CONTEXT_POLICY_WORK_ORDER_STATUSES.includes(draft.workOrderStatus as TestDesignContextPolicyWorkOrderStatus)) {
-    issues.push({ field: 'workOrderStatus', message: '工单状态不在允许范围内' });
+    issues.push({ field: 'workOrderStatus', message: translate('auto.k2092') });
   }
-  validateTextField(issues, draft.requestNote, 'requestNote', '申请备注', 1000);
-  validateTextField(issues, draft.reviewNote, 'reviewNote', '审批备注', 1000);
-  validateTextField(issues, draft.noteText, 'noteText', '流转备注', 1000);
+  validateTextField(issues, draft.requestNote, 'requestNote', translate('auto.k1403'), 1000);
+  validateTextField(issues, draft.reviewNote, 'reviewNote', translate('auto.k1412'), 1000);
+  validateTextField(issues, draft.noteText, 'noteText', translate('auto.k1414'), 1000);
   return issues;
 }
 
@@ -279,10 +280,10 @@ function validateTextField(
     return;
   }
   if (text.length > maxLength) {
-    issues.push({ field, message: `${label}不能超过 ${maxLength} 字符` });
+    issues.push({ field, message: translate('auto.k2093', { value0: label, value1: maxLength }) });
   }
   if (pattern && !pattern.test(text)) {
-    issues.push({ field, message: `${label}格式不正确` });
+    issues.push({ field, message: translate('auto.k2094', { value0: label }) });
   }
 }
 

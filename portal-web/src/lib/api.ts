@@ -1,3 +1,4 @@
+import { translate } from '../platform/i18n';
 export type ApiResult<T> =
   | {
       ok: true;
@@ -63,7 +64,7 @@ async function readBody(response: Response): Promise<unknown> {
 export async function requestJson<T>(
   path: string,
   init?: RequestInit,
-  fallbackError = '请求失败，请稍后重试'
+  fallbackError = translate('auto.k2007')
 ): Promise<ApiResult<T>> {
   try {
     const response = await fetch(path, {
@@ -102,5 +103,5 @@ export async function requestJson<T>(
 }
 
 export function fetchHealth(): Promise<ApiResult<HealthResponse>> {
-  return requestJson<HealthResponse>('/api/v1/health', undefined, '健康检查接口不可用');
+  return requestJson<HealthResponse>('/api/v1/health', undefined, translate('auto.k2008'));
 }

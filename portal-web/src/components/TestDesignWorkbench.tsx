@@ -316,6 +316,7 @@ import {
   type TemplateDraft,
   type TestDesignStepDraft
 } from '../testDesignWorkbenchState';
+import { translate } from '../platform/i18n';
 
 export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: CurrentUser | null }) {
   const canRead = hasPermission(props.currentUser, 'testDesign:read');
@@ -446,9 +447,9 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
   );
   const reviewSummaryScope = selectedTaskId
     ? reviewRecordPage.items.length
-      ? `当前评审页 ${reviewRecordPage.start}-${reviewRecordPage.end} / ${reviewRecordPage.total}`
-      : `当前评审页 0 / ${reviewRecordPage.total}`
-    : '请先选择任务';
+      ? translate('auto.k1642', { value0: reviewRecordPage.start, value1: reviewRecordPage.end, value2: reviewRecordPage.total })
+      : translate('auto.k1643', { value0: reviewRecordPage.total })
+    : translate('auto.k1538');
   const currentPageSelectableCandidates = useMemo(
     () => candidatePage.items.filter(canSelectTestDesignCandidate),
     [candidatePage.items]
@@ -539,14 +540,14 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
   }), [crossWpOperationsProjectId, crossWpOperationsPromptKey]);
   const qualitySummaryScope = selectedTaskId
     ? taskQualitySummary
-      ? `任务全量 ${taskQualitySummary.total} 个候选`
+      ? translate('auto.k1644', { value0: taskQualitySummary.total })
       : candidatePage.items.length
-        ? `当前候选页 ${candidatePage.start}-${candidatePage.end} / ${candidatePage.total}`
-        : `当前候选页 0 / ${candidatePage.total}`
-    : '请先选择任务';
+        ? translate('auto.k1645', { value0: candidatePage.start, value1: candidatePage.end, value2: candidatePage.total })
+        : translate('auto.k1646', { value0: candidatePage.total })
+    : translate('auto.k1538');
   const publishScopeLabel = selectedCandidateIds.length
-    ? `${selectedPublishableCandidates.length} / ${selectedCandidateIds.length} 个已选候选`
-    : `全部可发布候选${estimatedPublishableCandidateCount ? ` · 约 ${estimatedPublishableCandidateCount} 个` : ''}`;
+    ? translate('auto.k1647', { value0: selectedPublishableCandidates.length, value1: selectedCandidateIds.length })
+    : translate('auto.k1648', { value0: estimatedPublishableCandidateCount ? translate('auto.k2604', { value0: estimatedPublishableCandidateCount }) : '' });
   const publishIssueRecords = useMemo(
     () => publishResult?.records.filter(isPublishIssueRecord) ?? [],
     [publishResult]
@@ -753,7 +754,7 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
         setSelectedCandidateId('');
         setCandidateDraft(null);
       }
-      setTaskState({ loading: false, error: testDesignErrorMessage(error, '候选用例列表加载失败') });
+      setTaskState({ loading: false, error: testDesignErrorMessage(error, translate('auto.k1649')) });
     }
   }, [
     canRead,
@@ -795,7 +796,7 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
     } catch (error: unknown) {
       setPromptTrend(null);
       if (!silent) {
-        setPromptTrendState({ loading: false, error: testDesignErrorMessage(error, 'Prompt 版本趋势加载失败') });
+        setPromptTrendState({ loading: false, error: testDesignErrorMessage(error, translate('auto.k1650')) });
       }
     }
   }, [
@@ -873,7 +874,7 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
       setCalibrationSummary(calibrationResponse.data.summary ?? null);
       setEvaluationCorpusState({
         loading: false,
-        success: `样本 ${sampleResponse.data.items.length} / ${sampleResponse.data.total} · 校准 ${calibrationResponse.data.total}`,
+        success: translate('auto.k1651', { value0: sampleResponse.data.items.length, value1: sampleResponse.data.total, value2: calibrationResponse.data.total }),
         traceId: sampleResponse.trace_id || calibrationResponse.trace_id || summaryResponse.trace_id
       });
     } catch (error: unknown) {
@@ -884,7 +885,7 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
         setEvaluationSamplePageTotal(0);
         setCalibrationRuns([]);
         setCalibrationSummary(null);
-        setEvaluationCorpusState({ loading: false, error: testDesignErrorMessage(error, '评测语料运营加载失败') });
+        setEvaluationCorpusState({ loading: false, error: testDesignErrorMessage(error, translate('auto.k1652')) });
       }
     }
   }, [
@@ -965,7 +966,7 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
       }));
       setCrossWpOperationsState({
         loading: false,
-        success: `任务 ${dashboardResponse.data.taskCount} · outbox 可重放 ${dashboardResponse.data.auditOutbox?.replayEligibleCount ?? 0} · 明细 ${detailReportResponse.data.rowCount}`,
+        success: translate('auto.k1653', { value0: dashboardResponse.data.taskCount, value1: dashboardResponse.data.auditOutbox?.replayEligibleCount ?? 0, value2: detailReportResponse.data.rowCount }),
         traceId: dashboardResponse.trace_id
           || subscriptionsResponse.trace_id
           || templateResponse.trace_id
@@ -979,7 +980,7 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
         setModelObservationDrilldown(null);
         setCrossWpDetailAuditReport(null);
         setQueueAlertSubscriptions([]);
-        setCrossWpOperationsState({ loading: false, error: testDesignErrorMessage(error, '跨 WP 运营看板加载失败') });
+        setCrossWpOperationsState({ loading: false, error: testDesignErrorMessage(error, translate('auto.k1654')) });
       }
     }
   }, [
@@ -1004,7 +1005,7 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
       setConflictOperationSummary(null);
       setConflictOperationPageTotal(0);
       if (!silent) {
-        setConflictOperationState({ loading: false, error: '请先填写项目 ID' });
+        setConflictOperationState({ loading: false, error: translate('auto.k1386') });
       }
       return;
     }
@@ -1032,7 +1033,7 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
       setConflictOperationPageTotal(response.data.total);
       setConflictOperationState({
         loading: false,
-        success: `已加载资产冲突 ${response.data.items.length} / ${response.data.total}`,
+        success: translate('auto.k1655', { value0: response.data.items.length, value1: response.data.total }),
         traceId: response.trace_id
       });
     } catch (error: unknown) {
@@ -1040,7 +1041,7 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
         setConflictOperations([]);
         setConflictOperationPageTotal(0);
         setConflictOperationSummary(null);
-        setConflictOperationState({ loading: false, error: testDesignErrorMessage(error, '资产冲突加载失败') });
+        setConflictOperationState({ loading: false, error: testDesignErrorMessage(error, translate('auto.k1656')) });
       }
     }
   }, [
@@ -1071,7 +1072,7 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
     } catch (error: unknown) {
       setTaskQualitySummary(null);
       if (!options?.silent) {
-        setTaskState({ loading: false, error: testDesignErrorMessage(error, '任务质量摘要加载失败') });
+        setTaskState({ loading: false, error: testDesignErrorMessage(error, translate('auto.k1657')) });
       }
     }
   }, [canRead, props.signedIn]);
@@ -1096,7 +1097,7 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
     } catch (error: unknown) {
       setTaskAuditSummary(null);
       if (!silent) {
-        setTaskAuditState({ loading: false, error: testDesignErrorMessage(error, '审计链摘要加载失败') });
+        setTaskAuditState({ loading: false, error: testDesignErrorMessage(error, translate('auto.k1658')) });
       }
     }
   }, [canRead, props.signedIn]);
@@ -1139,7 +1140,7 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
       if (!silent) {
         setContextPolicyState({
           loading: false,
-          success: `上下文策略已加载：${overridesResponse.data.length} 条覆盖`,
+          success: translate('auto.k1659', { value0: overridesResponse.data.length }),
           traceId: effectiveResponse.trace_id || overridesResponse.trace_id
         });
       }
@@ -1147,7 +1148,7 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
       setContextPolicyOverrides([]);
       setContextPolicyEffective(null);
       if (!silent) {
-        setContextPolicyState({ loading: false, error: testDesignErrorMessage(error, '上下文策略加载失败') });
+        setContextPolicyState({ loading: false, error: testDesignErrorMessage(error, translate('auto.k1660')) });
       }
     }
   }, [
@@ -1186,7 +1187,7 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
       if (!silent) {
         setReleaseReadinessState({
           loading: false,
-          success: `发布准出审批已加载：${approvals.length} 条`,
+          success: translate('auto.k1661', { value0: approvals.length }),
           traceId: response.trace_id
         });
       }
@@ -1195,7 +1196,7 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
       setSelectedReleaseReadinessApprovalId('');
       setReleaseReadinessNotes([]);
       if (!silent) {
-        setReleaseReadinessState({ loading: false, error: testDesignErrorMessage(error, '发布准出审批加载失败') });
+        setReleaseReadinessState({ loading: false, error: testDesignErrorMessage(error, translate('auto.k1662')) });
       }
     }
   }, [canRead, props.signedIn, selectedTaskId]);
@@ -1210,7 +1211,7 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
       setReleaseReadinessNotes(response.data);
     } catch (error: unknown) {
       setReleaseReadinessNotes([]);
-      setReleaseReadinessState({ loading: false, error: testDesignErrorMessage(error, '发布准出备注加载失败') });
+      setReleaseReadinessState({ loading: false, error: testDesignErrorMessage(error, translate('auto.k1663')) });
     }
   }, [canRead, props.signedIn, selectedReleaseReadinessApprovalId]);
 
@@ -1248,7 +1249,7 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
       if (!silent) {
         setReportArchiveState({
           loading: false,
-          success: `报告归档已加载：${archives.length} 条`,
+          success: translate('auto.k1664', { value0: archives.length }),
           traceId: response.trace_id
         });
       }
@@ -1260,7 +1261,7 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
       setSelectedReportArchiveApprovalId('');
       setReportArchiveNotes([]);
       if (!silent) {
-        setReportArchiveState({ loading: false, error: testDesignErrorMessage(error, '报告归档加载失败') });
+        setReportArchiveState({ loading: false, error: testDesignErrorMessage(error, translate('auto.k1665')) });
       }
     }
   }, [canRead, props.signedIn, selectedTaskId]);
@@ -1297,7 +1298,7 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
       if (!silent) {
         setReportArchiveState({
           loading: false,
-          success: `归档明细已加载：审批 ${approvals.length} 条`,
+          success: translate('auto.k1666', { value0: approvals.length }),
           traceId: integrityResponse.trace_id || approvalsResponse.trace_id
         });
       }
@@ -1307,7 +1308,7 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
       setSelectedReportArchiveApprovalId('');
       setReportArchiveNotes([]);
       if (!silent) {
-        setReportArchiveState({ loading: false, error: testDesignErrorMessage(error, '归档明细加载失败') });
+        setReportArchiveState({ loading: false, error: testDesignErrorMessage(error, translate('auto.k1667')) });
       }
     }
   }, [canRead, props.signedIn, selectedReportArchiveId]);
@@ -1324,7 +1325,7 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
       setReportArchiveNotes(response.data);
     } catch (error: unknown) {
       setReportArchiveNotes([]);
-      setReportArchiveState({ loading: false, error: testDesignErrorMessage(error, '归档备注加载失败') });
+      setReportArchiveState({ loading: false, error: testDesignErrorMessage(error, translate('auto.k1668')) });
     }
   }, [canRead, props.signedIn, selectedReportArchiveApprovalId]);
 
@@ -1359,7 +1360,7 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
       setTemplates([]);
       setTemplatePageTotal(0);
       if (!silent) {
-        setTemplateState({ loading: false, error: testDesignErrorMessage(error, '生成模板加载失败') });
+        setTemplateState({ loading: false, error: testDesignErrorMessage(error, translate('auto.k1669')) });
       }
     }
   }, [
@@ -1401,7 +1402,7 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
         setReviewRecords([]);
         setReviewRecordPageTotal(0);
       }
-      setReviewRecordState({ loading: false, error: testDesignErrorMessage(error, '评审历史加载失败') });
+      setReviewRecordState({ loading: false, error: testDesignErrorMessage(error, translate('auto.k1670')) });
     }
   }, [
     canRead,
@@ -1507,7 +1508,7 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
       setHealth(healthResult.value.data);
       traceIds.push(healthResult.value.trace_id);
     } else {
-      errors.push(testDesignErrorMessage(healthResult.reason, '用例生成服务健康检查失败'));
+      errors.push(testDesignErrorMessage(healthResult.reason, translate('auto.k1671')));
     }
 
     if (requirementResult.status === 'fulfilled') {
@@ -1515,7 +1516,7 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
       traceIds.push(requirementResult.value.trace_id);
     } else {
       setRequirements([]);
-      errors.push(testDesignErrorMessage(requirementResult.reason, '需求列表加载失败'));
+      errors.push(testDesignErrorMessage(requirementResult.reason, translate('auto.k1672')));
     }
 
     if (taskResult.status === 'fulfilled') {
@@ -1524,7 +1525,7 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
       setSelectedTaskId((current) => taskResult.value.data.items.some((task) => task.id === current) ? current : taskResult.value.data.items[0]?.id || '');
     } else {
       setTasks([]);
-      errors.push(testDesignErrorMessage(taskResult.reason, '生成任务列表加载失败'));
+      errors.push(testDesignErrorMessage(taskResult.reason, translate('auto.k1673')));
     }
 
     setLoadState({
@@ -1896,9 +1897,9 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
       ...current,
       steps: [
         ...current.steps,
-        emptyStepDraft('准备测试数据', '测试数据满足前置条件'),
-        emptyStepDraft('执行核心操作', '系统返回成功状态'),
-        emptyStepDraft('核对结果状态', '页面、接口和数据状态一致')
+        emptyStepDraft(translate('auto.k1674'), translate('auto.k1675')),
+        emptyStepDraft(translate('auto.k1676'), translate('auto.k1677')),
+        emptyStepDraft(translate('auto.k1678'), translate('auto.k1679'))
       ]
     } : current);
   }
@@ -1923,23 +1924,23 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
   async function createTask(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!props.signedIn) {
-      setMutationState({ loading: false, error: '请先登录后再生成用例' });
+      setMutationState({ loading: false, error: translate('auto.k1680') });
       return;
     }
     if (!canGenerate) {
-      setMutationState({ loading: false, error: '缺少 testDesign:generate 权限' });
+      setMutationState({ loading: false, error: translate('auto.k1681') });
       return;
     }
     if (!generationDraft.projectId.trim()) {
-      setMutationState({ loading: false, error: '请输入项目 ID' });
+      setMutationState({ loading: false, error: translate('auto.k1682') });
       return;
     }
     if (!selectedRequirementIds.length) {
-      setMutationState({ loading: false, error: '请至少选择一个需求' });
+      setMutationState({ loading: false, error: translate('auto.k1683') });
       return;
     }
     if (!generationDraft.coverageTypes.length) {
-      setMutationState({ loading: false, error: '请至少选择一种覆盖类型' });
+      setMutationState({ loading: false, error: translate('auto.k1684') });
       return;
     }
 
@@ -1987,26 +1988,26 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
       generationIdempotencyRef.current = null;
       setMutationState({
         loading: false,
-        success: ASYNC_TASK_STATUSES.has(response.data.task.status) ? '生成任务已提交，候选生成中' : '候选用例已生成',
+        success: ASYNC_TASK_STATUSES.has(response.data.task.status) ? translate('auto.k1685') : translate('auto.k1686'),
         traceId: response.trace_id
       });
     } catch (error: unknown) {
-      setMutationState({ loading: false, error: testDesignErrorMessage(error, '候选用例生成失败') });
+      setMutationState({ loading: false, error: testDesignErrorMessage(error, translate('auto.k1687')) });
     }
   }
 
   async function saveTemplate(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!canPolicyManage) {
-      setTemplateState({ loading: false, error: '缺少 testDesign:policy_manage 权限' });
+      setTemplateState({ loading: false, error: translate('auto.k1688') });
       return;
     }
     if (!templateDraft.name.trim()) {
-      setTemplateState({ loading: false, error: '请输入模板名称' });
+      setTemplateState({ loading: false, error: translate('auto.k1689') });
       return;
     }
     if (!templateDraft.coverageTypes.length) {
-      setTemplateState({ loading: false, error: '请至少选择一种模板覆盖类型' });
+      setTemplateState({ loading: false, error: translate('auto.k1690') });
       return;
     }
 
@@ -2023,22 +2024,22 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
       }
       setTemplateState({
         loading: false,
-        success: selectedManagedTemplate ? '生成模板已更新' : '生成模板已创建',
+        success: selectedManagedTemplate ? translate('auto.k1691') : translate('auto.k1692'),
         traceId: response.trace_id
       });
       void refreshTemplates({ silent: true });
     } catch (error: unknown) {
-      setTemplateState({ loading: false, error: testDesignErrorMessage(error, selectedManagedTemplate ? '生成模板更新失败' : '生成模板创建失败') });
+      setTemplateState({ loading: false, error: testDesignErrorMessage(error, selectedManagedTemplate ? translate('auto.k1693') : translate('auto.k1694')) });
     }
   }
 
   async function disableTemplate() {
     if (!selectedManagedTemplate) {
-      setTemplateState({ loading: false, error: '请先选择模板' });
+      setTemplateState({ loading: false, error: translate('auto.k1695') });
       return;
     }
     if (!canPolicyManage) {
-      setTemplateState({ loading: false, error: '缺少 testDesign:policy_manage 权限' });
+      setTemplateState({ loading: false, error: translate('auto.k1688') });
       return;
     }
 
@@ -2047,26 +2048,26 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
       const response = await deleteTestDesignTemplate(selectedManagedTemplate.id);
       setTemplates((current) => upsertTemplate(current, response.data));
       setGenerationDraft((current) => current.templateId === response.data.id ? { ...current, templateId: '' } : current);
-      setTemplateState({ loading: false, success: '生成模板已禁用', traceId: response.trace_id });
+      setTemplateState({ loading: false, success: translate('auto.k1696'), traceId: response.trace_id });
       void refreshTemplates({ silent: true });
     } catch (error: unknown) {
-      setTemplateState({ loading: false, error: testDesignErrorMessage(error, '生成模板禁用失败') });
+      setTemplateState({ loading: false, error: testDesignErrorMessage(error, translate('auto.k1697')) });
     }
   }
 
   async function saveEvaluationSample(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!canPolicyManage) {
-      setEvaluationCorpusState({ loading: false, error: '缺少 testDesign:policy_manage 权限' });
+      setEvaluationCorpusState({ loading: false, error: translate('auto.k1688') });
       return;
     }
     if (!evaluationSampleDraft.projectId.trim()) {
-      setEvaluationCorpusState({ loading: false, error: '请输入样本项目 ID' });
+      setEvaluationCorpusState({ loading: false, error: translate('auto.k1698') });
       return;
     }
     if (!evaluationSampleDraft.title.trim() || !evaluationSampleDraft.requirementSummary.trim()
         || !evaluationSampleDraft.expectedCaseOutline.trim()) {
-      setEvaluationCorpusState({ loading: false, error: '请填写样本标题、需求摘要和期望轮廓' });
+      setEvaluationCorpusState({ loading: false, error: translate('auto.k1699') });
       return;
     }
     setEvaluationCorpusState({ loading: true });
@@ -2079,22 +2080,22 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
       setEvaluationSamples((current) => upsertEvaluationSample(current, response.data));
       setEvaluationCorpusState({
         loading: false,
-        success: selectedEvaluationSample ? '评测样本已更新' : '评测样本已创建',
+        success: selectedEvaluationSample ? translate('auto.k1700') : translate('auto.k1701'),
         traceId: response.trace_id
       });
       void refreshEvaluationCorpusOperations({ silent: true });
     } catch (error: unknown) {
-      setEvaluationCorpusState({ loading: false, error: testDesignErrorMessage(error, '评测样本保存失败') });
+      setEvaluationCorpusState({ loading: false, error: testDesignErrorMessage(error, translate('auto.k1702')) });
     }
   }
 
   async function transitionEvaluationSample(status: string) {
     if (!canPolicyManage) {
-      setEvaluationCorpusState({ loading: false, error: '缺少 testDesign:policy_manage 权限' });
+      setEvaluationCorpusState({ loading: false, error: translate('auto.k1688') });
       return;
     }
     if (!selectedEvaluationSample) {
-      setEvaluationCorpusState({ loading: false, error: '请先选择评测样本' });
+      setEvaluationCorpusState({ loading: false, error: translate('auto.k1703') });
       return;
     }
     setEvaluationCorpusState({ loading: true });
@@ -2105,20 +2106,20 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
         maintenanceNote: evaluationSampleDraft.maintenanceNote
       });
       setEvaluationSamples((current) => upsertEvaluationSample(current, response.data));
-      setEvaluationCorpusState({ loading: false, success: `样本已流转为 ${status}`, traceId: response.trace_id });
+      setEvaluationCorpusState({ loading: false, success: translate('auto.k1704', { value0: status }), traceId: response.trace_id });
       void refreshEvaluationCorpusOperations({ silent: true });
     } catch (error: unknown) {
-      setEvaluationCorpusState({ loading: false, error: testDesignErrorMessage(error, '样本状态流转失败') });
+      setEvaluationCorpusState({ loading: false, error: testDesignErrorMessage(error, translate('auto.k1705')) });
     }
   }
 
   async function extractEvaluationSampleFromCandidate() {
     if (!canPolicyManage) {
-      setEvaluationCorpusState({ loading: false, error: '缺少 testDesign:policy_manage 权限' });
+      setEvaluationCorpusState({ loading: false, error: translate('auto.k1688') });
       return;
     }
     if (!selectedCandidateId) {
-      setEvaluationCorpusState({ loading: false, error: '请先选择候选用例' });
+      setEvaluationCorpusState({ loading: false, error: translate('auto.k1706') });
       return;
     }
     setEvaluationCorpusState({ loading: true });
@@ -2132,20 +2133,20 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
       });
       setSelectedEvaluationSampleId(response.data.id);
       setEvaluationSamples((current) => upsertEvaluationSample(current, response.data));
-      setEvaluationCorpusState({ loading: false, success: '已从候选提取评测样本', traceId: response.trace_id });
+      setEvaluationCorpusState({ loading: false, success: translate('auto.k1707'), traceId: response.trace_id });
       void refreshEvaluationCorpusOperations({ silent: true });
     } catch (error: unknown) {
-      setEvaluationCorpusState({ loading: false, error: testDesignErrorMessage(error, '候选样本提取失败') });
+      setEvaluationCorpusState({ loading: false, error: testDesignErrorMessage(error, translate('auto.k1708')) });
     }
   }
 
   async function runCalibration() {
     if (!canPolicyManage) {
-      setEvaluationCorpusState({ loading: false, error: '缺少 testDesign:policy_manage 权限' });
+      setEvaluationCorpusState({ loading: false, error: translate('auto.k1688') });
       return;
     }
     if (!calibrationRunDraft.projectId.trim()) {
-      setEvaluationCorpusState({ loading: false, error: '请输入校准项目 ID' });
+      setEvaluationCorpusState({ loading: false, error: translate('auto.k1709') });
       return;
     }
     setEvaluationCorpusState({ loading: true });
@@ -2159,23 +2160,23 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
         notes: calibrationRunDraft.notes
       });
       setCalibrationRuns((current) => [response.data, ...current.filter((run) => run.id !== response.data.id)].slice(0, 6));
-      setEvaluationCorpusState({ loading: false, success: `校准运行完成：${response.data.status}`, traceId: response.trace_id });
+      setEvaluationCorpusState({ loading: false, success: translate('auto.k1710', { value0: response.data.status }), traceId: response.trace_id });
       void refreshEvaluationCorpusOperations({ silent: true });
       void refreshPromptTrend({ silent: true });
     } catch (error: unknown) {
-      setEvaluationCorpusState({ loading: false, error: testDesignErrorMessage(error, '校准运行失败') });
+      setEvaluationCorpusState({ loading: false, error: testDesignErrorMessage(error, translate('auto.k1711')) });
     }
   }
 
   async function requeueAuditOutbox(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!canPolicyManage) {
-      setCrossWpOperationsState({ loading: false, error: '缺少 testDesign:policy_manage 权限' });
+      setCrossWpOperationsState({ loading: false, error: translate('auto.k1688') });
       return;
     }
     const projectId = auditOutboxRequeueDraft.projectId.trim() || crossWpOperationsProjectId.trim();
     if (!projectId) {
-      setCrossWpOperationsState({ loading: false, error: '请输入 outbox 重放项目 ID' });
+      setCrossWpOperationsState({ loading: false, error: translate('auto.k1712') });
       return;
     }
     const maxItems = Number.parseInt(auditOutboxRequeueDraft.maxItems, 10);
@@ -2191,24 +2192,24 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
       setAuditOutboxRequeueDraft((current) => ({ ...current, projectId, reason: '' }));
       setCrossWpOperationsState({
         loading: false,
-        success: `已重新排队 ${response.data.requeuedCount} 条 outbox`,
+        success: translate('auto.k1713', { value0: response.data.requeuedCount }),
         traceId: response.trace_id
       });
       void refreshCrossWpOperations({ silent: true });
     } catch (error: unknown) {
-      setCrossWpOperationsState({ loading: false, error: testDesignErrorMessage(error, 'Audit outbox 重新排队失败') });
+      setCrossWpOperationsState({ loading: false, error: testDesignErrorMessage(error, translate('auto.k1714')) });
     }
   }
 
   async function saveQueueAlertSubscription(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!canPolicyManage) {
-      setCrossWpOperationsState({ loading: false, error: '缺少 testDesign:policy_manage 权限' });
+      setCrossWpOperationsState({ loading: false, error: translate('auto.k1688') });
       return;
     }
     const projectId = queueAlertSubscriptionDraft.projectId.trim() || crossWpOperationsProjectId.trim();
     if (!projectId) {
-      setCrossWpOperationsState({ loading: false, error: '请输入队列告警项目 ID' });
+      setCrossWpOperationsState({ loading: false, error: translate('auto.k1715') });
       return;
     }
     const promptKey = queueAlertSubscriptionDraft.promptKey.trim();
@@ -2233,24 +2234,24 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
       setQueueAlertSubscriptionDraft((current) => ({ ...current, projectId, promptKey }));
       setCrossWpOperationsState({
         loading: false,
-        success: `队列告警订阅已保存：${response.data.alertType}`,
+        success: translate('auto.k1716', { value0: response.data.alertType }),
         traceId: response.trace_id
       });
       void refreshCrossWpOperations({ silent: true });
     } catch (error: unknown) {
-      setCrossWpOperationsState({ loading: false, error: testDesignErrorMessage(error, '队列告警订阅保存失败') });
+      setCrossWpOperationsState({ loading: false, error: testDesignErrorMessage(error, translate('auto.k1717')) });
     }
   }
 
   async function replayQueuedEvents(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!canPolicyManage) {
-      setCrossWpOperationsState({ loading: false, error: '缺少 testDesign:policy_manage 权限' });
+      setCrossWpOperationsState({ loading: false, error: translate('auto.k1688') });
       return;
     }
     const projectId = queuedEventReplayDraft.projectId.trim() || crossWpOperationsProjectId.trim();
     if (!projectId) {
-      setCrossWpOperationsState({ loading: false, error: '请输入 queued event 重放项目 ID' });
+      setCrossWpOperationsState({ loading: false, error: translate('auto.k1718') });
       return;
     }
     const maxItems = Number.parseInt(queuedEventReplayDraft.maxItems, 10);
@@ -2267,24 +2268,24 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
       setQueuedEventReplayDraft((current) => ({ ...current, projectId }));
       setCrossWpOperationsState({
         loading: false,
-        success: `已重放生成 ${response.data.generationTaskEvents} · 发布 ${response.data.publishCandidateEvents}`,
+        success: translate('auto.k1719', { value0: response.data.generationTaskEvents, value1: response.data.publishCandidateEvents }),
         traceId: response.trace_id
       });
       void refreshCrossWpOperations({ silent: true });
     } catch (error: unknown) {
-      setCrossWpOperationsState({ loading: false, error: testDesignErrorMessage(error, 'queued event 重放失败') });
+      setCrossWpOperationsState({ loading: false, error: testDesignErrorMessage(error, translate('auto.k1720')) });
     }
   }
 
   async function runPublishCompensation(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!canPolicyManage) {
-      setCrossWpOperationsState({ loading: false, error: '缺少 testDesign:policy_manage 权限' });
+      setCrossWpOperationsState({ loading: false, error: translate('auto.k1688') });
       return;
     }
     const projectId = publishCompensationRunDraft.projectId.trim() || crossWpOperationsProjectId.trim();
     if (!projectId) {
-      setCrossWpOperationsState({ loading: false, error: '请输入补偿运行项目 ID' });
+      setCrossWpOperationsState({ loading: false, error: translate('auto.k1721') });
       return;
     }
     const maxItems = Number.parseInt(publishCompensationRunDraft.maxItems, 10);
@@ -2300,22 +2301,22 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
       setPublishCompensationRunDraft((current) => ({ ...current, projectId }));
       setCrossWpOperationsState({
         loading: false,
-        success: `补偿扫描 ${response.data.scannedCandidates} · 成功 ${response.data.succeededCandidates}`,
+        success: translate('auto.k1722', { value0: response.data.scannedCandidates, value1: response.data.succeededCandidates }),
         traceId: response.trace_id
       });
       void refreshCrossWpOperations({ silent: true });
     } catch (error: unknown) {
-      setCrossWpOperationsState({ loading: false, error: testDesignErrorMessage(error, '发布补偿运行失败') });
+      setCrossWpOperationsState({ loading: false, error: testDesignErrorMessage(error, translate('auto.k1723')) });
     }
   }
 
   async function retryTask(task: TestDesignTaskView) {
     if (!canGenerate) {
-      setTaskState({ loading: false, error: '缺少 testDesign:generate 权限' });
+      setTaskState({ loading: false, error: translate('auto.k1681') });
       return;
     }
     if (!RETRYABLE_TASK_STATUSES.has(task.status)) {
-      setTaskState({ loading: false, error: `当前任务状态不可重试：${task.status}` });
+      setTaskState({ loading: false, error: translate('auto.k1724', { value0: task.status }) });
       return;
     }
 
@@ -2333,23 +2334,23 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
       setBatchActionResult(null);
       setBatchEditDraft(initialTestDesignBatchEditDraft);
       setBatchEditResult(null);
-      setTaskState({ loading: false, success: '生成任务已重试', traceId: response.trace_id });
+      setTaskState({ loading: false, success: translate('auto.k1725'), traceId: response.trace_id });
       void refreshReviewRecords(task.id, { silent: true });
       void refreshTaskQualitySummary(task.id, { silent: true });
       void refreshTaskAuditSummary(task.id, { silent: true });
       void refreshPromptTrend({ silent: true });
     } catch (error: unknown) {
-      setTaskState({ loading: false, error: testDesignErrorMessage(error, '生成任务重试失败') });
+      setTaskState({ loading: false, error: testDesignErrorMessage(error, translate('auto.k1726')) });
     }
   }
 
   async function replayQueuedTaskEvent(task: TestDesignTaskView) {
     if (!canGenerate) {
-      setTaskState({ loading: false, error: '缺少 testDesign:generate 权限' });
+      setTaskState({ loading: false, error: translate('auto.k1681') });
       return;
     }
     if (task.status !== 'QUEUED') {
-      setTaskState({ loading: false, error: `仅 QUEUED 任务支持排队事件重发：${task.status}` });
+      setTaskState({ loading: false, error: translate('auto.k1727', { value0: task.status }) });
       return;
     }
 
@@ -2367,23 +2368,23 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
       setBatchActionResult(null);
       setBatchEditDraft(initialTestDesignBatchEditDraft);
       setBatchEditResult(null);
-      setTaskState({ loading: false, success: '排队生成事件已重发', traceId: response.trace_id });
+      setTaskState({ loading: false, success: translate('auto.k1728'), traceId: response.trace_id });
       void refreshReviewRecords(task.id, { silent: true });
       void refreshTaskQualitySummary(task.id, { silent: true });
       void refreshTaskAuditSummary(task.id, { silent: true });
       void refreshPromptTrend({ silent: true });
     } catch (error: unknown) {
-      setTaskState({ loading: false, error: testDesignErrorMessage(error, '排队生成事件重发失败') });
+      setTaskState({ loading: false, error: testDesignErrorMessage(error, translate('auto.k1729')) });
     }
   }
 
   async function cancelTask(task: TestDesignTaskView) {
     if (!canGenerate) {
-      setTaskState({ loading: false, error: '缺少 testDesign:generate 权限' });
+      setTaskState({ loading: false, error: translate('auto.k1681') });
       return;
     }
     if (!CANCELLABLE_TASK_STATUSES.has(task.status)) {
-      setTaskState({ loading: false, error: `当前任务状态不可取消：${task.status}` });
+      setTaskState({ loading: false, error: translate('auto.k1730', { value0: task.status }) });
       return;
     }
 
@@ -2401,24 +2402,24 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
       setBatchEditDraft(initialTestDesignBatchEditDraft);
       setBatchEditResult(null);
       setPublishResult(null);
-      setTaskState({ loading: false, success: '生成任务已取消', traceId: response.trace_id });
+      setTaskState({ loading: false, success: translate('auto.k1731'), traceId: response.trace_id });
       void refreshReviewRecords(task.id, { silent: true });
       void refreshTaskQualitySummary(task.id, { silent: true });
       void refreshTaskAuditSummary(task.id, { silent: true });
       void refreshPromptTrend({ silent: true });
     } catch (error: unknown) {
-      setTaskState({ loading: false, error: testDesignErrorMessage(error, '生成任务取消失败') });
+      setTaskState({ loading: false, error: testDesignErrorMessage(error, translate('auto.k1732')) });
     }
   }
 
   async function requestContextPolicyOverride(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!canPolicyManage) {
-      setContextPolicyState({ loading: false, error: '缺少 testDesign:policy_manage 权限' });
+      setContextPolicyState({ loading: false, error: translate('auto.k1688') });
       return;
     }
     if (contextPolicySubmitBlocked) {
-      setContextPolicyState({ loading: false, error: `上下文策略校验不通过：${contextPolicySubmitIssues[0]?.message ?? '请检查字段'}` });
+      setContextPolicyState({ loading: false, error: translate('auto.k1733', { value0: contextPolicySubmitIssues[0]?.message ?? translate('auto.k2601') }) });
       return;
     }
 
@@ -2439,28 +2440,28 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
       setSelectedContextPolicyOverrideId(response.data.id);
       setContextPolicyState({
         loading: false,
-        success: selectedPendingContextPolicyOverride ? '上下文策略草稿已更新' : '上下文策略覆盖已提交审批',
+        success: selectedPendingContextPolicyOverride ? translate('auto.k1734') : translate('auto.k1735'),
         traceId: response.trace_id
       });
       void loadContextPolicyNotes(response.data.id, { silent: true });
       void refreshContextPolicy({ silent: true });
     } catch (error: unknown) {
-      setContextPolicyState({ loading: false, error: testDesignErrorMessage(error, '上下文策略覆盖提交失败') });
+      setContextPolicyState({ loading: false, error: testDesignErrorMessage(error, translate('auto.k1736')) });
     }
   }
 
   async function reviewContextPolicyOverride(overrideId: string, action: 'approve' | 'reject') {
     if (!canPolicyManage) {
-      setContextPolicyState({ loading: false, error: '缺少 testDesign:policy_manage 权限' });
+      setContextPolicyState({ loading: false, error: translate('auto.k1688') });
       return;
     }
     if (!contextPolicyDraft.approvalReasonCode) {
-      setContextPolicyState({ loading: false, error: '请选择审批原因编码' });
+      setContextPolicyState({ loading: false, error: translate('auto.k1737') });
       return;
     }
     const reviewIssue = contextPolicyIssues.find((issue) => ['approvalReasonCode', 'reviewNote', 'workOrderStatus'].includes(issue.field));
     if (reviewIssue) {
-      setContextPolicyState({ loading: false, error: `上下文策略审批校验不通过：${reviewIssue.message}` });
+      setContextPolicyState({ loading: false, error: translate('auto.k1738', { value0: reviewIssue.message }) });
       return;
     }
 
@@ -2486,13 +2487,13 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
       }));
       setContextPolicyState({
         loading: false,
-        success: action === 'approve' ? '上下文策略覆盖已审批' : '上下文策略覆盖已驳回',
+        success: action === 'approve' ? translate('auto.k1739') : translate('auto.k1740'),
         traceId: response.trace_id
       });
       void loadContextPolicyNotes(response.data.id, { silent: true });
       void refreshContextPolicy({ silent: true });
     } catch (error: unknown) {
-      setContextPolicyState({ loading: false, error: testDesignErrorMessage(error, action === 'approve' ? '上下文策略审批失败' : '上下文策略驳回失败') });
+      setContextPolicyState({ loading: false, error: testDesignErrorMessage(error, action === 'approve' ? translate('auto.k1741') : translate('auto.k1742')) });
     }
   }
 
@@ -2526,28 +2527,28 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
       const response = await fetchTestDesignContextPolicyNotes(overrideId);
       setContextPolicyNotes(response.data);
       if (!silent) {
-        setContextPolicyState({ loading: false, success: `备注流转已加载：${response.data.length} 条`, traceId: response.trace_id });
+        setContextPolicyState({ loading: false, success: translate('auto.k1743', { value0: response.data.length }), traceId: response.trace_id });
       }
     } catch (error: unknown) {
       setContextPolicyNotes([]);
       if (!silent) {
-        setContextPolicyState({ loading: false, error: testDesignErrorMessage(error, '上下文策略备注加载失败') });
+        setContextPolicyState({ loading: false, error: testDesignErrorMessage(error, translate('auto.k1744')) });
       }
     }
   }
 
   async function addContextPolicyNote() {
     if (!canPolicyManage) {
-      setContextPolicyState({ loading: false, error: '缺少 testDesign:policy_manage 权限' });
+      setContextPolicyState({ loading: false, error: translate('auto.k1688') });
       return;
     }
     if (!selectedContextPolicyOverrideId) {
-      setContextPolicyState({ loading: false, error: '请选择上下文策略覆盖记录' });
+      setContextPolicyState({ loading: false, error: translate('auto.k1745') });
       return;
     }
     const noteIssue = contextPolicyIssues.find((issue) => issue.field === 'noteText');
     if (noteIssue || !contextPolicyDraft.noteText.trim()) {
-      setContextPolicyState({ loading: false, error: noteIssue?.message ?? '请输入流转备注' });
+      setContextPolicyState({ loading: false, error: noteIssue?.message ?? translate('auto.k1746') });
       return;
     }
     setContextPolicyState({ loading: true });
@@ -2565,25 +2566,25 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
         }
         : override));
       setContextPolicyDraft((current) => ({ ...current, noteText: '' }));
-      setContextPolicyState({ loading: false, success: '上下文策略备注已追加', traceId: response.trace_id });
+      setContextPolicyState({ loading: false, success: translate('auto.k1747'), traceId: response.trace_id });
       void refreshContextPolicy({ silent: true });
     } catch (error: unknown) {
-      setContextPolicyState({ loading: false, error: testDesignErrorMessage(error, '上下文策略备注追加失败') });
+      setContextPolicyState({ loading: false, error: testDesignErrorMessage(error, translate('auto.k1748')) });
     }
   }
 
   async function requestReleaseReadinessApproval(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!selectedTaskId) {
-      setReleaseReadinessState({ loading: false, error: '请先选择任务' });
+      setReleaseReadinessState({ loading: false, error: translate('auto.k1538') });
       return;
     }
     if (!canPublish) {
-      setReleaseReadinessState({ loading: false, error: '缺少 testDesign:publish 权限' });
+      setReleaseReadinessState({ loading: false, error: translate('auto.k1749') });
       return;
     }
     if (!releaseReadinessDraft.exceptionSummary.trim() || !releaseReadinessDraft.riskMitigation.trim()) {
-      setReleaseReadinessState({ loading: false, error: '请输入例外摘要和风险缓释说明' });
+      setReleaseReadinessState({ loading: false, error: translate('auto.k1750') });
       return;
     }
 
@@ -2605,23 +2606,23 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
       setSelectedReleaseReadinessApprovalId(response.data.id);
       setReleaseReadinessState({
         loading: false,
-        success: selectedReleaseReadinessApproval?.status === 'PENDING' ? '发布准出审批草稿已更新' : '发布准出例外已提交审批',
+        success: selectedReleaseReadinessApproval?.status === 'PENDING' ? translate('auto.k1751') : translate('auto.k1752'),
         traceId: response.trace_id
       });
       void refreshReleaseReadinessApprovals(selectedTaskId, { silent: true });
       void refreshReleaseReadinessNotes(response.data.id);
     } catch (error: unknown) {
-      setReleaseReadinessState({ loading: false, error: testDesignErrorMessage(error, '发布准出例外提交失败') });
+      setReleaseReadinessState({ loading: false, error: testDesignErrorMessage(error, translate('auto.k1753')) });
     }
   }
 
   async function reviewReleaseReadinessApproval(approvalId: string, action: 'approve' | 'reject') {
     if (!canPublish) {
-      setReleaseReadinessState({ loading: false, error: '缺少 testDesign:publish 权限' });
+      setReleaseReadinessState({ loading: false, error: translate('auto.k1749') });
       return;
     }
     if (!releaseReadinessDraft.approvalReasonCode) {
-      setReleaseReadinessState({ loading: false, error: '请选择审批原因编码' });
+      setReleaseReadinessState({ loading: false, error: translate('auto.k1737') });
       return;
     }
     setReleaseReadinessState({ loading: true });
@@ -2643,14 +2644,14 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
       }));
       setReleaseReadinessState({
         loading: false,
-        success: action === 'approve' ? '发布准出例外已审批' : '发布准出例外已驳回',
+        success: action === 'approve' ? translate('auto.k1754') : translate('auto.k1755'),
         traceId: response.trace_id
       });
       void refreshReleaseReadinessNotes(response.data.id);
     } catch (error: unknown) {
       setReleaseReadinessState({
         loading: false,
-        error: testDesignErrorMessage(error, action === 'approve' ? '发布准出审批失败' : '发布准出驳回失败')
+        error: testDesignErrorMessage(error, action === 'approve' ? translate('auto.k1756') : translate('auto.k1757'))
       });
     }
   }
@@ -2676,15 +2677,15 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
 
   async function addReleaseReadinessNote() {
     if (!selectedReleaseReadinessApprovalId) {
-      setReleaseReadinessState({ loading: false, error: '请选择发布准出审批记录' });
+      setReleaseReadinessState({ loading: false, error: translate('auto.k1758') });
       return;
     }
     if (!canPublish) {
-      setReleaseReadinessState({ loading: false, error: '缺少 testDesign:publish 权限' });
+      setReleaseReadinessState({ loading: false, error: translate('auto.k1749') });
       return;
     }
     if (!releaseReadinessDraft.noteText.trim()) {
-      setReleaseReadinessState({ loading: false, error: '请输入流转备注' });
+      setReleaseReadinessState({ loading: false, error: translate('auto.k1746') });
       return;
     }
     setReleaseReadinessState({ loading: true });
@@ -2702,24 +2703,24 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
         }
         : approval));
       setReleaseReadinessDraft((current) => ({ ...current, noteText: '' }));
-      setReleaseReadinessState({ loading: false, success: '发布准出备注已追加', traceId: response.trace_id });
+      setReleaseReadinessState({ loading: false, success: translate('auto.k1759'), traceId: response.trace_id });
     } catch (error: unknown) {
-      setReleaseReadinessState({ loading: false, error: testDesignErrorMessage(error, '发布准出备注追加失败') });
+      setReleaseReadinessState({ loading: false, error: testDesignErrorMessage(error, translate('auto.k1760')) });
     }
   }
 
   async function requestReportArchiveApproval(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!selectedReportArchiveId) {
-      setReportArchiveState({ loading: false, error: '请先选择报告归档' });
+      setReportArchiveState({ loading: false, error: translate('auto.k1761') });
       return;
     }
     if (!canExport) {
-      setReportArchiveState({ loading: false, error: '缺少 testDesign:export 权限' });
+      setReportArchiveState({ loading: false, error: translate('auto.k1762') });
       return;
     }
     if (!reportArchiveDraft.requestSummary.trim()) {
-      setReportArchiveState({ loading: false, error: '请输入归档审批申请摘要' });
+      setReportArchiveState({ loading: false, error: translate('auto.k1763') });
       return;
     }
 
@@ -2738,21 +2739,21 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
         : await requestTestDesignReportArchiveApproval(selectedReportArchiveId, payload);
       setReportArchiveApprovals((current) => [response.data, ...current.filter((item) => item.id !== response.data.id)]);
       setSelectedReportArchiveApprovalId(response.data.id);
-      setReportArchiveState({ loading: false, success: '归档审批已提交', traceId: response.trace_id });
+      setReportArchiveState({ loading: false, success: translate('auto.k1764'), traceId: response.trace_id });
       void refreshReportArchiveDetail(selectedReportArchiveId, { silent: true });
       void refreshReportArchiveNotes(response.data.id);
     } catch (error: unknown) {
-      setReportArchiveState({ loading: false, error: testDesignErrorMessage(error, '归档审批提交失败') });
+      setReportArchiveState({ loading: false, error: testDesignErrorMessage(error, translate('auto.k1765')) });
     }
   }
 
   async function reviewReportArchiveApproval(approvalId: string, action: 'approve' | 'reject') {
     if (!canExport) {
-      setReportArchiveState({ loading: false, error: '缺少 testDesign:export 权限' });
+      setReportArchiveState({ loading: false, error: translate('auto.k1762') });
       return;
     }
     if (!reportArchiveDraft.approvalReasonCode) {
-      setReportArchiveState({ loading: false, error: '请选择审批原因编码' });
+      setReportArchiveState({ loading: false, error: translate('auto.k1737') });
       return;
     }
     setReportArchiveState({ loading: true });
@@ -2770,7 +2771,7 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
       setReportArchiveDraft((current) => ({ ...current, reviewNote: '', noteText: '' }));
       setReportArchiveState({
         loading: false,
-        success: action === 'approve' ? '归档审批已通过' : '归档审批已驳回',
+        success: action === 'approve' ? translate('auto.k1766') : translate('auto.k1767'),
         traceId: response.trace_id
       });
       void refreshReportArchives(selectedTaskId, { silent: true });
@@ -2779,7 +2780,7 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
     } catch (error: unknown) {
       setReportArchiveState({
         loading: false,
-        error: testDesignErrorMessage(error, action === 'approve' ? '归档审批失败' : '归档驳回失败')
+        error: testDesignErrorMessage(error, action === 'approve' ? translate('auto.k1768') : translate('auto.k1769'))
       });
     }
   }
@@ -2819,15 +2820,15 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
 
   async function addReportArchiveNote() {
     if (!selectedReportArchiveApprovalId) {
-      setReportArchiveState({ loading: false, error: '请选择归档审批记录' });
+      setReportArchiveState({ loading: false, error: translate('auto.k1770') });
       return;
     }
     if (!canExport) {
-      setReportArchiveState({ loading: false, error: '缺少 testDesign:export 权限' });
+      setReportArchiveState({ loading: false, error: translate('auto.k1762') });
       return;
     }
     if (!reportArchiveDraft.noteText.trim()) {
-      setReportArchiveState({ loading: false, error: '请输入流转备注' });
+      setReportArchiveState({ loading: false, error: translate('auto.k1746') });
       return;
     }
     setReportArchiveState({ loading: true });
@@ -2845,9 +2846,9 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
         }
         : approval));
       setReportArchiveDraft((current) => ({ ...current, noteText: '' }));
-      setReportArchiveState({ loading: false, success: '归档备注已追加', traceId: response.trace_id });
+      setReportArchiveState({ loading: false, success: translate('auto.k1771'), traceId: response.trace_id });
     } catch (error: unknown) {
-      setReportArchiveState({ loading: false, error: testDesignErrorMessage(error, '归档备注追加失败') });
+      setReportArchiveState({ loading: false, error: testDesignErrorMessage(error, translate('auto.k1772')) });
     }
   }
 
@@ -2856,11 +2857,11 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
       return;
     }
     if (!canReview) {
-      setMutationState({ loading: false, error: '缺少 testDesign:review 权限' });
+      setMutationState({ loading: false, error: translate('auto.k1773') });
       return;
     }
     if (candidateSaveBlocked) {
-      setMutationState({ loading: false, error: `候选质量门禁不通过：${candidateQualityIssues[0]?.message ?? '请检查字段提示'}` });
+      setMutationState({ loading: false, error: translate('auto.k1774', { value0: candidateQualityIssues[0]?.message ?? translate('auto.k2602') }) });
       return;
     }
 
@@ -2879,13 +2880,13 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
         version: selectedCandidate.version
       });
       updateCandidateInState(response.data);
-      setMutationState({ loading: false, success: '候选用例已保存', traceId: response.trace_id });
+      setMutationState({ loading: false, success: translate('auto.k1775'), traceId: response.trace_id });
       void refreshReviewRecords(selectedTaskId, { silent: true });
       void refreshTaskQualitySummary(selectedTaskId, { silent: true });
       void refreshTaskAuditSummary(selectedTaskId, { silent: true });
       void refreshPromptTrend({ silent: true });
     } catch (error: unknown) {
-      setMutationState({ loading: false, error: testDesignErrorMessage(error, '候选用例保存失败') });
+      setMutationState({ loading: false, error: testDesignErrorMessage(error, translate('auto.k1776')) });
     }
   }
 
@@ -2894,7 +2895,7 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
       return;
     }
     if (!canReview) {
-      setMutationState({ loading: false, error: '缺少 testDesign:review 权限' });
+      setMutationState({ loading: false, error: translate('auto.k1773') });
       return;
     }
 
@@ -2913,21 +2914,21 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
       void refreshTaskAuditSummary(selectedTaskId, { silent: true });
       void refreshPromptTrend({ silent: true });
     } catch (error: unknown) {
-      setMutationState({ loading: false, error: testDesignErrorMessage(error, '候选用例状态更新失败') });
+      setMutationState({ loading: false, error: testDesignErrorMessage(error, translate('auto.k1777')) });
     }
   }
 
   function requestBatchReviewCandidates(action: TestDesignCandidateBatchActionType) {
     if (!canReview) {
-      setMutationState({ loading: false, error: '缺少 testDesign:review 权限' });
+      setMutationState({ loading: false, error: translate('auto.k1773') });
       return;
     }
     if (!selectedReviewCandidates.length) {
-      setMutationState({ loading: false, error: '请先选择可评审候选' });
+      setMutationState({ loading: false, error: translate('auto.k1778') });
       return;
     }
     if ((action === 'REJECT' || action === 'IGNORE') && !reviewComment.trim()) {
-      setMutationState({ loading: false, error: '批量驳回或忽略需要填写评审意见' });
+      setMutationState({ loading: false, error: translate('auto.k1779') });
       return;
     }
 
@@ -2940,15 +2941,15 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
 
   async function executeBatchReviewCandidates(action: TestDesignCandidateBatchActionType) {
     if (!canReview) {
-      setMutationState({ loading: false, error: '缺少 testDesign:review 权限' });
+      setMutationState({ loading: false, error: translate('auto.k1773') });
       return;
     }
     if (!selectedReviewCandidates.length) {
-      setMutationState({ loading: false, error: '请先选择可评审候选' });
+      setMutationState({ loading: false, error: translate('auto.k1778') });
       return;
     }
     if ((action === 'REJECT' || action === 'IGNORE') && !reviewComment.trim()) {
-      setMutationState({ loading: false, error: '批量驳回或忽略需要填写评审意见' });
+      setMutationState({ loading: false, error: translate('auto.k1779') });
       return;
     }
 
@@ -2968,7 +2969,7 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
       setBatchActionResult(response.data);
       setMutationState({
         loading: false,
-        success: `批量${testDesignBatchActionLabel(action)}完成：成功 ${response.data.succeededCount}，失败 ${response.data.failedCount}`,
+        success: translate('auto.k1780', { value0: testDesignBatchActionLabel(action), value1: response.data.succeededCount, value2: response.data.failedCount }),
         traceId: response.trace_id
       });
       void refreshCandidatePage(selectedTaskId, { silent: true });
@@ -2977,25 +2978,25 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
       void refreshTaskAuditSummary(selectedTaskId, { silent: true });
       void refreshPromptTrend({ silent: true });
     } catch (error: unknown) {
-      setMutationState({ loading: false, error: testDesignErrorMessage(error, `批量${testDesignBatchActionLabel(action)}失败`) });
+      setMutationState({ loading: false, error: testDesignErrorMessage(error, translate('auto.k1781', { value0: testDesignBatchActionLabel(action) })) });
     }
   }
 
   function requestBatchEditCandidates() {
     if (!canReview) {
-      setMutationState({ loading: false, error: '缺少 testDesign:review 权限' });
+      setMutationState({ loading: false, error: translate('auto.k1773') });
       return;
     }
     if (!selectedBatchEditableCandidates.length) {
-      setMutationState({ loading: false, error: '请先选择可编辑候选' });
+      setMutationState({ loading: false, error: translate('auto.k1782') });
       return;
     }
     if (!batchEditHasChanges) {
-      setMutationState({ loading: false, error: '请至少选择一个要批量修改的字段' });
+      setMutationState({ loading: false, error: translate('auto.k1783') });
       return;
     }
     if (batchEditIssues.length) {
-      setMutationState({ loading: false, error: `批量字段编辑校验不通过：${batchEditIssues[0].message}` });
+      setMutationState({ loading: false, error: translate('auto.k1784', { value0: batchEditIssues[0].message }) });
       return;
     }
 
@@ -3007,13 +3008,13 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
 
   async function executeBatchEditCandidates() {
     if (!canReview) {
-      setMutationState({ loading: false, error: '缺少 testDesign:review 权限' });
+      setMutationState({ loading: false, error: translate('auto.k1773') });
       return;
     }
     if (batchEditBlocked) {
       setMutationState({
         loading: false,
-        error: batchEditIssues[0]?.message ?? '请先选择可编辑候选并填写批量字段'
+        error: batchEditIssues[0]?.message ?? translate('auto.k1785')
       });
       return;
     }
@@ -3036,7 +3037,7 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
         return {
           candidateId: candidate.id,
           result: 'FAILED' as const,
-          errorMessage: testDesignErrorMessage(error, '候选批量字段编辑失败')
+          errorMessage: testDesignErrorMessage(error, translate('auto.k1786'))
         };
       }
     }));
@@ -3066,7 +3067,7 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
     }
     setMutationState({
       loading: false,
-      success: `批量字段编辑完成：成功 ${result.succeededCount}，失败 ${result.failedCount}`,
+      success: translate('auto.k1787', { value0: result.succeededCount, value1: result.failedCount }),
       traceId: items.find((item) => item.result === 'SUCCEEDED')?.traceId
     });
     void refreshCandidatePage(selectedTaskId, { silent: true });
@@ -3081,11 +3082,11 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
       return;
     }
     if (!canPublish) {
-      setPublishState({ loading: false, error: '缺少 testDesign:publish 权限' });
+      setPublishState({ loading: false, error: translate('auto.k1749') });
       return;
     }
     if (!canPublishCurrentScope) {
-      setPublishState({ loading: false, error: '当前没有可发布候选' });
+      setPublishState({ loading: false, error: translate('auto.k1788') });
       return;
     }
 
@@ -3106,7 +3107,7 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
       return;
     }
     if (!canPublish) {
-      setPublishState({ loading: false, error: '缺少 testDesign:publish 权限' });
+      setPublishState({ loading: false, error: translate('auto.k1749') });
       return;
     }
 
@@ -3124,7 +3125,7 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
       setConflictCaseResults([]);
       setPublishState({
         loading: false,
-        success: dryRun ? '预发布检查已完成' : queued ? '发布请求已排队，后台写入资产库' : '已发布到资产库测试用例',
+        success: dryRun ? translate('auto.k1789') : queued ? translate('auto.k1790') : translate('auto.k1791'),
         traceId: response.trace_id
       });
       if (!dryRun) {
@@ -3135,17 +3136,17 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
         void refreshConflictOperations(0, { silent: true });
       }
     } catch (error: unknown) {
-      setPublishState({ loading: false, error: testDesignErrorMessage(error, dryRun ? '预发布检查失败' : '发布失败') });
+      setPublishState({ loading: false, error: testDesignErrorMessage(error, dryRun ? translate('auto.k1792') : translate('auto.k1793')) });
     }
   }
 
   async function searchConflictCases() {
     if (!canRead) {
-      setPublishState({ loading: false, error: '缺少 testDesign:read 权限' });
+      setPublishState({ loading: false, error: translate('auto.k1794') });
       return;
     }
     if (!conflictCaseSearchProjectId) {
-      setPublishState({ loading: false, error: '缺少项目 ID，无法搜索既有用例' });
+      setPublishState({ loading: false, error: translate('auto.k1795') });
       return;
     }
 
@@ -3159,31 +3160,31 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
       setConflictCaseResults(response.data.items);
       setPublishState({
         loading: false,
-        success: `已加载既有用例 ${response.data.items.length} / ${response.data.total}`,
+        success: translate('auto.k1796', { value0: response.data.items.length, value1: response.data.total }),
         traceId: response.trace_id
       });
     } catch (error: unknown) {
-      setPublishState({ loading: false, error: testDesignErrorMessage(error, '既有用例搜索失败') });
+      setPublishState({ loading: false, error: testDesignErrorMessage(error, translate('auto.k1797')) });
     }
   }
 
   function requestResolveConflict(record: TestDesignPublishRecordView) {
     if (!canPublish) {
-      setPublishState({ loading: false, error: '缺少 testDesign:publish 权限' });
+      setPublishState({ loading: false, error: translate('auto.k1749') });
       return;
     }
     if (!record.candidateId) {
-      setPublishState({ loading: false, error: '冲突记录缺少候选 ID' });
+      setPublishState({ loading: false, error: translate('auto.k1798') });
       return;
     }
     const targetCaseId = conflictResolutionTargetCaseId(record, selectedConflictCaseIds);
     if (!targetCaseId) {
-      setPublishState({ loading: false, error: '请选择目标用例后再处理冲突' });
+      setPublishState({ loading: false, error: translate('auto.k1799') });
       return;
     }
     const candidate = conflictResolutionCandidate(record, conflictCandidateById);
     if (!candidate) {
-      setPublishState({ loading: false, error: '冲突记录缺少候选版本，请重新预发布后处理' });
+      setPublishState({ loading: false, error: translate('auto.k1800') });
       return;
     }
 
@@ -3203,11 +3204,11 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
 
   function requestBatchResolveConflicts() {
     if (!canPublish) {
-      setPublishState({ loading: false, error: '缺少 testDesign:publish 权限' });
+      setPublishState({ loading: false, error: translate('auto.k1749') });
       return;
     }
     if (!batchResolvableConflictItems.length) {
-      setPublishState({ loading: false, error: '请先为至少一条冲突选择目标用例' });
+      setPublishState({ loading: false, error: translate('auto.k1801') });
       return;
     }
 
@@ -3224,11 +3225,11 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
 
   function requestBatchResolveConflictOperations() {
     if (!canPublish) {
-      setPublishState({ loading: false, error: '缺少 testDesign:publish 权限' });
+      setPublishState({ loading: false, error: translate('auto.k1749') });
       return;
     }
     if (!batchResolvableConflictOperationItems.length) {
-      setPublishState({ loading: false, error: '请先为至少一条运营台冲突选择目标用例' });
+      setPublishState({ loading: false, error: translate('auto.k1802') });
       return;
     }
 
@@ -3245,11 +3246,11 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
 
   async function executeResolveConflict(candidate: ConflictResolutionCandidate, record: TestDesignPublishRecordView) {
     if (!canPublish) {
-      setPublishState({ loading: false, error: '缺少 testDesign:publish 权限' });
+      setPublishState({ loading: false, error: translate('auto.k1749') });
       return;
     }
     if (!record.assetCaseId) {
-      setPublishState({ loading: false, error: '冲突记录缺少目标用例 ID' });
+      setPublishState({ loading: false, error: translate('auto.k1803') });
       return;
     }
 
@@ -3279,25 +3280,25 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
           delete next[candidate.id];
           return next;
         });
-        setPublishState({ loading: false, success: '冲突已链接既有用例', traceId: response.trace_id });
+        setPublishState({ loading: false, success: translate('auto.k1804'), traceId: response.trace_id });
         return;
       }
       setPublishState({
         loading: false,
-        error: response.data.errorMessage ?? '冲突链接失败，请检查目标用例和需求追踪关系'
+        error: response.data.errorMessage ?? translate('auto.k1805')
       });
     } catch (error: unknown) {
-      setPublishState({ loading: false, error: testDesignErrorMessage(error, '冲突链接失败') });
+      setPublishState({ loading: false, error: testDesignErrorMessage(error, translate('auto.k1806')) });
     }
   }
 
   async function executeBatchResolveConflicts(items: ConflictResolutionItem[]) {
     if (!canPublish) {
-      setPublishState({ loading: false, error: '缺少 testDesign:publish 权限' });
+      setPublishState({ loading: false, error: translate('auto.k1749') });
       return;
     }
     if (!items.length) {
-      setPublishState({ loading: false, error: '请先为至少一条冲突选择目标用例' });
+      setPublishState({ loading: false, error: translate('auto.k1801') });
       return;
     }
 
@@ -3310,7 +3311,7 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
       }]
       : []);
     if (requestItems.length !== items.length) {
-      setPublishState({ loading: false, error: '冲突记录缺少目标用例 ID' });
+      setPublishState({ loading: false, error: translate('auto.k1803') });
       return;
     }
 
@@ -3324,7 +3325,7 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
         candidateId: item.candidateId,
         result: item.result === 'SUCCEEDED' && item.record?.result === 'SUCCEEDED' ? 'SUCCEEDED' as const : 'FAILED' as const,
         record: item.record,
-        errorMessage: item.errorMessage ?? item.record?.errorMessage ?? (item.result === 'SUCCEEDED' ? undefined : '冲突链接失败')
+        errorMessage: item.errorMessage ?? item.record?.errorMessage ?? (item.result === 'SUCCEEDED' ? undefined : translate('auto.k1806'))
       }));
 
       const succeededIds = new Set(results.filter((item) => item.result === 'SUCCEEDED').map((item) => item.candidateId));
@@ -3356,17 +3357,17 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
         setConflictResolutionDraft(initialConflictResolutionDraft);
         setPublishState({
           loading: false,
-          success: `批量冲突处理完成：成功 ${succeededIds.size} / ${items.length}`,
+          success: translate('auto.k1807', { value0: succeededIds.size, value1: items.length }),
           traceId: response.trace_id
         });
         return;
       }
       setPublishState({
         loading: false,
-        error: `批量冲突处理完成：成功 ${succeededIds.size}，失败 ${failedItems.length}；${failedItems[0]?.errorMessage ?? '请检查失败项'}`
+        error: translate('auto.k1808', { value0: succeededIds.size, value1: failedItems.length, value2: failedItems[0]?.errorMessage ?? translate('auto.k2603') })
       });
     } catch (error: unknown) {
-      setPublishState({ loading: false, error: testDesignErrorMessage(error, '批量冲突链接失败') });
+      setPublishState({ loading: false, error: testDesignErrorMessage(error, translate('auto.k1809')) });
     }
   }
 
@@ -3397,16 +3398,16 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
 
   async function exportCandidateReview(scope: 'page' | 'selected') {
     if (!canExport) {
-      setTaskState({ loading: false, error: '缺少 testDesign:export 权限' });
+      setTaskState({ loading: false, error: translate('auto.k1762') });
       return;
     }
     if (scope === 'page') {
       if (!selectedTaskId) {
-        setTaskState({ loading: false, error: '请先选择任务后再导出' });
+        setTaskState({ loading: false, error: translate('auto.k1810') });
         return;
       }
       if (!candidatePage.total) {
-        setTaskState({ loading: false, error: '当前筛选无可导出数据' });
+        setTaskState({ loading: false, error: translate('auto.k1811') });
         return;
       }
       setTaskState({ loading: true });
@@ -3422,21 +3423,21 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
           response.filename ?? buildTestDesignExportFilename('candidate-filters', selectedTaskId, new Date().toISOString()),
           response.contentType || TEST_DESIGN_EXPORT_CONTENT_TYPE
         );
-        setTaskState({ loading: false, success: '已导出当前筛选候选摘要', traceId: response.traceId });
+        setTaskState({ loading: false, success: translate('auto.k1812'), traceId: response.traceId });
       } catch (error: unknown) {
-        setTaskState({ loading: false, error: testDesignErrorMessage(error, '候选筛选导出失败') });
+        setTaskState({ loading: false, error: testDesignErrorMessage(error, translate('auto.k1813')) });
       }
       return;
     }
 
     const exportCandidates = selectedCandidates;
     if (!exportCandidates.length) {
-      setTaskState({ loading: false, error: '请先选择候选后再导出' });
+      setTaskState({ loading: false, error: translate('auto.k1814') });
       return;
     }
 
     const generatedAt = new Date().toISOString();
-    const scopeLabel = `已选候选 ${exportCandidates.length} 个`;
+    const scopeLabel = translate('auto.k1815', { value0: exportCandidates.length });
     const csv = buildTestDesignCandidateReviewCsv({
       task: selectedTask,
       candidates: exportCandidates,
@@ -3448,16 +3449,16 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
       buildTestDesignExportFilename('selected-candidates', selectedTaskId, generatedAt),
       TEST_DESIGN_EXPORT_CONTENT_TYPE
     );
-    setTaskState({ loading: false, success: '已导出已选候选摘要' });
+    setTaskState({ loading: false, success: translate('auto.k1816') });
   }
 
   function exportPublishResult() {
     if (!canExport) {
-      setPublishState({ loading: false, error: '缺少 testDesign:export 权限' });
+      setPublishState({ loading: false, error: translate('auto.k1762') });
       return;
     }
     if (!publishResult) {
-      setPublishState({ loading: false, error: '暂无发布结果可导出' });
+      setPublishState({ loading: false, error: translate('auto.k1817') });
       return;
     }
 
@@ -3468,16 +3469,16 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
       buildTestDesignExportFilename(publishResult.dryRun ? 'publish-dry-run' : 'publish-result', publishResult.taskId, generatedAt),
       TEST_DESIGN_EXPORT_CONTENT_TYPE
     );
-    setPublishState({ loading: false, success: '已导出发布结果摘要' });
+    setPublishState({ loading: false, success: translate('auto.k1818') });
   }
 
   async function exportTaskReport() {
     if (!canExport) {
-      setTaskState({ loading: false, error: '缺少 testDesign:export 权限' });
+      setTaskState({ loading: false, error: translate('auto.k1762') });
       return;
     }
     if (!selectedTask) {
-      setTaskState({ loading: false, error: '请先选择任务后再导出报告摘要' });
+      setTaskState({ loading: false, error: translate('auto.k1819') });
       return;
     }
 
@@ -3490,23 +3491,23 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
         response.contentType || TEST_DESIGN_EXPORT_CONTENT_TYPE
       );
       void refreshReportArchives(selectedTask.id, { silent: true });
-      setTaskState({ loading: false, success: '已导出任务全量报告', traceId: response.traceId });
+      setTaskState({ loading: false, success: translate('auto.k1820'), traceId: response.traceId });
     } catch (error: unknown) {
-      setTaskState({ loading: false, error: testDesignErrorMessage(error, '任务报告导出失败') });
+      setTaskState({ loading: false, error: testDesignErrorMessage(error, translate('auto.k1821')) });
     }
   }
 
   async function exportReviewRecords() {
     if (!canExport) {
-      setReviewRecordState({ loading: false, error: '缺少 testDesign:export 权限' });
+      setReviewRecordState({ loading: false, error: translate('auto.k1762') });
       return;
     }
     if (!selectedTaskId) {
-      setReviewRecordState({ loading: false, error: '请先选择任务后再导出评审历史' });
+      setReviewRecordState({ loading: false, error: translate('auto.k1822') });
       return;
     }
     if (!reviewRecordPageTotal) {
-      setReviewRecordState({ loading: false, error: '暂无评审历史可导出' });
+      setReviewRecordState({ loading: false, error: translate('auto.k1823') });
       return;
     }
 
@@ -3518,9 +3519,9 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
         response.filename ?? buildTestDesignExportFilename('review-records', selectedTaskId, new Date().toISOString()),
         response.contentType || TEST_DESIGN_EXPORT_CONTENT_TYPE
       );
-      setReviewRecordState({ loading: false, success: '已导出评审历史', traceId: response.traceId });
+      setReviewRecordState({ loading: false, success: translate('auto.k1824'), traceId: response.traceId });
     } catch (error: unknown) {
-      setReviewRecordState({ loading: false, error: testDesignErrorMessage(error, '评审历史导出失败') });
+      setReviewRecordState({ loading: false, error: testDesignErrorMessage(error, translate('auto.k1825')) });
     }
   }
 
@@ -3542,9 +3543,9 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
       <div className="module-layout">
       <div className="main-stack">
         <div className="metrics-grid">
-          <Metric icon={<Sparkles size={20} />} label="服务状态" value={health?.status ?? '-'} desc={selectedTask ? generationSourceText(selectedTaskSource) : health?.generationMode ?? '未加载'} />
-          <Metric icon={<FileText size={20} />} label="候选用例" value={String(candidates.length)} desc={`确认 ${statusCounts.CONFIRMED ?? 0} · 待重试 ${statusCounts.FAILED ?? 0}`} />
-          <Metric icon={<ClipboardCheck size={20} />} label="已发布" value={String(selectedTask?.publishedCount ?? 0)} desc={selectedTask?.status ?? '-'} />
+          <Metric icon={<Sparkles size={20} />} label={translate('auto.k1826')} value={health?.status ?? '-'} desc={selectedTask ? generationSourceText(selectedTaskSource) : health?.generationMode ?? translate('auto.k0169')} />
+          <Metric icon={<FileText size={20} />} label={translate('auto.k1827')} value={String(candidates.length)} desc={translate('auto.k1828', { value0: statusCounts.CONFIRMED ?? 0, value1: statusCounts.FAILED ?? 0 })} />
+          <Metric icon={<ClipboardCheck size={20} />} label={translate('auto.k1829')} value={String(selectedTask?.publishedCount ?? 0)} desc={selectedTask?.status ?? '-'} />
         </div>
 
         <QualitySummaryPanel

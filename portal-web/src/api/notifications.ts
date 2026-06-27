@@ -1,5 +1,6 @@
 import { refreshToken } from './auth';
 import { ApiError, getAuthToken, requestJson, type ApiResponse } from './client';
+import { translate } from '../platform/i18n';
 
 const NOTIFICATIONS_BASE = '/api/v1/notifications';
 
@@ -180,7 +181,7 @@ export async function subscribeNotificationStream(
   const contentType = response.headers.get('Content-Type') ?? '';
   if (contentType && !contentType.toLowerCase().includes('text/event-stream')) {
     throw new ApiError(
-      '通知流返回类型异常',
+      translate('auto.k0128'),
       'INVALID_STREAM_RESPONSE',
       response.headers.get('X-Trace-Id') ?? '',
       response.status
@@ -282,10 +283,10 @@ async function fetchNotificationStream(signal?: AbortSignal, allowRefresh = true
     if (refreshed) {
       return fetchNotificationStream(signal, false);
     }
-    throw new ApiError('登录已过期，请重新登录', 'SESSION_EXPIRED', '', 401);
+    throw new ApiError(translate('auto.k0048'), 'SESSION_EXPIRED', '', 401);
   }
   if (!response.ok) {
-    throw await streamApiError(response, '通知流连接失败');
+    throw await streamApiError(response, translate('auto.k0129'));
   }
   return response;
 }

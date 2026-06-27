@@ -53,6 +53,7 @@ import {
   GenerationSourceBadge,
   QualityFieldMessages
 } from './TestDesignWorkbenchShared';
+import { translate } from '../platform/i18n';
 
 export function TestDesignCandidateReviewPanel(props: {
   canExport: boolean;
@@ -126,74 +127,68 @@ export function TestDesignCandidateReviewPanel(props: {
     <section className="panel">
       <div className="panel-header">
         <div>
-          <h2 className="panel-title">候选评审</h2>
-          <p className="panel-desc">编辑候选用例并确认，发布后会写入 WP3 测试用例和需求追踪关系。</p>
+          <h2 className="panel-title">{translate('auto.k1312')}</h2>
+          <p className="panel-desc">{translate('auto.k1313')}</p>
         </div>
         <StateLine state={props.taskState} />
       </div>
       <div className="panel-body">
         <div className="asset-filter-bar test-design-candidate-filter">
           <label className="field">
-            <span className="field-label">候选状态</span>
+            <span className="field-label">{translate('auto.k1314')}</span>
             <select value={props.candidateFilters.status} onChange={(event) => props.onCandidateFiltersChange((current) => ({ ...current, status: event.target.value }))} disabled={props.taskState.loading || !props.selectedTaskId}>
-              <option value="">全部</option>
+              <option value="">{translate('auto.k0195')}</option>
               {TEST_DESIGN_CANDIDATE_STATUSES.map((status) => <option key={status} value={status}>{status}</option>)}
             </select>
           </label>
           <label className="field">
-            <span className="field-label">覆盖类型</span>
+            <span className="field-label">{translate('auto.k1315')}</span>
             <select value={props.candidateFilters.coverageType} onChange={(event) => props.onCandidateFiltersChange((current) => ({ ...current, coverageType: event.target.value }))} disabled={props.taskState.loading || !props.selectedTaskId}>
-              <option value="">全部</option>
+              <option value="">{translate('auto.k0195')}</option>
               {TEST_DESIGN_COVERAGE_TYPES.map((type) => <option key={type} value={type}>{type}</option>)}
             </select>
           </label>
           <label className="field">
-            <span className="field-label">关键词</span>
-            <input value={props.candidateFilters.keyword} onChange={(event) => props.onCandidateFiltersChange((current) => ({ ...current, keyword: event.target.value }))} placeholder="标题 / 标签 / 错误" disabled={props.taskState.loading || !props.selectedTaskId} />
+            <span className="field-label">{translate('auto.k1316')}</span>
+            <input value={props.candidateFilters.keyword} onChange={(event) => props.onCandidateFiltersChange((current) => ({ ...current, keyword: event.target.value }))} placeholder={translate('auto.k1317')} disabled={props.taskState.loading || !props.selectedTaskId} />
           </label>
           <div className="filter-actions">
             <button className="btn btn-secondary btn-sm" type="button" disabled={!props.selectedTaskId} onClick={() => props.onCandidateFiltersChange(initialCandidateFilters)}>
               <Search size={15} />
-              重置
-            </button>
+              {translate('auto.k0254')}</button>
             <button className="btn btn-ghost btn-sm" type="button" disabled={!props.currentPageSelectableCount} onClick={props.onSelectCurrentPageCandidates}>
-              选中本页
-            </button>
+              {translate('auto.k1318')}</button>
             <button className="btn btn-ghost btn-sm" type="button" disabled={!props.selectedCandidateIds.length} onClick={() => props.onSelectedCandidateIdsChange([])}>
-              清空选择
-            </button>
+              {translate('auto.k1144')}</button>
             <button className="btn btn-secondary btn-sm" type="button" disabled={!props.canExport || !props.selectedTaskId || !props.candidatePage.total} onClick={() => props.onExportCandidateReview('page')}>
               <Download size={15} />
-              导出筛选
-            </button>
+              {translate('auto.k1319')}</button>
             <button className="btn btn-secondary btn-sm" type="button" disabled={!props.canExport || !props.selectedCandidates.length} onClick={() => props.onExportCandidateReview('selected')}>
               <Download size={15} />
-              导出已选
-            </button>
+              {translate('auto.k1320')}</button>
             <button className="btn btn-secondary btn-sm" type="button" disabled={!props.canExport || !props.selectedTask || props.taskState.loading} onClick={props.onExportTaskReport}>
               <Download size={15} />
-              导出报告
-            </button>
+              {translate('auto.k1178')}</button>
           </div>
         </div>
         {props.candidatePage.total > 0 && (
-          <div className="test-design-pagination" aria-label="候选分页">
+          <div className="test-design-pagination" aria-label={translate('auto.k1321')}>
             <span>
               {props.candidatePage.start}-{props.candidatePage.end} / {props.candidatePage.total}
-              {props.selectedCandidates.length ? ` · 已选 ${props.selectedCandidates.length}` : ''}
+              {props.selectedCandidates.length ? translate('auto.k1322', { value0: props.selectedCandidates.length }) : ''}
             </span>
             <label>
-              <span>每页</span>
+              <span>{translate('auto.k1323')}</span>
               <select value={props.candidatePageSize} onChange={(event) => props.onCandidatePageSizeChange(Number(event.target.value))} disabled={props.taskState.loading}>
                 {TEST_DESIGN_CANDIDATE_PAGE_SIZES.map((size) => <option key={size} value={size}>{size}</option>)}
               </select>
             </label>
             <div className="toolbar-actions">
               <button
-                aria-label="上一页候选"
+                aria-label={translate('auto.k1324')}
                 className="btn btn-secondary btn-xs"
                 disabled={!props.candidatePage.hasPrevious}
-                title="上一页"
+                title={translate('auto.k1325')}
                 type="button"
                 onClick={() => props.onCandidatePageIndexChange((current) => Math.max(0, current - 1))}
               >
@@ -201,10 +196,10 @@ export function TestDesignCandidateReviewPanel(props: {
               </button>
               <span className="field-hint">{props.candidatePage.index + 1} / {props.candidatePage.totalPages}</span>
               <button
-                aria-label="下一页候选"
+                aria-label={translate('auto.k1326')}
                 className="btn btn-secondary btn-xs"
                 disabled={!props.candidatePage.hasNext}
-                title="下一页"
+                title={translate('auto.k1327')}
                 type="button"
                 onClick={() => props.onCandidatePageIndexChange((current) => current + 1)}
               >
@@ -217,45 +212,41 @@ export function TestDesignCandidateReviewPanel(props: {
         {props.batchEditResult && <BatchEditSummary result={props.batchEditResult} />}
         {props.selectedReviewCandidates.length > 0 && (
           <div className="test-design-batch-toolbar">
-            <span>批量评审 {props.selectedReviewCandidates.length} 个候选</span>
+            <span>{translate('auto.k1328')}{props.selectedReviewCandidates.length} {translate('auto.k1329')}</span>
             <div className="toolbar-actions">
               <button className="btn btn-secondary btn-sm" type="button" disabled={!props.canReview || props.mutationState.loading} onClick={() => props.onBatchReviewCandidates('CONFIRM')}>
-                批量确认
-              </button>
+                {translate('auto.k0801')}</button>
               <button className="btn btn-secondary btn-sm" type="button" disabled={!props.canReview || props.mutationState.loading || !props.reviewComment.trim()} onClick={() => props.onBatchReviewCandidates('REJECT')}>
-                批量驳回
-              </button>
+                {translate('auto.k1330')}</button>
               <button className="btn btn-ghost btn-sm" type="button" disabled={!props.canReview || props.mutationState.loading || !props.reviewComment.trim()} onClick={() => props.onBatchReviewCandidates('IGNORE')}>
-                批量忽略
-              </button>
+                {translate('auto.k0802')}</button>
             </div>
           </div>
         )}
         {props.selectedCandidateIds.length > 0 && (
           <div className="test-design-batch-editor">
             <div className="test-design-batch-editor-heading">
-              <span>批量字段编辑 {props.selectedBatchEditableCandidates.length} / {props.selectedCandidateIds.length} 个可编辑候选</span>
+              <span>{translate('auto.k1331')}{props.selectedBatchEditableCandidates.length} / {props.selectedCandidateIds.length} {translate('auto.k1332')}</span>
               <button className="btn btn-ghost btn-xs" type="button" disabled={props.mutationState.loading} onClick={() => props.onBatchEditDraftChange({
                 coverageType: '',
                 priority: '',
                 tags: '',
                 tagMode: 'append'
               })}>
-                重置
-              </button>
+                {translate('auto.k0254')}</button>
             </div>
             <div className="test-design-batch-editor-grid">
               <label className="field">
-                <span className="field-label">覆盖类型</span>
+                <span className="field-label">{translate('auto.k1315')}</span>
                 <select value={props.batchEditDraft.coverageType} onChange={(event) => props.onBatchEditDraftChange((current) => ({ ...current, coverageType: event.target.value }))} disabled={!props.canReview || props.mutationState.loading}>
-                  <option value="">不修改</option>
+                  <option value="">{translate('auto.k1333')}</option>
                   {TEST_DESIGN_COVERAGE_TYPES.map((type) => <option key={type} value={type}>{type}</option>)}
                 </select>
               </label>
               <label className="field">
-                <span className="field-label">优先级</span>
+                <span className="field-label">{translate('auto.k0419')}</span>
                 <select value={props.batchEditDraft.priority} onChange={(event) => props.onBatchEditDraftChange((current) => ({ ...current, priority: event.target.value }))} disabled={!props.canReview || props.mutationState.loading}>
-                  <option value="">不修改</option>
+                  <option value="">{translate('auto.k1333')}</option>
                   <option value="CRITICAL">CRITICAL</option>
                   <option value="HIGH">HIGH</option>
                   <option value="MEDIUM">MEDIUM</option>
@@ -263,14 +254,14 @@ export function TestDesignCandidateReviewPanel(props: {
                 </select>
               </label>
               <label className="field">
-                <span className="field-label">标签策略</span>
+                <span className="field-label">{translate('auto.k1334')}</span>
                 <select value={props.batchEditDraft.tagMode} onChange={(event) => props.onBatchEditDraftChange((current) => ({ ...current, tagMode: event.target.value === 'replace' ? 'replace' : 'append' }))} disabled={!props.canReview || props.mutationState.loading}>
-                  <option value="append">追加标签</option>
-                  <option value="replace">替换标签</option>
+                  <option value="append">{translate('auto.k1335')}</option>
+                  <option value="replace">{translate('auto.k1336')}</option>
                 </select>
               </label>
               <label className="field">
-                <span className="field-label">标签</span>
+                <span className="field-label">{translate('auto.k0803')}</span>
                 <input value={props.batchEditDraft.tags} onChange={(event) => props.onBatchEditDraftChange((current) => ({ ...current, tags: event.target.value }))} placeholder="regression, wp5" disabled={!props.canReview || props.mutationState.loading} />
               </label>
             </div>
@@ -282,8 +273,7 @@ export function TestDesignCandidateReviewPanel(props: {
             <div className="toolbar-actions">
               <button className="btn btn-secondary btn-sm" type="button" disabled={!props.canReview || props.mutationState.loading || props.batchEditBlocked} onClick={props.onBatchEditCandidates}>
                 <Save size={15} />
-                批量应用字段
-              </button>
+                {translate('auto.k1337')}</button>
               {props.batchEditFieldLabels.length > 0 && <span className="field-hint">{props.batchEditFieldLabels.join('；')}</span>}
             </div>
           </div>
@@ -293,12 +283,12 @@ export function TestDesignCandidateReviewPanel(props: {
             <thead>
               <tr>
                 <th className="table-check-column"></th>
-                <th>标题</th>
-                <th>覆盖</th>
-                <th>优先级</th>
-                <th>状态</th>
-                <th>来源</th>
-                <th>操作</th>
+                <th>{translate('auto.k0440')}</th>
+                <th>{translate('auto.k0538')}</th>
+                <th>{translate('auto.k0419')}</th>
+                <th>{translate('auto.k0182')}</th>
+                <th>{translate('auto.k0179')}</th>
+                <th>{translate('auto.k0249')}</th>
               </tr>
             </thead>
             <tbody>
@@ -307,7 +297,7 @@ export function TestDesignCandidateReviewPanel(props: {
                   <tr className={candidate.id === props.selectedCandidateId ? 'selected-row' : ''} key={candidate.id}>
                     <td>
                       <input
-                        aria-label={`选择候选 ${candidate.title}`}
+                        aria-label={translate('auto.k1338', { value0: candidate.title })}
                         type="checkbox"
                         checked={props.selectedCandidateIds.includes(candidate.id)}
                         onChange={() => props.onToggleCandidateSelection(candidate.id)}
@@ -325,14 +315,13 @@ export function TestDesignCandidateReviewPanel(props: {
                     <td>
                       <button className="btn btn-secondary btn-xs" type="button" onClick={() => props.onSelectedCandidateIdChange(candidate.id)}>
                         <Eye size={14} />
-                        查看
-                      </button>
+                        {translate('auto.k1089')}</button>
                     </td>
                   </tr>
                 ))
               ) : (
                 <tr>
-                  <td className="table-empty" colSpan={7}>{props.selectedTaskId ? '暂无匹配候选用例' : '请先生成或选择任务'}</td>
+                  <td className="table-empty" colSpan={7}>{props.selectedTaskId ? translate('auto.k1339') : translate('auto.k1340')}</td>
                 </tr>
               )}
             </tbody>
@@ -342,14 +331,14 @@ export function TestDesignCandidateReviewPanel(props: {
         {candidateDraft && props.selectedCandidate && (
           <div className="test-design-editor">
             <div className="test-design-source-summary">
-              <span>候选来源</span>
+              <span>{translate('auto.k1341')}</span>
               <GenerationSourceBadge source={props.selectedCandidateSource} />
               <em>{generationSourceText(props.selectedCandidateSource)}</em>
             </div>
             {props.candidateQualityIssues.length > 0 && (
               <div className="notice warning test-design-quality-summary">
-                <strong>质量提示</strong>
-                <span>保存前需处理 {props.candidateQualityIssues.length} 项候选质量问题。</span>
+                <strong>{translate('auto.k1342')}</strong>
+                <span>{translate('auto.k1343')}{props.candidateQualityIssues.length} {translate('auto.k1344')}</span>
                 <ul className="test-design-quality-list">
                   {props.candidateQualityIssues.slice(0, 6).map((issue, index) => (
                     <li key={`${issue.field}-${issue.message}-${index}`}>{issue.message}</li>
@@ -359,19 +348,19 @@ export function TestDesignCandidateReviewPanel(props: {
             )}
             <div className="asset-form-grid">
               <label className="field">
-                <span className="field-label">标题</span>
+                <span className="field-label">{translate('auto.k0440')}</span>
                 <input value={candidateDraft.title} onChange={(event) => props.onCandidateDraftChange({ ...candidateDraft, title: event.target.value })} disabled={!props.canReview || props.mutationState.loading} />
                 <QualityFieldMessages field="title" issues={props.candidateQualityIssues} />
               </label>
               <label className="field">
-                <span className="field-label">覆盖类型</span>
+                <span className="field-label">{translate('auto.k1315')}</span>
                 <select value={candidateDraft.coverageType} onChange={(event) => props.onCandidateDraftChange({ ...candidateDraft, coverageType: event.target.value })} disabled={!props.canReview || props.mutationState.loading}>
                   {TEST_DESIGN_COVERAGE_TYPES.map((type) => <option key={type} value={type}>{type}</option>)}
                 </select>
                 <QualityFieldMessages field="coverageType" issues={props.candidateQualityIssues} />
               </label>
               <label className="field">
-                <span className="field-label">优先级</span>
+                <span className="field-label">{translate('auto.k0419')}</span>
                 <select value={candidateDraft.priority} onChange={(event) => props.onCandidateDraftChange({ ...candidateDraft, priority: event.target.value })} disabled={!props.canReview || props.mutationState.loading}>
                   <option value="CRITICAL">CRITICAL</option>
                   <option value="HIGH">HIGH</option>
@@ -387,33 +376,32 @@ export function TestDesignCandidateReviewPanel(props: {
                 <input value={candidateDraft.apiId} onChange={(event) => props.onCandidateDraftChange({ ...candidateDraft, apiId: event.target.value })} disabled={!props.canReview || props.mutationState.loading} />
               </label>
               <label className="field">
-                <span className="field-label">前置条件</span>
+                <span className="field-label">{translate('auto.k1345')}</span>
                 <input value={candidateDraft.preconditions} onChange={(event) => props.onCandidateDraftChange({ ...candidateDraft, preconditions: event.target.value })} disabled={!props.canReview || props.mutationState.loading} />
                 <QualityFieldMessages field="preconditions" issues={props.candidateQualityIssues} />
               </label>
               <label className="field">
-                <span className="field-label">标签</span>
+                <span className="field-label">{translate('auto.k0803')}</span>
                 <input value={candidateDraft.tags} onChange={(event) => props.onCandidateDraftChange({ ...candidateDraft, tags: event.target.value })} disabled={!props.canReview || props.mutationState.loading} />
                 <QualityFieldMessages field="tags" issues={props.candidateQualityIssues} />
               </label>
             </div>
             <label className="field">
-              <span className="field-label">描述</span>
+              <span className="field-label">{translate('auto.k0443')}</span>
               <textarea value={candidateDraft.description} onChange={(event) => props.onCandidateDraftChange({ ...candidateDraft, description: event.target.value })} disabled={!props.canReview || props.mutationState.loading} />
               <QualityFieldMessages field="description" issues={props.candidateQualityIssues} />
             </label>
             <div className="field test-design-steps-editor">
               <div className="test-design-steps-heading">
-                <span className="field-label">步骤</span>
+                <span className="field-label">{translate('auto.k1346')}</span>
                 <div className="toolbar-actions">
-                  <button className="btn btn-secondary btn-xs" type="button" title="批量插入" disabled={!props.canReview || props.mutationState.loading} onClick={props.onInsertPresetSteps}>
+                  <button className="btn btn-secondary btn-xs" type="button" title={translate('auto.k1347')} disabled={!props.canReview || props.mutationState.loading} onClick={props.onInsertPresetSteps}>
                     <Plus size={14} />
-                    批量
-                  </button>
-                  <button className="btn btn-secondary btn-icon btn-xs" type="button" title="添加步骤" disabled={!props.canReview || props.mutationState.loading} onClick={props.onAddStepDraft}>
+                    {translate('auto.k1348')}</button>
+                  <button className="btn btn-secondary btn-icon btn-xs" type="button" title={translate('auto.k1349')} disabled={!props.canReview || props.mutationState.loading} onClick={props.onAddStepDraft}>
                     <Plus size={14} />
                   </button>
-                  <button className="btn btn-ghost btn-icon btn-xs" type="button" title="删除已选步骤" disabled={!props.canReview || props.mutationState.loading || !candidateDraft.steps.some((step) => step.selected)} onClick={props.onDeleteSelectedSteps}>
+                  <button className="btn btn-ghost btn-icon btn-xs" type="button" title={translate('auto.k1350')} disabled={!props.canReview || props.mutationState.loading || !candidateDraft.steps.some((step) => step.selected)} onClick={props.onDeleteSelectedSteps}>
                     <Trash2 size={14} />
                   </button>
                 </div>
@@ -429,17 +417,17 @@ export function TestDesignCandidateReviewPanel(props: {
                     onDragOver={(event) => event.preventDefault()}
                     onDrop={() => props.onDropStepDraft(step.id)}
                   >
-                    <label className="test-design-step-select" title="选择步骤">
+                    <label className="test-design-step-select" title={translate('auto.k1351')}>
                       <input type="checkbox" checked={step.selected} onChange={(event) => props.onUpdateStepDraft(step.id, { selected: event.target.checked })} disabled={!props.canReview || props.mutationState.loading} />
                     </label>
-                    <button className="btn btn-ghost btn-icon btn-xs test-design-step-drag" type="button" title="拖拽排序" disabled={!props.canReview || props.mutationState.loading}>
+                    <button className="btn btn-ghost btn-icon btn-xs test-design-step-drag" type="button" title={translate('auto.k0445')} disabled={!props.canReview || props.mutationState.loading}>
                       <GripVertical size={14} />
                     </button>
                     <span className="asset-step-index">{index + 1}</span>
                     <StepRichTextField
                       disabled={!props.canReview || props.mutationState.loading}
                       id={`test-design-step-action-${step.id}`}
-                      label="操作"
+                      label={translate('auto.k0249')}
                       onChange={(value) => props.onUpdateStepDraft(step.id, { action: value })}
                       onFormat={(style) => applyStepMarkup(step, 'action', style)}
                       value={step.action}
@@ -447,56 +435,52 @@ export function TestDesignCandidateReviewPanel(props: {
                     <StepRichTextField
                       disabled={!props.canReview || props.mutationState.loading}
                       id={`test-design-step-expectedResult-${step.id}`}
-                      label="预期"
+                      label={translate('auto.k1352')}
                       onChange={(value) => props.onUpdateStepDraft(step.id, { expectedResult: value })}
                       onFormat={(style) => applyStepMarkup(step, 'expectedResult', style)}
                       value={step.expectedResult}
                     />
                     <div className="test-design-step-actions">
-                      <button className="btn btn-secondary btn-icon btn-xs" type="button" title="上移" disabled={!props.canReview || props.mutationState.loading || index === 0} onClick={() => props.onMoveStepDraft(step.id, -1)}>
+                      <button className="btn btn-secondary btn-icon btn-xs" type="button" title={translate('auto.k0449')} disabled={!props.canReview || props.mutationState.loading || index === 0} onClick={() => props.onMoveStepDraft(step.id, -1)}>
                         <ArrowUp size={14} />
                       </button>
-                      <button className="btn btn-secondary btn-icon btn-xs" type="button" title="下移" disabled={!props.canReview || props.mutationState.loading || index === candidateDraft.steps.length - 1} onClick={() => props.onMoveStepDraft(step.id, 1)}>
+                      <button className="btn btn-secondary btn-icon btn-xs" type="button" title={translate('auto.k0450')} disabled={!props.canReview || props.mutationState.loading || index === candidateDraft.steps.length - 1} onClick={() => props.onMoveStepDraft(step.id, 1)}>
                         <ArrowDown size={14} />
                       </button>
-                      <button className="btn btn-secondary btn-icon btn-xs" type="button" title="插入下一步" disabled={!props.canReview || props.mutationState.loading} onClick={() => props.onInsertStepDraftAfter(step.id)}>
+                      <button className="btn btn-secondary btn-icon btn-xs" type="button" title={translate('auto.k1353')} disabled={!props.canReview || props.mutationState.loading} onClick={() => props.onInsertStepDraftAfter(step.id)}>
                         <Plus size={14} />
                       </button>
-                      <button className="btn btn-ghost btn-icon btn-xs" type="button" title="删除步骤" disabled={!props.canReview || props.mutationState.loading} onClick={() => props.onRemoveStepDraft(step.id)}>
+                      <button className="btn btn-ghost btn-icon btn-xs" type="button" title={translate('auto.k1354')} disabled={!props.canReview || props.mutationState.loading} onClick={() => props.onRemoveStepDraft(step.id)}>
                         <Trash2 size={14} />
                       </button>
                     </div>
                   </div>
                 ))}
               </div>
-              <span className="field-hint">{candidateDraft.steps.length} 个步骤，已选 {candidateDraft.steps.filter((step) => step.selected).length} 个。</span>
+              <span className="field-hint">{candidateDraft.steps.length} {translate('auto.k1355')}{candidateDraft.steps.filter((step) => step.selected).length} {translate('auto.k1356')}</span>
               <QualityFieldMessages field="steps" issues={props.candidateQualityIssues} />
             </div>
             <label className="field">
-              <span className="field-label">预期结果</span>
+              <span className="field-label">{translate('auto.k0447')}</span>
               <textarea value={candidateDraft.expectedResult} onChange={(event) => props.onCandidateDraftChange({ ...candidateDraft, expectedResult: event.target.value })} disabled={!props.canReview || props.mutationState.loading} />
               <QualityFieldMessages field="expectedResult" issues={props.candidateQualityIssues} />
             </label>
             <label className="field">
-              <span className="field-label">评审意见</span>
+              <span className="field-label">{translate('auto.k1357')}</span>
               <input value={props.reviewComment} onChange={(event) => props.onReviewCommentChange(event.target.value)} disabled={!props.canReview || props.mutationState.loading} />
             </label>
             <div className="toolbar-actions">
               <button className="btn btn-secondary btn-sm" type="button" disabled={!props.canReview || props.mutationState.loading || !candidateDraft.title.trim() || props.candidateSaveBlocked} onClick={props.onSaveCandidate}>
                 <Save size={15} />
-                保存
-              </button>
+                {translate('auto.k0806')}</button>
               <button className="btn btn-primary btn-sm" type="button" disabled={!props.canReview || props.mutationState.loading} onClick={() => props.onReviewCandidate('confirm')}>
                 <CheckCircle2 size={15} />
-                确认
-              </button>
+                {translate('auto.k0807')}</button>
               <button className="btn btn-secondary btn-sm" type="button" disabled={!props.canReview || props.mutationState.loading} onClick={() => props.onReviewCandidate('reject')}>
                 <XCircle size={15} />
-                驳回
-              </button>
+                {translate('auto.k0214')}</button>
               <button className="btn btn-ghost btn-sm" type="button" disabled={!props.canReview || props.mutationState.loading} onClick={() => props.onReviewCandidate('ignore')}>
-                忽略
-              </button>
+                {translate('auto.k0808')}</button>
             </div>
             <StateLine state={props.mutationState} />
           </div>

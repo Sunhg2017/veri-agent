@@ -1,6 +1,7 @@
 import { AlertTriangle, RotateCcw } from 'lucide-react';
 import { Component, type ErrorInfo, type ReactNode } from 'react';
 import { reportError } from '../platform/monitoring';
+import { translate } from '../platform/i18n';
 
 interface AppErrorBoundaryProps {
   children: ReactNode;
@@ -44,8 +45,8 @@ export class AppErrorBoundary extends Component<AppErrorBoundaryProps, AppErrorB
             <AlertTriangle size={24} />
           </div>
           <div className="app-error-copy">
-            <h1>页面渲染异常</h1>
-            <p>当前视图加载失败，请刷新或返回后重试。错误已写入浏览器控制台，便于排查 trace。</p>
+            <h1>{translate('auto.k0225')}</h1>
+            <p>{translate('auto.k0226')}</p>
             {this.state.errorMessage && (
               <pre>{this.state.errorMessage}</pre>
             )}
@@ -53,11 +54,9 @@ export class AppErrorBoundary extends Component<AppErrorBoundaryProps, AppErrorB
           <div className="app-error-actions">
             <button className="btn btn-primary" type="button" onClick={this.reset}>
               <RotateCcw size={16} />
-              重试
-            </button>
+              {translate('auto.k0227')}</button>
             <button className="btn btn-secondary" type="button" onClick={() => window.location.assign('#overview')}>
-              返回概览
-            </button>
+              {translate('auto.k0228')}</button>
           </div>
         </section>
       </main>

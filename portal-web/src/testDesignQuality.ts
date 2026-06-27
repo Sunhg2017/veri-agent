@@ -1,4 +1,5 @@
 import { TEST_DESIGN_COVERAGE_TYPES } from './api/testDesign';
+import { translate } from './platform/i18n';
 
 export type TestDesignCandidateDraftQualityField =
   | 'title'
@@ -47,14 +48,14 @@ const MAX_TITLE_LENGTH = 160;
 const MAX_TEXT_LENGTH = 2000;
 const SENSITIVE_TEXT_PATTERN = /\b(api[_-]?key|secret|token|password|passwd|authorization)\s*[:=]\s*[^\s,;，；]+|\bbearer\s+[a-z0-9._-]+/i;
 const FIELD_LABELS: Record<TestDesignCandidateDraftQualityField, string> = {
-  title: '标题',
-  description: '描述',
-  coverageType: '覆盖类型',
-  priority: '优先级',
-  preconditions: '前置条件',
-  steps: '步骤',
-  expectedResult: '预期结果',
-  tags: '标签'
+  title: translate('auto.k0440'),
+  description: translate('auto.k0443'),
+  coverageType: translate('auto.k1315'),
+  priority: translate('auto.k0419'),
+  preconditions: translate('auto.k1345'),
+  steps: translate('auto.k1346'),
+  expectedResult: translate('auto.k0447'),
+  tags: translate('auto.k0803')
 };
 
 export function validateTestDesignCandidateDraft(
@@ -63,18 +64,18 @@ export function validateTestDesignCandidateDraft(
 ): TestDesignCandidateDraftQualityIssue[] {
   const issues: TestDesignCandidateDraftQualityIssue[] = [];
 
-  requireText(draft.title, 'title', '标题不能为空', MAX_TITLE_LENGTH, issues);
+  requireText(draft.title, 'title', translate('auto.k0406'), MAX_TITLE_LENGTH, issues);
   if (draft.coverageType && !TEST_DESIGN_COVERAGE_TYPES.includes(draft.coverageType as (typeof TEST_DESIGN_COVERAGE_TYPES)[number])) {
-    issues.push({ field: 'coverageType', severity: 'error', message: `覆盖类型不支持：${draft.coverageType}` });
+    issues.push({ field: 'coverageType', severity: 'error', message: translate('auto.k2037', { value0: draft.coverageType }) });
   }
   if (draft.priority && !SUPPORTED_PRIORITIES.includes(draft.priority as (typeof SUPPORTED_PRIORITIES)[number])) {
-    issues.push({ field: 'priority', severity: 'error', message: `优先级不支持：${draft.priority}` });
+    issues.push({ field: 'priority', severity: 'error', message: translate('auto.k2038', { value0: draft.priority }) });
   }
 
-  validateOptionalText(draft.description, 'description', '描述', MAX_TEXT_LENGTH, issues);
-  validateOptionalText(draft.preconditions, 'preconditions', '前置条件', MAX_TEXT_LENGTH, issues);
-  validateOptionalText(draft.tags, 'tags', '标签', MAX_TEXT_LENGTH, issues);
-  requireText(draft.expectedResult, 'expectedResult', '预期结果不能为空', MAX_TEXT_LENGTH, issues);
+  validateOptionalText(draft.description, 'description', translate('auto.k0443'), MAX_TEXT_LENGTH, issues);
+  validateOptionalText(draft.preconditions, 'preconditions', translate('auto.k1345'), MAX_TEXT_LENGTH, issues);
+  validateOptionalText(draft.tags, 'tags', translate('auto.k0803'), MAX_TEXT_LENGTH, issues);
+  requireText(draft.expectedResult, 'expectedResult', translate('auto.k2136'), MAX_TEXT_LENGTH, issues);
   validateSteps(draft.steps, issues);
   validateDuplicateTitle(draft, options, issues);
 
@@ -84,15 +85,15 @@ export function validateTestDesignCandidateDraft(
 function validateSteps(value: string, issues: TestDesignCandidateDraftQualityIssue[]) {
   const steps = parseDraftSteps(value);
   if (steps.length < MIN_STEP_COUNT) {
-    issues.push({ field: 'steps', severity: 'error', message: `步骤至少需要 ${MIN_STEP_COUNT} 步` });
+    issues.push({ field: 'steps', severity: 'error', message: translate('auto.k2137', { value0: MIN_STEP_COUNT }) });
   }
   if (steps.length > MAX_STEP_COUNT) {
-    issues.push({ field: 'steps', severity: 'error', message: `步骤最多支持 ${MAX_STEP_COUNT} 步` });
+    issues.push({ field: 'steps', severity: 'error', message: translate('auto.k2138', { value0: MAX_STEP_COUNT }) });
   }
   steps.forEach((step, index) => {
-    const label = `第 ${index + 1} 步`;
-    requireText(step.action, 'steps', `${label}缺少操作`, MAX_TEXT_LENGTH, issues);
-    requireText(step.expectedResult, 'steps', `${label}缺少预期结果，请使用“操作 => 期望”格式`, MAX_TEXT_LENGTH, issues);
+    const label = translate('auto.k2139', { value0: index + 1 });
+    requireText(step.action, 'steps', translate('auto.k2140', { value0: label }), MAX_TEXT_LENGTH, issues);
+    requireText(step.expectedResult, 'steps', translate('auto.k2141', { value0: label }), MAX_TEXT_LENGTH, issues);
   });
 }
 
@@ -127,7 +128,7 @@ function validateDuplicateTitle(
     && normalizeIdentity(candidate.title) === titleKey
   ));
   if (duplicate) {
-    issues.push({ field: 'title', severity: 'error', message: '同需求同覆盖类型下已存在相同候选标题' });
+    issues.push({ field: 'title', severity: 'error', message: translate('auto.k2142') });
   }
 }
 
@@ -156,10 +157,10 @@ function validateOptionalText(
     return;
   }
   if (value.length > maxLength) {
-    issues.push({ field, severity: 'error', message: `${label}长度不能超过 ${maxLength}` });
+    issues.push({ field, severity: 'error', message: translate('auto.k2143', { value0: label, value1: maxLength }) });
   }
   if (SENSITIVE_TEXT_PATTERN.test(value)) {
-    issues.push({ field, severity: 'error', message: `${label}包含疑似敏感信息` });
+    issues.push({ field, severity: 'error', message: translate('auto.k2144', { value0: label }) });
   }
 }
 

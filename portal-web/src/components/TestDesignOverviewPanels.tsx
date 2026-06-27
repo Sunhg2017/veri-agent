@@ -4,6 +4,7 @@ import type { TestDesignAuditSummary } from '../testDesignAuditSummary';
 import type { TestDesignPromptTrendSummary } from '../testDesignPromptTrend';
 import type { TestDesignQualitySummary } from '../testDesignQualitySummary';
 import type { TestDesignReviewSummary } from '../testDesignReviewSummary';
+import { translate } from '../platform/i18n';
 
 export type WorkState = {
   loading: boolean;
@@ -34,7 +35,7 @@ export function QualitySummaryPanel(props: {
     <section className="panel test-design-quality-dashboard">
       <div className="panel-header compact">
         <div>
-          <h2 className="panel-title">质量摘要</h2>
+          <h2 className="panel-title">{translate('auto.k1534')}</h2>
           <p className="panel-desc">{props.scopeLabel}</p>
         </div>
         {props.summary.readiness ? (
@@ -42,7 +43,7 @@ export function QualitySummaryPanel(props: {
             {props.summary.readiness.label}
           </span>
         ) : props.summary.warnings.length > 0 && (
-          <span className="badge badge-warning">待处理 {props.summary.warnings.length}</span>
+          <span className="badge badge-warning">{translate('auto.k0366')}{props.summary.warnings.length}</span>
         )}
       </div>
       <div className="panel-body compact">
@@ -51,7 +52,7 @@ export function QualitySummaryPanel(props: {
             {props.summary.readiness && (
               <div className={`test-design-readiness tone-${props.summary.readiness.tone}`}>
                 <strong>{props.summary.readiness.label}</strong>
-                <span>阻断 {props.summary.readiness.blockingCount} · 风险 {props.summary.readiness.warningCount}</span>
+                <span>{translate('auto.k1000')}{props.summary.readiness.blockingCount} {translate('auto.k1535')}{props.summary.readiness.warningCount}</span>
               </div>
             )}
             <div className="test-design-quality-metrics">
@@ -65,7 +66,7 @@ export function QualitySummaryPanel(props: {
             </div>
             {props.summary.readiness && (
               <div className="test-design-quality-distribution">
-                <span className="test-design-quality-distribution-label">准出</span>
+                <span className="test-design-quality-distribution-label">{translate('auto.k1536')}</span>
                 <div className="test-design-quality-distribution-items">
                   {props.summary.readiness.checks.map((check) => (
                     <span className={`test-design-quality-chip tone-${check.tone}`} key={check.code} title={check.desc}>
@@ -87,7 +88,7 @@ export function QualitySummaryPanel(props: {
                         </span>
                       ))
                     ) : (
-                      <span className="field-hint">暂无</span>
+                      <span className="field-hint">{translate('auto.k1537')}</span>
                     )}
                   </div>
                 </div>
@@ -104,7 +105,7 @@ export function QualitySummaryPanel(props: {
             )}
           </>
         ) : (
-          <div className="notice info">请先选择任务</div>
+          <div className="notice info">{translate('auto.k1538')}</div>
         )}
       </div>
     </section>
@@ -120,13 +121,12 @@ export function PromptTrendPanel(props: {
     <section className="panel test-design-prompt-trend">
       <div className="panel-header compact">
         <div>
-          <h2 className="panel-title">Prompt 趋势</h2>
+          <h2 className="panel-title">{translate('auto.k1539')}</h2>
           <p className="panel-desc">{props.summary.scopeLabel}</p>
         </div>
         <button className="btn btn-secondary btn-sm" type="button" disabled={props.state.loading} onClick={props.onRefresh}>
           <RefreshCw size={15} />
-          刷新
-        </button>
+          {translate('auto.k0170')}</button>
       </div>
       <div className="panel-body compact">
         <StateLine state={props.state} />
@@ -155,7 +155,7 @@ export function PromptTrendPanel(props: {
                 <div className={`test-design-prompt-trend-row tone-${bucket.tone}`} key={bucket.label}>
                   <div>
                     <strong>{bucket.label}</strong>
-                    <span>{bucket.taskCount} 任务 · {bucket.candidateCount} 候选</span>
+                    <span>{bucket.taskCount} {translate('auto.k1540')}{bucket.candidateCount} {translate('auto.k1428')}</span>
                     <span className={`test-design-prompt-readiness tone-${bucket.readinessTone}`}>
                       {bucket.readinessLabel} · {bucket.readinessText}
                     </span>
@@ -179,7 +179,7 @@ export function PromptTrendPanel(props: {
             )}
           </>
         ) : (
-          <div className="notice info">暂无 Prompt 趋势数据</div>
+          <div className="notice info">{translate('auto.k1541')}</div>
         )}
       </div>
     </section>
@@ -196,13 +196,12 @@ export function AuditSummaryPanel(props: {
     <section className="panel test-design-audit-summary">
       <div className="panel-header compact">
         <div>
-          <h2 className="panel-title">审计链</h2>
-          <p className="panel-desc">{props.selectedTaskId ? props.summary.scopeLabel : '请先选择任务'}</p>
+          <h2 className="panel-title">{translate('auto.k1542')}</h2>
+          <p className="panel-desc">{props.selectedTaskId ? props.summary.scopeLabel : translate('auto.k1538')}</p>
         </div>
         <button className="btn btn-secondary btn-sm" type="button" disabled={!props.selectedTaskId || props.state.loading} onClick={props.onRefresh}>
           <RefreshCw size={15} />
-          刷新
-        </button>
+          {translate('auto.k0170')}</button>
       </div>
       <div className="panel-body compact">
         <StateLine state={props.state} />
@@ -228,7 +227,7 @@ export function AuditSummaryPanel(props: {
                 ))}
               </div>
             ) : (
-              <div className="notice info">暂无审计链事件</div>
+              <div className="notice info">{translate('auto.k1543')}</div>
             )}
             {props.summary.warnings.length > 0 && (
               <div className="test-design-quality-warnings">
@@ -241,7 +240,7 @@ export function AuditSummaryPanel(props: {
             )}
           </>
         ) : (
-          <div className="notice info">请先选择任务</div>
+          <div className="notice info">{translate('auto.k1538')}</div>
         )}
       </div>
     </section>
@@ -259,7 +258,7 @@ export function ReviewSummaryPanel(props: {
       <div className="test-design-review-summary-heading">
         <span>{props.scopeLabel}</span>
         {warningCount > 0 && (
-          <span className="badge badge-warning">提示 {warningCount}</span>
+          <span className="badge badge-warning">{translate('auto.k1544')}{warningCount}</span>
         )}
       </div>
       {props.selectedTaskId ? (
@@ -285,7 +284,7 @@ export function ReviewSummaryPanel(props: {
                       </span>
                     ))
                   ) : (
-                    <span className="field-hint">暂无</span>
+                    <span className="field-hint">{translate('auto.k1537')}</span>
                   )}
                 </div>
               </div>
@@ -293,9 +292,9 @@ export function ReviewSummaryPanel(props: {
           </div>
           <div className="test-design-feedback-loop">
             <div className="test-design-feedback-loop-heading">
-              <strong>反馈回流</strong>
+              <strong>{translate('auto.k1545')}</strong>
               <span className={`badge badge-${badgeTone(props.summary.feedbackLoop.tone)}`}>
-                {props.summary.feedbackLoop.promptTuningSignalCount ? '可回流' : '暂无信号'}
+                {props.summary.feedbackLoop.promptTuningSignalCount ? translate('auto.k1546') : translate('auto.k1547')}
               </span>
             </div>
             <div className="test-design-quality-distribution-items">
@@ -326,7 +325,7 @@ export function ReviewSummaryPanel(props: {
           )}
         </>
       ) : (
-        <div className="notice info">请先选择任务</div>
+        <div className="notice info">{translate('auto.k1538')}</div>
       )}
     </div>
   );
@@ -334,7 +333,7 @@ export function ReviewSummaryPanel(props: {
 
 export function StateLine(props: { state: WorkState }) {
   if (props.state.loading) {
-    return <span className="document-state-line">处理中</span>;
+    return <span className="document-state-line">{translate('auto.k0458')}</span>;
   }
   if (props.state.error) {
     return <span className="document-state-line error">{props.state.error}</span>;

@@ -1,15 +1,16 @@
 import { Activity, AlertCircle, CheckCircle2, RefreshCw, Server } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { ApiResult, HealthResponse, fetchHealth } from '../lib/api';
+import { translate } from '../platform/i18n';
 
 function formatHealthStatus(result: ApiResult<HealthResponse> | null): string {
   if (!result) {
-    return '未检查';
+    return translate('auto.k0744');
   }
   if (!result.ok) {
-    return result.status === 0 ? '连接失败' : `异常 ${result.status}`;
+    return result.status === 0 ? translate('auto.k0899') : translate('auto.k0900', { value0: result.status });
   }
-  return result.data.status ? String(result.data.status) : '正常';
+  return result.data.status ? String(result.data.status) : translate('auto.k0095');
 }
 
 export default function HealthCheck() {
@@ -33,10 +34,10 @@ export default function HealthCheck() {
     <section className="panel health-panel" aria-labelledby="health-title">
       <div className="panel-header">
         <div>
-          <p className="eyebrow">运行状态</p>
-          <h2 id="health-title">后端健康检查</h2>
+          <p className="eyebrow">{translate('auto.k0384')}</p>
+          <h2 id="health-title">{translate('auto.k0901')}</h2>
         </div>
-        <button className="icon-button" type="button" onClick={loadHealth} disabled={loading} title="刷新健康检查">
+        <button className="icon-button" type="button" onClick={loadHealth} disabled={loading} title={translate('auto.k0902')}>
           <RefreshCw size={17} className={loading ? 'spin' : undefined} />
         </button>
       </div>
@@ -47,7 +48,7 @@ export default function HealthCheck() {
         </div>
         <div>
           <div className="metric-label">GET /api/v1/health</div>
-          <div className="metric-value">{loading ? '检查中' : formatHealthStatus(result)}</div>
+          <div className="metric-value">{loading ? translate('auto.k0093') : formatHealthStatus(result)}</div>
         </div>
       </div>
 
@@ -66,14 +67,14 @@ export default function HealthCheck() {
           </div>
           <div>
             <dt>Trace ID</dt>
-            <dd>{result.traceId ?? result.data.trace_id ?? '未返回'}</dd>
+            <dd>{result.traceId ?? result.data.trace_id ?? translate('auto.k0903')}</dd>
           </div>
         </dl>
       )}
 
       <div className="api-chip">
         <Server size={15} />
-        <span>通过 Vite 代理访问后端</span>
+        <span>{translate('auto.k0904')}</span>
       </div>
     </section>
   );

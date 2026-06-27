@@ -1,6 +1,7 @@
 import * as Dialog from '@radix-ui/react-dialog';
 import { AlertTriangle } from 'lucide-react';
 import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from 'react';
+import { translate } from '../../platform/i18n';
 
 export interface ConfirmDialogOptions {
   cancelLabel?: string;
@@ -24,8 +25,8 @@ export function ConfirmDialogProvider({ children }: { children: ReactNode }) {
 
   const confirm = useCallback((options: ConfirmDialogOptions) => new Promise<boolean>((resolve) => {
     setRequest({
-      cancelLabel: '取消',
-      confirmLabel: '确认',
+      cancelLabel: translate('auto.k0220'),
+      confirmLabel: translate('auto.k0807'),
       id: Date.now(),
       resolve,
       tone: 'default',

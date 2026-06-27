@@ -48,6 +48,7 @@ import { AssetImportExportPanel } from './AssetImportExportPanel';
 import type { AssetNavigationKey } from './AssetStructuredWorkbench';
 import { AssetVersionHistoryPanel } from './AssetVersionHistoryPanel';
 import { StepRichTextField } from './StepRichTextField';
+import { translate } from '../platform/i18n';
 
 type AssetNavigationTab = {
   key: AssetNavigationKey;
@@ -174,7 +175,7 @@ export function AssetCaseWorkbench(props: {
       setHealth(healthResult.value.data);
       traceIds.push(healthResult.value.trace_id);
     } else {
-      errors.push(errorMessage(healthResult.reason, '资产服务健康检查失败'));
+      errors.push(errorMessage(healthResult.reason, translate('auto.k0392')));
     }
 
     if (listResult.status === 'fulfilled') {
@@ -182,7 +183,7 @@ export function AssetCaseWorkbench(props: {
       traceIds.push(listResult.value.trace_id);
     } else {
       setItems([]);
-      errors.push(errorMessage(listResult.reason, '测试用例加载失败'));
+      errors.push(errorMessage(listResult.reason, translate('auto.k0393')));
     }
 
     setLoadState({
@@ -221,7 +222,7 @@ export function AssetCaseWorkbench(props: {
 
     if (detailResult.status === 'rejected') {
       setSelected(null);
-      setDetailState({ loading: false, error: errorMessage(detailResult.reason, '测试用例详情加载失败') });
+      setDetailState({ loading: false, error: errorMessage(detailResult.reason, translate('auto.k0394')) });
       setStepsState({ loading: false });
       return;
     }
@@ -237,7 +238,7 @@ export function AssetCaseWorkbench(props: {
     setStepsState(
       stepsResult.status === 'fulfilled'
         ? { loading: false, traceId: stepsResult.value.trace_id }
-        : { loading: false, error: errorMessage(stepsResult.reason, '测试步骤加载失败') }
+        : { loading: false, error: errorMessage(stepsResult.reason, translate('auto.k0395')) }
     );
   }, [canReadAssets, props.signedIn, selectedId]);
 
@@ -260,7 +261,7 @@ export function AssetCaseWorkbench(props: {
         setVersionState({ loading: false, traceId: response.trace_id });
       } catch (error: unknown) {
         setVersions([]);
-        setVersionState({ loading: false, error: errorMessage(error, '版本历史加载失败') });
+        setVersionState({ loading: false, error: errorMessage(error, translate('auto.k0396')) });
       }
     },
     [canReadAssets, props.signedIn, selectedId]
@@ -275,16 +276,16 @@ export function AssetCaseWorkbench(props: {
       return;
     }
     if (!props.signedIn) {
-      setVersionState({ loading: false, error: '请先登录后再回滚版本' });
+      setVersionState({ loading: false, error: translate('auto.k0397') });
       return;
     }
     if (!canManageAssets) {
-      setVersionState({ loading: false, error: '缺少 asset:manage 权限' });
+      setVersionState({ loading: false, error: translate('auto.k0398') });
       return;
     }
     setVersionState({ loading: true });
     try {
-      const response = await rollbackAssetTestCaseVersion(selected.id, version, `回滚到 v${version}`);
+      const response = await rollbackAssetTestCaseVersion(selected.id, version, translate('auto.k0399', { value0: version }));
       setSelected(response.data);
       setEditDraft(draftFromCase(response.data));
       setStepDrafts(stepsToDrafts(response.data.steps));
@@ -292,7 +293,7 @@ export function AssetCaseWorkbench(props: {
       setVersionState({ loading: false, traceId: response.trace_id });
       void reloadVersions(response.data.id);
     } catch (error: unknown) {
-      setVersionState({ loading: false, error: errorMessage(error, '测试用例版本回滚失败') });
+      setVersionState({ loading: false, error: errorMessage(error, translate('auto.k0400')) });
     }
   }
 
@@ -317,15 +318,15 @@ export function AssetCaseWorkbench(props: {
   async function submitCreate(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!props.signedIn) {
-      setCreateState({ loading: false, error: '请先登录后再创建测试用例' });
+      setCreateState({ loading: false, error: translate('auto.k0401') });
       return;
     }
     if (!canManageAssets) {
-      setCreateState({ loading: false, error: '缺少 asset:manage 权限' });
+      setCreateState({ loading: false, error: translate('auto.k0398') });
       return;
     }
     if (!createDraft.projectId.trim() || !createDraft.title.trim()) {
-      setCreateState({ loading: false, error: 'projectId 和标题必填' });
+      setCreateState({ loading: false, error: translate('auto.k0402') });
       return;
     }
 
@@ -345,11 +346,11 @@ export function AssetCaseWorkbench(props: {
       setEditDraft(draftFromCase(response.data));
       setStepDrafts(stepsToDrafts(response.data.steps));
       upsertCase(setItems, response.data);
-      setCreateState({ loading: false, success: '测试用例已创建', traceId: response.trace_id });
+      setCreateState({ loading: false, success: translate('auto.k0403'), traceId: response.trace_id });
       void reloadVersions(response.data.id);
       selectItem(response.data.id);
     } catch (error: unknown) {
-      setCreateState({ loading: false, error: errorMessage(error, '测试用例创建失败') });
+      setCreateState({ loading: false, error: errorMessage(error, translate('auto.k0404')) });
     }
   }
 
@@ -359,19 +360,19 @@ export function AssetCaseWorkbench(props: {
       return;
     }
     if (!props.signedIn) {
-      setMutationState({ loading: false, error: '请先登录后再保存测试用例' });
+      setMutationState({ loading: false, error: translate('auto.k0405') });
       return;
     }
     if (!canManageAssets) {
-      setMutationState({ loading: false, error: '缺少 asset:manage 权限' });
+      setMutationState({ loading: false, error: translate('auto.k0398') });
       return;
     }
     if (!editDraft.title.trim()) {
-      setMutationState({ loading: false, error: '标题不能为空' });
+      setMutationState({ loading: false, error: translate('auto.k0406') });
       return;
     }
     if (editDraft.status !== selected.status && !canReviewAssets) {
-      setMutationState({ loading: false, error: '缺少 asset:review 权限' });
+      setMutationState({ loading: false, error: translate('auto.k0407') });
       return;
     }
 
@@ -382,10 +383,10 @@ export function AssetCaseWorkbench(props: {
       setSelected(nextCase);
       setEditDraft(draftFromCase(nextCase));
       upsertCase(setItems, nextCase);
-      setMutationState({ loading: false, success: '测试用例已保存', traceId: response.trace_id });
+      setMutationState({ loading: false, success: translate('auto.k0408'), traceId: response.trace_id });
       void reloadVersions(response.data.id);
     } catch (error: unknown) {
-      setMutationState({ loading: false, error: errorMessage(error, '测试用例保存失败') });
+      setMutationState({ loading: false, error: errorMessage(error, translate('auto.k0409')) });
     }
   }
 
@@ -395,11 +396,11 @@ export function AssetCaseWorkbench(props: {
       return;
     }
     if (!props.signedIn) {
-      setStepsState({ loading: false, error: '请先登录后再保存测试步骤' });
+      setStepsState({ loading: false, error: translate('auto.k0410') });
       return;
     }
     if (!canManageAssets) {
-      setStepsState({ loading: false, error: '缺少 asset:manage 权限' });
+      setStepsState({ loading: false, error: translate('auto.k0398') });
       return;
     }
 
@@ -416,10 +417,10 @@ export function AssetCaseWorkbench(props: {
       setSelected(nextCase);
       setStepDrafts(stepsToDrafts(response.data));
       upsertCase(setItems, nextCase);
-      setStepsState({ loading: false, success: '测试步骤已保存', traceId: response.trace_id });
+      setStepsState({ loading: false, success: translate('auto.k0411'), traceId: response.trace_id });
       void reloadVersions(selected.id);
     } catch (error: unknown) {
-      setStepsState({ loading: false, error: errorMessage(error, '测试步骤保存失败') });
+      setStepsState({ loading: false, error: errorMessage(error, translate('auto.k0412')) });
     }
   }
 
@@ -441,16 +442,15 @@ export function AssetCaseWorkbench(props: {
               </div>
               <div>
                 <span className="eyebrow">Asset Library</span>
-                <h2>资产库</h2>
+                <h2>{translate('auto.k0005')}</h2>
               </div>
             </div>
             <button className="secondary-button" type="button" disabled={disabled} onClick={refreshCases}>
               <RefreshCw size={16} />
-              刷新
-            </button>
+              {translate('auto.k0170')}</button>
           </div>
 
-          <div className="asset-tab-strip" aria-label="资产类型">
+          <div className="asset-tab-strip" aria-label={translate('auto.k0413')}>
             {props.tabs.map((tab) => {
               const Icon = tab.icon;
               return (
@@ -488,7 +488,7 @@ export function AssetCaseWorkbench(props: {
                 disabled={disabled}
                 onChange={(event) => setFilters((current) => ({ ...current, status: event.target.value }))}
               >
-                <option value="">全部状态</option>
+                <option value="">{translate('auto.k0367')}</option>
                 {ASSET_TEST_CASE_STATUSES.map((status) => (
                   <option key={status} value={status}>
                     {status}
@@ -504,7 +504,7 @@ export function AssetCaseWorkbench(props: {
                 disabled={disabled}
                 onChange={(event) => setFilters((current) => ({ ...current, source: event.target.value }))}
               >
-                <option value="">全部来源</option>
+                <option value="">{translate('auto.k0414')}</option>
                 {caseSources.map((source) => (
                   <option key={source} value={source}>
                     {source}
@@ -519,18 +519,16 @@ export function AssetCaseWorkbench(props: {
                 value={filters.keyword}
                 disabled={disabled}
                 onChange={(event) => setFilters((current) => ({ ...current, keyword: event.target.value }))}
-                placeholder="标题 / 描述 / 标签"
+                placeholder={translate('auto.k0415')}
               />
             </label>
             <div className="asset-filter-actions">
               <button className="mini-button" type="button" disabled={disabled} onClick={refreshCases}>
                 <Search size={14} />
-                查询
-              </button>
+                {translate('auto.k0372')}</button>
               <button className="mini-button" type="button" disabled={disabled} onClick={() => setFilters(initialFilters)}>
                 <XCircle size={14} />
-                清空
-              </button>
+                {translate('auto.k0416')}</button>
             </div>
           </form>
 
@@ -538,13 +536,13 @@ export function AssetCaseWorkbench(props: {
             <table>
               <thead>
                 <tr>
-                  <th>测试用例</th>
-                  <th>项目</th>
-                  <th>关联</th>
-                  <th>优先级</th>
-                  <th>状态 / 步骤</th>
-                  <th>更新时间</th>
-                  <th>操作</th>
+                  <th>{translate('auto.k0417')}</th>
+                  <th>{translate('auto.k0176')}</th>
+                  <th>{translate('auto.k0418')}</th>
+                  <th>{translate('auto.k0419')}</th>
+                  <th>{translate('auto.k0420')}</th>
+                  <th>{translate('auto.k0421')}</th>
+                  <th>{translate('auto.k0249')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -558,7 +556,7 @@ export function AssetCaseWorkbench(props: {
                       <td>{item.projectId ?? '-'}</td>
                       <td>
                         <div className="asset-source-cell">
-                          <span>需求 {item.requirementId ?? '-'}</span>
+                          <span>{translate('auto.k0133')}{item.requirementId ?? '-'}</span>
                           <em>API {item.apiId ?? '-'}</em>
                         </div>
                       </td>
@@ -566,15 +564,14 @@ export function AssetCaseWorkbench(props: {
                       <td>
                         <div className="asset-source-cell">
                           <AssetStatusPill value={item.status} />
-                          <em>{item.steps.length} 步</em>
+                          <em>{item.steps.length} {translate('auto.k0422')}</em>
                         </div>
                       </td>
                       <td>{formatDate(item.updatedAt ?? item.createdAt)}</td>
                       <td>
                         <button className="mini-button" type="button" onClick={() => selectItem(item.id)} disabled={!item.id}>
                           <Eye size={14} />
-                          详情
-                        </button>
+                          {translate('auto.k0333')}</button>
                       </td>
                     </tr>
                   ))
@@ -598,7 +595,7 @@ export function AssetCaseWorkbench(props: {
             </div>
             <div>
               <span className="eyebrow">Create</span>
-              <h2>新建测试用例</h2>
+              <h2>{translate('auto.k0423')}</h2>
             </div>
           </div>
           <CaseForm
@@ -606,7 +603,7 @@ export function AssetCaseWorkbench(props: {
             disabled={createDisabled}
             onChange={setCreateDraft}
             onSubmit={submitCreate}
-            submitLabel="创建用例"
+            submitLabel={translate('auto.k0424')}
           >
             <StepEditor
               disabled={createDisabled}
@@ -614,7 +611,7 @@ export function AssetCaseWorkbench(props: {
               steps={createSteps}
               onChange={setCreateSteps}
               onDraggingStepKeyChange={setDraggingStepKey}
-              title="初始步骤"
+              title={translate('auto.k0425')}
             />
           </CaseForm>
           <StateLine state={createState} />
@@ -623,18 +620,18 @@ export function AssetCaseWorkbench(props: {
 
       <aside className="side-stack asset-side-stack">
         <section className="panel insight-panel">
-          <h2>WP3 接口状态</h2>
+          <h2>{translate('auto.k0426')}</h2>
           <div className="document-health-grid">
-            <StatusMetric label="服务" value={health?.service ?? 'asset-service'} />
-            <StatusMetric label="状态" value={health?.status ?? (props.signedIn ? '等待响应' : '等待登录')} pill />
-            <StatusMetric label="用例" value={String(items.length)} />
+            <StatusMetric label={translate('auto.k0427')} value={health?.service ?? 'asset-service'} />
+            <StatusMetric label={translate('auto.k0182')} value={health?.status ?? (props.signedIn ? translate('auto.k0428') : translate('auto.k0429'))} pill />
+            <StatusMetric label={translate('auto.k0136')} value={String(items.length)} />
             {ASSET_TEST_CASE_STATUSES.map((status) => (
               <StatusMetric key={status} label={status} value={String(statusCounts[status] ?? 0)} />
             ))}
           </div>
           {loadState.error && (
             <div className="inline-error">
-              <strong>同步失败</strong>
+              <strong>{translate('auto.k0148')}</strong>
               <span>{loadState.error}</span>
             </div>
           )}
@@ -649,7 +646,7 @@ export function AssetCaseWorkbench(props: {
 
         <section className="panel insight-panel asset-detail-panel">
           <div className="panel-title-row">
-            <h2>测试用例详情</h2>
+            <h2>{translate('auto.k0430')}</h2>
             {selected && <AssetStatusPill value={selected.status} />}
           </div>
 
@@ -684,7 +681,7 @@ export function AssetCaseWorkbench(props: {
               </div>
 
               <div className="asset-source-trace">
-                <strong>关联资产</strong>
+                <strong>{translate('auto.k0431')}</strong>
                 <div>
                   <span>requirementId</span>
                   {selected.requirementId ? (
@@ -718,7 +715,7 @@ export function AssetCaseWorkbench(props: {
               </div>
 
               <div className="asset-schema-preview">
-                <strong>测试步骤</strong>
+                <strong>{translate('auto.k0432')}</strong>
                 {selected.steps.length > 0 ? (
                   <ol className="asset-step-list">
                     {selected.steps.map((step) => (
@@ -729,7 +726,7 @@ export function AssetCaseWorkbench(props: {
                     ))}
                   </ol>
                 ) : (
-                  <pre>暂无步骤，可添加第一步</pre>
+                  <pre>{translate('auto.k0433')}</pre>
                 )}
               </div>
 
@@ -750,7 +747,7 @@ export function AssetCaseWorkbench(props: {
                 onSubmit={submitEdit}
                 selectedStatus={selected.status}
                 statusDisabled={!canReviewAssets}
-                submitLabel="保存用例"
+                submitLabel={translate('auto.k0434')}
               />
               <StateLine state={mutationState} />
 
@@ -761,13 +758,12 @@ export function AssetCaseWorkbench(props: {
                   steps={stepDrafts}
                   onChange={setStepDrafts}
                   onDraggingStepKeyChange={setDraggingStepKey}
-                  title="编辑步骤"
+                  title={translate('auto.k0435')}
                 />
                 <div className="document-actions">
                   <button className="primary-button" type="submit" disabled={stepsDisabled}>
                     <Save size={16} />
-                    保存步骤
-                  </button>
+                    {translate('auto.k0436')}</button>
                 </div>
               </form>
               <StateLine state={stepsState} />
@@ -777,8 +773,8 @@ export function AssetCaseWorkbench(props: {
             <div className="empty-state compact">
               <Pencil size={20} />
               <div>
-                <strong>{detailState.loading ? '正在加载详情' : props.signedIn ? '未选择测试用例' : '等待登录'}</strong>
-                <span>{detailState.error ?? '从列表中选择测试用例'}</span>
+                <strong>{detailState.loading ? translate('auto.k0437') : props.signedIn ? translate('auto.k0438') : translate('auto.k0429')}</strong>
+                <span>{detailState.error ?? translate('auto.k0439')}</span>
               </div>
             </div>
           )}
@@ -817,13 +813,13 @@ function CaseForm(props: {
           </label>
         )}
         <label className="field" htmlFor={`asset-case-${props.compact ? 'edit-' : ''}title`}>
-          <span>标题<b>*</b></span>
+          <span>{translate('auto.k0440')}<b>*</b></span>
           <input
             id={`asset-case-${props.compact ? 'edit-' : ''}title`}
             value={props.draft.title}
             disabled={props.disabled}
             onChange={(event) => props.onChange((current) => ({ ...current, title: event.target.value }))}
-            placeholder="登录冒烟用例"
+            placeholder={translate('auto.k0441')}
           />
         </label>
         <label className="field" htmlFor={`asset-case-${props.compact ? 'edit-' : ''}requirement`}>
@@ -833,7 +829,7 @@ function CaseForm(props: {
             value={props.draft.requirementId}
             disabled={props.disabled}
             onChange={(event) => props.onChange((current) => ({ ...current, requirementId: event.target.value }))}
-            placeholder="需求 UUID"
+            placeholder={translate('auto.k0442')}
           />
         </label>
         <label className="field" htmlFor={`asset-case-${props.compact ? 'edit-' : ''}api`}>
@@ -888,7 +884,7 @@ function CaseForm(props: {
         </label>
       </div>
       <label className="field" htmlFor={`asset-case-${props.compact ? 'edit-' : ''}description`}>
-        <span>描述</span>
+        <span>{translate('auto.k0443')}</span>
         <textarea
           id={`asset-case-${props.compact ? 'edit-' : ''}description`}
           className="compact-textarea"
@@ -967,8 +963,7 @@ function StepEditor(props: {
           onClick={() => props.onChange((current) => [...current, emptyStep()])}
         >
           <Plus size={14} />
-          新增步骤
-        </button>
+          {translate('auto.k0444')}</button>
       </div>
       {props.steps.map((step, index) => (
         <div
@@ -980,36 +975,36 @@ function StepEditor(props: {
           onDragOver={(event) => event.preventDefault()}
           onDrop={() => dropStep(step.key)}
         >
-          <button className="mini-button icon-only asset-step-drag" type="button" title="拖拽排序" disabled={props.disabled}>
+          <button className="mini-button icon-only asset-step-drag" type="button" title={translate('auto.k0445')} disabled={props.disabled}>
             <GripVertical size={14} />
           </button>
           <div className="asset-step-index">{index + 1}</div>
           <StepRichTextField
             disabled={props.disabled}
             id={`asset-step-action-${step.key}`}
-            label="动作"
+            label={translate('auto.k0363')}
             onChange={(value) => updateStep(index, { action: value })}
             onFormat={(style) => applyMarkup(index, 'action', style)}
-            placeholder="输入账号密码并点击登录"
+            placeholder={translate('auto.k0446')}
             value={step.action}
           />
           <StepRichTextField
             disabled={props.disabled}
             id={`asset-step-expectedResult-${step.key}`}
-            label="预期结果"
+            label={translate('auto.k0447')}
             onChange={(value) => updateStep(index, { expectedResult: value })}
             onFormat={(style) => applyMarkup(index, 'expectedResult', style)}
-            placeholder="进入工作台首页"
+            placeholder={translate('auto.k0448')}
             value={step.expectedResult}
           />
           <div className="asset-step-actions">
-            <button className="mini-button icon-only" type="button" title="上移" disabled={props.disabled || index === 0} onClick={() => moveStep(index, -1)}>
+            <button className="mini-button icon-only" type="button" title={translate('auto.k0449')} disabled={props.disabled || index === 0} onClick={() => moveStep(index, -1)}>
               <ArrowUp size={14} />
             </button>
             <button
               className="mini-button icon-only"
               type="button"
-              title="下移"
+              title={translate('auto.k0450')}
               disabled={props.disabled || index === props.steps.length - 1}
               onClick={() => moveStep(index, 1)}
             >
@@ -1018,7 +1013,7 @@ function StepEditor(props: {
             <button
               className="mini-button icon-only"
               type="button"
-              title="删除"
+              title={translate('auto.k0451')}
               disabled={props.disabled || props.steps.length <= 1}
               onClick={() => removeStep(index)}
             >
@@ -1108,14 +1103,14 @@ function stepsPayloadFromDrafts(
 ): { ok: true; value?: AssetTestCaseStepPayload[] } | { error: string; ok: false } {
   const hasAnyContent = drafts.some((step) => step.action.trim() || step.expectedResult.trim());
   if (!hasAnyContent) {
-    return requireAtLeastOne ? { ok: false, error: '至少保留一个测试步骤' } : { ok: true, value: undefined };
+    return requireAtLeastOne ? { ok: false, error: translate('auto.k0452') } : { ok: true, value: undefined };
   }
   const steps: AssetTestCaseStepPayload[] = [];
   for (const [index, step] of drafts.entries()) {
     const action = step.action.trim();
     const expectedResult = step.expectedResult.trim();
     if (!action || !expectedResult) {
-      return { ok: false, error: `第 ${index + 1} 步动作和预期结果必填` };
+      return { ok: false, error: translate('auto.k0453', { value0: index + 1 }) };
     }
     steps.push({ action, expectedResult });
   }
@@ -1186,16 +1181,16 @@ function upsertCase(
 
 function emptyListText(signedIn: boolean, canReadAssets: boolean, loading: boolean, filters: CaseFilters) {
   if (!signedIn) {
-    return '请先登录';
+    return translate('auto.k0454');
   }
   if (!canReadAssets) {
-    return '缺少 asset:read 权限';
+    return translate('auto.k0455');
   }
   if (loading) {
-    return '加载中';
+    return translate('auto.k0168');
   }
   const hasFilters = filters.projectId.trim() || filters.status.trim() || filters.source.trim() || filters.keyword.trim();
-  return hasFilters ? '没有匹配的测试用例' : '暂无测试用例';
+  return hasFilters ? translate('auto.k0456') : translate('auto.k0457');
 }
 
 function formatDate(value?: string) {
@@ -1215,7 +1210,7 @@ function errorMessage(error: unknown, fallback: string) {
 
 function StateLine(props: { state: WorkState }) {
   if (props.state.loading) {
-    return <span className="document-state-line">处理中</span>;
+    return <span className="document-state-line">{translate('auto.k0458')}</span>;
   }
   if (props.state.error) {
     return <span className="document-state-line error">{props.state.error}</span>;

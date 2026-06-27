@@ -1,6 +1,7 @@
 import { History, RefreshCw, RotateCcw } from 'lucide-react';
 import type { AssetVersionHistoryView } from '../api/assets';
 import { assetVersionDiffRows, formatAssetVersionDiffValue } from '../assetVersionDiff';
+import { translate } from '../platform/i18n';
 
 type VersionHistoryState = {
   loading: boolean;
@@ -23,19 +24,18 @@ export function AssetVersionHistoryPanel(props: AssetVersionHistoryPanelProps) {
   return (
     <div className="asset-version-history">
       <div className="panel-title-row">
-        <strong>版本历史</strong>
+        <strong>{translate('auto.k0607')}</strong>
         <button className="mini-button" type="button" disabled={props.disabled || props.state.loading} onClick={props.onRefresh}>
           <RefreshCw size={14} />
-          刷新
-        </button>
+          {translate('auto.k0170')}</button>
       </div>
 
       {props.state.loading ? (
         <div className="empty-state compact">
           <History size={20} />
           <div>
-            <strong>正在加载历史</strong>
-            <span>读取最新版本链路</span>
+            <strong>{translate('auto.k0608')}</strong>
+            <span>{translate('auto.k0609')}</span>
           </div>
         </div>
       ) : props.items.length > 0 ? (
@@ -72,7 +72,7 @@ export function AssetVersionHistoryPanel(props: AssetVersionHistoryPanelProps) {
                     onClick={() => props.onRollback?.(item.version)}
                   >
                     <RotateCcw size={14} />
-                    回滚到 v{item.version}
+                    {translate('auto.k0610')}{item.version}
                   </button>
                 </div>
               )}
@@ -84,8 +84,8 @@ export function AssetVersionHistoryPanel(props: AssetVersionHistoryPanelProps) {
         <div className="empty-state compact">
           <History size={20} />
           <div>
-            <strong>暂无版本历史</strong>
-            <span>{props.state.error ?? '当前资产尚未生成历史记录'}</span>
+            <strong>{translate('auto.k0611')}</strong>
+            <span>{props.state.error ?? translate('auto.k0612')}</span>
           </div>
         </div>
       )}
@@ -101,8 +101,8 @@ function AssetVersionDiffViewer(props: { diff: unknown; snapshot: unknown }) {
   return (
     <div className="asset-version-diff-viewer">
       <div className="asset-version-diff-heading">
-        <strong>字段差异</strong>
-        <span>{rows.length ? `${rows.length} 项` : '无字段级差异'}</span>
+        <strong>{translate('auto.k0613')}</strong>
+        <span>{rows.length ? translate('auto.k0614', { value0: rows.length }) : translate('auto.k0615')}</span>
       </div>
       {rows.length ? (
         <div className="asset-version-diff-list">
@@ -118,7 +118,7 @@ function AssetVersionDiffViewer(props: { diff: unknown; snapshot: unknown }) {
         <pre>{formatHistoryJson(props.diff)}</pre>
       )}
       <details className="asset-version-raw-json">
-        <summary>原始 JSON</summary>
+        <summary>{translate('auto.k0616')}</summary>
         <div className="asset-version-json-grid">
           <div>
             <strong>diff_json</strong>
@@ -140,7 +140,7 @@ function formatHistoryJson(value: unknown) {
   }
   const formatted = typeof value === 'string' ? value : JSON.stringify(value, null, 2) ?? String(value);
   return formatted.length > HISTORY_JSON_LIMIT
-    ? `${formatted.slice(0, HISTORY_JSON_LIMIT)}\n... 已截断`
+    ? translate('auto.k0617', { value0: formatted.slice(0, HISTORY_JSON_LIMIT) })
     : formatted;
 }
 

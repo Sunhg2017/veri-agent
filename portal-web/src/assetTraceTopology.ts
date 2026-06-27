@@ -6,6 +6,7 @@ import type {
   AssetTestCaseView,
   TraceLinkView
 } from './api/assets';
+import { translate } from './platform/i18n';
 
 export type AssetTraceSubjectType = 'requirement' | 'api' | 'page' | 'flow' | 'case';
 
@@ -77,15 +78,15 @@ export function assetTraceSubjectKey(subject: AssetTraceSubject) {
 export function labelAssetTraceSubjectType(type: AssetTraceSubjectType) {
   switch (type) {
     case 'requirement':
-      return '需求';
+      return translate('auto.k0133');
     case 'api':
       return 'API';
     case 'page':
-      return '页面';
+      return translate('auto.k0134');
     case 'flow':
-      return '业务流';
+      return translate('auto.k0135');
     case 'case':
-      return '用例';
+      return translate('auto.k0136');
     default:
       return type;
   }
@@ -225,16 +226,16 @@ function buildRegistry(input: {
   });
 
   input.links.forEach((link) => {
-    addEdge(nodes, edges, adjacency, 'requirement', link.requirementId, 'api', link.apiId, '需求/API');
-    addEdge(nodes, edges, adjacency, 'requirement', link.requirementId, 'page', link.pageId, '需求/页面');
-    addEdge(nodes, edges, adjacency, 'requirement', link.requirementId, 'flow', link.flowId, '需求/业务流');
-    addEdge(nodes, edges, adjacency, 'requirement', link.requirementId, 'case', link.caseId, '需求/用例');
-    addEdge(nodes, edges, adjacency, 'api', link.apiId, 'case', link.caseId, 'API/用例');
+    addEdge(nodes, edges, adjacency, 'requirement', link.requirementId, 'api', link.apiId, translate('auto.k0137'));
+    addEdge(nodes, edges, adjacency, 'requirement', link.requirementId, 'page', link.pageId, translate('auto.k0138'));
+    addEdge(nodes, edges, adjacency, 'requirement', link.requirementId, 'flow', link.flowId, translate('auto.k0139'));
+    addEdge(nodes, edges, adjacency, 'requirement', link.requirementId, 'case', link.caseId, translate('auto.k0140'));
+    addEdge(nodes, edges, adjacency, 'api', link.apiId, 'case', link.caseId, translate('auto.k0141'));
   });
 
   input.cases.forEach((item) => {
-    addEdge(nodes, edges, adjacency, 'requirement', item.requirementId, 'case', item.id, '需求/用例');
-    addEdge(nodes, edges, adjacency, 'api', item.apiId, 'case', item.id, 'API/用例');
+    addEdge(nodes, edges, adjacency, 'requirement', item.requirementId, 'case', item.id, translate('auto.k0140'));
+    addEdge(nodes, edges, adjacency, 'api', item.apiId, 'case', item.id, translate('auto.k0141'));
   });
 
   return {

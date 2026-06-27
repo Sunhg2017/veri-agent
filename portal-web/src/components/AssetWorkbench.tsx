@@ -54,6 +54,7 @@ import { AssetImportExportPanel } from './AssetImportExportPanel';
 import { AssetStructuredWorkbench, type AssetNavigationKey } from './AssetStructuredWorkbench';
 import { AssetTraceWorkbench } from './AssetTraceWorkbench';
 import { AssetVersionHistoryPanel } from './AssetVersionHistoryPanel';
+import { translate } from '../platform/i18n';
 
 type WorkState = {
   loading: boolean;
@@ -145,12 +146,12 @@ const initialApiFilters: ApiFilters = {
 };
 
 const assetTabs = [
-  { key: 'requirements', label: '需求', icon: FileText, enabled: true },
+  { key: 'requirements', label: translate('auto.k0133'), icon: FileText, enabled: true },
   { key: 'apis', label: 'API', icon: Link2, enabled: true },
-  { key: 'pages', label: '页面', icon: ClipboardList, enabled: true },
-  { key: 'flows', label: '业务流', icon: GitBranch, enabled: true },
-  { key: 'cases', label: '用例', icon: CheckCircle2, enabled: true },
-  { key: 'trace', label: '追踪矩阵', icon: GitBranch, enabled: true }
+  { key: 'pages', label: translate('auto.k0134'), icon: ClipboardList, enabled: true },
+  { key: 'flows', label: translate('auto.k0135'), icon: GitBranch, enabled: true },
+  { key: 'cases', label: translate('auto.k0136'), icon: CheckCircle2, enabled: true },
+  { key: 'trace', label: translate('auto.k0618'), icon: GitBranch, enabled: true }
 ] as const satisfies readonly { key: AssetNavigationKey; label: string; icon: LucideIcon; enabled: boolean }[];
 
 type AssetTabKey = (typeof assetTabs)[number]['key'];
@@ -163,10 +164,10 @@ const statusTransitionMap: Record<string, string[]> = {
 };
 
 const statusActionLabel: Record<string, string> = {
-  DRAFT: '退回草稿',
-  REVIEWING: '提交评审',
-  APPROVED: '批准',
-  DEPRECATED: '废弃'
+  DRAFT: translate('auto.k0619'),
+  REVIEWING: translate('auto.k0212'),
+  APPROVED: translate('auto.k0620'),
+  DEPRECATED: translate('auto.k0621')
 };
 
 const apiStatusTransitionMap: Record<string, string[]> = {
@@ -231,7 +232,7 @@ export function AssetWorkbench(props: { signedIn: boolean; currentUser: CurrentU
       setHealth(healthResult.value.data);
       traceIds.push(healthResult.value.trace_id);
     } else {
-      errors.push(errorMessage(healthResult.reason, '资产服务健康检查失败'));
+      errors.push(errorMessage(healthResult.reason, translate('auto.k0392')));
     }
 
     if (requirementResult.status === 'fulfilled') {
@@ -239,7 +240,7 @@ export function AssetWorkbench(props: { signedIn: boolean; currentUser: CurrentU
       traceIds.push(requirementResult.value.trace_id);
     } else {
       setRequirements([]);
-      errors.push(errorMessage(requirementResult.reason, '需求资产加载失败'));
+      errors.push(errorMessage(requirementResult.reason, translate('auto.k0527')));
     }
 
     setLoadState({
@@ -303,7 +304,7 @@ export function AssetWorkbench(props: { signedIn: boolean; currentUser: CurrentU
       traceIds.push(detailResult.value.trace_id);
     } else {
       setSelectedRequirement(null);
-      errors.push(errorMessage(detailResult.reason, '需求详情加载失败'));
+      errors.push(errorMessage(detailResult.reason, translate('auto.k0622')));
     }
 
     if (linkResult.status === 'fulfilled') {
@@ -311,7 +312,7 @@ export function AssetWorkbench(props: { signedIn: boolean; currentUser: CurrentU
       traceIds.push(linkResult.value.trace_id);
     } else {
       setTraceLinks([]);
-      errors.push(errorMessage(linkResult.reason, '追踪链接加载失败'));
+      errors.push(errorMessage(linkResult.reason, translate('auto.k0531')));
     }
 
     setDetailState({
@@ -340,7 +341,7 @@ export function AssetWorkbench(props: { signedIn: boolean; currentUser: CurrentU
         setRequirementVersionState({ loading: false, traceId: response.trace_id });
       } catch (error: unknown) {
         setRequirementVersions([]);
-        setRequirementVersionState({ loading: false, error: errorMessage(error, '版本历史加载失败') });
+        setRequirementVersionState({ loading: false, error: errorMessage(error, translate('auto.k0396')) });
       }
     },
     [activeTab, canReadAssets, props.signedIn, selectedRequirementId]
@@ -355,23 +356,23 @@ export function AssetWorkbench(props: { signedIn: boolean; currentUser: CurrentU
       return;
     }
     if (!props.signedIn) {
-      setRequirementVersionState({ loading: false, error: '请先登录后再回滚版本' });
+      setRequirementVersionState({ loading: false, error: translate('auto.k0397') });
       return;
     }
     if (!canManageAssets) {
-      setRequirementVersionState({ loading: false, error: '缺少 asset:manage 权限' });
+      setRequirementVersionState({ loading: false, error: translate('auto.k0398') });
       return;
     }
     setRequirementVersionState({ loading: true });
     try {
-      const response = await rollbackAssetRequirementVersion(selectedRequirement.id, version, `回滚到 v${version}`);
+      const response = await rollbackAssetRequirementVersion(selectedRequirement.id, version, translate('auto.k0399', { value0: version }));
       setSelectedRequirement(response.data);
       setEditDraft(requirementDraftFromView(response.data));
       upsertRequirement(setRequirements, response.data);
       setRequirementVersionState({ loading: false, traceId: response.trace_id });
       void reloadRequirementVersions(response.data.id);
     } catch (error: unknown) {
-      setRequirementVersionState({ loading: false, error: errorMessage(error, '需求版本回滚失败') });
+      setRequirementVersionState({ loading: false, error: errorMessage(error, translate('auto.k0623')) });
     }
   }
 
@@ -397,7 +398,7 @@ export function AssetWorkbench(props: { signedIn: boolean; currentUser: CurrentU
       setHealth(healthResult.value.data);
       traceIds.push(healthResult.value.trace_id);
     } else {
-      errors.push(errorMessage(healthResult.reason, '资产服务健康检查失败'));
+      errors.push(errorMessage(healthResult.reason, translate('auto.k0392')));
     }
 
     if (apiResult.status === 'fulfilled') {
@@ -405,7 +406,7 @@ export function AssetWorkbench(props: { signedIn: boolean; currentUser: CurrentU
       traceIds.push(apiResult.value.trace_id);
     } else {
       setApis([]);
-      errors.push(errorMessage(apiResult.reason, 'API 资产加载失败'));
+      errors.push(errorMessage(apiResult.reason, translate('auto.k0528')));
     }
 
     setApiLoadState({
@@ -443,7 +444,7 @@ export function AssetWorkbench(props: { signedIn: boolean; currentUser: CurrentU
       setApiDetailState({ loading: false, traceId: response.trace_id });
     } catch (error: unknown) {
       setSelectedApi(null);
-      setApiDetailState({ loading: false, error: errorMessage(error, 'API 详情加载失败') });
+      setApiDetailState({ loading: false, error: errorMessage(error, translate('auto.k0624')) });
     }
   }, [activeTab, canReadAssets, props.signedIn, selectedApiId]);
 
@@ -466,7 +467,7 @@ export function AssetWorkbench(props: { signedIn: boolean; currentUser: CurrentU
         setApiVersionState({ loading: false, traceId: response.trace_id });
       } catch (error: unknown) {
         setApiVersions([]);
-        setApiVersionState({ loading: false, error: errorMessage(error, '版本历史加载失败') });
+        setApiVersionState({ loading: false, error: errorMessage(error, translate('auto.k0396')) });
       }
     },
     [activeTab, canReadAssets, props.signedIn, selectedApiId]
@@ -565,15 +566,15 @@ export function AssetWorkbench(props: { signedIn: boolean; currentUser: CurrentU
   async function submitCreate(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!props.signedIn) {
-      setCreateState({ loading: false, error: '请先登录后再创建需求资产' });
+      setCreateState({ loading: false, error: translate('auto.k0625') });
       return;
     }
     if (!canManageAssets) {
-      setCreateState({ loading: false, error: '缺少 asset:manage 权限' });
+      setCreateState({ loading: false, error: translate('auto.k0398') });
       return;
     }
     if (!createDraft.projectId.trim() || !createDraft.title.trim()) {
-      setCreateState({ loading: false, error: 'projectId 和标题必填' });
+      setCreateState({ loading: false, error: translate('auto.k0402') });
       return;
     }
 
@@ -585,13 +586,13 @@ export function AssetWorkbench(props: { signedIn: boolean; currentUser: CurrentU
       setSelectedRequirementId(response.data.id);
       setEditDraft(requirementDraftFromView(response.data));
       upsertRequirement(setRequirements, response.data);
-      setCreateState({ loading: false, success: '需求资产已创建', traceId: response.trace_id });
+      setCreateState({ loading: false, success: translate('auto.k0626'), traceId: response.trace_id });
       void reloadRequirementVersions(response.data.id);
       if (response.data.id) {
         selectRequirement(response.data.id);
       }
     } catch (error: unknown) {
-      setCreateState({ loading: false, error: errorMessage(error, '需求资产创建失败') });
+      setCreateState({ loading: false, error: errorMessage(error, translate('auto.k0627')) });
     }
   }
 
@@ -601,15 +602,15 @@ export function AssetWorkbench(props: { signedIn: boolean; currentUser: CurrentU
       return;
     }
     if (!props.signedIn) {
-      setMutationState({ loading: false, error: '请先登录后再保存需求资产' });
+      setMutationState({ loading: false, error: translate('auto.k0628') });
       return;
     }
     if (!canManageAssets) {
-      setMutationState({ loading: false, error: '缺少 asset:manage 权限' });
+      setMutationState({ loading: false, error: translate('auto.k0398') });
       return;
     }
     if (!editDraft.title.trim()) {
-      setMutationState({ loading: false, error: '标题不能为空' });
+      setMutationState({ loading: false, error: translate('auto.k0406') });
       return;
     }
 
@@ -619,10 +620,10 @@ export function AssetWorkbench(props: { signedIn: boolean; currentUser: CurrentU
       setSelectedRequirement(response.data);
       setEditDraft(requirementDraftFromView(response.data));
       upsertRequirement(setRequirements, response.data);
-      setMutationState({ loading: false, success: '需求资产已保存', traceId: response.trace_id });
+      setMutationState({ loading: false, success: translate('auto.k0629'), traceId: response.trace_id });
       void reloadRequirementVersions(response.data.id);
     } catch (error: unknown) {
-      setMutationState({ loading: false, error: errorMessage(error, '需求资产保存失败') });
+      setMutationState({ loading: false, error: errorMessage(error, translate('auto.k0630')) });
     }
   }
 
@@ -631,11 +632,11 @@ export function AssetWorkbench(props: { signedIn: boolean; currentUser: CurrentU
       return;
     }
     if (!props.signedIn) {
-      setMutationState({ loading: false, error: '请先登录后再流转状态' });
+      setMutationState({ loading: false, error: translate('auto.k0631') });
       return;
     }
     if (!canReviewAssets) {
-      setMutationState({ loading: false, error: '缺少 asset:review 权限' });
+      setMutationState({ loading: false, error: translate('auto.k0407') });
       return;
     }
 
@@ -648,25 +649,25 @@ export function AssetWorkbench(props: { signedIn: boolean; currentUser: CurrentU
       setSelectedRequirement(response.data);
       setEditDraft(requirementDraftFromView(response.data));
       upsertRequirement(setRequirements, response.data);
-      setMutationState({ loading: false, success: `状态已流转为 ${response.data.status}`, traceId: response.trace_id });
+      setMutationState({ loading: false, success: translate('auto.k0632', { value0: response.data.status }), traceId: response.trace_id });
       void reloadRequirementVersions(response.data.id);
     } catch (error: unknown) {
-      setMutationState({ loading: false, error: errorMessage(error, '状态流转失败') });
+      setMutationState({ loading: false, error: errorMessage(error, translate('auto.k0633')) });
     }
   }
 
   async function submitCreateApi(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!props.signedIn) {
-      setApiCreateState({ loading: false, error: '请先登录后再创建 API 资产' });
+      setApiCreateState({ loading: false, error: translate('auto.k0634') });
       return;
     }
     if (!canManageAssets) {
-      setApiCreateState({ loading: false, error: '缺少 asset:manage 权限' });
+      setApiCreateState({ loading: false, error: translate('auto.k0398') });
       return;
     }
     if (!apiCreateDraft.projectId.trim() || !apiCreateDraft.summary.trim() || !apiCreateDraft.path.trim()) {
-      setApiCreateState({ loading: false, error: 'projectId、名称和路径必填' });
+      setApiCreateState({ loading: false, error: translate('auto.k0635') });
       return;
     }
 
@@ -678,13 +679,13 @@ export function AssetWorkbench(props: { signedIn: boolean; currentUser: CurrentU
       setSelectedApiId(response.data.id);
       setApiEditDraft(apiDraftFromView(response.data));
       upsertApi(setApis, response.data);
-      setApiCreateState({ loading: false, success: 'API 资产已创建', traceId: response.trace_id });
+      setApiCreateState({ loading: false, success: translate('auto.k0636'), traceId: response.trace_id });
       void reloadApiVersions(response.data.id);
       if (response.data.id) {
         selectApi(response.data.id);
       }
     } catch (error: unknown) {
-      setApiCreateState({ loading: false, error: errorMessage(error, 'API 资产创建失败') });
+      setApiCreateState({ loading: false, error: errorMessage(error, translate('auto.k0637')) });
     }
   }
 
@@ -694,15 +695,15 @@ export function AssetWorkbench(props: { signedIn: boolean; currentUser: CurrentU
       return;
     }
     if (!props.signedIn) {
-      setApiMutationState({ loading: false, error: '请先登录后再保存 API 资产' });
+      setApiMutationState({ loading: false, error: translate('auto.k0638') });
       return;
     }
     if (!canManageAssets) {
-      setApiMutationState({ loading: false, error: '缺少 asset:manage 权限' });
+      setApiMutationState({ loading: false, error: translate('auto.k0398') });
       return;
     }
     if (!apiEditDraft.summary.trim() || !apiEditDraft.path.trim()) {
-      setApiMutationState({ loading: false, error: '名称和路径不能为空' });
+      setApiMutationState({ loading: false, error: translate('auto.k0639') });
       return;
     }
 
@@ -712,10 +713,10 @@ export function AssetWorkbench(props: { signedIn: boolean; currentUser: CurrentU
       setSelectedApi(response.data);
       setApiEditDraft(apiDraftFromView(response.data));
       upsertApi(setApis, response.data);
-      setApiMutationState({ loading: false, success: 'API 资产已保存', traceId: response.trace_id });
+      setApiMutationState({ loading: false, success: translate('auto.k0640'), traceId: response.trace_id });
       void reloadApiVersions(response.data.id);
     } catch (error: unknown) {
-      setApiMutationState({ loading: false, error: errorMessage(error, 'API 资产保存失败') });
+      setApiMutationState({ loading: false, error: errorMessage(error, translate('auto.k0641')) });
     }
   }
 
@@ -724,23 +725,23 @@ export function AssetWorkbench(props: { signedIn: boolean; currentUser: CurrentU
       return;
     }
     if (!props.signedIn) {
-      setApiVersionState({ loading: false, error: '请先登录后再回滚版本' });
+      setApiVersionState({ loading: false, error: translate('auto.k0397') });
       return;
     }
     if (!canManageAssets) {
-      setApiVersionState({ loading: false, error: '缺少 asset:manage 权限' });
+      setApiVersionState({ loading: false, error: translate('auto.k0398') });
       return;
     }
     setApiVersionState({ loading: true });
     try {
-      const response = await rollbackAssetApiVersion(selectedApi.id, version, `回滚到 v${version}`);
+      const response = await rollbackAssetApiVersion(selectedApi.id, version, translate('auto.k0399', { value0: version }));
       setSelectedApi(response.data);
       setApiEditDraft(apiDraftFromView(response.data));
       upsertApi(setApis, response.data);
       setApiVersionState({ loading: false, traceId: response.trace_id });
       void reloadApiVersions(response.data.id);
     } catch (error: unknown) {
-      setApiVersionState({ loading: false, error: errorMessage(error, 'API 版本回滚失败') });
+      setApiVersionState({ loading: false, error: errorMessage(error, translate('auto.k0642')) });
     }
   }
 
@@ -755,7 +756,7 @@ export function AssetWorkbench(props: { signedIn: boolean; currentUser: CurrentU
               </div>
               <div>
                 <span className="eyebrow">Asset Library</span>
-                <h2>资产库</h2>
+                <h2>{translate('auto.k0005')}</h2>
               </div>
             </div>
             <button
@@ -765,11 +766,10 @@ export function AssetWorkbench(props: { signedIn: boolean; currentUser: CurrentU
               onClick={activeTab === 'apis' ? refreshApis : refreshRequirements}
             >
               <RefreshCw size={16} />
-              刷新
-            </button>
+              {translate('auto.k0170')}</button>
           </div>
 
-          <div className="asset-tab-strip" aria-label="资产类型">
+          <div className="asset-tab-strip" aria-label={translate('auto.k0413')}>
             {assetTabs.map((tab) => {
               const Icon = tab.icon;
               return (
@@ -809,7 +809,7 @@ export function AssetWorkbench(props: { signedIn: boolean; currentUser: CurrentU
                 disabled={disabled}
                 onChange={(event) => setFilters((current) => ({ ...current, status: event.target.value }))}
               >
-                <option value="">全部状态</option>
+                <option value="">{translate('auto.k0367')}</option>
                 {ASSET_REQUIREMENT_STATUSES.map((status) => (
                   <option key={status} value={status}>
                     {status}
@@ -825,7 +825,7 @@ export function AssetWorkbench(props: { signedIn: boolean; currentUser: CurrentU
                 disabled={disabled}
                 onChange={(event) => setFilters((current) => ({ ...current, source: event.target.value }))}
               >
-                <option value="">全部来源</option>
+                <option value="">{translate('auto.k0414')}</option>
                 {ASSET_REQUIREMENT_SOURCES.map((source) => (
                   <option key={source} value={source}>
                     {source}
@@ -850,18 +850,16 @@ export function AssetWorkbench(props: { signedIn: boolean; currentUser: CurrentU
                 value={filters.keyword}
                 disabled={disabled}
                 onChange={(event) => setFilters((current) => ({ ...current, keyword: event.target.value }))}
-                placeholder="标题 / 描述 / 标签"
+                placeholder={translate('auto.k0415')}
               />
             </label>
             <div className="asset-filter-actions">
               <button className="mini-button" type="button" disabled={disabled} onClick={refreshRequirements}>
                 <Search size={14} />
-                查询
-              </button>
+                {translate('auto.k0372')}</button>
               <button className="mini-button" type="button" disabled={disabled} onClick={() => setFilters(initialFilters)}>
                 <XCircle size={14} />
-                清空
-              </button>
+                {translate('auto.k0416')}</button>
             </div>
           </form>
 
@@ -869,13 +867,13 @@ export function AssetWorkbench(props: { signedIn: boolean; currentUser: CurrentU
             <table>
               <thead>
                 <tr>
-                  <th>需求</th>
-                  <th>项目</th>
-                  <th>状态</th>
-                  <th>优先级</th>
-                  <th>来源</th>
-                  <th>更新时间</th>
-                  <th>操作</th>
+                  <th>{translate('auto.k0133')}</th>
+                  <th>{translate('auto.k0176')}</th>
+                  <th>{translate('auto.k0182')}</th>
+                  <th>{translate('auto.k0419')}</th>
+                  <th>{translate('auto.k0179')}</th>
+                  <th>{translate('auto.k0421')}</th>
+                  <th>{translate('auto.k0249')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -904,15 +902,14 @@ export function AssetWorkbench(props: { signedIn: boolean; currentUser: CurrentU
                       <td>
                         <button className="mini-button" type="button" onClick={() => selectRequirement(requirement.id)} disabled={!requirement.id}>
                           <Eye size={14} />
-                          详情
-                        </button>
+                          {translate('auto.k0333')}</button>
                       </td>
                     </tr>
                   ))
                 ) : (
                   <tr>
                     <td className="table-empty" colSpan={7}>
-                      {props.signedIn ? (loadState.loading ? '加载中' : '暂无需求资产') : '请先登录'}
+                      {props.signedIn ? (loadState.loading ? translate('auto.k0168') : translate('auto.k0643')) : translate('auto.k0454')}
                     </td>
                   </tr>
                 )}
@@ -942,7 +939,7 @@ export function AssetWorkbench(props: { signedIn: boolean; currentUser: CurrentU
                     disabled={apiDisabled}
                     onChange={(event) => setApiFilters((current) => ({ ...current, status: event.target.value }))}
                   >
-                    <option value="">全部状态</option>
+                    <option value="">{translate('auto.k0367')}</option>
                     {ASSET_API_STATUSES.map((status) => (
                       <option key={status} value={status}>
                         {status}
@@ -958,7 +955,7 @@ export function AssetWorkbench(props: { signedIn: boolean; currentUser: CurrentU
                     disabled={apiDisabled}
                     onChange={(event) => setApiFilters((current) => ({ ...current, method: event.target.value }))}
                   >
-                    <option value="">全部方法</option>
+                    <option value="">{translate('auto.k0644')}</option>
                     {ASSET_API_METHODS.map((method) => (
                       <option key={method} value={method}>
                         {method}
@@ -983,18 +980,16 @@ export function AssetWorkbench(props: { signedIn: boolean; currentUser: CurrentU
                     value={apiFilters.keyword}
                     disabled={apiDisabled}
                     onChange={(event) => setApiFilters((current) => ({ ...current, keyword: event.target.value }))}
-                    placeholder="名称 / 路径 / 编码"
+                    placeholder={translate('auto.k0645')}
                   />
                 </label>
                 <div className="asset-filter-actions">
                   <button className="mini-button" type="button" disabled={apiDisabled} onClick={refreshApis}>
                     <Search size={14} />
-                    查询
-                  </button>
+                    {translate('auto.k0372')}</button>
                   <button className="mini-button" type="button" disabled={apiDisabled} onClick={() => setApiFilters(initialApiFilters)}>
                     <XCircle size={14} />
-                    清空
-                  </button>
+                    {translate('auto.k0416')}</button>
                 </div>
               </form>
 
@@ -1003,12 +998,12 @@ export function AssetWorkbench(props: { signedIn: boolean; currentUser: CurrentU
                   <thead>
                     <tr>
                       <th>API</th>
-                      <th>项目</th>
-                      <th>方法与路径</th>
-                      <th>状态</th>
-                      <th>来源</th>
-                      <th>更新时间</th>
-                      <th>操作</th>
+                      <th>{translate('auto.k0176')}</th>
+                      <th>{translate('auto.k0646')}</th>
+                      <th>{translate('auto.k0182')}</th>
+                      <th>{translate('auto.k0179')}</th>
+                      <th>{translate('auto.k0421')}</th>
+                      <th>{translate('auto.k0249')}</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -1039,15 +1034,14 @@ export function AssetWorkbench(props: { signedIn: boolean; currentUser: CurrentU
                           <td>
                             <button className="mini-button" type="button" onClick={() => selectApi(api.id)} disabled={!api.id}>
                               <Eye size={14} />
-                              详情
-                            </button>
+                              {translate('auto.k0333')}</button>
                           </td>
                         </tr>
                       ))
                     ) : (
                       <tr>
                         <td className="table-empty" colSpan={7}>
-                          {props.signedIn ? (apiLoadState.loading ? '加载中' : '暂无 API 资产') : '请先登录'}
+                          {props.signedIn ? (apiLoadState.loading ? translate('auto.k0168') : translate('auto.k0647')) : translate('auto.k0454')}
                         </td>
                       </tr>
                     )}
@@ -1068,7 +1062,7 @@ export function AssetWorkbench(props: { signedIn: boolean; currentUser: CurrentU
             </div>
             <div>
               <span className="eyebrow">Create</span>
-              <h2>新建需求资产</h2>
+              <h2>{translate('auto.k0648')}</h2>
             </div>
           </div>
 
@@ -1085,13 +1079,13 @@ export function AssetWorkbench(props: { signedIn: boolean; currentUser: CurrentU
                 />
               </label>
               <label className="field" htmlFor="asset-create-title">
-                <span>标题<b>*</b></span>
+                <span>{translate('auto.k0440')}<b>*</b></span>
                 <input
                   id="asset-create-title"
                   value={createDraft.title}
                   disabled={createDisabled}
                   onChange={(event) => setCreateDraft((current) => ({ ...current, title: event.target.value }))}
-                  placeholder="支持用户登录"
+                  placeholder={translate('auto.k0649')}
                 />
               </label>
               <label className="field" htmlFor="asset-create-priority">
@@ -1146,7 +1140,7 @@ export function AssetWorkbench(props: { signedIn: boolean; currentUser: CurrentU
               </label>
             </div>
             <label className="field" htmlFor="asset-create-description">
-              <span>描述</span>
+              <span>{translate('auto.k0443')}</span>
               <textarea
                 id="asset-create-description"
                 className="compact-textarea"
@@ -1156,7 +1150,7 @@ export function AssetWorkbench(props: { signedIn: boolean; currentUser: CurrentU
               />
             </label>
             <label className="field" htmlFor="asset-create-acceptance">
-              <span>验收标准</span>
+              <span>{translate('auto.k0650')}</span>
               <textarea
                 id="asset-create-acceptance"
                 className="compact-textarea"
@@ -1182,8 +1176,7 @@ export function AssetWorkbench(props: { signedIn: boolean; currentUser: CurrentU
                 disabled={createDisabled || !createDraft.projectId.trim() || !createDraft.title.trim()}
               >
                 <Save size={16} />
-                创建需求
-              </button>
+                {translate('auto.k0651')}</button>
               <StateLine state={createState} />
             </div>
           </form>
@@ -1197,18 +1190,17 @@ export function AssetWorkbench(props: { signedIn: boolean; currentUser: CurrentU
                   </div>
                   <div>
                     <span className="eyebrow">Create</span>
-                    <h2>新建 API 资产</h2>
+                    <h2>{translate('auto.k0652')}</h2>
                   </div>
                 </div>
                 <button
                   className="mini-button"
                   type="button"
                   disabled
-                  title="待后端 OpenAPI 导入接口接入"
+                  title={translate('auto.k0653')}
                 >
                   <Upload size={14} />
-                  OpenAPI 导入
-                </button>
+                  {translate('auto.k0654')}</button>
               </div>
 
               <form className="asset-form" onSubmit={submitCreateApi}>
@@ -1224,13 +1216,13 @@ export function AssetWorkbench(props: { signedIn: boolean; currentUser: CurrentU
                     />
                   </label>
                   <label className="field" htmlFor="asset-api-create-summary">
-                    <span>名称<b>*</b></span>
+                    <span>{translate('auto.k0177')}<b>*</b></span>
                     <input
                       id="asset-api-create-summary"
                       value={apiCreateDraft.summary}
                       disabled={apiCreateDisabled}
                       onChange={(event) => setApiCreateDraft((current) => ({ ...current, summary: event.target.value }))}
-                      placeholder="创建订单"
+                      placeholder={translate('auto.k0655')}
                     />
                   </label>
                   <label className="field" htmlFor="asset-api-create-method">
@@ -1285,7 +1277,7 @@ export function AssetWorkbench(props: { signedIn: boolean; currentUser: CurrentU
                   </label>
                 </div>
                 <label className="field" htmlFor="asset-api-create-description">
-                  <span>描述</span>
+                  <span>{translate('auto.k0443')}</span>
                   <textarea
                     id="asset-api-create-description"
                     className="compact-textarea"
@@ -1328,8 +1320,7 @@ export function AssetWorkbench(props: { signedIn: boolean; currentUser: CurrentU
                     }
                   >
                     <Save size={16} />
-                    创建 API
-                  </button>
+                    {translate('auto.k0656')}</button>
                   <StateLine state={apiCreateState} />
                 </div>
               </form>
@@ -1340,20 +1331,20 @@ export function AssetWorkbench(props: { signedIn: boolean; currentUser: CurrentU
 
       <aside className="side-stack asset-side-stack">
         <section className="panel insight-panel">
-          <h2>WP3 接口状态</h2>
+          <h2>{translate('auto.k0426')}</h2>
           <div className="document-health-grid">
-            <StatusMetric label="服务" value={health?.service ?? 'asset-service'} />
-            <StatusMetric label="状态" value={health?.status ?? (props.signedIn ? '等待响应' : '等待登录')} pill />
+            <StatusMetric label={translate('auto.k0427')} value={health?.service ?? 'asset-service'} />
+            <StatusMetric label={translate('auto.k0182')} value={health?.status ?? (props.signedIn ? translate('auto.k0428') : translate('auto.k0429'))} pill />
             {activeTab === 'requirements' ? (
               <>
-                <StatusMetric label="需求资产" value={String(requirements.length)} />
+                <StatusMetric label={translate('auto.k0657')} value={String(requirements.length)} />
                 <StatusMetric label="DRAFT" value={String(statusCounts.DRAFT ?? 0)} />
                 <StatusMetric label="REVIEWING" value={String(statusCounts.REVIEWING ?? 0)} />
                 <StatusMetric label="APPROVED" value={String(statusCounts.APPROVED ?? 0)} />
               </>
             ) : (
               <>
-                <StatusMetric label="API 资产" value={String(apis.length)} />
+                <StatusMetric label={translate('auto.k0658')} value={String(apis.length)} />
                 <StatusMetric label="ACTIVE" value={String(apiStatusCounts.ACTIVE ?? 0)} />
                 <StatusMetric label="DEPRECATED" value={String(apiStatusCounts.DEPRECATED ?? 0)} />
                 <StatusMetric label="REMOVED" value={String(apiStatusCounts.REMOVED ?? 0)} />
@@ -1362,7 +1353,7 @@ export function AssetWorkbench(props: { signedIn: boolean; currentUser: CurrentU
           </div>
           {activeLoadState.error && (
             <div className="inline-error">
-              <strong>同步失败</strong>
+              <strong>{translate('auto.k0148')}</strong>
               <span>{activeLoadState.error}</span>
             </div>
           )}
@@ -1379,7 +1370,7 @@ export function AssetWorkbench(props: { signedIn: boolean; currentUser: CurrentU
           {activeTab === 'requirements' ? (
             <>
           <div className="panel-title-row">
-            <h2>需求详情</h2>
+            <h2>{translate('auto.k0659')}</h2>
             {selectedRequirement && <AssetStatusPill value={selectedRequirement.status} />}
           </div>
 
@@ -1410,7 +1401,7 @@ export function AssetWorkbench(props: { signedIn: boolean; currentUser: CurrentU
               </div>
 
               <div className="asset-source-trace">
-                <strong>来源追踪</strong>
+                <strong>{translate('auto.k0660')}</strong>
                 <div>
                   <span>source</span>
                   <em>{selectedRequirement.source}</em>
@@ -1437,7 +1428,7 @@ export function AssetWorkbench(props: { signedIn: boolean; currentUser: CurrentU
 
               <form className="resource-edit-form asset-edit-form" onSubmit={submitEdit}>
                 <label>
-                  <span>标题</span>
+                  <span>{translate('auto.k0440')}</span>
                   <input
                     value={editDraft.title}
                     disabled={editDisabled}
@@ -1459,7 +1450,7 @@ export function AssetWorkbench(props: { signedIn: boolean; currentUser: CurrentU
                   </select>
                 </label>
                 <label>
-                  <span>描述</span>
+                  <span>{translate('auto.k0443')}</span>
                   <textarea
                     className="compact-textarea"
                     value={editDraft.description}
@@ -1478,8 +1469,7 @@ export function AssetWorkbench(props: { signedIn: boolean; currentUser: CurrentU
                 {canManageAssets && (
                   <button className="mini-button" type="submit" disabled={editDisabled || !editDraft.title.trim()}>
                     <Save size={14} />
-                    保存详情
-                  </button>
+                    {translate('auto.k0661')}</button>
                 )}
               </form>
 
@@ -1502,7 +1492,7 @@ export function AssetWorkbench(props: { signedIn: boolean; currentUser: CurrentU
 
               <div className="asset-trace-links">
                 <div className="panel-title-row">
-                  <strong>追踪链接</strong>
+                  <strong>{translate('auto.k0662')}</strong>
                   <span className="document-count-badge">{traceLinks.length}</span>
                 </div>
                 {traceLinks.length > 0 ? (
@@ -1519,8 +1509,8 @@ export function AssetWorkbench(props: { signedIn: boolean; currentUser: CurrentU
                   <div className="empty-state compact">
                     <Link2 size={20} />
                   <div>
-                    <strong>{detailState.loading ? '正在加载追踪链接' : '暂无追踪链接'}</strong>
-                    <span>{detailState.error ?? '暂无关联 API 或用例'}</span>
+                    <strong>{detailState.loading ? translate('auto.k0663') : translate('auto.k0664')}</strong>
+                    <span>{detailState.error ?? translate('auto.k0665')}</span>
                   </div>
                 </div>
                 )}
@@ -1542,8 +1532,8 @@ export function AssetWorkbench(props: { signedIn: boolean; currentUser: CurrentU
             <div className="empty-state compact">
               <Pencil size={20} />
               <div>
-                <strong>{detailState.loading ? '正在加载详情' : props.signedIn ? '未选择需求' : '等待登录'}</strong>
-                <span>{detailState.error ?? '从列表中选择需求资产'}</span>
+                <strong>{detailState.loading ? translate('auto.k0437') : props.signedIn ? translate('auto.k0666') : translate('auto.k0429')}</strong>
+                <span>{detailState.error ?? translate('auto.k0667')}</span>
               </div>
             </div>
           )}
@@ -1551,7 +1541,7 @@ export function AssetWorkbench(props: { signedIn: boolean; currentUser: CurrentU
           ) : (
             <>
               <div className="panel-title-row">
-                <h2>API 详情</h2>
+                <h2>{translate('auto.k0668')}</h2>
                 {selectedApi && <AssetStatusPill value={selectedApi.status} />}
               </div>
 
@@ -1586,7 +1576,7 @@ export function AssetWorkbench(props: { signedIn: boolean; currentUser: CurrentU
                   </div>
 
                   <div className="asset-source-trace">
-                    <strong>来源追踪</strong>
+                    <strong>{translate('auto.k0660')}</strong>
                     <div>
                       <span>source</span>
                       <em>{selectedApi.source ?? '-'}</em>
@@ -1620,7 +1610,7 @@ export function AssetWorkbench(props: { signedIn: boolean; currentUser: CurrentU
 
                   <form className="resource-edit-form asset-edit-form" onSubmit={submitEditApi}>
                     <label>
-                      <span>名称</span>
+                      <span>{translate('auto.k0177')}</span>
                       <input
                         value={apiEditDraft.summary}
                         disabled={apiEditDisabled}
@@ -1672,7 +1662,7 @@ export function AssetWorkbench(props: { signedIn: boolean; currentUser: CurrentU
                       />
                     </label>
                     <label>
-                      <span>描述</span>
+                      <span>{translate('auto.k0443')}</span>
                       <textarea
                         className="compact-textarea"
                         value={apiEditDraft.description}
@@ -1705,8 +1695,7 @@ export function AssetWorkbench(props: { signedIn: boolean; currentUser: CurrentU
                         disabled={apiEditDisabled || !apiEditDraft.summary.trim() || !apiEditDraft.path.trim()}
                       >
                         <Save size={14} />
-                        保存 API
-                      </button>
+                        {translate('auto.k0669')}</button>
                     )}
                   </form>
 
@@ -1726,8 +1715,8 @@ export function AssetWorkbench(props: { signedIn: boolean; currentUser: CurrentU
                 <div className="empty-state compact">
                   <Pencil size={20} />
                   <div>
-                    <strong>{apiDetailState.loading ? '正在加载详情' : props.signedIn ? '未选择 API' : '等待登录'}</strong>
-                    <span>{apiDetailState.error ?? '从列表中选择 API 资产'}</span>
+                    <strong>{apiDetailState.loading ? translate('auto.k0437') : props.signedIn ? translate('auto.k0670') : translate('auto.k0429')}</strong>
+                    <span>{apiDetailState.error ?? translate('auto.k0671')}</span>
                   </div>
                 </div>
               )}
@@ -1992,7 +1981,7 @@ function errorMessage(error: unknown, fallback: string) {
 
 function StateLine(props: { state: WorkState }) {
   if (props.state.loading) {
-    return <span className="document-state-line">处理中</span>;
+    return <span className="document-state-line">{translate('auto.k0458')}</span>;
   }
   if (props.state.error) {
     return <span className="document-state-line error">{props.state.error}</span>;

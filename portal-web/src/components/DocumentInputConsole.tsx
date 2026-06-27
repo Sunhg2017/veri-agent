@@ -59,6 +59,7 @@ import {
   type WebhookEventView
 } from '../api/documentInput';
 import { hasPermission } from '../permissions';
+import { translate } from '../platform/i18n';
 
 type WorkState = {
   loading: boolean;
@@ -238,35 +239,35 @@ export function DocumentInputConsole(props: { signedIn: boolean; currentUser: Cu
       setHealth(healthResult.value.data);
       traceIds.push(healthResult.value.trace_id);
     } else {
-      errors.push(errorMessage(healthResult.reason, '文档输入健康检查失败'));
+      errors.push(errorMessage(healthResult.reason, translate('auto.k0672')));
     }
 
     if (sourceResult.status === 'fulfilled') {
       setSources(sourceResult.value.data);
       traceIds.push(sourceResult.value.trace_id);
     } else {
-      errors.push(errorMessage(sourceResult.reason, '文档源加载失败'));
+      errors.push(errorMessage(sourceResult.reason, translate('auto.k0673')));
     }
 
     if (mappingResult.status === 'fulfilled') {
       setMappingText(JSON.stringify(mappingResult.value.data ?? {}, null, 2));
       traceIds.push(mappingResult.value.trace_id);
     } else {
-      errors.push(errorMessage(mappingResult.reason, '字段映射加载失败'));
+      errors.push(errorMessage(mappingResult.reason, translate('auto.k0674')));
     }
 
     if (importResult.status === 'fulfilled') {
       setImports(importResult.value.data.items);
       traceIds.push(importResult.value.trace_id);
     } else {
-      errors.push(errorMessage(importResult.reason, '导入历史加载失败'));
+      errors.push(errorMessage(importResult.reason, translate('auto.k0675')));
     }
 
     if (eventResult.status === 'fulfilled') {
       setWebhookEvents(eventResult.value.data.items);
       traceIds.push(eventResult.value.trace_id);
     } else {
-      errors.push(errorMessage(eventResult.reason, 'Webhook 事件加载失败'));
+      errors.push(errorMessage(eventResult.reason, translate('auto.k0676')));
     }
 
     setLoadState({
@@ -312,7 +313,7 @@ export function DocumentInputConsole(props: { signedIn: boolean; currentUser: Cu
           setDetailState({ loading: false, traceId: detailResult.value.trace_id });
         } else {
           setImportDetail(null);
-          setDetailState({ loading: false, error: errorMessage(detailResult.reason, '导入详情加载失败') });
+          setDetailState({ loading: false, error: errorMessage(detailResult.reason, translate('auto.k0677')) });
         }
         if (candidateResult.status === 'fulfilled') {
           setCandidates(candidateResult.value.data.items);
@@ -321,14 +322,14 @@ export function DocumentInputConsole(props: { signedIn: boolean; currentUser: Cu
         } else {
           setCandidates([]);
           setCandidateDrafts({});
-          setCandidateState({ loading: false, error: errorMessage(candidateResult.reason, '候选需求加载失败') });
+          setCandidateState({ loading: false, error: errorMessage(candidateResult.reason, translate('auto.k0678')) });
         }
         if (publishRecordResult.status === 'fulfilled') {
           setPublishRecords(publishRecordResult.value.data.items);
           setPublishRecordState({ loading: false, traceId: publishRecordResult.value.trace_id });
         } else {
           setPublishRecords([]);
-          setPublishRecordState({ loading: false, error: errorMessage(publishRecordResult.reason, '发布记录加载失败') });
+          setPublishRecordState({ loading: false, error: errorMessage(publishRecordResult.reason, translate('auto.k0679')) });
         }
       })
       .catch((error: unknown) => {
@@ -336,9 +337,9 @@ export function DocumentInputConsole(props: { signedIn: boolean; currentUser: Cu
         setImportDetail(null);
         setCandidates([]);
         setPublishRecords([]);
-        setDetailState({ loading: false, error: errorMessage(error, '导入详情加载失败') });
-        setCandidateState({ loading: false, error: errorMessage(error, '候选需求加载失败') });
-        setPublishRecordState({ loading: false, error: errorMessage(error, '发布记录加载失败') });
+        setDetailState({ loading: false, error: errorMessage(error, translate('auto.k0677')) });
+        setCandidateState({ loading: false, error: errorMessage(error, translate('auto.k0678')) });
+        setPublishRecordState({ loading: false, error: errorMessage(error, translate('auto.k0679')) });
       });
 
     return () => {
@@ -364,7 +365,7 @@ export function DocumentInputConsole(props: { signedIn: boolean; currentUser: Cu
       .catch((error: unknown) => {
         if (!active) return;
         setSelectedEvent(null);
-        setEventDetailState({ loading: false, error: errorMessage(error, '事件详情加载失败') });
+        setEventDetailState({ loading: false, error: errorMessage(error, translate('auto.k0680')) });
       });
 
     return () => {
@@ -479,7 +480,7 @@ export function DocumentInputConsole(props: { signedIn: boolean; currentUser: Cu
       const traceId = await reloadCandidates(selectedImportId);
       setCandidateState({ loading: false, traceId });
     } catch (error: unknown) {
-      setCandidateState({ loading: false, error: errorMessage(error, '候选需求加载失败') });
+      setCandidateState({ loading: false, error: errorMessage(error, translate('auto.k0678')) });
     }
   }
 
@@ -498,21 +499,21 @@ export function DocumentInputConsole(props: { signedIn: boolean; currentUser: Cu
 
   async function refreshWebhookEvents() {
     if (!props.signedIn) {
-      setEventState({ loading: false, error: '请先登录后再查看事件日志' });
+      setEventState({ loading: false, error: translate('auto.k0681') });
       return;
     }
     setEventState({ loading: true });
     try {
       const traceId = await reloadWebhookEvents();
-      setEventState({ loading: false, success: '事件日志已刷新', traceId });
+      setEventState({ loading: false, success: translate('auto.k0682'), traceId });
     } catch (error: unknown) {
-      setEventState({ loading: false, error: errorMessage(error, '事件日志刷新失败') });
+      setEventState({ loading: false, error: errorMessage(error, translate('auto.k0683')) });
     }
   }
 
   async function checkSourceHealth(source: DocumentSourceView) {
     if (!props.signedIn || !source.id) {
-      setSourceHealthState({ loading: false, error: '请先选择文档源' });
+      setSourceHealthState({ loading: false, error: translate('auto.k0684') });
       return;
     }
 
@@ -520,24 +521,24 @@ export function DocumentInputConsole(props: { signedIn: boolean; currentUser: Cu
     try {
       const response = await fetchDocumentSourceHealth(source.id);
       setSourceHealth((current) => ({ ...current, [source.id]: response.data }));
-      setSourceHealthState({ loading: false, success: `${source.sourceCode ?? source.title} 健康检查完成`, traceId: response.trace_id });
+      setSourceHealthState({ loading: false, success: translate('auto.k0685', { value0: source.sourceCode ?? source.title }), traceId: response.trace_id });
     } catch (error: unknown) {
-      setSourceHealthState({ loading: false, error: errorMessage(error, '文档源健康检查失败') });
+      setSourceHealthState({ loading: false, error: errorMessage(error, translate('auto.k0686')) });
     }
   }
 
   async function submitSource(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!props.signedIn) {
-      setSourceState({ loading: false, error: '请先登录后再维护文档源' });
+      setSourceState({ loading: false, error: translate('auto.k0687') });
       return;
     }
     if (!canManageSources) {
-      setSourceState({ loading: false, error: '缺少 requirementInput:manage 权限' });
+      setSourceState({ loading: false, error: translate('auto.k0688') });
       return;
     }
     if (!sourceDraft.sourceCode.trim() || !sourceDraft.name.trim()) {
-      setSourceState({ loading: false, error: 'sourceCode 和名称不能为空' });
+      setSourceState({ loading: false, error: translate('auto.k0689') });
       return;
     }
 
@@ -563,28 +564,28 @@ export function DocumentInputConsole(props: { signedIn: boolean; currentUser: Cu
       const traceId = (await reloadSources()) || response.trace_id;
       setEditingSourceId('');
       setSourceDraft(initialSourceDraft);
-      setSourceState({ loading: false, success: editingSourceId ? '文档源已更新' : '文档源已创建', traceId });
+      setSourceState({ loading: false, success: editingSourceId ? translate('auto.k0690') : translate('auto.k0691'), traceId });
     } catch (error: unknown) {
-      setSourceState({ loading: false, error: errorMessage(error, '文档源保存失败') });
+      setSourceState({ loading: false, error: errorMessage(error, translate('auto.k0692')) });
     }
   }
 
   async function submitImport(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!props.signedIn) {
-      setImportState({ loading: false, error: '请先登录后再发起导入' });
+      setImportState({ loading: false, error: translate('auto.k0693') });
       return;
     }
     if (!canImportDocument) {
-      setImportState({ loading: false, error: '缺少 requirementInput:import 权限' });
+      setImportState({ loading: false, error: translate('auto.k0694') });
       return;
     }
     if (!importDraft.projectId.trim()) {
-      setImportState({ loading: false, error: 'projectId 不能为空' });
+      setImportState({ loading: false, error: translate('auto.k0695') });
       return;
     }
     if (!importDraft.content.trim() && !importFile) {
-      setImportState({ loading: false, error: '请选择文件或粘贴待解析的内容' });
+      setImportState({ loading: false, error: translate('auto.k0696') });
       return;
     }
 
@@ -605,25 +606,25 @@ export function DocumentInputConsole(props: { signedIn: boolean; currentUser: Cu
       const traceId = (await reloadImports()) || response.trace_id;
       setLastImportResult(response.data);
       setSelectedImportId(response.data.id);
-      setImportState({ loading: false, success: '导入任务已提交', traceId });
+      setImportState({ loading: false, success: translate('auto.k0697'), traceId });
     } catch (error: unknown) {
       try {
         await reloadImports();
       } catch {
         // Import failure detail is still available in the API error shown below.
       }
-      setImportState({ loading: false, error: errorMessage(error, '导入提交失败') });
+      setImportState({ loading: false, error: errorMessage(error, translate('auto.k0698')) });
     }
   }
 
   async function submitMapping(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!props.signedIn) {
-      setMappingState({ loading: false, error: '请先登录后再保存字段映射' });
+      setMappingState({ loading: false, error: translate('auto.k0699') });
       return;
     }
     if (!canManageSources) {
-      setMappingState({ loading: false, error: '缺少 requirementInput:manage 权限' });
+      setMappingState({ loading: false, error: translate('auto.k0688') });
       return;
     }
 
@@ -631,31 +632,31 @@ export function DocumentInputConsole(props: { signedIn: boolean; currentUser: Cu
     try {
       parsed = JSON.parse(mappingText || '{}');
     } catch {
-      setMappingState({ loading: false, error: '字段映射必须是合法 JSON' });
+      setMappingState({ loading: false, error: translate('auto.k0700') });
       return;
     }
 
     setMappingState({ loading: true });
     try {
       const response = await updateDocumentFieldMapping(parsed);
-      setMappingState({ loading: false, success: '字段映射已保存', traceId: response.trace_id });
+      setMappingState({ loading: false, success: translate('auto.k0701'), traceId: response.trace_id });
     } catch (error: unknown) {
-      setMappingState({ loading: false, error: errorMessage(error, '字段映射保存失败') });
+      setMappingState({ loading: false, error: errorMessage(error, translate('auto.k0702')) });
     }
   }
 
   async function saveCandidate(candidateId: string) {
     const draft = candidateDrafts[candidateId];
     if (!props.signedIn || !draft) {
-      setCandidateState({ loading: false, error: '请先登录后再维护候选需求' });
+      setCandidateState({ loading: false, error: translate('auto.k0703') });
       return;
     }
     if (!canReviewCandidates) {
-      setCandidateState({ loading: false, error: '缺少 requirementInput:candidate_review 权限' });
+      setCandidateState({ loading: false, error: translate('auto.k0704') });
       return;
     }
     if (!draft.title.trim()) {
-      setCandidateState({ loading: false, error: '候选标题不能为空' });
+      setCandidateState({ loading: false, error: translate('auto.k0705') });
       return;
     }
 
@@ -673,19 +674,19 @@ export function DocumentInputConsole(props: { signedIn: boolean; currentUser: Cu
       const response = await updateDocumentCandidate(candidateId, payload);
       setCandidates((current) => current.map((candidate) => (candidate.id === candidateId ? response.data : candidate)));
       setCandidateDrafts((current) => ({ ...current, [candidateId]: candidateDraftFromView(response.data, current[candidateId]?.ignoreReason) }));
-      setCandidateState({ loading: false, success: '候选需求已保存', traceId: response.trace_id });
+      setCandidateState({ loading: false, success: translate('auto.k0706'), traceId: response.trace_id });
     } catch (error: unknown) {
-      setCandidateState({ loading: false, error: errorMessage(error, '候选需求保存失败') });
+      setCandidateState({ loading: false, error: errorMessage(error, translate('auto.k0707')) });
     }
   }
 
   async function confirmCandidate(candidateId: string) {
     if (!props.signedIn) {
-      setCandidateState({ loading: false, error: '请先登录后再确认候选需求' });
+      setCandidateState({ loading: false, error: translate('auto.k0708') });
       return;
     }
     if (!canReviewCandidates) {
-      setCandidateState({ loading: false, error: '缺少 requirementInput:candidate_review 权限' });
+      setCandidateState({ loading: false, error: translate('auto.k0704') });
       return;
     }
 
@@ -697,24 +698,24 @@ export function DocumentInputConsole(props: { signedIn: boolean; currentUser: Cu
       );
       setCandidates((current) => current.map((candidate) => (candidate.id === candidateId ? response.data : candidate)));
       setCandidateDrafts((current) => ({ ...current, [candidateId]: candidateDraftFromView(response.data, current[candidateId]?.ignoreReason) }));
-      setCandidateState({ loading: false, success: '候选需求已确认', traceId: response.trace_id });
+      setCandidateState({ loading: false, success: translate('auto.k0709'), traceId: response.trace_id });
     } catch (error: unknown) {
-      setCandidateState({ loading: false, error: errorMessage(error, '候选需求确认失败') });
+      setCandidateState({ loading: false, error: errorMessage(error, translate('auto.k0710')) });
     }
   }
 
   async function ignoreCandidate(candidateId: string) {
     const reason = candidateDrafts[candidateId]?.ignoreReason.trim() || '';
     if (!props.signedIn) {
-      setCandidateState({ loading: false, error: '请先登录后再忽略候选需求' });
+      setCandidateState({ loading: false, error: translate('auto.k0711') });
       return;
     }
     if (!canReviewCandidates) {
-      setCandidateState({ loading: false, error: '缺少 requirementInput:candidate_review 权限' });
+      setCandidateState({ loading: false, error: translate('auto.k0704') });
       return;
     }
     if (!reason) {
-      setCandidateState({ loading: false, error: '忽略候选需求需要填写原因' });
+      setCandidateState({ loading: false, error: translate('auto.k0712') });
       return;
     }
 
@@ -727,27 +728,27 @@ export function DocumentInputConsole(props: { signedIn: boolean; currentUser: Cu
       );
       setCandidates((current) => current.map((candidate) => (candidate.id === candidateId ? response.data : candidate)));
       setCandidateDrafts((current) => ({ ...current, [candidateId]: candidateDraftFromView(response.data) }));
-      setCandidateState({ loading: false, success: '候选需求已忽略', traceId: response.trace_id });
+      setCandidateState({ loading: false, success: translate('auto.k0713'), traceId: response.trace_id });
     } catch (error: unknown) {
-      setCandidateState({ loading: false, error: errorMessage(error, '候选需求忽略失败') });
+      setCandidateState({ loading: false, error: errorMessage(error, translate('auto.k0714')) });
     }
   }
 
   async function batchCandidates(action: DocumentCandidateBatchAction) {
     if (!props.signedIn) {
-      setCandidateState({ loading: false, error: '请先登录后再批量处理候选需求' });
+      setCandidateState({ loading: false, error: translate('auto.k0715') });
       return;
     }
     if (!canReviewCandidates) {
-      setCandidateState({ loading: false, error: '缺少 requirementInput:candidate_review 权限' });
+      setCandidateState({ loading: false, error: translate('auto.k0704') });
       return;
     }
     if (selectedCandidateIds.length === 0) {
-      setCandidateState({ loading: false, error: '请先选择候选需求' });
+      setCandidateState({ loading: false, error: translate('auto.k0716') });
       return;
     }
     if (action === 'IGNORE' && !batchIgnoreReason.trim()) {
-      setCandidateState({ loading: false, error: '批量忽略需要填写原因' });
+      setCandidateState({ loading: false, error: translate('auto.k0717') });
       return;
     }
 
@@ -765,21 +766,21 @@ export function DocumentInputConsole(props: { signedIn: boolean; currentUser: Cu
       }
       setCandidateState({
         loading: false,
-        success: `批量${action === 'CONFIRM' ? '确认' : '忽略'}完成：${response.data.succeededCount} 成功，${response.data.failedCount} 失败`,
+        success: translate('auto.k0718', { value0: action === 'CONFIRM' ? translate('auto.k0807') : translate('auto.k0808'), value1: response.data.succeededCount, value2: response.data.failedCount }),
         traceId
       });
     } catch (error: unknown) {
-      setCandidateState({ loading: false, error: errorMessage(error, '候选需求批量处理失败') });
+      setCandidateState({ loading: false, error: errorMessage(error, translate('auto.k0719')) });
     }
   }
 
   async function publishImport(dryRun: boolean) {
     if (!props.signedIn || !selectedImportId) {
-      setPublishingState({ loading: false, error: '请先选择导入记录' });
+      setPublishingState({ loading: false, error: translate('auto.k0720') });
       return;
     }
     if (!canPublishCandidates) {
-      setPublishingState({ loading: false, error: '缺少 requirementInput:publish 权限' });
+      setPublishingState({ loading: false, error: translate('auto.k0721') });
       return;
     }
 
@@ -791,7 +792,7 @@ export function DocumentInputConsole(props: { signedIn: boolean; currentUser: Cu
       });
       setPublishPreview(response.data);
       if (dryRun) {
-        setPublishingState({ loading: false, success: '发布预检完成', traceId: response.trace_id });
+        setPublishingState({ loading: false, success: translate('auto.k0722'), traceId: response.trace_id });
         return;
       }
       const importView = importViewFromPublish(response.data);
@@ -800,19 +801,19 @@ export function DocumentInputConsole(props: { signedIn: boolean; currentUser: Cu
       await reloadImports();
       const candidateTraceId = await reloadCandidates(selectedImportId);
       const recordTraceId = await reloadPublishRecords(selectedImportId);
-      setPublishingState({ loading: false, success: '发布任务已提交，后台完成后刷新发布记录', traceId: recordTraceId || candidateTraceId || response.trace_id });
+      setPublishingState({ loading: false, success: translate('auto.k0723'), traceId: recordTraceId || candidateTraceId || response.trace_id });
     } catch (error: unknown) {
-      setPublishingState({ loading: false, error: errorMessage(error, '导入发布失败') });
+      setPublishingState({ loading: false, error: errorMessage(error, translate('auto.k0724')) });
     }
   }
 
   async function replaySelectedEvent() {
     if (!props.signedIn || !selectedEventId) {
-      setReplayState({ loading: false, error: '请先选择事件' });
+      setReplayState({ loading: false, error: translate('auto.k0725') });
       return;
     }
     if (!canReplayWebhook) {
-      setReplayState({ loading: false, error: '缺少 requirementInput:webhook_replay 权限' });
+      setReplayState({ loading: false, error: translate('auto.k0726') });
       return;
     }
 
@@ -821,9 +822,9 @@ export function DocumentInputConsole(props: { signedIn: boolean; currentUser: Cu
       const response = await replayWebhookEvent(selectedEventId);
       setSelectedEvent(response.data);
       await reloadWebhookEvents();
-      setReplayState({ loading: false, success: '事件已提交重放', traceId: response.trace_id });
+      setReplayState({ loading: false, success: translate('auto.k0727'), traceId: response.trace_id });
     } catch (error: unknown) {
-      setReplayState({ loading: false, error: errorMessage(error, '事件重放失败') });
+      setReplayState({ loading: false, error: errorMessage(error, translate('auto.k0728')) });
     }
   }
 
@@ -889,14 +890,13 @@ export function DocumentInputConsole(props: { signedIn: boolean; currentUser: Cu
               </div>
               <div>
                 <span className="eyebrow">Sources</span>
-                <h2>文档源管理</h2>
+                <h2>{translate('auto.k0729')}</h2>
               </div>
             </div>
             <div className="panel-toolbar-actions">
               <button className="secondary-button" type="button" disabled={!props.signedIn || loadState.loading} onClick={refreshAll}>
                 <RefreshCw size={16} />
-                刷新
-              </button>
+                {translate('auto.k0170')}</button>
             </div>
           </div>
 
@@ -913,13 +913,13 @@ export function DocumentInputConsole(props: { signedIn: boolean; currentUser: Cu
                 />
               </label>
               <label className="field" htmlFor="source-title">
-                <span>名称<b>*</b></span>
+                <span>{translate('auto.k0177')}<b>*</b></span>
                 <input
                   id="source-title"
                   value={sourceDraft.name}
                   disabled={sourceDisabled || sourceState.loading}
                   onChange={(event) => setSourceDraft((current) => ({ ...current, name: event.target.value }))}
-                  placeholder="支付需求入口"
+                  placeholder={translate('auto.k0730')}
                 />
               </label>
               <label className="field" htmlFor="source-type">
@@ -932,11 +932,11 @@ export function DocumentInputConsole(props: { signedIn: boolean; currentUser: Cu
                 >
                   {documentSourceTypeOptions.map((option) => (
                     <option key={option.value} value={option.value}>
-                      {option.label}{option.reserved ? ' / 预留' : ''}
+                      {option.label}{option.reserved ? translate('auto.k0731') : ''}
                     </option>
                   ))}
                 </select>
-                <small>{sourceTypeReserved ? '该类型为预留/未启用，仍可保存配置。' : '当前类型可直接接入。'}</small>
+                <small>{sourceTypeReserved ? translate('auto.k0732') : translate('auto.k0733')}</small>
               </label>
               <label className="field" htmlFor="source-status">
                 <span>status</span>
@@ -946,7 +946,7 @@ export function DocumentInputConsole(props: { signedIn: boolean; currentUser: Cu
                   disabled={sourceDisabled || sourceState.loading}
                   onChange={(event) => setSourceDraft((current) => ({ ...current, status: event.target.value }))}
                 >
-                  <option value="">后端默认</option>
+                  <option value="">{translate('auto.k0734')}</option>
                   <option value="ENABLED">ENABLED</option>
                   <option value="DISABLED">DISABLED</option>
                   <option value="PLANNED">PLANNED</option>
@@ -969,7 +969,7 @@ export function DocumentInputConsole(props: { signedIn: boolean; currentUser: Cu
                   value={sourceDraft.mappingId}
                   disabled={sourceDisabled || sourceState.loading}
                   onChange={(event) => setSourceDraft((current) => ({ ...current, mappingId: event.target.value }))}
-                  placeholder="默认字段映射"
+                  placeholder={translate('auto.k0735')}
                 />
               </label>
               <label className="field" htmlFor="source-secret-ref">
@@ -1020,7 +1020,7 @@ export function DocumentInputConsole(props: { signedIn: boolean; currentUser: Cu
                   value={sourceDraft.description}
                   disabled={sourceDisabled || sourceState.loading}
                   onChange={(event) => setSourceDraft((current) => ({ ...current, description: event.target.value }))}
-                  placeholder="入口用途或字段说明"
+                  placeholder={translate('auto.k0736')}
                 />
               </label>
             </div>
@@ -1031,12 +1031,11 @@ export function DocumentInputConsole(props: { signedIn: boolean; currentUser: Cu
                 disabled={sourceDisabled || sourceState.loading || !sourceDraft.sourceCode.trim() || !sourceDraft.name.trim()}
               >
                 <Save size={16} />
-                {editingSourceId ? '保存文档源' : '新增文档源'}
+                {editingSourceId ? translate('auto.k0737') : translate('auto.k0738')}
               </button>
               <button className="secondary-button" type="button" disabled={sourceState.loading} onClick={resetSourceDraft}>
                 <XCircle size={16} />
-                取消编辑
-              </button>
+                {translate('auto.k0739')}</button>
               <StateLine state={sourceState} />
             </div>
           </form>
@@ -1045,14 +1044,14 @@ export function DocumentInputConsole(props: { signedIn: boolean; currentUser: Cu
             <table>
               <thead>
                 <tr>
-                  <th>标题</th>
-                  <th>默认项目</th>
-                  <th>类型</th>
+                  <th>{translate('auto.k0440')}</th>
+                  <th>{translate('auto.k0740')}</th>
+                  <th>{translate('auto.k0286')}</th>
                   <th>Endpoint</th>
                   <th>Webhook</th>
-                  <th>状态</th>
-                  <th>健康</th>
-                  <th>操作</th>
+                  <th>{translate('auto.k0182')}</th>
+                  <th>{translate('auto.k0741')}</th>
+                  <th>{translate('auto.k0249')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -1074,7 +1073,7 @@ export function DocumentInputConsole(props: { signedIn: boolean; currentUser: Cu
                           {source.sourceType === 'CUSTOM_API' ? (
                             <div className="source-health-cell">
                               <span>{source.eventVersion ?? '1.0'}</span>
-                              <span>{source.secretRef ? 'secretRef 已配置' : 'secretRef 未配置'}</span>
+                              <span>{source.secretRef ? translate('auto.k0742') : translate('auto.k0743')}</span>
                               {source.mappingVersion && <span>{source.mappingVersion}</span>}
                             </div>
                           ) : (
@@ -1091,7 +1090,7 @@ export function DocumentInputConsole(props: { signedIn: boolean; currentUser: Cu
                               {healthView.message && <span>{healthView.message}</span>}
                             </div>
                           ) : (
-                            <span className="table-secondary">未检查</span>
+                            <span className="table-secondary">{translate('auto.k0744')}</span>
                           )}
                         </td>
                         <td>
@@ -1103,8 +1102,7 @@ export function DocumentInputConsole(props: { signedIn: boolean; currentUser: Cu
                               onClick={() => checkSourceHealth(source)}
                             >
                               <Activity size={14} />
-                              检查
-                            </button>
+                              {translate('auto.k0745')}</button>
                             <button
                               className="mini-button"
                               type="button"
@@ -1112,8 +1110,7 @@ export function DocumentInputConsole(props: { signedIn: boolean; currentUser: Cu
                               onClick={() => editSource(source)}
                             >
                               <Pencil size={14} />
-                              编辑
-                            </button>
+                              {translate('auto.k0746')}</button>
                           </div>
                         </td>
                       </tr>
@@ -1122,7 +1119,7 @@ export function DocumentInputConsole(props: { signedIn: boolean; currentUser: Cu
                 ) : (
                   <tr>
                     <td className="table-empty" colSpan={8}>
-                      {props.signedIn ? (loadState.loading ? '加载中' : '暂无文档源') : '请先登录'}
+                      {props.signedIn ? (loadState.loading ? translate('auto.k0168') : translate('auto.k0747')) : translate('auto.k0454')}
                     </td>
                   </tr>
                 )}
@@ -1139,7 +1136,7 @@ export function DocumentInputConsole(props: { signedIn: boolean; currentUser: Cu
             </div>
             <div>
               <span className="eyebrow">Import</span>
-              <h2>文本 / Word / PDF / OCR 导入</h2>
+              <h2>{translate('auto.k0748')}</h2>
             </div>
           </div>
 
@@ -1156,13 +1153,13 @@ export function DocumentInputConsole(props: { signedIn: boolean; currentUser: Cu
                 />
               </label>
               <label className="field" htmlFor="import-title">
-                <span>标题</span>
+                <span>{translate('auto.k0440')}</span>
                 <input
                   id="import-title"
                   value={importDraft.title}
                   disabled={importDisabled || importState.loading}
                   onChange={(event) => setImportDraft((current) => ({ ...current, title: event.target.value }))}
-                  placeholder="支付需求 Markdown 导入"
+                  placeholder={translate('auto.k0749')}
                 />
               </label>
               <label className="field" htmlFor="import-source-type">
@@ -1175,11 +1172,11 @@ export function DocumentInputConsole(props: { signedIn: boolean; currentUser: Cu
                 >
                   {documentSourceTypeOptions.map((option) => (
                     <option key={option.value} value={option.value}>
-                      {option.label}{option.reserved ? ' / 预留' : ''}
+                      {option.label}{option.reserved ? translate('auto.k0731') : ''}
                     </option>
                   ))}
                 </select>
-                <small>{importTypeReserved ? '该类型为预留/未启用，提交后以后端能力为准。' : '可提交纯文本、base64 或 data URL。'}</small>
+                <small>{importTypeReserved ? translate('auto.k0750') : translate('auto.k0751')}</small>
               </label>
               <label className="field" htmlFor="import-source-ref">
                 <span>sourceRef</span>
@@ -1218,7 +1215,7 @@ export function DocumentInputConsole(props: { signedIn: boolean; currentUser: Cu
                   value={importDraft.mappingId}
                   disabled={importDisabled || importState.loading}
                   onChange={(event) => setImportDraft((current) => ({ ...current, mappingId: event.target.value }))}
-                  placeholder="默认字段映射"
+                  placeholder={translate('auto.k0735')}
                 />
               </label>
             </div>
@@ -1229,11 +1226,11 @@ export function DocumentInputConsole(props: { signedIn: boolean; currentUser: Cu
                 value={importDraft.content}
                 disabled={importDisabled || importState.loading || importFile !== null}
                 onChange={(event) => setImportDraft((current) => ({ ...current, content: event.target.value }))}
-                placeholder="# 需求标题&#10;&#10;- 用户可以...&#10;- 系统需要...&#10;&#10;也可以选择真实 Word/PDF/图片文件上传。"
+                placeholder={translate('auto.k0752')}
               />
             </label>
             <label className="field document-upload-field" htmlFor="import-file">
-              <span>真实文件上传</span>
+              <span>{translate('auto.k0753')}</span>
               <input
                 id="import-file"
                 type="file"
@@ -1244,7 +1241,7 @@ export function DocumentInputConsole(props: { signedIn: boolean; currentUser: Cu
               <small>
                 {importFile
                   ? `${importFile.name} · ${formatBytes(importFile.size)}`
-                  : '选择文件后将按 multipart/form-data 上传。'}
+                  : translate('auto.k0754')}
               </small>
             </label>
             <div className="document-actions">
@@ -1259,8 +1256,7 @@ export function DocumentInputConsole(props: { signedIn: boolean; currentUser: Cu
                 }
               >
                 <Upload size={16} />
-                发起导入
-              </button>
+                {translate('auto.k0755')}</button>
               {importFile && (
                 <button
                   className="secondary-button"
@@ -1269,8 +1265,7 @@ export function DocumentInputConsole(props: { signedIn: boolean; currentUser: Cu
                   onClick={() => setImportFile(null)}
                 >
                   <XCircle size={16} />
-                  清除文件
-                </button>
+                  {translate('auto.k0756')}</button>
               )}
               <StateLine state={importState} />
             </div>
@@ -1293,7 +1288,7 @@ export function DocumentInputConsole(props: { signedIn: boolean; currentUser: Cu
             </div>
             <div>
               <span className="eyebrow">Field Mapping</span>
-              <h2>字段映射</h2>
+              <h2>{translate('auto.k0757')}</h2>
             </div>
           </div>
           <form className="document-form" onSubmit={submitMapping}>
@@ -1313,8 +1308,7 @@ export function DocumentInputConsole(props: { signedIn: boolean; currentUser: Cu
             <div className="document-actions">
               <button className="primary-button" type="submit" disabled={sourceDisabled || mappingState.loading}>
                 <Save size={16} />
-                保存字段映射
-              </button>
+                {translate('auto.k0758')}</button>
               <StateLine state={mappingState} />
             </div>
           </form>
@@ -1323,36 +1317,36 @@ export function DocumentInputConsole(props: { signedIn: boolean; currentUser: Cu
 
       <aside className="side-stack document-side-stack">
         <section className="panel insight-panel">
-          <h2>WP4 接口状态</h2>
+          <h2>{translate('auto.k0759')}</h2>
           <div className="document-health-grid">
-            <StatusMetric label="服务" value={health?.service ?? 'document-input'} />
-            <StatusMetric label="状态" value={health?.status ?? (props.signedIn ? '等待响应' : '等待登录')} pill />
-            <StatusMetric label="可用源" value={String(sourceSummary.enabled)} />
-            <StatusMetric label="预留源" value={String(sourceSummary.reserved)} />
-            <StatusMetric label="输入开关" value={health?.inputEnabled === false ? 'OFF' : 'ON'} pill />
+            <StatusMetric label={translate('auto.k0427')} value={health?.service ?? 'document-input'} />
+            <StatusMetric label={translate('auto.k0182')} value={health?.status ?? (props.signedIn ? translate('auto.k0428') : translate('auto.k0429'))} pill />
+            <StatusMetric label={translate('auto.k0760')} value={String(sourceSummary.enabled)} />
+            <StatusMetric label={translate('auto.k0761')} value={String(sourceSummary.reserved)} />
+            <StatusMetric label={translate('auto.k0762')} value={health?.inputEnabled === false ? 'OFF' : 'ON'} pill />
             <StatusMetric label="Webhook" value={health?.webhookEnabled === false ? 'OFF' : 'ON'} pill />
-            <StatusMetric label="模型解析" value={health?.modelParseEnabled ? 'ON' : 'OFF'} pill />
+            <StatusMetric label={translate('auto.k0763')} value={health?.modelParseEnabled ? 'ON' : 'OFF'} pill />
             <StatusMetric label="Payload" value={formatBytes(health?.webhookMaxPayloadBytes)} />
-            <StatusMetric label="导入上限" value={formatBytes(health?.importMaxContentBytes)} />
-            <StatusMetric label="文件上限" value={formatBytes(health?.documentBinaryMaxBytes)} />
+            <StatusMetric label={translate('auto.k0764')} value={formatBytes(health?.importMaxContentBytes)} />
+            <StatusMetric label={translate('auto.k0765')} value={formatBytes(health?.documentBinaryMaxBytes)} />
             <StatusMetric label="OCR" value={health?.ocrConfigured ? 'READY' : 'OFF'} pill />
             <StatusMetric label="OCR Worker" value={health?.ocrWorkerMode ?? '-'} pill />
             <StatusMetric label="OCR worker endpoint" value={health?.ocrRemoteWorkerConfigured ? 'ON' : 'OFF'} pill />
             <StatusMetric label="OCR worker token" value={health?.ocrWorkerTokenConfigured ? 'SET' : 'OFF'} pill />
-            <StatusMetric label="OCR 本地执行" value={health?.ocrLocalCommandExecutionAllowed ? 'ON' : 'OFF'} pill />
+            <StatusMetric label={translate('auto.k0766')} value={health?.ocrLocalCommandExecutionAllowed ? 'ON' : 'OFF'} pill />
             <StatusMetric label="OCR fallback" value={health?.ocrLocalCommandFallbackEnabled ? 'ON' : 'OFF'} pill />
-            <StatusMetric label="OCR 并发" value={`${health?.ocrAvailablePermits ?? '-'} / ${health?.ocrMaxConcurrentProcesses ?? '-'}`} />
-            <StatusMetric label="OCR 超时" value={health?.ocrTimeoutSeconds ? `${health.ocrTimeoutSeconds}s` : '-'} />
+            <StatusMetric label={translate('auto.k0767')} value={`${health?.ocrAvailablePermits ?? '-'} / ${health?.ocrMaxConcurrentProcesses ?? '-'}`} />
+            <StatusMetric label={translate('auto.k0768')} value={health?.ocrTimeoutSeconds ? `${health.ocrTimeoutSeconds}s` : '-'} />
             <StatusMetric label="SecretProvider" value={health?.externalSecretProvider?.status ?? '-'} pill />
-            <StatusMetric label="Secret 缓存" value={health?.webhookSecretCacheEnabled ? 'ON' : 'OFF'} pill />
-            <StatusMetric label="缓存 TTL" value={secondsLabel(health?.webhookSecretCacheTtlSeconds)} />
-            <StatusMetric label="轮换窗口" value={secondsLabel(health?.webhookSecretRotationOverlapSeconds)} />
-            <StatusMetric label="缓存数" value={String(health?.webhookSecretCacheSize ?? '-')} />
-            <StatusMetric label="批量上限" value={String(health?.batchActionLimit ?? '-')} />
+            <StatusMetric label={translate('auto.k0769')} value={health?.webhookSecretCacheEnabled ? 'ON' : 'OFF'} pill />
+            <StatusMetric label={translate('auto.k0770')} value={secondsLabel(health?.webhookSecretCacheTtlSeconds)} />
+            <StatusMetric label={translate('auto.k0771')} value={secondsLabel(health?.webhookSecretRotationOverlapSeconds)} />
+            <StatusMetric label={translate('auto.k0772')} value={String(health?.webhookSecretCacheSize ?? '-')} />
+            <StatusMetric label={translate('auto.k0773')} value={String(health?.batchActionLimit ?? '-')} />
           </div>
           {loadState.error && (
             <div className="inline-error">
-              <strong>同步失败</strong>
+              <strong>{translate('auto.k0148')}</strong>
               <span>{loadState.error}</span>
             </div>
           )}
@@ -1361,7 +1355,7 @@ export function DocumentInputConsole(props: { signedIn: boolean; currentUser: Cu
 
         <section className="panel insight-panel document-history-panel">
           <div className="panel-title-row">
-            <h2>导入历史</h2>
+            <h2>{translate('auto.k0774')}</h2>
             <History size={18} />
           </div>
           <div className="document-history-list">
@@ -1380,7 +1374,7 @@ export function DocumentInputConsole(props: { signedIn: boolean; currentUser: Cu
                   </span>
                   <span>
                     <DocumentStatusPill value={item.status} />
-                    <em>{item.requirementCount} 条</em>
+                    <em>{item.requirementCount} {translate('auto.k0181')}</em>
                   </span>
                 </button>
               ))
@@ -1388,8 +1382,8 @@ export function DocumentInputConsole(props: { signedIn: boolean; currentUser: Cu
               <div className="empty-state compact">
                 <History size={20} />
                 <div>
-                  <strong>{props.signedIn ? '暂无导入历史' : '等待登录'}</strong>
-                  <span>{props.signedIn ? '导入完成后会显示状态和需求数量' : '登录后加载导入记录'}</span>
+                  <strong>{props.signedIn ? translate('auto.k0775') : translate('auto.k0429')}</strong>
+                  <span>{props.signedIn ? translate('auto.k0776') : translate('auto.k0777')}</span>
                 </div>
               </div>
             )}
@@ -1398,7 +1392,7 @@ export function DocumentInputConsole(props: { signedIn: boolean; currentUser: Cu
 
         <section className="panel insight-panel">
           <div className="panel-title-row">
-            <h2>导入详情</h2>
+            <h2>{translate('auto.k0778')}</h2>
             <div className="panel-title-actions">
               <button className="mini-button" type="button" disabled={!props.signedIn || !canPublishCandidates || !selectedImportId || publishingState.loading} onClick={() => publishImport(true)}>
                 <Eye size={14} />
@@ -1406,8 +1400,7 @@ export function DocumentInputConsole(props: { signedIn: boolean; currentUser: Cu
               </button>
               <button className="mini-button" type="button" disabled={!props.signedIn || !canPublishCandidates || !selectedImportId || publishingState.loading} onClick={() => publishImport(false)}>
                 <Send size={14} />
-                发布
-              </button>
+                {translate('auto.k0779')}</button>
               <FileText size={18} />
             </div>
           </div>
@@ -1415,7 +1408,7 @@ export function DocumentInputConsole(props: { signedIn: boolean; currentUser: Cu
             <div className="document-detail-list">
               <strong>{importDetail.title}</strong>
               <div>
-                <span>状态</span>
+                <span>{translate('auto.k0182')}</span>
                 <DocumentStatusPill value={importDetail.status} />
               </div>
               <div>
@@ -1427,37 +1420,37 @@ export function DocumentInputConsole(props: { signedIn: boolean; currentUser: Cu
                 <em>{importDetail.requirementCount}</em>
               </div>
               <div>
-                <span>来源</span>
+                <span>{translate('auto.k0179')}</span>
                 <em>{importDetail.sourceUrl || importDetail.sourceRef || sourceTypeLabel(importDetail.sourceType)}</em>
               </div>
               {importDetail.errorMessage && (
                 <div>
-                  <span>错误</span>
+                  <span>{translate('auto.k0780')}</span>
                   <FailureHint message={importDetail.errorMessage} />
                 </div>
               )}
               {importDetail.requirements && importDetail.requirements.length > 0 && (
                 <div className="document-requirement-preview">
-                  <span>解析需求</span>
+                  <span>{translate('auto.k0781')}</span>
                   {importDetail.requirements.slice(0, 5).map((requirement, index) => (
                     <em key={requirement.id ?? `${requirement.title}-${index}`}>
-                      {[requirement.title ?? requirement.id ?? `需求 ${index + 1}`, requirement.parseSource].filter(Boolean).join(' · ')}
+                      {[requirement.title ?? requirement.id ?? translate('auto.k0782', { value0: index + 1 }), requirement.parseSource].filter(Boolean).join(' · ')}
                     </em>
                   ))}
                 </div>
               )}
               {publishPreview && (
                 <div className="document-publish-summary">
-                  <strong>{publishPreview.dryRun ? '发布预检' : '发布结果'}</strong>
+                  <strong>{publishPreview.dryRun ? translate('auto.k0783') : translate('auto.k0784')}</strong>
                   <div className="document-publish-metrics">
-                    <StatusMetric label="计划创建" value={String(publishPreview.plannedCreateCount)} />
-                    <StatusMetric label="计划更新" value={String(publishPreview.plannedUpdateCount)} />
-                    <StatusMetric label="已关联" value={String(publishPreview.linkedExistingCount)} />
-                    <StatusMetric label="冲突" value={String(publishPreview.conflictCount)} />
-                    <StatusMetric label="跳过" value={String(publishPreview.skippedCount)} />
-                    <StatusMetric label="失败" value={String(publishPreview.publishFailedCount)} />
+                    <StatusMetric label={translate('auto.k0785')} value={String(publishPreview.plannedCreateCount)} />
+                    <StatusMetric label={translate('auto.k0786')} value={String(publishPreview.plannedUpdateCount)} />
+                    <StatusMetric label={translate('auto.k0787')} value={String(publishPreview.linkedExistingCount)} />
+                    <StatusMetric label={translate('auto.k0788')} value={String(publishPreview.conflictCount)} />
+                    <StatusMetric label={translate('auto.k0789')} value={String(publishPreview.skippedCount)} />
+                    <StatusMetric label={translate('auto.k0369')} value={String(publishPreview.publishFailedCount)} />
                   </div>
-                  {selectedCandidateIds.length > 0 && <span className="table-secondary">已按 {selectedCandidateIds.length} 个候选项过滤</span>}
+                  {selectedCandidateIds.length > 0 && <span className="table-secondary">{translate('auto.k0790')}{selectedCandidateIds.length} {translate('auto.k0791')}</span>}
                   {publishPreview.records.length > 0 && (
                     <div className="document-publish-records compact">
                       {publishPreview.records.slice(0, 5).map((record) => (
@@ -1469,7 +1462,7 @@ export function DocumentInputConsole(props: { signedIn: boolean; currentUser: Cu
               )}
               {publishRecords.length > 0 && (
                 <div className="document-publish-records">
-                  <strong>发布记录</strong>
+                  <strong>{translate('auto.k0792')}</strong>
                   {publishRecords.slice(0, 8).map((record) => (
                     <PublishRecordRow key={`${record.candidateId}-${record.version}`} record={record} />
                   ))}
@@ -1483,8 +1476,8 @@ export function DocumentInputConsole(props: { signedIn: boolean; currentUser: Cu
             <div className="empty-state compact">
               <FileText size={20} />
               <div>
-                <strong>{detailState.loading ? '正在加载详情' : '未选择导入'}</strong>
-                <span>{detailState.error ?? '从导入历史中选择一条记录查看详情'}</span>
+                <strong>{detailState.loading ? translate('auto.k0437') : translate('auto.k0793')}</strong>
+                <span>{detailState.error ?? translate('auto.k0794')}</span>
               </div>
             </div>
           )}
@@ -1492,7 +1485,7 @@ export function DocumentInputConsole(props: { signedIn: boolean; currentUser: Cu
 
         <section className="panel insight-panel document-candidate-panel">
           <div className="panel-title-row">
-            <h2>候选需求</h2>
+            <h2>{translate('auto.k0795')}</h2>
             <span className="document-count-badge">{candidates.length}</span>
           </div>
           {selectedImportId && (
@@ -1501,9 +1494,9 @@ export function DocumentInputConsole(props: { signedIn: boolean; currentUser: Cu
                 value={candidateFilters.status}
                 disabled={candidateState.loading}
                 onChange={(event) => setCandidateFilters((current) => ({ ...current, status: event.target.value }))}
-                aria-label="候选状态筛选"
+                aria-label={translate('auto.k0796')}
               >
-                <option value="">全部状态</option>
+                <option value="">{translate('auto.k0367')}</option>
                 <option value="PENDING">PENDING</option>
                 <option value="CONFIRMED">CONFIRMED</option>
                 <option value="IGNORED">IGNORED</option>
@@ -1524,7 +1517,7 @@ export function DocumentInputConsole(props: { signedIn: boolean; currentUser: Cu
                 value={candidateFilters.keyword}
                 disabled={candidateState.loading}
                 onChange={(event) => setCandidateFilters((current) => ({ ...current, keyword: event.target.value }))}
-                placeholder="标题 / 描述 / 外部ID"
+                placeholder={translate('auto.k0797')}
               />
               <button
                 className="mini-button"
@@ -1533,8 +1526,7 @@ export function DocumentInputConsole(props: { signedIn: boolean; currentUser: Cu
                 onClick={() => void refreshCandidates()}
               >
                 <RefreshCw size={14} />
-                刷新
-              </button>
+                {translate('auto.k0170')}</button>
               <button
                 className="mini-button"
                 type="button"
@@ -1542,8 +1534,7 @@ export function DocumentInputConsole(props: { signedIn: boolean; currentUser: Cu
                 onClick={() => setCandidateFilters(initialCandidateFilters)}
               >
                 <XCircle size={14} />
-                清空
-              </button>
+                {translate('auto.k0416')}</button>
             </div>
           )}
           {candidates.length > 0 && (
@@ -1556,14 +1547,14 @@ export function DocumentInputConsole(props: { signedIn: boolean; currentUser: Cu
                   disabled={candidateDisabled || candidateState.loading}
                   onChange={() => toggleAllCandidates()}
                 />
-                <span>当前页</span>
+                <span>{translate('auto.k0798')}</span>
               </label>
-              <span className="table-secondary">已选 {selectedCandidateIds.length}</span>
+              <span className="table-secondary">{translate('auto.k0799')}{selectedCandidateIds.length}</span>
               <input
                 value={batchIgnoreReason}
                 disabled={candidateDisabled || candidateState.loading}
                 onChange={(event) => setBatchIgnoreReason(event.target.value)}
-                placeholder="批量忽略原因"
+                placeholder={translate('auto.k0800')}
               />
               <button
                 className="mini-button"
@@ -1572,8 +1563,7 @@ export function DocumentInputConsole(props: { signedIn: boolean; currentUser: Cu
                 onClick={() => batchCandidates('CONFIRM')}
               >
                 <ListChecks size={14} />
-                批量确认
-              </button>
+                {translate('auto.k0801')}</button>
               <button
                 className="mini-button"
                 type="button"
@@ -1581,8 +1571,7 @@ export function DocumentInputConsole(props: { signedIn: boolean; currentUser: Cu
                 onClick={() => batchCandidates('IGNORE')}
               >
                 <XCircle size={14} />
-                批量忽略
-              </button>
+                {translate('auto.k0802')}</button>
             </div>
           )}
           <div className="document-candidate-list">
@@ -1605,7 +1594,7 @@ export function DocumentInputConsole(props: { signedIn: boolean; currentUser: Cu
                       {typeof candidate.confidence === 'number' && <span>{Math.round(candidate.confidence * 100)}%</span>}
                     </div>
                     <label className="field" htmlFor={`candidate-title-${candidate.id}`}>
-                      <span>标题</span>
+                      <span>{translate('auto.k0440')}</span>
                       <input
                         id={`candidate-title-${candidate.id}`}
                         value={draft.title}
@@ -1614,7 +1603,7 @@ export function DocumentInputConsole(props: { signedIn: boolean; currentUser: Cu
                       />
                     </label>
                     <label className="field" htmlFor={`candidate-priority-${candidate.id}`}>
-                      <span>优先级</span>
+                      <span>{translate('auto.k0419')}</span>
                       <input
                         id={`candidate-priority-${candidate.id}`}
                         value={draft.priority}
@@ -1624,7 +1613,7 @@ export function DocumentInputConsole(props: { signedIn: boolean; currentUser: Cu
                       />
                     </label>
                     <label className="field" htmlFor={`candidate-description-${candidate.id}`}>
-                      <span>描述</span>
+                      <span>{translate('auto.k0443')}</span>
                       <textarea
                         id={`candidate-description-${candidate.id}`}
                         className="compact-textarea"
@@ -1634,7 +1623,7 @@ export function DocumentInputConsole(props: { signedIn: boolean; currentUser: Cu
                       />
                     </label>
                     <label className="field" htmlFor={`candidate-acceptance-${candidate.id}`}>
-                      <span>验收标准</span>
+                      <span>{translate('auto.k0650')}</span>
                       <textarea
                         id={`candidate-acceptance-${candidate.id}`}
                         className="compact-textarea"
@@ -1644,7 +1633,7 @@ export function DocumentInputConsole(props: { signedIn: boolean; currentUser: Cu
                       />
                     </label>
                     <label className="field" htmlFor={`candidate-tags-${candidate.id}`}>
-                      <span>标签</span>
+                      <span>{translate('auto.k0803')}</span>
                       <input
                         id={`candidate-tags-${candidate.id}`}
                         value={draft.tags}
@@ -1683,28 +1672,25 @@ export function DocumentInputConsole(props: { signedIn: boolean; currentUser: Cu
                       </div>
                     )}
                     <label className="field" htmlFor={`candidate-ignore-${candidate.id}`}>
-                      <span>忽略原因</span>
+                      <span>{translate('auto.k0804')}</span>
                       <input
                         id={`candidate-ignore-${candidate.id}`}
                         value={draft.ignoreReason}
                         disabled={candidateDisabled || candidateState.loading}
                         onChange={(event) => updateCandidateDraft(candidate.id, { ignoreReason: event.target.value })}
-                        placeholder="重复、非需求、需人工拆分"
+                        placeholder={translate('auto.k0805')}
                       />
                     </label>
                     <div className="document-actions candidate-actions">
                       <button className="mini-button" type="button" disabled={candidateDisabled || candidateState.loading || !draft.title.trim()} onClick={() => saveCandidate(candidate.id)}>
                         <Save size={14} />
-                        保存
-                      </button>
+                        {translate('auto.k0806')}</button>
                       <button className="mini-button" type="button" disabled={candidateDisabled || candidateState.loading} onClick={() => confirmCandidate(candidate.id)}>
                         <CheckCircle2 size={14} />
-                        确认
-                      </button>
+                        {translate('auto.k0807')}</button>
                       <button className="mini-button" type="button" disabled={candidateDisabled || candidateState.loading} onClick={() => ignoreCandidate(candidate.id)}>
                         <XCircle size={14} />
-                        忽略
-                      </button>
+                        {translate('auto.k0808')}</button>
                     </div>
                   </article>
                 );
@@ -1713,8 +1699,8 @@ export function DocumentInputConsole(props: { signedIn: boolean; currentUser: Cu
               <div className="empty-state compact">
                 <FileText size={20} />
                 <div>
-                  <strong>{candidateState.loading ? '正在加载候选需求' : '暂无候选需求'}</strong>
-                  <span>{candidateState.error ?? '选择导入记录后会显示解析候选'}</span>
+                  <strong>{candidateState.loading ? translate('auto.k0809') : translate('auto.k0810')}</strong>
+                  <span>{candidateState.error ?? translate('auto.k0811')}</span>
                 </div>
               </div>
             )}
@@ -1724,11 +1710,10 @@ export function DocumentInputConsole(props: { signedIn: boolean; currentUser: Cu
 
         <section className="panel insight-panel document-webhook-panel">
           <div className="panel-title-row">
-            <h2>Webhook 事件</h2>
+            <h2>{translate('auto.k0812')}</h2>
             <button className="mini-button" type="button" disabled={!props.signedIn || eventState.loading} onClick={refreshWebhookEvents}>
               <RefreshCw size={14} />
-              刷新
-            </button>
+              {translate('auto.k0170')}</button>
           </div>
           <div className="webhook-filter-grid">
             <label className="field" htmlFor="webhook-source-id-filter">
@@ -1769,7 +1754,7 @@ export function DocumentInputConsole(props: { signedIn: boolean; currentUser: Cu
                 disabled={!props.signedIn || eventState.loading}
                 onChange={(event) => setEventFilters((current) => ({ ...current, status: event.target.value }))}
               >
-                <option value="">全部</option>
+                <option value="">{translate('auto.k0195')}</option>
                 <option value="FAILED">FAILED</option>
                 <option value="PROCESSING">PROCESSING</option>
                 <option value="PROCESSED">PROCESSED</option>
@@ -1801,8 +1786,8 @@ export function DocumentInputConsole(props: { signedIn: boolean; currentUser: Cu
               <div className="empty-state compact">
                 <Webhook size={20} />
                 <div>
-                  <strong>{eventState.loading ? '正在加载事件' : '暂无事件日志'}</strong>
-                  <span>{eventState.error ?? 'Webhook 收到事件后会显示状态和重放入口'}</span>
+                  <strong>{eventState.loading ? translate('auto.k0813') : translate('auto.k0814')}</strong>
+                  <span>{eventState.error ?? translate('auto.k0815')}</span>
                 </div>
               </div>
             )}
@@ -1857,14 +1842,13 @@ export function DocumentInputConsole(props: { signedIn: boolean; currentUser: Cu
               )}
               {selectedEvent.errorMessage && (
                 <div>
-                  <span>错误</span>
+                  <span>{translate('auto.k0780')}</span>
                   <FailureHint message={selectedEvent.errorMessage} />
                 </div>
               )}
             <button className="mini-button" type="button" disabled={!props.signedIn || !canReplayWebhook || replayState.loading} onClick={replaySelectedEvent}>
                 <RotateCcw size={14} />
-                重放事件
-              </button>
+                {translate('auto.k0816')}</button>
             </div>
           )}
           <StateLine state={eventState} />
@@ -1997,7 +1981,7 @@ function PublishRecordRow(props: { record: DocumentPublishRecordView }) {
         <em>{props.record.action} · {props.record.candidateId}</em>
       </span>
       <DocumentStatusPill value={props.record.result || props.record.candidateStatus} />
-      {props.record.diffSummary && <em>差异：{props.record.diffSummary}</em>}
+      {props.record.diffSummary && <em>{translate('auto.k0817')}{props.record.diffSummary}</em>}
       {props.record.errorMessage && <FailureHint message={props.record.errorMessage} />}
     </div>
   );
@@ -2012,14 +1996,14 @@ function SourceTypeBadge(props: { type: DocumentSourceType }) {
   return (
     <span className={`source-type-badge ${isReservedSourceType(props.type) ? 'reserved' : 'ready'}`}>
       {sourceTypeLabel(props.type)}
-      <em>{isReservedSourceType(props.type) ? '预留/未启用' : '可用'}</em>
+      <em>{isReservedSourceType(props.type) ? translate('auto.k0818') : translate('auto.k0819')}</em>
     </span>
   );
 }
 
 function DocumentStatusPill(props: { value: string }) {
   const normalized = props.value.toUpperCase();
-  const positive = ['UP', 'ON', 'OK', 'SUCCESS', 'SUCCEEDED', 'COMPLETED', 'DONE', 'ENABLED', 'ACTIVE', 'CONFIRMED', 'PUBLISHED', 'VALID', '可用', '成功'];
+  const positive = ['UP', 'ON', 'OK', 'SUCCESS', 'SUCCEEDED', 'COMPLETED', 'DONE', 'ENABLED', 'ACTIVE', 'CONFIRMED', 'PUBLISHED', 'VALID', translate('auto.k0819'), translate('auto.k0368')];
   const pending = [
     'PENDING',
     'RUNNING',
@@ -2034,9 +2018,9 @@ function DocumentStatusPill(props: { value: string }) {
     'REPLAYING',
     'PLANNED',
     'DEGRADED',
-    '预留/未启用'
+    translate('auto.k0818')
   ];
-  const negative = ['DOWN', 'OFF', 'FAILED', 'ERROR', 'DISABLED', 'CANCELED', 'IGNORED', 'INVALID', 'CONFLICT', '异常', '失败'];
+  const negative = ['DOWN', 'OFF', 'FAILED', 'ERROR', 'DISABLED', 'CANCELED', 'IGNORED', 'INVALID', 'CONFLICT', translate('auto.k0094'), translate('auto.k0369')];
   const tone = positive.includes(normalized) || positive.includes(props.value)
     ? 'positive'
     : pending.includes(normalized) || pending.includes(props.value)
@@ -2058,7 +2042,7 @@ function StatusMetric(props: { label: string; value: string; pill?: boolean }) {
 
 function StateLine(props: { state: WorkState }) {
   if (props.state.loading) {
-    return <span className="document-state-line">提交中</span>;
+    return <span className="document-state-line">{translate('auto.k0820')}</span>;
   }
   if (props.state.error) {
     return <span className="document-state-line error">{props.state.error}</span>;
@@ -2079,9 +2063,9 @@ function sourceStatus(source: DocumentSourceView) {
     return source.status;
   }
   if (source.enabled === false || isReservedSourceType(source.sourceType)) {
-    return '预留/未启用';
+    return translate('auto.k0818');
   }
-  return '可用';
+  return translate('auto.k0819');
 }
 
 function errorMessage(error: unknown, fallback: string) {

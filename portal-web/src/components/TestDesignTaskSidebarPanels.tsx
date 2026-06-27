@@ -22,6 +22,7 @@ import {
 import { StateLine, type WorkState } from './TestDesignOverviewPanels';
 import { GenerationSourceBadge } from './TestDesignWorkbenchShared';
 import { taskGenerationSource } from '../testDesignGenerationSource';
+import { translate } from '../platform/i18n';
 
 export function TestDesignGenerationConfigPanel(props: {
   canGenerate: boolean;
@@ -44,68 +45,68 @@ export function TestDesignGenerationConfigPanel(props: {
     <section className="panel">
       <div className="panel-header compact">
         <div>
-          <h2 className="panel-title">生成配置</h2>
-          <p className="panel-desc">当前选择 {props.selectedRequirementCount} 个需求。</p>
+          <h2 className="panel-title">{translate('auto.k1600')}</h2>
+          <p className="panel-desc">{translate('auto.k1601')}{props.selectedRequirementCount} {translate('auto.k1602')}</p>
         </div>
       </div>
       <div className="panel-body compact">
         <form className="main-stack" onSubmit={props.onCreateTask}>
           <label className="field">
-            <span className="field-label">生成模板</span>
+            <span className="field-label">{translate('auto.k1603')}</span>
             <select value={draft.templateId} onChange={(event) => props.onSelectGenerationTemplate(event.target.value)} disabled={!props.canGenerate || props.mutationState.loading || props.templateState.loading}>
-              <option value="">手动配置</option>
+              <option value="">{translate('auto.k1604')}</option>
               {props.templates.filter((template) => template.enabled).map((template) => (
                 <option key={template.id} value={template.id}>
-                  {template.projectId ? '项目' : '全局'} · {template.name}
+                  {template.projectId ? translate('auto.k0176') : translate('auto.k1605')} · {template.name}
                 </option>
               ))}
             </select>
             <span className="field-hint">
               {props.selectedGenerationTemplate
                 ? `${props.selectedGenerationTemplate.promptKey}@${props.selectedGenerationTemplate.promptVersion} · ${props.selectedGenerationTemplate.generationStrategy}/${props.selectedGenerationTemplate.coverageStrategy}`
-                : '不选择模板时使用手动参数或平台默认值。'}
+                : translate('auto.k1606')}
             </span>
           </label>
           <label className="field">
-            <span className="field-label">项目 ID</span>
+            <span className="field-label">{translate('auto.k1389')}</span>
             <input value={draft.projectId} onChange={(event) => props.onGenerationDraftChange((current) => ({ ...current, projectId: event.target.value }))} placeholder="project UUID" disabled={!props.canGenerate || props.mutationState.loading} />
           </label>
           <label className="field">
-            <span className="field-label">任务标题</span>
-            <input value={draft.title} onChange={(event) => props.onGenerationDraftChange((current) => ({ ...current, title: event.target.value }))} placeholder="登录模块用例生成" disabled={!props.canGenerate || props.mutationState.loading} />
+            <span className="field-label">{translate('auto.k1607')}</span>
+            <input value={draft.title} onChange={(event) => props.onGenerationDraftChange((current) => ({ ...current, title: event.target.value }))} placeholder={translate('auto.k1608')} disabled={!props.canGenerate || props.mutationState.loading} />
           </label>
           <div className="test-design-template-inline-grid">
             <label className="field">
               <span className="field-label">Prompt Key</span>
-              <input value={draft.promptKey} onChange={(event) => props.onGenerationDraftChange((current) => ({ ...current, promptKey: event.target.value }))} placeholder={props.health?.promptKey ?? '平台默认'} disabled={!props.canGenerate || props.mutationState.loading} />
+              <input value={draft.promptKey} onChange={(event) => props.onGenerationDraftChange((current) => ({ ...current, promptKey: event.target.value }))} placeholder={props.health?.promptKey ?? translate('auto.k1609')} disabled={!props.canGenerate || props.mutationState.loading} />
             </label>
             <label className="field">
               <span className="field-label">Prompt Version</span>
-              <input value={draft.promptVersion} onChange={(event) => props.onGenerationDraftChange((current) => ({ ...current, promptVersion: event.target.value }))} placeholder={props.health?.promptVersion ?? '平台默认'} disabled={!props.canGenerate || props.mutationState.loading} />
+              <input value={draft.promptVersion} onChange={(event) => props.onGenerationDraftChange((current) => ({ ...current, promptVersion: event.target.value }))} placeholder={props.health?.promptVersion ?? translate('auto.k1609')} disabled={!props.canGenerate || props.mutationState.loading} />
             </label>
           </div>
           <label className="field">
-            <span className="field-label">每需求用例数</span>
+            <span className="field-label">{translate('auto.k1610')}</span>
             <input value={draft.caseCountPerRequirement} type="number" min="1" max="6" onChange={(event) => props.onGenerationDraftChange((current) => ({ ...current, caseCountPerRequirement: event.target.value }))} disabled={!props.canGenerate || props.mutationState.loading} />
           </label>
           <label className="field">
-            <span className="field-label">环境 Key</span>
+            <span className="field-label">{translate('auto.k1611')}</span>
             <input value={draft.environmentKey} onChange={(event) => props.onGenerationDraftChange((current) => ({ ...current, environmentKey: event.target.value }))} placeholder="qa / staging" disabled={!props.canGenerate || props.mutationState.loading} />
           </label>
           <label className="field">
-            <span className="field-label">上下文 API ID</span>
-            <input value={draft.contextApiIds} onChange={(event) => props.onGenerationDraftChange((current) => ({ ...current, contextApiIds: event.target.value }))} placeholder={`最多 ${props.explicitContextAssetLimit} 个，逗号或换行分隔`} disabled={!props.canGenerate || props.mutationState.loading} />
+            <span className="field-label">{translate('auto.k1612')}</span>
+            <input value={draft.contextApiIds} onChange={(event) => props.onGenerationDraftChange((current) => ({ ...current, contextApiIds: event.target.value }))} placeholder={translate('auto.k1613', { value0: props.explicitContextAssetLimit })} disabled={!props.canGenerate || props.mutationState.loading} />
           </label>
           <label className="field">
-            <span className="field-label">上下文页面 ID</span>
-            <input value={draft.contextPageIds} onChange={(event) => props.onGenerationDraftChange((current) => ({ ...current, contextPageIds: event.target.value }))} placeholder={`最多 ${props.explicitContextAssetLimit} 个，逗号或换行分隔`} disabled={!props.canGenerate || props.mutationState.loading} />
+            <span className="field-label">{translate('auto.k1614')}</span>
+            <input value={draft.contextPageIds} onChange={(event) => props.onGenerationDraftChange((current) => ({ ...current, contextPageIds: event.target.value }))} placeholder={translate('auto.k1613', { value0: props.explicitContextAssetLimit })} disabled={!props.canGenerate || props.mutationState.loading} />
           </label>
           <label className="field">
-            <span className="field-label">上下文业务流 ID</span>
-            <input value={draft.contextFlowIds} onChange={(event) => props.onGenerationDraftChange((current) => ({ ...current, contextFlowIds: event.target.value }))} placeholder={`最多 ${props.explicitContextAssetLimit} 个，逗号或换行分隔`} disabled={!props.canGenerate || props.mutationState.loading} />
+            <span className="field-label">{translate('auto.k1615')}</span>
+            <input value={draft.contextFlowIds} onChange={(event) => props.onGenerationDraftChange((current) => ({ ...current, contextFlowIds: event.target.value }))} placeholder={translate('auto.k1613', { value0: props.explicitContextAssetLimit })} disabled={!props.canGenerate || props.mutationState.loading} />
           </label>
           <div className="field">
-            <span className="field-label">覆盖类型</span>
+            <span className="field-label">{translate('auto.k1315')}</span>
             <div className="test-design-checks">
               {TEST_DESIGN_COVERAGE_TYPES.map((type) => (
                 <label key={type}>
@@ -117,8 +118,7 @@ export function TestDesignGenerationConfigPanel(props: {
           </div>
           <button className="btn btn-primary" type="submit" disabled={!props.canGenerate || props.mutationState.loading || !props.selectedRequirementCount}>
             <Sparkles size={16} />
-            生成候选
-          </button>
+            {translate('auto.k1616')}</button>
           <StateLine state={props.mutationState} />
         </form>
       </div>
@@ -145,20 +145,20 @@ export function TestDesignTaskListPanel(props: {
     <section className="panel">
       <div className="panel-header compact">
         <div>
-          <h2 className="panel-title">任务</h2>
-          <p className="panel-desc">最近 {props.tasks.length} 个生成任务。</p>
+          <h2 className="panel-title">{translate('auto.k1617')}</h2>
+          <p className="panel-desc">{translate('auto.k1618')}{props.tasks.length} {translate('auto.k1619')}</p>
         </div>
       </div>
       <div className="panel-body compact">
         <div className="asset-filter-bar test-design-side-filter">
           <label className="field">
-            <span className="field-label">项目</span>
+            <span className="field-label">{translate('auto.k0176')}</span>
             <input value={props.taskFilters.projectId} onChange={(event) => props.onTaskFiltersChange((current) => ({ ...current, projectId: event.target.value }))} placeholder="project UUID" disabled={props.disabled || props.loadState.loading} />
           </label>
           <label className="field">
-            <span className="field-label">状态</span>
+            <span className="field-label">{translate('auto.k0182')}</span>
             <select value={props.taskFilters.status} onChange={(event) => props.onTaskFiltersChange((current) => ({ ...current, status: event.target.value }))} disabled={props.disabled || props.loadState.loading}>
-              <option value="">全部</option>
+              <option value="">{translate('auto.k0195')}</option>
               <option value="DRAFT">DRAFT</option>
               <option value="QUEUED">QUEUED</option>
               <option value="RUNNING">RUNNING</option>
@@ -172,13 +172,12 @@ export function TestDesignTaskListPanel(props: {
             </select>
           </label>
           <label className="field">
-            <span className="field-label">关键词</span>
-            <input value={props.taskFilters.keyword} onChange={(event) => props.onTaskFiltersChange((current) => ({ ...current, keyword: event.target.value }))} placeholder="任务标题" disabled={props.disabled || props.loadState.loading} />
+            <span className="field-label">{translate('auto.k1316')}</span>
+            <input value={props.taskFilters.keyword} onChange={(event) => props.onTaskFiltersChange((current) => ({ ...current, keyword: event.target.value }))} placeholder={translate('auto.k1607')} disabled={props.disabled || props.loadState.loading} />
           </label>
           <button className="btn btn-secondary btn-sm" type="button" disabled={props.disabled} onClick={() => props.onTaskFiltersChange(props.initialTaskFilters)}>
             <Search size={15} />
-            重置
-          </button>
+            {translate('auto.k0254')}</button>
         </div>
         <div className="quick-actions">
           {props.tasks.length ? props.tasks.map((task) => (
@@ -193,10 +192,10 @@ export function TestDesignTaskListPanel(props: {
               <div className="quick-action-controls">
                 {RETRYABLE_TASK_STATUSES.has(task.status) && (
                   <button
-                    aria-label={`重试任务 ${task.title}`}
+                    aria-label={translate('auto.k1620', { value0: task.title })}
                     className="btn btn-secondary btn-xs"
                     disabled={!props.canGenerate || props.taskState.loading}
-                    title="重试任务"
+                    title={translate('auto.k1621')}
                     type="button"
                     onClick={() => props.onRetryTask(task)}
                   >
@@ -205,10 +204,10 @@ export function TestDesignTaskListPanel(props: {
                 )}
                 {task.status === 'QUEUED' && (
                   <button
-                    aria-label={`重发排队事件 ${task.title}`}
+                    aria-label={translate('auto.k1622', { value0: task.title })}
                     className="btn btn-secondary btn-xs"
                     disabled={!props.canGenerate || props.taskState.loading}
-                    title="重发排队事件"
+                    title={translate('auto.k1623')}
                     type="button"
                     onClick={() => props.onReplayQueuedTaskEvent(task)}
                   >
@@ -217,10 +216,10 @@ export function TestDesignTaskListPanel(props: {
                 )}
                 {CANCELLABLE_TASK_STATUSES.has(task.status) && (
                   <button
-                    aria-label={`取消任务 ${task.title}`}
+                    aria-label={translate('auto.k1624', { value0: task.title })}
                     className="btn btn-secondary btn-xs"
                     disabled={!props.canGenerate || props.taskState.loading}
-                    title="取消任务"
+                    title={translate('auto.k1034')}
                     type="button"
                     onClick={() => props.onCancelTask(task)}
                   >
@@ -230,7 +229,7 @@ export function TestDesignTaskListPanel(props: {
               </div>
             </div>
           )) : (
-            <div className="notice info">暂无生成任务</div>
+            <div className="notice info">{translate('auto.k1625')}</div>
           )}
         </div>
       </div>
@@ -246,8 +245,8 @@ export function TestDesignTaskDiagnosticsPanel(props: {
     <section className="panel">
       <div className="panel-header compact">
         <div>
-          <h2 className="panel-title">任务诊断</h2>
-          <p className="panel-desc">{props.selectedTask ? `${props.selectedTask.status} · 诊断摘要已脱敏` : '定位模型调用、幂等回放和失败上下文摘要。'}</p>
+          <h2 className="panel-title">{translate('auto.k1626')}</h2>
+          <p className="panel-desc">{props.selectedTask ? translate('auto.k1627', { value0: props.selectedTask.status }) : translate('auto.k1628')}</p>
         </div>
       </div>
       <div className="panel-body compact">
@@ -261,7 +260,7 @@ export function TestDesignTaskDiagnosticsPanel(props: {
             ))}
           </div>
         ) : (
-          <div className="notice info">请先选择任务</div>
+          <div className="notice info">{translate('auto.k1538')}</div>
         )}
       </div>
     </section>

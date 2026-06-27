@@ -1,5 +1,6 @@
 import i18n from 'i18next';
 import { initReactI18next } from 'react-i18next';
+import { autoMessages } from './i18n.generated';
 
 export const resources = {
   zh: {
@@ -47,7 +48,8 @@ export const resources = {
         passwordMin: '密码至少 10 位',
         passwordNewMin: '新密码至少 10 位',
         passwordSame: '新密码不能与旧密码相同'
-      }
+      },
+      auto: autoMessages
     }
   },
   en: {
@@ -95,7 +97,8 @@ export const resources = {
         passwordMin: 'Password must be at least 10 characters',
         passwordNewMin: 'New password must be at least 10 characters',
         passwordSame: 'New password must differ from the old password'
-      }
+      },
+      auto: autoMessages
     }
   }
 } as const;
@@ -112,3 +115,7 @@ if (!i18n.isInitialized) {
 }
 
 export { i18n };
+
+export function translate(key: string, values?: Record<string, unknown>) {
+  return i18n.t(key, values);
+}

@@ -118,6 +118,7 @@ import {
   type UiE2eSceneFocusMode,
   type UiE2eSceneStepDraft
 } from '../uiE2eWorkbenchState';
+import { translate } from '../platform/i18n';
 
 type WorkState = {
   loading: boolean;
@@ -257,7 +258,7 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
   const runCreateButtonTitle = !canExecute
     ? undefined
     : runActionState.loading
-      ? '运行请求处理中，请稍候。'
+      ? translate('auto.k1841')
       : !runCreationReadiness.ready
         ? runCreationReadiness.summary
         : undefined;
@@ -320,7 +321,7 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
       setSelectedFlakyId((current) => retainSelection(current, flakyResult.data.items));
       setLoadState({ loading: false, traceId: runResult.trace_id || sceneResult.trace_id || flakyResult.trace_id });
     } catch (error: unknown) {
-      setLoadState({ loading: false, error: error instanceof Error ? error.message : '加载 UI E2E 工作台失败' });
+      setLoadState({ loading: false, error: error instanceof Error ? error.message : translate('auto.k1842') });
     }
   }, [bundleFilters, canRead, flakyFilters, props.signedIn, runFilters, sceneFilters]);
 
@@ -333,7 +334,7 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
       const result = await fetchUiE2eScene(sceneId);
       setSceneDetail(result.data);
     } catch (error: unknown) {
-      setSceneActionState({ loading: false, error: error instanceof Error ? error.message : '加载场景详情失败' });
+      setSceneActionState({ loading: false, error: error instanceof Error ? error.message : translate('auto.k1843') });
     }
   }, [canRead]);
 
@@ -348,7 +349,7 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
       setBundleDetail(result.data);
       setBundleExport(null);
     } catch (error: unknown) {
-      setBundleActionState({ loading: false, error: error instanceof Error ? error.message : '加载脚本包详情失败' });
+      setBundleActionState({ loading: false, error: error instanceof Error ? error.message : translate('auto.k1844') });
     }
   }, [canRead]);
 
@@ -363,7 +364,7 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
       setRunDetail(result.data);
       setRunExport(null);
     } catch (error: unknown) {
-      setRunActionState({ loading: false, error: error instanceof Error ? error.message : '加载运行详情失败' });
+      setRunActionState({ loading: false, error: error instanceof Error ? error.message : translate('auto.k0822') });
     }
   }, [canRead]);
 
@@ -393,7 +394,7 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
       const result = await fetchUiE2eFlakyMark(flakyId);
       setFlakyDetail(result.data);
     } catch (error: unknown) {
-      setFlakyActionState({ loading: false, error: error instanceof Error ? error.message : '加载 Flaky 详情失败' });
+      setFlakyActionState({ loading: false, error: error instanceof Error ? error.message : translate('auto.k1845') });
     }
   }, [canRead]);
 
@@ -481,11 +482,11 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
   }, [refreshFlakyDetail, selectedFlakyId]);
 
   if (!props.signedIn) {
-    return <div className="notice warning">请先登录后查看 UI E2E 工作台。</div>;
+    return <div className="notice warning">{translate('auto.k1846')}</div>;
   }
 
   if (!canRead) {
-    return <div className="notice error">当前账号缺少 uiE2e:read 权限。</div>;
+    return <div className="notice error">{translate('auto.k1847')}</div>;
   }
 
   async function onSubmitScene(event: FormEvent<HTMLFormElement>) {
@@ -506,9 +507,9 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
         setSceneDraft(sceneDraftFromDetail(result.data));
         setEditingSceneId(result.data.id);
         applySceneDefaults(result.data);
-        setSceneActionState({ loading: false, success: '场景已更新', traceId: result.trace_id });
+        setSceneActionState({ loading: false, success: translate('auto.k1848'), traceId: result.trace_id });
       } catch (error: unknown) {
-        setSceneActionState({ loading: false, error: error instanceof Error ? error.message : '更新场景失败' });
+        setSceneActionState({ loading: false, error: error instanceof Error ? error.message : translate('auto.k1849') });
       }
       return;
     }
@@ -531,20 +532,20 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
       }));
       setEditingSceneId('');
       applySceneDefaults(result.data);
-      setSceneActionState({ loading: false, success: '场景已创建', traceId: result.trace_id });
+      setSceneActionState({ loading: false, success: translate('auto.k1850'), traceId: result.trace_id });
     } catch (error: unknown) {
-      setSceneActionState({ loading: false, error: error instanceof Error ? error.message : '创建场景失败' });
+      setSceneActionState({ loading: false, error: error instanceof Error ? error.message : translate('auto.k1851') });
     }
   }
 
   async function onImportScene() {
     if (!canManage) return;
     if (!sceneDraft.projectId.trim()) {
-      setSceneActionState({ loading: false, error: '请先填写 scene projectId，再导入外部脚本。' });
+      setSceneActionState({ loading: false, error: translate('auto.k1852') });
       return;
     }
     if (!sceneImportDraft.content.trim()) {
-      setSceneActionState({ loading: false, error: '请粘贴 Selenium IDE JSON 或 Playwright codegen 内容。' });
+      setSceneActionState({ loading: false, error: translate('auto.k1853') });
       return;
     }
     setSceneActionState({ loading: true });
@@ -569,12 +570,12 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
       setSceneActionState({
         loading: false,
         success: result.data.warnings.length
-          ? `导入完成，已生成 ${result.data.steps.length} 个步骤，另有 ${result.data.warnings.length} 条提醒。`
-          : `导入完成，已生成 ${result.data.steps.length} 个步骤。`,
+          ? translate('auto.k1854', { value0: result.data.steps.length, value1: result.data.warnings.length })
+          : translate('auto.k1855', { value0: result.data.steps.length }),
         traceId: result.traceId
       });
     } catch (error: unknown) {
-      setSceneActionState({ loading: false, error: error instanceof Error ? error.message : '导入场景失败' });
+      setSceneActionState({ loading: false, error: error instanceof Error ? error.message : translate('auto.k1856') });
     }
   }
 
@@ -593,9 +594,9 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
           environmentId: result.data.environmentId || ''
         }));
       }
-      setSceneActionState({ loading: false, success: '场景已归档', traceId: result.trace_id });
+      setSceneActionState({ loading: false, success: translate('auto.k1857'), traceId: result.trace_id });
     } catch (error: unknown) {
-      setSceneActionState({ loading: false, error: error instanceof Error ? error.message : '归档场景失败' });
+      setSceneActionState({ loading: false, error: error instanceof Error ? error.message : translate('auto.k1858') });
     }
   }
 
@@ -603,7 +604,7 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
     if (!canManage) return;
     const sceneId = bundleSceneId.trim() || selectedSceneId;
     if (!sceneId) {
-      setBundleActionState({ loading: false, error: '请选择或填写 sceneId 再生成脚本包' });
+      setBundleActionState({ loading: false, error: translate('auto.k1859') });
       return;
     }
     setBundleActionState({ loading: true });
@@ -614,9 +615,9 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
       setSelectedBundleId(result.data.id);
       setBundles((current) => [summaryFromBundleDetail(result.data), ...current.filter((bundle) => bundle.id !== result.data.id)]);
       applyBundleDefaults(result.data);
-      setBundleActionState({ loading: false, success: '脚本包已生成', traceId: result.trace_id });
+      setBundleActionState({ loading: false, success: translate('auto.k0151'), traceId: result.trace_id });
     } catch (error: unknown) {
-      setBundleActionState({ loading: false, error: error instanceof Error ? error.message : '生成脚本包失败' });
+      setBundleActionState({ loading: false, error: error instanceof Error ? error.message : translate('auto.k1860') });
     }
   }
 
@@ -638,11 +639,11 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
       setReviewNote('');
       setBundleActionState({
         loading: false,
-        success: action === 'submit' ? '脚本包已送审' : action === 'approve' ? '脚本包已批准' : '脚本包已驳回',
+        success: action === 'submit' ? translate('auto.k1861') : action === 'approve' ? translate('auto.k1862') : translate('auto.k0157'),
         traceId: response.trace_id
       });
     } catch (error: unknown) {
-      setBundleActionState({ loading: false, error: error instanceof Error ? error.message : '更新脚本包评审失败' });
+      setBundleActionState({ loading: false, error: error instanceof Error ? error.message : translate('auto.k1863') });
     }
   }
 
@@ -654,9 +655,9 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
       setBundleDetail(result.data);
       setBundleExport(null);
       setBundles((current) => current.map((bundle) => bundle.id === result.data.id ? summaryFromBundleDetail(result.data) : bundle));
-      setBundleActionState({ loading: false, success: '脚本包已归档', traceId: result.trace_id });
+      setBundleActionState({ loading: false, success: translate('auto.k1864'), traceId: result.trace_id });
     } catch (error: unknown) {
-      setBundleActionState({ loading: false, error: error instanceof Error ? error.message : '归档脚本包失败' });
+      setBundleActionState({ loading: false, error: error instanceof Error ? error.message : translate('auto.k1865') });
     }
   }
 
@@ -666,9 +667,9 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
     try {
       const result = await exportUiE2eBundle(bundleDetail.id);
       setBundleExport(result.data);
-      setBundleActionState({ loading: false, success: '脚本包脱敏摘要已导出', traceId: result.trace_id });
+      setBundleActionState({ loading: false, success: translate('auto.k1866'), traceId: result.trace_id });
     } catch (error: unknown) {
-      setBundleActionState({ loading: false, error: error instanceof Error ? error.message : '导出脚本包摘要失败' });
+      setBundleActionState({ loading: false, error: error instanceof Error ? error.message : translate('auto.k1867') });
     }
   }
 
@@ -689,11 +690,11 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
       applyRunDefaults(result.data);
       setRunActionState({
         loading: false,
-        success: result.data.idempotentReplay ? '已回放既有运行摘要' : '运行已创建',
+        success: result.data.idempotentReplay ? translate('auto.k1868') : translate('auto.k1869'),
         traceId: result.trace_id
       });
     } catch (error: unknown) {
-      setRunActionState({ loading: false, error: error instanceof Error ? error.message : '创建运行失败' });
+      setRunActionState({ loading: false, error: error instanceof Error ? error.message : translate('auto.k1870') });
     }
   }
 
@@ -724,11 +725,11 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
       }
       setRunActionState({
         loading: false,
-        success: `批量运行完成：created=${result.data.createdCount} replayed=${result.data.replayedCount} failed=${result.data.failedCount}`,
+        success: translate('auto.k1871', { value0: result.data.createdCount, value1: result.data.replayedCount, value2: result.data.failedCount }),
         traceId: result.trace_id
       });
     } catch (error: unknown) {
-      setRunActionState({ loading: false, error: error instanceof Error ? error.message : '批量创建运行失败' });
+      setRunActionState({ loading: false, error: error instanceof Error ? error.message : translate('auto.k1872') });
     }
   }
 
@@ -739,9 +740,9 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
       const result = await cancelUiE2eRun(runDetail.id, { reason: runDraft.reason });
       setRunDetail(result.data);
       setRuns((current) => current.map((run) => run.id === result.data.id ? summaryFromRunDetail(result.data) : run));
-      setRunActionState({ loading: false, success: `运行状态：${result.data.status}`, traceId: result.trace_id });
+      setRunActionState({ loading: false, success: translate('auto.k1873', { value0: result.data.status }), traceId: result.trace_id });
     } catch (error: unknown) {
-      setRunActionState({ loading: false, error: error instanceof Error ? error.message : '取消运行失败' });
+      setRunActionState({ loading: false, error: error instanceof Error ? error.message : translate('auto.k1874') });
     }
   }
 
@@ -751,9 +752,9 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
     try {
       const result = await exportUiE2eRun(runDetail.id);
       setRunExport(result.data);
-      setRunActionState({ loading: false, success: '运行脱敏摘要已导出', traceId: result.trace_id });
+      setRunActionState({ loading: false, success: translate('auto.k1875'), traceId: result.trace_id });
     } catch (error: unknown) {
-      setRunActionState({ loading: false, error: error instanceof Error ? error.message : '导出运行摘要失败' });
+      setRunActionState({ loading: false, error: error instanceof Error ? error.message : translate('auto.k1876') });
     }
   }
 
@@ -774,11 +775,11 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
       }
       setRunActionState({
         loading: false,
-        success: `回填完成：updated=${result.data.updatedCount} unchanged=${result.data.unchangedCount} failed=${result.data.failedCount}`,
+        success: translate('auto.k1877', { value0: result.data.updatedCount, value1: result.data.unchangedCount, value2: result.data.failedCount }),
         traceId: result.trace_id
       });
     } catch (error: unknown) {
-      setRunActionState({ loading: false, error: error instanceof Error ? error.message : '运行摘要回填失败' });
+      setRunActionState({ loading: false, error: error instanceof Error ? error.message : translate('auto.k1878') });
     }
   }
 
@@ -798,11 +799,11 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
       downloadBlob(response.blob, response.filename || fallbackArtifactFileName(artifact), response.contentType);
       setRunActionState({
         loading: false,
-        success: `${artifact.artifactType} 已下载`,
+        success: translate('auto.k0843', { value0: artifact.artifactType }),
         traceId: response.traceId
       });
     } catch (error: unknown) {
-      setRunActionState({ loading: false, error: error instanceof Error ? error.message : '下载 artifact 失败' });
+      setRunActionState({ loading: false, error: error instanceof Error ? error.message : translate('auto.k1879') });
     }
   }
 
@@ -826,9 +827,9 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
       setFlakyDetail(result.data);
       setRuns((current) => current.map((run) => run.id === result.data.runId ? { ...run, flakyStatus: result.data.status } : run));
       setRunDetail((current) => current && current.id === result.data.runId ? { ...current, flakyMark: result.data } : current);
-      setFlakyActionState({ loading: false, success: 'Flaky 标记已更新', traceId: result.trace_id });
+      setFlakyActionState({ loading: false, success: translate('auto.k1880'), traceId: result.trace_id });
     } catch (error: unknown) {
-      setFlakyActionState({ loading: false, error: error instanceof Error ? error.message : '更新 Flaky 标记失败' });
+      setFlakyActionState({ loading: false, error: error instanceof Error ? error.message : translate('auto.k1881') });
     }
   }
 
@@ -861,23 +862,22 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
   return (
     <div className="ui-e2e-workbench" data-testid="ui-e2e-workbench">
       <section className="metrics-grid">
-        <Metric icon={<CheckCircle2 size={20} />} label="APPROVED 场景" value={String(overview.approvedScenes)} desc={health?.runnerMode || '等待加载'} tone="success" />
-        <Metric icon={<FileText size={20} />} label="待评审脚本包" value={String(overview.reviewingBundles)} desc={health?.artifactPolicy ? 'artifact policy ready' : '等待加载'} tone="info" />
-        <Metric icon={<Play size={20} />} label="活跃运行" value={String(overview.activeRuns)} desc={overview.runnerLabel} tone={overview.runnerTone} />
-        <Metric icon={<AlertTriangle size={20} />} label="最近失败" value={String(overview.recentFailures)} desc={overview.blockedRuns ? `blocked=${overview.blockedRuns}` : '无阻断运行'} tone={overview.recentFailures ? 'danger' : overview.blockedRuns ? 'warning' : 'success'} />
-        <Metric icon={<ShieldCheck size={20} />} label="allowlist" value={overview.allowlistLabel} desc={health ? `${health.allowlistHostCount} hosts` : '等待加载'} tone={overview.allowlistTone} />
+        <Metric icon={<CheckCircle2 size={20} />} label={translate('auto.k1882')} value={String(overview.approvedScenes)} desc={health?.runnerMode || translate('auto.k1118')} tone="success" />
+        <Metric icon={<FileText size={20} />} label={translate('auto.k1883')} value={String(overview.reviewingBundles)} desc={health?.artifactPolicy ? 'artifact policy ready' : translate('auto.k1118')} tone="info" />
+        <Metric icon={<Play size={20} />} label={translate('auto.k1884')} value={String(overview.activeRuns)} desc={overview.runnerLabel} tone={overview.runnerTone} />
+        <Metric icon={<AlertTriangle size={20} />} label={translate('auto.k1885')} value={String(overview.recentFailures)} desc={overview.blockedRuns ? `blocked=${overview.blockedRuns}` : translate('auto.k1886')} tone={overview.recentFailures ? 'danger' : overview.blockedRuns ? 'warning' : 'success'} />
+        <Metric icon={<ShieldCheck size={20} />} label="allowlist" value={overview.allowlistLabel} desc={health ? `${health.allowlistHostCount} hosts` : translate('auto.k1118')} tone={overview.allowlistTone} />
         <Metric icon={<Bug size={20} />} label="CONFIRMED_FLAKY" value={String(overview.confirmedFlaky)} desc={health?.exportEnabled ? 'export ON' : 'export OFF'} tone={overview.confirmedFlaky ? 'warning' : 'info'} />
       </section>
 
       <div className="ui-e2e-layout">
         <section className="ui-e2e-list-column">
           <Panel
-            title="控制面健康"
-            desc={health ? `${health.service} · ${health.status}` : '加载健康状态'}
+            title={translate('auto.k1887')}
+            desc={health ? `${health.service} · ${health.status}` : translate('auto.k1888')}
             action={(
               <button className="btn btn-secondary btn-sm" type="button" onClick={() => void refreshWorkbench()} disabled={loadState.loading}>
-                <RefreshCw size={15} />刷新
-              </button>
+                <RefreshCw size={15} />{translate('auto.k0170')}</button>
             )}
           >
             {health ? (
@@ -907,7 +907,7 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
                 <PolicySummary policy={{ ...health.credentialPolicy, ...health.artifactPolicy, ...health.policy }} />
               </>
             ) : (
-              <div className="notice info">等待加载 UI E2E 健康摘要。</div>
+              <div className="notice info">{translate('auto.k1889')}</div>
             )}
             {overview.notices.map((notice) => (
               <div className={`notice ${notice.tone}`} key={notice.message}>{notice.message}</div>
@@ -915,14 +915,14 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
             <StateLine state={loadState} />
           </Panel>
 
-          <Panel title="场景筛选与创建" desc="管理项目级 UI 场景、步骤模板和状态。">
+          <Panel title={translate('auto.k1890')} desc={translate('auto.k1891')}>
             <form className="ui-e2e-filter-grid" onSubmit={(event) => { event.preventDefault(); void refreshWorkbench(); }}>
               <Field label="projectId">
                 <input value={sceneFilters.projectId} onChange={(event) => setSceneFilters((current) => ({ ...current, projectId: event.target.value }))} placeholder="project-alpha" />
               </Field>
               <Field label="status">
                 <select value={sceneFilters.status} onChange={(event) => setSceneFilters((current) => ({ ...current, status: event.target.value }))}>
-                  <option value="">全部</option>
+                  <option value="">{translate('auto.k0195')}</option>
                   <option value="DRAFT">DRAFT</option>
                   <option value="REVIEWING">REVIEWING</option>
                   <option value="APPROVED">APPROVED</option>
@@ -946,7 +946,7 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
               </Field>
               <Field label="riskLevel">
                 <select value={sceneFilters.riskLevel} onChange={(event) => setSceneFilters((current) => ({ ...current, riskLevel: event.target.value }))}>
-                  <option value="">全部</option>
+                  <option value="">{translate('auto.k0195')}</option>
                   <option value="LOW">LOW</option>
                   <option value="MEDIUM">MEDIUM</option>
                   <option value="HIGH">HIGH</option>
@@ -961,16 +961,14 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
               </Field>
               <div className="report-filter-actions">
                 <button className="btn btn-secondary" type="submit" disabled={loadState.loading}>
-                  <Search size={16} />筛选
-                </button>
+                  <Search size={16} />{translate('auto.k1130')}</button>
                 <button
                   className="btn btn-secondary"
                   type="button"
                   disabled={loadState.loading}
                   onClick={() => setSceneFilters(initialSceneFilters)}
                 >
-                  重置
-                </button>
+                  {translate('auto.k0254')}</button>
               </div>
             </form>
             <div className="report-actions-row compact">
@@ -979,7 +977,7 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
                 type="button"
                 onClick={() => setSceneFocusMode('all')}
               >
-                全部 {scenes.length}
+                {translate('auto.k0195')}{scenes.length}
               </button>
               {sceneQueueOverview.focusOptions.map((option) => (
                 <button
@@ -995,8 +993,7 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
             </div>
             {sceneFocusMode !== 'all' && (
               <div className="notice info">
-                当前聚焦 {labelUiE2eSceneFocusMode(sceneFocusMode)}，共 {visibleScenes.length} 条；详情区会跟随当前可见列表自动保持选中项。
-              </div>
+                {translate('auto.k1892')}{labelUiE2eSceneFocusMode(sceneFocusMode)}{translate('auto.k1893')}{visibleScenes.length} {translate('auto.k1894')}</div>
             )}
             <form className="ui-e2e-form" onSubmit={onSubmitScene}>
               <div className="form-grid">
@@ -1013,7 +1010,7 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
                   <input value={sceneDraft.code} onChange={(event) => setSceneDraftValue('code', event.target.value)} placeholder="portal-login-smoke" disabled={!canManage || sceneActionState.loading || Boolean(editingSceneId)} />
                 </Field>
                 <Field label="name">
-                  <input value={sceneDraft.name} onChange={(event) => setSceneDraftValue('name', event.target.value)} placeholder="后台管理员登录并进入首页" disabled={!canManage || sceneActionState.loading} />
+                  <input value={sceneDraft.name} onChange={(event) => setSceneDraftValue('name', event.target.value)} placeholder={translate('auto.k1895')} disabled={!canManage || sceneActionState.loading} />
                 </Field>
                 <Field label="status">
                   <select value={sceneDraft.status} onChange={(event) => setSceneDraftValue('status', event.target.value)} disabled={!canManage || sceneActionState.loading}>
@@ -1041,7 +1038,7 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
               <div className="report-card-list">
                 <div className="report-mini-card report-mini-card-muted">
                   <div className="report-card-heading">
-                    <strong>外部脚本导入</strong>
+                    <strong>{translate('auto.k1896')}</strong>
                     <span className="badge badge-neutral">draft only</span>
                   </div>
                   <div className="form-grid">
@@ -1067,7 +1064,7 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
                       <input
                         value={sceneImportDraft.nameHint}
                         onChange={(event) => setSceneImportDraft((current) => ({ ...current, nameHint: event.target.value }))}
-                        placeholder="导入后的场景名称"
+                        placeholder={translate('auto.k1897')}
                         disabled={!canManage || sceneActionState.loading}
                       />
                     </Field>
@@ -1084,34 +1081,31 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
                     <textarea
                       value={sceneImportDraft.content}
                       onChange={(event) => setSceneImportDraft((current) => ({ ...current, content: event.target.value }))}
-                      placeholder="粘贴 Selenium IDE JSON 或 Playwright codegen 片段"
+                      placeholder={translate('auto.k1898')}
                       disabled={!canManage || sceneActionState.loading}
                     />
                   </Field>
                   <div className="report-actions-row">
                     <button className="btn btn-secondary" type="button" onClick={() => void onImportScene()} disabled={!canManage || sceneActionState.loading}>
-                      <RefreshCw size={16} />导入为草稿
-                    </button>
+                      <RefreshCw size={16} />{translate('auto.k1899')}</button>
                   </div>
                 </div>
               </div>
               {editingSceneId && (
-                <div className="notice info">当前正在编辑所选场景；`projectId` 和 `code` 为后端只读键，前端不会允许改写。</div>
+                <div className="notice info">{translate('auto.k1900')}</div>
               )}
               <div className="ui-e2e-step-editor">
                 <div className="ui-e2e-section-heading">
-                  <strong>步骤模板</strong>
+                  <strong>{translate('auto.k1901')}</strong>
                   <button className="btn btn-secondary btn-sm" type="button" onClick={addSceneStep} disabled={!canManage || sceneActionState.loading}>
-                    <FileText size={15} />添加步骤
-                  </button>
+                    <FileText size={15} />{translate('auto.k1349')}</button>
                 </div>
                 {sceneDraft.steps.map((step, index) => (
                   <div className="ui-e2e-step-card" key={`scene-step-${index}`}>
                     <div className="ui-e2e-step-card-header">
-                      <strong>步骤 {index + 1}</strong>
+                      <strong>{translate('auto.k1346')}{index + 1}</strong>
                       <button className="btn btn-ghost btn-sm" type="button" onClick={() => removeSceneStep(index)} disabled={sceneDraft.steps.length <= 1 || !canManage || sceneActionState.loading}>
-                        删除
-                      </button>
+                        {translate('auto.k0451')}</button>
                     </div>
                     <div className="ui-e2e-step-grid">
                       <Field label="stepType">
@@ -1143,22 +1137,20 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
               </div>
               <div className="report-actions-row">
                 <button className="btn btn-primary" type="submit" disabled={!canManage || sceneActionState.loading}>
-                  <FileText size={16} />{editingSceneId ? '保存场景' : '创建场景'}
+                  <FileText size={16} />{editingSceneId ? translate('auto.k1902') : translate('auto.k1903')}
                 </button>
                 {sceneDetail && sceneDetail.status !== 'ARCHIVED' && (
                   <button className="btn btn-secondary" type="button" onClick={loadSelectedSceneIntoDraft} disabled={!canManage || sceneActionState.loading}>
-                    <FileText size={16} />{editingSceneId === sceneDetail.id ? '重新载入所选场景' : '编辑所选场景'}
+                    <FileText size={16} />{editingSceneId === sceneDetail.id ? translate('auto.k1904') : translate('auto.k1905')}
                   </button>
                 )}
                 {editingSceneId && (
                   <button className="btn btn-secondary" type="button" onClick={cancelSceneEditing} disabled={!canManage || sceneActionState.loading}>
-                    取消编辑
-                  </button>
+                    {translate('auto.k0739')}</button>
                 )}
                 {sceneDetail && sceneDetail.status !== 'ARCHIVED' && (
                   <button className="btn btn-secondary" type="button" onClick={() => void onArchiveScene()} disabled={!canManage || sceneActionState.loading}>
-                    <Archive size={16} />归档所选场景
-                  </button>
+                    <Archive size={16} />{translate('auto.k1906')}</button>
                 )}
               </div>
               <StateLine state={sceneActionState} />
@@ -1166,10 +1158,10 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
             <ListPanel
               items={visibleScenes}
               selectedId={selectedSceneId}
-              emptyTitle="暂无场景"
+              emptyTitle={translate('auto.k1907')}
               emptyDesc={sceneFocusMode === 'all'
-                ? '创建第一条 UI 场景后，可继续生成脚本包并触发运行。'
-                : `当前筛选条件下没有 ${labelUiE2eSceneFocusMode(sceneFocusMode)}。`}
+                ? translate('auto.k1908')
+                : translate('auto.k1909', { value0: labelUiE2eSceneFocusMode(sceneFocusMode) })}
               onSelect={(scene) => {
                 setSelectedSceneId(scene.id);
                 applySceneDefaults(scene);
@@ -1200,35 +1192,29 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
             />
           </Panel>
 
-          <Panel title="脚本包评审" desc="从 APPROVED 场景生成 bundle，并通过送审/批准控制运行准入。">
+          <Panel title={translate('auto.k1910')} desc={translate('auto.k1911')}>
             <form className="ui-e2e-form" onSubmit={(event) => { event.preventDefault(); void onCreateBundle(); }}>
               <div className="form-grid">
                 <Field label="sceneId">
-                  <input value={bundleSceneId} onChange={(event) => setBundleSceneId(event.target.value)} placeholder={selectedSceneId || '优先使用已选场景'} disabled={!canManage || bundleActionState.loading} />
+                  <input value={bundleSceneId} onChange={(event) => setBundleSceneId(event.target.value)} placeholder={selectedSceneId || translate('auto.k1912')} disabled={!canManage || bundleActionState.loading} />
                 </Field>
                 <Field label="review note">
-                  <input value={reviewNote} onChange={(event) => setReviewNote(event.target.value)} placeholder="评审说明 / 驳回原因" disabled={bundleActionState.loading} />
+                  <input value={reviewNote} onChange={(event) => setReviewNote(event.target.value)} placeholder={translate('auto.k1913')} disabled={bundleActionState.loading} />
                 </Field>
               </div>
               <div className="report-actions-row">
                 <button className="btn btn-primary" type="submit" disabled={!canManage || bundleActionState.loading}>
-                  <FileText size={16} />生成脚本包
-                </button>
+                  <FileText size={16} />{translate('auto.k0218')}</button>
                 <button className="btn btn-secondary" type="button" onClick={() => void onReviewBundle('submit')} disabled={!canReview || bundleActionState.loading || !bundleDetail || !['DRAFT', 'REJECTED', 'STATIC_CHECK_FAILED'].includes(bundleDetail.status)}>
-                  <RefreshCw size={16} />送审
-                </button>
+                  <RefreshCw size={16} />{translate('auto.k1914')}</button>
                 <button className="btn btn-secondary" type="button" onClick={() => void onReviewBundle('approve')} disabled={!canReview || bundleActionState.loading || bundleDetail?.status !== 'REVIEWING'}>
-                  <CheckCircle2 size={16} />批准
-                </button>
+                  <CheckCircle2 size={16} />{translate('auto.k0620')}</button>
                 <button className="btn btn-secondary" type="button" onClick={() => void onReviewBundle('reject')} disabled={!canReview || bundleActionState.loading || bundleDetail?.status !== 'REVIEWING'}>
-                  <AlertTriangle size={16} />驳回
-                </button>
+                  <AlertTriangle size={16} />{translate('auto.k0214')}</button>
                 <button className="btn btn-secondary" type="button" onClick={() => void onArchiveBundle()} disabled={!canManage || bundleActionState.loading || !bundleDetail || bundleDetail.status === 'ARCHIVED'}>
-                  <Archive size={16} />归档
-                </button>
+                  <Archive size={16} />{translate('auto.k0871')}</button>
                 <button className="btn btn-secondary" type="button" onClick={() => void onExportBundle()} disabled={!canExport || bundleActionState.loading || !bundleDetail}>
-                  <Download size={16} />导出摘要
-                </button>
+                  <Download size={16} />{translate('auto.k0221')}</button>
               </div>
               <StateLine state={bundleActionState} />
             </form>
@@ -1238,7 +1224,7 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
               </Field>
               <Field label="status">
                 <select value={bundleFilters.status} onChange={(event) => setBundleFilters((current) => ({ ...current, status: event.target.value }))}>
-                  <option value="">全部</option>
+                  <option value="">{translate('auto.k0195')}</option>
                   <option value="DRAFT">DRAFT</option>
                   <option value="REVIEWING">REVIEWING</option>
                   <option value="APPROVED">APPROVED</option>
@@ -1251,8 +1237,7 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
               </Field>
               <div className="report-filter-actions">
                 <button className="btn btn-secondary" type="submit" disabled={loadState.loading}>
-                  <Search size={16} />筛选
-                </button>
+                  <Search size={16} />{translate('auto.k1130')}</button>
               </div>
             </form>
             <div className="report-actions-row compact">
@@ -1261,7 +1246,7 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
                 type="button"
                 onClick={() => setBundleFocusMode('all')}
               >
-                全部 {bundles.length}
+                {translate('auto.k0195')}{bundles.length}
               </button>
               {bundleQueueOverview.focusOptions.map((option) => (
                 <button
@@ -1277,16 +1262,15 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
             </div>
             {bundleFocusMode !== 'all' && (
               <div className="notice info">
-                当前聚焦 {labelUiE2eBundleFocusMode(bundleFocusMode)}，共 {visibleBundles.length} 条；详情区会跟随当前可见列表自动保持选中项。
-              </div>
+                {translate('auto.k1892')}{labelUiE2eBundleFocusMode(bundleFocusMode)}{translate('auto.k1893')}{visibleBundles.length} {translate('auto.k1894')}</div>
             )}
             <ListPanel
               items={visibleBundles}
               selectedId={selectedBundleId}
-              emptyTitle="暂无脚本包"
+              emptyTitle={translate('auto.k1915')}
               emptyDesc={bundleFocusMode === 'all'
-                ? '选择 APPROVED 场景后生成 bundle，并通过评审后用于运行。'
-                : `当前筛选条件下没有 ${labelUiE2eBundleFocusMode(bundleFocusMode)}。`}
+                ? translate('auto.k1916')
+                : translate('auto.k1909', { value0: labelUiE2eBundleFocusMode(bundleFocusMode) })}
               onSelect={(bundle) => {
                 setSelectedBundleId(bundle.id);
                 applyBundleDefaults(bundle);
@@ -1309,7 +1293,7 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
             />
           </Panel>
 
-          <Panel title="运行主链路" desc="输入脱敏 accountLeaseRef 和 env baseUrlRef，触发单次 UI 运行。">
+          <Panel title={translate('auto.k1917')} desc={translate('auto.k1918')}>
             <form className="ui-e2e-form" onSubmit={onCreateRun}>
               <div className="form-grid">
                 <Field label="projectId">
@@ -1331,10 +1315,10 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
                   <input value={runDraft.accountLeaseRef} onChange={(event) => setRunDraftValue('accountLeaseRef', event.target.value)} placeholder="UUID" disabled={!canExecute || runActionState.loading} />
                 </Field>
                 <Field label="requestKey">
-                  <input value={runDraft.requestKey} onChange={(event) => setRunDraftValue('requestKey', event.target.value)} placeholder="可选幂等键" disabled={!canExecute || runActionState.loading} />
+                  <input value={runDraft.requestKey} onChange={(event) => setRunDraftValue('requestKey', event.target.value)} placeholder={translate('auto.k1133')} disabled={!canExecute || runActionState.loading} />
                 </Field>
                 <Field label="reason">
-                  <input value={runDraft.reason} onChange={(event) => setRunDraftValue('reason', event.target.value)} placeholder="可选触发原因" disabled={!canExecute || runActionState.loading} />
+                  <input value={runDraft.reason} onChange={(event) => setRunDraftValue('reason', event.target.value)} placeholder={translate('auto.k1919')} disabled={!canExecute || runActionState.loading} />
                 </Field>
                 <Field label="browsers">
                   <input
@@ -1348,7 +1332,7 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
                   <input
                     value={runDraft.baselineRunId}
                     onChange={(event) => setRunDraftValue('baselineRunId', event.target.value)}
-                    placeholder="可选 UUID，不填则自动取最近成功基线"
+                    placeholder={translate('auto.k1920')}
                     disabled={!canExecute || runActionState.loading || !runDraft.visualRegressionEnabled}
                   />
                 </Field>
@@ -1356,7 +1340,7 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
                   <input
                     value={runDraft.visualMismatchThreshold}
                     onChange={(event) => setRunDraftValue('visualMismatchThreshold', event.target.value)}
-                    placeholder="0 - 1，可选"
+                    placeholder={translate('auto.k1921')}
                     disabled={!canExecute || runActionState.loading || !runDraft.visualRegressionEnabled}
                   />
                 </Field>
@@ -1369,9 +1353,9 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
                     onChange={(event) => setRunDraftBooleanValue('visualRegressionEnabled', event.target.checked)}
                     disabled={!canExecute || runActionState.loading}
                   />
-                  <span>启用截图 Diff / 视觉回归</span>
+                  <span>{translate('auto.k1922')}</span>
                 </span>
-                <small>基于当前浏览器矩阵逐一比对截图；未指定 baseline 时会自动选择最近成功运行。</small>
+                <small>{translate('auto.k1923')}</small>
               </label>
               <div className={`notice ${runCreationReadiness.tone}`}>
                 <strong>{runCreationReadiness.label}</strong>
@@ -1384,25 +1368,20 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
                 {canExecute && (
                   <>
                     <button className="btn btn-primary" type="submit" disabled={runCreateDisabled} title={runCreateButtonTitle}>
-                      <Play size={16} />创建运行
-                    </button>
+                      <Play size={16} />{translate('auto.k1924')}</button>
                     <button className="btn btn-secondary" type="button" onClick={() => void onCancelRun()} disabled={runActionState.loading || !runDetail || !isUiE2eRunActiveStatus(runDetail.status)}>
-                      <Square size={16} />取消运行
-                    </button>
+                      <Square size={16} />{translate('auto.k1925')}</button>
                   </>
                 )}
                 <button className="btn btn-secondary" type="button" onClick={() => void onExportRun()} disabled={!canExport || runActionState.loading || !runDetail}>
-                  <Download size={16} />导出摘要
-                </button>
+                  <Download size={16} />{translate('auto.k0221')}</button>
                 <button className="btn btn-secondary" type="button" onClick={() => void onCreateBatchRun()} disabled={runBatchDisabled}>
-                  <Play size={16} />批量运行
-                </button>
+                  <Play size={16} />{translate('auto.k1926')}</button>
                 <button className="btn btn-secondary" type="button" onClick={() => void onBackfillRunSummary()} disabled={runBackfillDisabled}>
-                  <RefreshCw size={16} />回填摘要
-                </button>
+                  <RefreshCw size={16} />{translate('auto.k1927')}</button>
               </div>
               {!canExecute && (
-                <div className="notice info">当前账号缺少 `uiE2e:execute` 权限，因此运行与取消按钮不会开放。</div>
+                <div className="notice info">{translate('auto.k1928')}</div>
               )}
               <div className={`notice ${runBatchReadiness.tone}`}>
                 <strong>Batch Run · {runBatchReadiness.label}</strong>
@@ -1422,7 +1401,7 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
                   <textarea
                     value={batchRunDraft.sceneIdsText}
                     onChange={(event) => setBatchRunDraftValue('sceneIdsText', event.target.value)}
-                    placeholder="UUID，多个可用空格/逗号/分号分隔"
+                    placeholder={translate('auto.k1929')}
                     disabled={!canExecute || runActionState.loading}
                     rows={3}
                   />
@@ -1455,7 +1434,7 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
                   <input
                     value={batchRunDraft.requestKeyPrefix}
                     onChange={(event) => setBatchRunDraftValue('requestKeyPrefix', event.target.value)}
-                    placeholder="可选批量幂等前缀"
+                    placeholder={translate('auto.k1930')}
                     disabled={!canExecute || runActionState.loading}
                   />
                 </Field>
@@ -1463,7 +1442,7 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
                   <input
                     value={batchRunDraft.reason}
                     onChange={(event) => setBatchRunDraftValue('reason', event.target.value)}
-                    placeholder="例如 nightly smoke / multi-scene replay"
+                    placeholder={translate('auto.k1931')}
                     disabled={!canExecute || runActionState.loading}
                   />
                 </Field>
@@ -1479,7 +1458,7 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
                   <input
                     value={batchRunDraft.baselineRunId}
                     onChange={(event) => setBatchRunDraftValue('baselineRunId', event.target.value)}
-                    placeholder="可选 UUID，不填则自动取最近成功基线"
+                    placeholder={translate('auto.k1920')}
                     disabled={!canExecute || runActionState.loading || !batchRunDraft.visualRegressionEnabled}
                   />
                 </Field>
@@ -1487,7 +1466,7 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
                   <input
                     value={batchRunDraft.visualMismatchThreshold}
                     onChange={(event) => setBatchRunDraftValue('visualMismatchThreshold', event.target.value)}
-                    placeholder="0 - 1，可选"
+                    placeholder={translate('auto.k1921')}
                     disabled={!canExecute || runActionState.loading || !batchRunDraft.visualRegressionEnabled}
                   />
                 </Field>
@@ -1500,9 +1479,9 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
                     onChange={(event) => setBatchRunDraftBooleanValue('visualRegressionEnabled', event.target.checked)}
                     disabled={!canExecute || runActionState.loading}
                   />
-                  <span>批量启用截图 Diff / 视觉回归</span>
+                  <span>{translate('auto.k1932')}</span>
                 </span>
-                <small>后端会为每个 sceneId 自动选择最新 APPROVED bundle，并展开成独立运行请求。</small>
+                <small>{translate('auto.k1933')}</small>
               </label>
               {runBatchSummary ? (
                 <div className="report-card-list">
@@ -1515,7 +1494,7 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
                     <small>{runBatchSummary.signals.join(' · ')}</small>
                     {runBatchSummary.failedItems.length ? (
                       <div className="report-policy-list">
-                        <div className="report-policy-title">失败项</div>
+                        <div className="report-policy-title">{translate('auto.k1934')}</div>
                         {runBatchSummary.failedItems.map((item) => <span key={item}>{item}</span>)}
                       </div>
                     ) : null}
@@ -1540,7 +1519,7 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
                   <input
                     value={runBackfillDraft.runIdsText}
                     onChange={(event) => setRunBackfillDraft((current) => ({ ...current, runIdsText: event.target.value }))}
-                    placeholder="UUID，多个可用空格/逗号分隔"
+                    placeholder={translate('auto.k1935')}
                     disabled={!canManage || runActionState.loading}
                   />
                 </Field>
@@ -1548,7 +1527,7 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
                   <input
                     value={runBackfillDraft.limit}
                     onChange={(event) => setRunBackfillDraft((current) => ({ ...current, limit: event.target.value }))}
-                    placeholder="1 - 200；当 runIds 为空时生效"
+                    placeholder={translate('auto.k1936')}
                     disabled={!canManage || runActionState.loading}
                   />
                 </Field>
@@ -1564,7 +1543,7 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
                     <small>{runBackfillSummary.signals.join(' · ')}</small>
                     {runBackfillSummary.failedItems.length ? (
                       <div className="report-policy-list">
-                        <div className="report-policy-title">失败项</div>
+                        <div className="report-policy-title">{translate('auto.k1934')}</div>
                         {runBackfillSummary.failedItems.map((item) => <span key={item}>{item}</span>)}
                       </div>
                     ) : null}
@@ -1579,7 +1558,7 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
               </Field>
               <Field label="status">
                 <select value={runFilters.status} onChange={(event) => setRunFilters((current) => ({ ...current, status: event.target.value }))}>
-                  <option value="">全部</option>
+                  <option value="">{translate('auto.k0195')}</option>
                   <option value="QUEUED">QUEUED</option>
                   <option value="RUNNING">RUNNING</option>
                   <option value="SUCCEEDED">SUCCEEDED</option>
@@ -1594,8 +1573,7 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
               </Field>
               <div className="report-filter-actions">
                 <button className="btn btn-secondary" type="submit" disabled={loadState.loading}>
-                  <Search size={16} />筛选
-                </button>
+                  <Search size={16} />{translate('auto.k1130')}</button>
               </div>
             </form>
             <div className="report-actions-row compact">
@@ -1604,7 +1582,7 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
                 type="button"
                 onClick={() => setRunFocusMode('all')}
               >
-                全部 {runs.length}
+                {translate('auto.k0195')}{runs.length}
               </button>
               {runQueueOverview.focusOptions.map((option) => (
                 <button
@@ -1620,16 +1598,15 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
             </div>
             {runFocusMode !== 'all' && (
               <div className="notice info">
-                当前聚焦 {labelUiE2eRunFocusMode(runFocusMode)}，共 {visibleRuns.length} 条；详情区会跟随当前可见列表自动保持选中项。
-              </div>
+                {translate('auto.k1892')}{labelUiE2eRunFocusMode(runFocusMode)}{translate('auto.k1893')}{visibleRuns.length} {translate('auto.k1894')}</div>
             )}
             <ListPanel
               items={visibleRuns}
               selectedId={selectedRunId}
-              emptyTitle="暂无运行"
+              emptyTitle={translate('auto.k1937')}
               emptyDesc={runFocusMode === 'all'
-                ? '选中 APPROVED bundle 后触发单次运行，可查看步骤摘要、artifact manifest 和失败分类。'
-                : `当前筛选条件下没有 ${labelUiE2eRunFocusMode(runFocusMode)}。`}
+                ? translate('auto.k1938')
+                : translate('auto.k1909', { value0: labelUiE2eRunFocusMode(runFocusMode) })}
               onSelect={(run) => {
                 setSelectedRunId(run.id);
                 applyRunDefaults(run);
@@ -1652,17 +1629,17 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
             />
           </Panel>
 
-          <Panel title="Flaky 治理" desc="按运行或场景标记 FLAKY_CANDIDATE / CONFIRMED_FLAKY / WAIVED。">
+          <Panel title={translate('auto.k1939')} desc={translate('auto.k1940')}>
             <form className="ui-e2e-form" onSubmit={onUpsertFlaky}>
               <div className="form-grid">
                 <Field label="projectId">
                   <input value={flakyDraft.projectId} onChange={(event) => setFlakyDraftValue('projectId', event.target.value)} placeholder="project-alpha" disabled={!canFlaky || flakyActionState.loading} />
                 </Field>
                 <Field label="sceneId">
-                  <input value={flakyDraft.sceneId} onChange={(event) => setFlakyDraftValue('sceneId', event.target.value)} placeholder="可选 UUID" disabled={!canFlaky || flakyActionState.loading} />
+                  <input value={flakyDraft.sceneId} onChange={(event) => setFlakyDraftValue('sceneId', event.target.value)} placeholder={translate('auto.k1941')} disabled={!canFlaky || flakyActionState.loading} />
                 </Field>
                 <Field label="runId">
-                  <input value={flakyDraft.runId} onChange={(event) => setFlakyDraftValue('runId', event.target.value)} placeholder="可选 UUID" disabled={!canFlaky || flakyActionState.loading} />
+                  <input value={flakyDraft.runId} onChange={(event) => setFlakyDraftValue('runId', event.target.value)} placeholder={translate('auto.k1941')} disabled={!canFlaky || flakyActionState.loading} />
                 </Field>
                 <Field label="status">
                   <select value={flakyDraft.status} onChange={(event) => setFlakyDraftValue('status', event.target.value)} disabled={!canFlaky || flakyActionState.loading}>
@@ -1676,13 +1653,12 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
                   <input value={flakyDraft.reasonCode} onChange={(event) => setFlakyDraftValue('reasonCode', event.target.value)} placeholder="locator-drift" disabled={!canFlaky || flakyActionState.loading} />
                 </Field>
                 <Field label="reasonSummary">
-                  <input value={flakyDraft.reasonSummary} onChange={(event) => setFlakyDraftValue('reasonSummary', event.target.value)} placeholder="偶发定位漂移 / 环境抖动" disabled={!canFlaky || flakyActionState.loading} />
+                  <input value={flakyDraft.reasonSummary} onChange={(event) => setFlakyDraftValue('reasonSummary', event.target.value)} placeholder={translate('auto.k1942')} disabled={!canFlaky || flakyActionState.loading} />
                 </Field>
               </div>
               <div className="report-actions-row">
                 <button className="btn btn-primary" type="submit" disabled={!canFlaky || flakyActionState.loading}>
-                  <Bug size={16} />保存 Flaky 标记
-                </button>
+                  <Bug size={16} />{translate('auto.k1943')}</button>
               </div>
               <StateLine state={flakyActionState} />
             </form>
@@ -1692,7 +1668,7 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
               </Field>
               <Field label="status">
                 <select value={flakyFilters.status} onChange={(event) => setFlakyFilters((current) => ({ ...current, status: event.target.value }))}>
-                  <option value="">全部</option>
+                  <option value="">{translate('auto.k0195')}</option>
                   <option value="NONE">NONE</option>
                   <option value="FLAKY_CANDIDATE">FLAKY_CANDIDATE</option>
                   <option value="CONFIRMED_FLAKY">CONFIRMED_FLAKY</option>
@@ -1704,8 +1680,7 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
               </Field>
               <div className="report-filter-actions">
                 <button className="btn btn-secondary" type="submit" disabled={loadState.loading}>
-                  <Search size={16} />筛选
-                </button>
+                  <Search size={16} />{translate('auto.k1130')}</button>
               </div>
             </form>
             <div className="report-actions-row compact">
@@ -1714,7 +1689,7 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
                 type="button"
                 onClick={() => setFlakyFocusMode('all')}
               >
-                全部 {flakyMarks.length}
+                {translate('auto.k0195')}{flakyMarks.length}
               </button>
               {flakyQueueOverview.focusOptions.map((option) => (
                 <button
@@ -1730,16 +1705,15 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
             </div>
             {flakyFocusMode !== 'all' && (
               <div className="notice info">
-                当前聚焦 {labelUiE2eFlakyFocusMode(flakyFocusMode)}，共 {visibleFlakyMarks.length} 条；详情区会跟随当前可见列表自动保持选中项。
-              </div>
+                {translate('auto.k1892')}{labelUiE2eFlakyFocusMode(flakyFocusMode)}{translate('auto.k1893')}{visibleFlakyMarks.length} {translate('auto.k1894')}</div>
             )}
             <ListPanel
               items={visibleFlakyMarks}
               selectedId={selectedFlakyId}
-              emptyTitle="暂无 Flaky 标记"
+              emptyTitle={translate('auto.k1944')}
               emptyDesc={flakyFocusMode === 'all'
-                ? '可按运行或场景标记失败抖动，便于 WP10 消费聚合状态。'
-                : `当前筛选条件下没有 ${labelUiE2eFlakyFocusMode(flakyFocusMode)}。`}
+                ? translate('auto.k1945')
+                : translate('auto.k1909', { value0: labelUiE2eFlakyFocusMode(flakyFocusMode) })}
               onSelect={(item) => {
                 setSelectedFlakyId(item.id);
                 applyFlakyDefaults(item);
@@ -1930,12 +1904,12 @@ function SceneDetailPanel(props: {
   state: WorkState;
 }) {
   if (!props.detail) {
-    return <EmptyPanel title="场景详情" desc="选择场景后查看步骤模板、策略和来源摘要。" />;
+    return <EmptyPanel title={translate('auto.k1946')} desc={translate('auto.k1947')} />;
   }
   const latestBundleSummary = props.activity?.latestBundle ? buildUiE2eBundleListSummary(props.activity.latestBundle) : null;
   const latestRunSummary = props.activity?.latestRun ? buildUiE2eRunListSummary(props.activity.latestRun) : null;
   return (
-    <Panel title="场景详情" desc={`${props.detail.projectId} · ${props.detail.code}`}>
+    <Panel title={translate('auto.k1946')} desc={`${props.detail.projectId} · ${props.detail.code}`}>
       <div className="report-detail-header">
         <span className={`badge badge-${statusTone(props.detail.status)}`}>{props.detail.status}</span>
         <span className="report-mono">{props.detail.id}</span>
@@ -1955,7 +1929,7 @@ function SceneDetailPanel(props: {
       <div className="report-card-list">
         <div className="report-mini-card report-mini-card-muted">
           <div className="report-card-heading">
-            <strong>最近 Bundle</strong>
+            <strong>{translate('auto.k1948')}</strong>
             <span className="badge badge-neutral">{props.activity?.bundleCount ?? 0}</span>
           </div>
           {props.activity?.latestBundle && latestBundleSummary ? (
@@ -1968,12 +1942,12 @@ function SceneDetailPanel(props: {
               </small>
             </>
           ) : (
-            <span>当前场景还没有关联的脚本包摘要。</span>
+            <span>{translate('auto.k1949')}</span>
           )}
         </div>
         <div className="report-mini-card report-mini-card-muted">
           <div className="report-card-heading">
-            <strong>最近 Run</strong>
+            <strong>{translate('auto.k1950')}</strong>
             <span className="badge badge-neutral">{props.activity?.runCount ?? 0}</span>
           </div>
           {props.activity?.latestRun && latestRunSummary ? (
@@ -1986,7 +1960,7 @@ function SceneDetailPanel(props: {
               </small>
             </>
           ) : (
-            <span>当前场景还没有关联的运行摘要。</span>
+            <span>{translate('auto.k1951')}</span>
           )}
         </div>
       </div>
@@ -1995,7 +1969,7 @@ function SceneDetailPanel(props: {
           {props.detail.steps.map((step) => (
             <div className="report-mini-card" key={step.id}>
               <div className="report-card-heading">
-                <strong>步骤 {step.stepOrder} · {step.stepType}</strong>
+                <strong>{translate('auto.k1346')}{step.stepOrder} · {step.stepType}</strong>
                 <span className="badge badge-neutral">{shortId(step.id)}</span>
               </div>
               <div className="report-section-grid">
@@ -2009,7 +1983,7 @@ function SceneDetailPanel(props: {
           ))}
         </div>
       ) : (
-        <div className="notice info">当前场景还没有步骤模板。</div>
+        <div className="notice info">{translate('auto.k1952')}</div>
       )}
       <StateLine state={props.state} />
     </Panel>
@@ -2018,10 +1992,10 @@ function SceneDetailPanel(props: {
 
 function BundleDetailPanel(props: { detail: UiE2eBundleDetail | null; exported: UiE2eBundleExport | null; state: WorkState }) {
   if (!props.detail) {
-    return <EmptyPanel title="脚本包详情" desc="选择 bundle 后查看静态校验、评审流和运行前状态。" />;
+    return <EmptyPanel title={translate('auto.k1953')} desc={translate('auto.k1954')} />;
   }
   return (
-    <Panel title="脚本包详情" desc={`${props.detail.projectId} · ${props.detail.sceneCode || props.detail.sceneId}`}>
+    <Panel title={translate('auto.k1953')} desc={`${props.detail.projectId} · ${props.detail.sceneCode || props.detail.sceneId}`}>
       <div className="report-detail-header">
         <span className={`badge badge-${statusTone(props.detail.status)}`}>{props.detail.status}</span>
         <span className="report-mono">{props.detail.id}</span>
@@ -2047,19 +2021,19 @@ function BundleDetailPanel(props: { detail: UiE2eBundleDetail | null; exported: 
                 <strong>{review.reviewStatus}</strong>
                 <span className="badge badge-neutral">{review.reviewedBy || '-'}</span>
               </div>
-              <span>{review.reviewComment || '无备注'}</span>
+              <span>{review.reviewComment || translate('auto.k1955')}</span>
               <small>{review.reviewedAt ? formatDateTime(review.reviewedAt) : review.createdAt ? formatDateTime(review.createdAt) : review.id}</small>
             </div>
           ))}
         </div>
       ) : (
-        <div className="notice info">暂无评审记录。</div>
+        <div className="notice info">{translate('auto.k1956')}</div>
       )}
       {props.exported ? (
         <div className="report-card-list">
           <div className="report-mini-card">
             <div className="report-card-heading">
-              <strong>导出摘要</strong>
+              <strong>{translate('auto.k0221')}</strong>
               <span className="badge badge-neutral">{props.exported.schemaVersion}</span>
             </div>
             <div className="report-section-grid">
@@ -2071,7 +2045,7 @@ function BundleDetailPanel(props: { detail: UiE2eBundleDetail | null; exported: 
           </div>
         </div>
       ) : (
-        <div className="notice info">可导出 aggregate-only 脚本包摘要，不包含评审备注原文、审阅人身份或任何原始脚本内容。</div>
+        <div className="notice info">{translate('auto.k1957')}</div>
       )}
       <StateLine state={props.state} />
     </Panel>
@@ -2089,7 +2063,7 @@ function RunDetailPanel(props: {
   onApplyFlakyPreset: (status: UiE2eFlakyDraft['status'], reasonCode: string, reasonSummary: string) => void;
 }) {
   if (!props.detail) {
-    return <EmptyPanel title="运行详情" desc="选择 run 后查看步骤结果、失败分类、artifact manifest 和导出摘要。" />;
+    return <EmptyPanel title={translate('auto.k0880')} desc={translate('auto.k1958')} />;
   }
   const executionSummary = props.detail.executionSummary;
   const diagnosis = buildUiE2eRunDiagnosis(props.detail);
@@ -2107,7 +2081,7 @@ function RunDetailPanel(props: {
   const visualMismatchBrowsers = recordStringArray(executionSummary.visualMismatchBrowsers);
   const browserRuns = recordObjectArray(executionSummary.browserRuns);
   return (
-    <Panel title="运行详情" desc={`${props.detail.projectId} · ${props.detail.sceneCode || props.detail.sceneId}`}>
+    <Panel title={translate('auto.k0880')} desc={`${props.detail.projectId} · ${props.detail.sceneCode || props.detail.sceneId}`}>
       <div className="report-detail-header">
         <span className={`badge badge-${statusTone(props.detail.status)}`}>{props.detail.status}</span>
         <span className="report-mono">{props.detail.id}</span>
@@ -2134,14 +2108,14 @@ function RunDetailPanel(props: {
         <div className="report-card-list">
           <div className="report-mini-card report-mini-card-muted">
             <div className="report-card-heading">
-              <strong>执行矩阵</strong>
+              <strong>{translate('auto.k1959')}</strong>
               <span className="badge badge-neutral">{browserCount} browsers</span>
             </div>
             <span>{browserTypes.join(' / ') || 'CHROMIUM'}</span>
-            <small>{parallelExecutionEnabled ? '当前 run 通过浏览器矩阵聚合，步骤与 artifact 都是合并视图。' : '当前 run 只执行单浏览器链路。'}</small>
+            <small>{parallelExecutionEnabled ? translate('auto.k1960') : translate('auto.k1961')}</small>
             {browserRuns.length ? (
               <div className="report-policy-list">
-                <div className="report-policy-title">浏览器结果</div>
+                <div className="report-policy-title">{translate('auto.k1962')}</div>
                 {browserRuns.map((item, index) => (
                   <span key={`${recordText(item.browserType) || 'browser'}-${index}`}>
                     {(recordText(item.browserType) || 'UNKNOWN')}={recordText(item.status) || 'UNKNOWN'}
@@ -2154,7 +2128,7 @@ function RunDetailPanel(props: {
           {visualRegressionEnabled ? (
             <div className="report-mini-card report-mini-card-muted">
               <div className="report-card-heading">
-                <strong>视觉回归</strong>
+                <strong>{translate('auto.k1963')}</strong>
                 <span className={`badge badge-${visualMismatchCount > 0 ? 'danger' : visualComparisonCount > 0 ? 'success' : 'neutral'}`}>
                   {visualMismatchCount > 0 ? 'MISMATCH' : visualComparisonCount > 0 ? 'MATCHED' : 'PENDING'}
                 </span>
@@ -2164,11 +2138,10 @@ function RunDetailPanel(props: {
                 {visualThreshold !== '-' ? ` · threshold=${visualThreshold}` : ' · threshold=exact-match'}
               </span>
               <small>
-                已对比 {visualComparisonCount} 个浏览器，差异 {visualMismatchCount} 个，生成 diff 产物 {visualDiffArtifactCount} 个。
-              </small>
+                {translate('auto.k1964')}{visualComparisonCount} {translate('auto.k1965')}{visualMismatchCount} {translate('auto.k1966')}{visualDiffArtifactCount} {translate('auto.k1356')}</small>
               {visualMismatchBrowsers.length ? (
                 <div className="notice warning">
-                  <span>差异浏览器：{visualMismatchBrowsers.join(' / ')}</span>
+                  <span>{translate('auto.k1967')}{visualMismatchBrowsers.join(' / ')}</span>
                 </div>
               ) : null}
             </div>
@@ -2176,27 +2149,27 @@ function RunDetailPanel(props: {
         </div>
       ) : null}
       <div className={`notice ${diagnosis.tone}`}>
-        <strong>诊断 · {diagnosis.label}</strong>
+        <strong>{translate('auto.k1968')}{diagnosis.label}</strong>
         <span>{diagnosis.summary}</span>
-        {diagnosis.primaryFailureBucket ? <span>主要失败桶：{diagnosis.primaryFailureBucket}</span> : null}
-        {diagnosis.blockedArtifactCount > 0 ? <span>受阻 artifact：{diagnosis.blockedArtifactCount}</span> : null}
-        {!diagnosis.rawArtifactDownloadReady && props.detail.artifacts.length ? <span>artifact 当前仅提供 manifest 摘要，不提供原始下载。</span> : null}
+        {diagnosis.primaryFailureBucket ? <span>{translate('auto.k1969')}{diagnosis.primaryFailureBucket}</span> : null}
+        {diagnosis.blockedArtifactCount > 0 ? <span>{translate('auto.k1970')}{diagnosis.blockedArtifactCount}</span> : null}
+        {!diagnosis.rawArtifactDownloadReady && props.detail.artifacts.length ? <span>{translate('auto.k1971')}</span> : null}
       </div>
       {diagnosis.signals.length ? (
         <div className="report-policy-list">
-          <div className="report-policy-title">诊断信号</div>
+          <div className="report-policy-title">{translate('auto.k1972')}</div>
           {diagnosis.signals.map((item) => <span key={item}>{item}</span>)}
         </div>
       ) : null}
       {diagnosis.nextActions.length ? (
         <div className="report-policy-list">
-          <div className="report-policy-title">建议动作</div>
+          <div className="report-policy-title">{translate('auto.k1973')}</div>
           {diagnosis.nextActions.map((item) => <span key={item}>{item}</span>)}
         </div>
       ) : null}
       <RunAuditTimeline timeline={auditTimeline} />
       <div className={`notice ${flakyGuidance.tone}`}>
-        <strong>Flaky 治理 · {flakyGuidance.label}</strong>
+        <strong>{translate('auto.k1974')}{flakyGuidance.label}</strong>
         <span>{flakyGuidance.summary}</span>
       </div>
       {props.canFlaky ? (
@@ -2216,14 +2189,14 @@ function RunDetailPanel(props: {
             ))}
           </div>
         ) : (
-          <div className="notice info">当前运行暂无快捷 Flaky 动作，仍可在下方 Flaky 面板按场景或运行手动治理。</div>
+          <div className="notice info">{translate('auto.k1975')}</div>
         )
       ) : (
-        <div className="notice info">当前账号缺少 `uiE2e:flaky` 权限，因此这里只展示治理建议，不开放快捷标记。</div>
+        <div className="notice info">{translate('auto.k1976')}</div>
       )}
       <StateLine state={props.flakyState} />
       {props.detail.failureCode === 'UI_E2E_EXPORT_DISABLED' && (
-        <div className="notice warning">当前环境禁用了 run export；仍可在工作台内继续查看聚合详情与 traceId。</div>
+        <div className="notice warning">{translate('auto.k1977')}</div>
       )}
       <StepResultsList steps={props.detail.stepResults} />
       <ArtifactList
@@ -2236,7 +2209,7 @@ function RunDetailPanel(props: {
         <div className="report-card-list">
           <div className="report-mini-card">
             <div className="report-card-heading">
-              <strong>导出摘要</strong>
+              <strong>{translate('auto.k0221')}</strong>
               <span className="badge badge-neutral">{props.exported.schemaVersion}</span>
             </div>
             <div className="report-section-grid">
@@ -2246,7 +2219,7 @@ function RunDetailPanel(props: {
           </div>
         </div>
       ) : (
-        <div className="notice info">可导出 aggregate-only 运行摘要，不包含 secretRef 明文、原始 DOM 或 artifact 正文。</div>
+        <div className="notice info">{translate('auto.k1978')}</div>
       )}
       {props.state.error || props.state.success || props.state.traceId || props.state.loading ? <StateLine state={props.state} /> : null}
     </Panel>
@@ -2264,11 +2237,11 @@ function RunAuditTimeline(props: {
   }>;
 }) {
   if (!props.timeline.length) {
-    return <div className="notice info">当前运行还没有可聚合的审计时间线摘要。</div>;
+    return <div className="notice info">{translate('auto.k1979')}</div>;
   }
   return (
     <div className="ui-e2e-run-audit-timeline">
-      <div className="report-policy-title">运行审计时间线</div>
+      <div className="report-policy-title">{translate('auto.k1980')}</div>
       {props.timeline.map((item) => (
         <div className={`ui-e2e-run-audit-event tone-${item.tone}`} key={item.id}>
           <strong>{item.title}</strong>
@@ -2282,11 +2255,11 @@ function RunAuditTimeline(props: {
 
 function FlakyDetailPanel(props: { item: UiE2eFlakyMark | null; state: WorkState }) {
   if (!props.item) {
-    return <EmptyPanel title="Flaky 详情" desc="选择 Flaky 标记后查看原因、场景和运行关联。" />;
+    return <EmptyPanel title={translate('auto.k1981')} desc={translate('auto.k1982')} />;
   }
   const insight = buildUiE2eFlakyDetailInsight(props.item);
   return (
-    <Panel title="Flaky 详情" desc={`${props.item.projectId} · ${props.item.sceneCode || props.item.sceneId || '-'}`}>
+    <Panel title={translate('auto.k1981')} desc={`${props.item.projectId} · ${props.item.sceneCode || props.item.sceneId || '-'}`}>
       <div className="report-detail-header">
         <span className={`badge badge-${statusTone(props.item.status)}`}>{props.item.status}</span>
         <span className="report-mono">{props.item.id}</span>
@@ -2309,13 +2282,13 @@ function FlakyDetailPanel(props: { item: UiE2eFlakyMark | null; state: WorkState
         <InfoBlock title="updatedAt" value={props.item.updatedAt ? formatDateTime(props.item.updatedAt) : '-'} />
       </div>
       <div className={`notice ${insight.tone}`}>
-        <strong>治理提示 · {insight.label}</strong>
+        <strong>{translate('auto.k1983')}{insight.label}</strong>
         <span>{insight.summary}</span>
         {insight.signals.length ? <span>{insight.signals.join(' · ')}</span> : null}
       </div>
       <div className="notice info">
-        <strong>审计可见性</strong>
-        <span>该视图展示创建人与更新人、时间戳、关联场景/运行和原因摘要，便于后续治理复盘。</span>
+        <strong>{translate('auto.k1984')}</strong>
+        <span>{translate('auto.k1985')}</span>
       </div>
       <StateLine state={props.state} />
     </Panel>
@@ -2324,14 +2297,14 @@ function FlakyDetailPanel(props: { item: UiE2eFlakyMark | null; state: WorkState
 
 function StepResultsList(props: { steps: UiE2eRunStepResult[] }) {
   if (!props.steps.length) {
-    return <div className="notice info">暂无步骤结果摘要。</div>;
+    return <div className="notice info">{translate('auto.k1986')}</div>;
   }
   return (
     <div className="report-card-list">
       {props.steps.map((step) => (
         <div className="report-mini-card" key={step.id}>
           <div className="report-card-heading">
-            <strong>步骤 {step.stepOrder} · {step.status}</strong>
+            <strong>{translate('auto.k1346')}{step.stepOrder} · {step.status}</strong>
             <span className={`badge badge-${statusTone(step.status)}`}>{step.failureBucket || 'NO_FAILURE'}</span>
           </div>
           <div className="report-section-grid">
@@ -2342,7 +2315,7 @@ function StepResultsList(props: { steps: UiE2eRunStepResult[] }) {
           </div>
           {Array.isArray(step.summary?.browserResults) && step.summary.browserResults.length ? (
             <div className="report-policy-list">
-              <div className="report-policy-title">浏览器步骤结果</div>
+              <div className="report-policy-title">{translate('auto.k1987')}</div>
               {(step.summary.browserResults as Array<Record<string, unknown>>).map((item, index) => (
                 <span key={`${recordText(item.browserType) || 'browser'}-${index}`}>
                   {(recordText(item.browserType) || 'UNKNOWN')}={recordText(item.status) || 'UNKNOWN'}
@@ -2365,7 +2338,7 @@ function ArtifactList(props: {
   onDownloadArtifact: (artifact: UiE2eArtifactManifest) => void;
 }) {
   if (!props.artifacts.length) {
-    return <div className="notice info">暂无 artifact manifest。</div>;
+    return <div className="notice info">{translate('auto.k1988')}</div>;
   }
   return (
     <div className="report-card-list">
@@ -2401,7 +2374,7 @@ function ArtifactCard(props: {
       </div>
       {(browserType || visualRole) ? (
         <div className="report-policy-list">
-          <div className="report-policy-title">artifact 标签</div>
+          <div className="report-policy-title">{translate('auto.k1989')}</div>
           {browserType ? <span>browser={browserType}</span> : null}
           {visualRole ? <span>visualRole={visualRole}</span> : null}
           {visualMismatchRatio !== '-' ? <span>mismatchRatio={visualMismatchRatio}</span> : null}
@@ -2419,11 +2392,10 @@ function ArtifactCard(props: {
           className="btn btn-secondary btn-sm"
           type="button"
           disabled={!props.canExport || props.downloading || !downloadState.canDownload}
-          title={!props.canExport ? '当前账号缺少 uiE2e:export 权限。' : downloadState.summary}
+          title={!props.canExport ? translate('auto.k1990') : downloadState.summary}
           onClick={() => props.onDownloadArtifact(props.artifact)}
         >
-          <Download size={15} />下载产物
-        </button>
+          <Download size={15} />{translate('auto.k1991')}</button>
       </div>
       <div className={`notice ${downloadState.tone}`}>
         <span>{downloadState.summary}</span>
@@ -2472,7 +2444,7 @@ function EmptyPanel(props: { title: string; desc: string }) {
     <Panel title={props.title} desc={props.desc}>
       <div className="empty-state">
         <MonitorPlaceholder />
-        <strong>等待选择</strong>
+        <strong>{translate('auto.k1992')}</strong>
         <span>{props.desc}</span>
       </div>
     </Panel>
@@ -2541,7 +2513,7 @@ function PolicySummary(props: { policy: Record<string, unknown> }) {
   if (!entries.length) return null;
   return (
     <div className="report-policy-list">
-      <div className="report-policy-title"><ShieldCheck size={15} />策略摘要</div>
+      <div className="report-policy-title"><ShieldCheck size={15} />{translate('auto.k1993')}</div>
       {entries.map(([key, value]) => (
         <span key={key}>{key}={formatRecord(value)}</span>
       ))}
@@ -2551,7 +2523,7 @@ function PolicySummary(props: { policy: Record<string, unknown> }) {
 
 function StateLine(props: { state: WorkState }) {
   if (props.state.loading) {
-    return <span className="document-state-line">处理中...</span>;
+    return <span className="document-state-line">{translate('auto.k1062')}</span>;
   }
   if (props.state.error) {
     return <span className="document-state-line error">{props.state.error}{props.state.traceId ? ` · ${props.state.traceId}` : ''}</span>;

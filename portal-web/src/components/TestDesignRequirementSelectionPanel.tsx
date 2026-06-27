@@ -4,6 +4,7 @@ import type { AssetRequirementView } from '../api/assets';
 import type { RequirementFilters } from '../testDesignWorkbenchState';
 import { StateLine, type WorkState } from './TestDesignOverviewPanels';
 import { emptyRequirementText } from './TestDesignWorkbenchShared';
+import { translate } from '../platform/i18n';
 
 export function TestDesignRequirementSelectionPanel(props: {
   signedIn: boolean;
@@ -23,28 +24,26 @@ export function TestDesignRequirementSelectionPanel(props: {
     <section className="panel">
       <div className="panel-header">
         <div>
-          <h2 className="panel-title">需求选择</h2>
-          <p className="panel-desc">从 WP3 已入库需求中选择生成范围。</p>
+          <h2 className="panel-title">{translate('auto.k1587')}</h2>
+          <p className="panel-desc">{translate('auto.k1588')}</p>
         </div>
         <div className="toolbar-actions">
           <button className="btn btn-secondary btn-sm" type="button" disabled={props.disabled || props.loadState.loading} onClick={props.onRefresh}>
             <RefreshCw size={15} />
-            刷新
-          </button>
+            {translate('auto.k0170')}</button>
           <button
             className="btn btn-ghost btn-sm"
             type="button"
             disabled={props.disabled || props.loadState.loading}
             onClick={() => props.onSelectedRequirementIdsChange(props.filteredRequirements.map((item) => item.id).filter(Boolean))}
           >
-            全选
-          </button>
+            {translate('auto.k0205')}</button>
         </div>
       </div>
       <div className="panel-body">
         <div className="asset-filter-bar">
           <label className="field">
-            <span className="field-label">项目 ID</span>
+            <span className="field-label">{translate('auto.k1389')}</span>
             <input
               value={props.filters.projectId}
               onChange={(event) => props.onFiltersChange((current) => ({ ...current, projectId: event.target.value }))}
@@ -53,32 +52,31 @@ export function TestDesignRequirementSelectionPanel(props: {
             />
           </label>
           <label className="field">
-            <span className="field-label">状态</span>
+            <span className="field-label">{translate('auto.k0182')}</span>
             <select
               value={props.filters.status}
               onChange={(event) => props.onFiltersChange((current) => ({ ...current, status: event.target.value }))}
               disabled={props.disabled}
             >
-              <option value="">全部</option>
+              <option value="">{translate('auto.k0195')}</option>
               <option value="APPROVED">APPROVED</option>
               <option value="REVIEWING">REVIEWING</option>
               <option value="DRAFT">DRAFT</option>
             </select>
           </label>
           <label className="field">
-            <span className="field-label">关键词</span>
+            <span className="field-label">{translate('auto.k1316')}</span>
             <input
               value={props.filters.keyword}
               onChange={(event) => props.onFiltersChange((current) => ({ ...current, keyword: event.target.value }))}
-              placeholder="标题 / 标签"
+              placeholder={translate('auto.k1589')}
               disabled={props.disabled}
             />
           </label>
           <div className="filter-actions">
             <button className="btn btn-secondary btn-sm" type="button" disabled={props.disabled} onClick={() => props.onFiltersChange(props.initialFilters)}>
               <Search size={15} />
-              重置
-            </button>
+              {translate('auto.k0254')}</button>
           </div>
         </div>
 
@@ -87,10 +85,10 @@ export function TestDesignRequirementSelectionPanel(props: {
             <thead>
               <tr>
                 <th className="table-check-column"></th>
-                <th>需求</th>
-                <th>优先级</th>
-                <th>来源</th>
-                <th>标签</th>
+                <th>{translate('auto.k0133')}</th>
+                <th>{translate('auto.k0419')}</th>
+                <th>{translate('auto.k0179')}</th>
+                <th>{translate('auto.k0803')}</th>
               </tr>
             </thead>
             <tbody>
@@ -99,7 +97,7 @@ export function TestDesignRequirementSelectionPanel(props: {
                   <tr className={props.selectedRequirementIds.includes(requirement.id) ? 'selected-row' : ''} key={requirement.id}>
                     <td>
                       <input
-                        aria-label={`选择需求 ${requirement.title}`}
+                        aria-label={translate('auto.k1590', { value0: requirement.title })}
                         type="checkbox"
                         checked={props.selectedRequirementIds.includes(requirement.id)}
                         onChange={() => props.onToggleRequirement(requirement.id)}

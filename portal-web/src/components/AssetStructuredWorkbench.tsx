@@ -46,6 +46,7 @@ import {
 import { hasPermission } from '../permissions';
 import { AssetImportExportPanel } from './AssetImportExportPanel';
 import { AssetVersionHistoryPanel } from './AssetVersionHistoryPanel';
+import { translate } from '../platform/i18n';
 
 export type AssetNavigationKey = 'requirements' | 'apis' | 'pages' | 'flows' | 'cases' | 'trace';
 
@@ -222,7 +223,7 @@ export function AssetStructuredWorkbench(props: {
       setHealth(healthResult.value.data);
       traceIds.push(healthResult.value.trace_id);
     } else {
-      errors.push(errorMessage(healthResult.reason, '资产服务健康检查失败'));
+      errors.push(errorMessage(healthResult.reason, translate('auto.k0392')));
     }
 
     if (listResult.status === 'fulfilled') {
@@ -231,7 +232,7 @@ export function AssetStructuredWorkbench(props: {
       traceIds.push(listResult.value.trace_id);
     } else {
       setItems([]);
-      errors.push(errorMessage(listResult.reason, `${meta.name}加载失败`));
+      errors.push(errorMessage(listResult.reason, translate('auto.k0470', { value0: meta.name })));
     }
 
     setLoadState({
@@ -271,7 +272,7 @@ export function AssetStructuredWorkbench(props: {
       setDetailState({ loading: false, traceId: response.trace_id });
     } catch (error: unknown) {
       setSelected(null);
-      setDetailState({ loading: false, error: errorMessage(error, `${meta.name}详情加载失败`) });
+      setDetailState({ loading: false, error: errorMessage(error, translate('auto.k0471', { value0: meta.name })) });
     }
   }, [canReadAssets, meta.name, props.activeTab, props.signedIn, selectedId]);
 
@@ -295,7 +296,7 @@ export function AssetStructuredWorkbench(props: {
       setVersionState({ loading: false, traceId: response.trace_id });
     } catch (error: unknown) {
       setVersions([]);
-      setVersionState({ loading: false, error: errorMessage(error, '版本历史加载失败') });
+      setVersionState({ loading: false, error: errorMessage(error, translate('auto.k0396')) });
     }
   }, [canReadAssets, props.activeTab, props.signedIn, selectedId]);
 
@@ -323,15 +324,15 @@ export function AssetStructuredWorkbench(props: {
   async function submitCreate(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!props.signedIn) {
-      setCreateState({ loading: false, error: `请先登录后再创建${meta.name}` });
+      setCreateState({ loading: false, error: translate('auto.k0472', { value0: meta.name }) });
       return;
     }
     if (!canManageAssets) {
-      setCreateState({ loading: false, error: '缺少 asset:manage 权限' });
+      setCreateState({ loading: false, error: translate('auto.k0398') });
       return;
     }
     if (!createDraft.projectId.trim() || !createDraft.name.trim()) {
-      setCreateState({ loading: false, error: 'projectId 和名称必填' });
+      setCreateState({ loading: false, error: translate('auto.k0473') });
       return;
     }
 
@@ -353,11 +354,11 @@ export function AssetStructuredWorkbench(props: {
       setSelectedId(nextItem.id);
       setEditDraft(draftFromView(props.activeTab, nextItem));
       upsertItem(setItems, nextItem);
-      setCreateState({ loading: false, success: `${meta.name}已创建`, traceId: response.trace_id });
+      setCreateState({ loading: false, success: translate('auto.k0474', { value0: meta.name }), traceId: response.trace_id });
       void reloadVersions(nextItem.id);
       selectItem(nextItem.id);
     } catch (error: unknown) {
-      setCreateState({ loading: false, error: errorMessage(error, `${meta.name}创建失败`) });
+      setCreateState({ loading: false, error: errorMessage(error, translate('auto.k0475', { value0: meta.name })) });
     }
   }
 
@@ -367,15 +368,15 @@ export function AssetStructuredWorkbench(props: {
       return;
     }
     if (!props.signedIn) {
-      setMutationState({ loading: false, error: `请先登录后再保存${meta.name}` });
+      setMutationState({ loading: false, error: translate('auto.k0476', { value0: meta.name }) });
       return;
     }
     if (!canManageAssets) {
-      setMutationState({ loading: false, error: '缺少 asset:manage 权限' });
+      setMutationState({ loading: false, error: translate('auto.k0398') });
       return;
     }
     if (!editDraft.name.trim()) {
-      setMutationState({ loading: false, error: '名称不能为空' });
+      setMutationState({ loading: false, error: translate('auto.k0477') });
       return;
     }
 
@@ -395,10 +396,10 @@ export function AssetStructuredWorkbench(props: {
       setSelected(nextItem);
       setEditDraft(draftFromView(props.activeTab, nextItem));
       upsertItem(setItems, nextItem);
-      setMutationState({ loading: false, success: `${meta.name}已保存`, traceId: response.trace_id });
+      setMutationState({ loading: false, success: translate('auto.k0478', { value0: meta.name }), traceId: response.trace_id });
       void reloadVersions(nextItem.id);
     } catch (error: unknown) {
-      setMutationState({ loading: false, error: errorMessage(error, `${meta.name}保存失败`) });
+      setMutationState({ loading: false, error: errorMessage(error, translate('auto.k0479', { value0: meta.name })) });
     }
   }
 
@@ -407,19 +408,19 @@ export function AssetStructuredWorkbench(props: {
       return;
     }
     if (!props.signedIn) {
-      setVersionState({ loading: false, error: `请先登录后再回滚${meta.shortName}` });
+      setVersionState({ loading: false, error: translate('auto.k0480', { value0: meta.shortName }) });
       return;
     }
     if (!canManageAssets) {
-      setVersionState({ loading: false, error: '缺少 asset:manage 权限' });
+      setVersionState({ loading: false, error: translate('auto.k0398') });
       return;
     }
 
     setVersionState({ loading: true });
     try {
       const response = props.activeTab === 'pages'
-        ? await rollbackAssetPageVersion(selected.id, version, `回滚到 v${version}`)
-        : await rollbackAssetBusinessFlowVersion(selected.id, version, `回滚到 v${version}`);
+        ? await rollbackAssetPageVersion(selected.id, version, translate('auto.k0399', { value0: version }))
+        : await rollbackAssetBusinessFlowVersion(selected.id, version, translate('auto.k0399', { value0: version }));
       const nextItem = responseToView(props.activeTab, response.data);
       setSelected(nextItem);
       setEditDraft(draftFromView(props.activeTab, nextItem));
@@ -427,7 +428,7 @@ export function AssetStructuredWorkbench(props: {
       setVersionState({ loading: false, traceId: response.trace_id });
       void reloadVersions(nextItem.id);
     } catch (error: unknown) {
-      setVersionState({ loading: false, error: errorMessage(error, `${meta.name}版本回滚失败`) });
+      setVersionState({ loading: false, error: errorMessage(error, translate('auto.k0481', { value0: meta.name })) });
     }
   }
 
@@ -437,15 +438,15 @@ export function AssetStructuredWorkbench(props: {
       return;
     }
     if (!props.signedIn) {
-      setPrototypeSyncState({ loading: false, error: '请先登录后再同步原型' });
+      setPrototypeSyncState({ loading: false, error: translate('auto.k0482') });
       return;
     }
     if (!canManageAssets) {
-      setPrototypeSyncState({ loading: false, error: '缺少 asset:manage 权限' });
+      setPrototypeSyncState({ loading: false, error: translate('auto.k0398') });
       return;
     }
     if (!prototypeSyncDraft.projectId.trim() || !prototypeSyncDraft.pagesJson.trim()) {
-      setPrototypeSyncState({ loading: false, error: 'projectId 和 pages JSON 必填' });
+      setPrototypeSyncState({ loading: false, error: translate('auto.k0483') });
       return;
     }
     const pagesResult = parsePrototypePages(prototypeSyncDraft.pagesJson);
@@ -466,14 +467,14 @@ export function AssetStructuredWorkbench(props: {
       setPrototypeSyncResult(response.data);
       setPrototypeSyncState({
         loading: false,
-        success: `${prototypeSyncDraft.dryRun ? '预检' : '同步'}完成：${response.data.created} 创建，${response.data.updated} 更新，${response.data.failed} 失败`,
+        success: translate('auto.k0460', { value0: prototypeSyncDraft.dryRun ? translate('auto.k0464') : translate('auto.k0186'), value1: response.data.created, value2: response.data.updated, value3: response.data.failed }),
         traceId: response.trace_id
       });
       if (!prototypeSyncDraft.dryRun && response.data.failed === 0) {
         void refreshAssets();
       }
     } catch (error: unknown) {
-      setPrototypeSyncState({ loading: false, error: errorMessage(error, '原型同步失败') });
+      setPrototypeSyncState({ loading: false, error: errorMessage(error, translate('auto.k0484')) });
     }
   }
 
@@ -488,16 +489,15 @@ export function AssetStructuredWorkbench(props: {
               </div>
               <div>
                 <span className="eyebrow">Asset Library</span>
-                <h2>资产库</h2>
+                <h2>{translate('auto.k0005')}</h2>
               </div>
             </div>
             <button className="secondary-button" type="button" disabled={disabled} onClick={refreshAssets}>
               <RefreshCw size={16} />
-              刷新
-            </button>
+              {translate('auto.k0170')}</button>
           </div>
 
-          <div className="asset-tab-strip" aria-label="资产类型">
+          <div className="asset-tab-strip" aria-label={translate('auto.k0413')}>
             {props.tabs.map((tab) => {
               const Icon = tab.icon;
               return (
@@ -535,7 +535,7 @@ export function AssetStructuredWorkbench(props: {
                 disabled={disabled}
                 onChange={(event) => setFilters((current) => ({ ...current, status: event.target.value }))}
               >
-                <option value="">全部状态</option>
+                <option value="">{translate('auto.k0367')}</option>
                 {meta.statuses.map((status) => (
                   <option key={status} value={status}>
                     {status}
@@ -552,7 +552,7 @@ export function AssetStructuredWorkbench(props: {
                   disabled={disabled}
                   onChange={(event) => setFilters((current) => ({ ...current, source: event.target.value }))}
                 >
-                  <option value="">全部来源</option>
+                  <option value="">{translate('auto.k0414')}</option>
                   {ASSET_PAGE_SOURCES.map((source) => (
                     <option key={source} value={source}>
                       {source}
@@ -568,18 +568,16 @@ export function AssetStructuredWorkbench(props: {
                 value={filters.keyword}
                 disabled={disabled}
                 onChange={(event) => setFilters((current) => ({ ...current, keyword: event.target.value }))}
-                placeholder={props.activeTab === 'pages' ? '名称 / URL / 来源' : '名称 / 描述 / 编码'}
+                placeholder={props.activeTab === 'pages' ? translate('auto.k0485') : translate('auto.k0486')}
               />
             </label>
             <div className="asset-filter-actions">
               <button className="mini-button" type="button" disabled={disabled} onClick={refreshAssets}>
                 <Search size={14} />
-                查询
-              </button>
+                {translate('auto.k0372')}</button>
               <button className="mini-button" type="button" disabled={disabled} onClick={() => setFilters(initialFilters)}>
                 <XCircle size={14} />
-                清空
-              </button>
+                {translate('auto.k0416')}</button>
             </div>
           </form>
 
@@ -588,11 +586,11 @@ export function AssetStructuredWorkbench(props: {
               <thead>
                 <tr>
                   <th>{meta.tableTitle}</th>
-                  <th>项目</th>
-                  <th>{props.activeTab === 'pages' ? 'URL / 来源' : '优先级'}</th>
-                  <th>状态</th>
-                  <th>更新时间</th>
-                  <th>操作</th>
+                  <th>{translate('auto.k0176')}</th>
+                  <th>{props.activeTab === 'pages' ? translate('auto.k0487') : translate('auto.k0419')}</th>
+                  <th>{translate('auto.k0182')}</th>
+                  <th>{translate('auto.k0421')}</th>
+                  <th>{translate('auto.k0249')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -621,15 +619,14 @@ export function AssetStructuredWorkbench(props: {
                       <td>
                         <button className="mini-button" type="button" onClick={() => selectItem(item.id)} disabled={!item.id}>
                           <Eye size={14} />
-                          详情
-                        </button>
+                          {translate('auto.k0333')}</button>
                       </td>
                     </tr>
                   ))
                 ) : (
                   <tr>
                     <td className="table-empty" colSpan={6}>
-                      {props.signedIn ? (loadState.loading ? '加载中' : `暂无${meta.name}`) : '请先登录'}
+                      {props.signedIn ? (loadState.loading ? translate('auto.k0168') : translate('auto.k0488', { value0: meta.name })) : translate('auto.k0454')}
                     </td>
                   </tr>
                 )}
@@ -646,7 +643,7 @@ export function AssetStructuredWorkbench(props: {
             </div>
             <div>
               <span className="eyebrow">Create</span>
-              <h2>新建{meta.name}</h2>
+              <h2>{translate('auto.k0489')}{meta.name}</h2>
             </div>
           </div>
           <StructuredAssetForm
@@ -656,7 +653,7 @@ export function AssetStructuredWorkbench(props: {
             jsonLabel={meta.jsonLabel}
             onChange={setCreateDraft}
             onSubmit={submitCreate}
-            submitLabel={`创建${meta.shortName}`}
+            submitLabel={translate('auto.k0490', { value0: meta.shortName })}
           />
           <StateLine state={createState} />
         </section>
@@ -664,10 +661,10 @@ export function AssetStructuredWorkbench(props: {
 
       <aside className="side-stack asset-side-stack">
         <section className="panel insight-panel">
-          <h2>WP3 接口状态</h2>
+          <h2>{translate('auto.k0426')}</h2>
           <div className="document-health-grid">
-            <StatusMetric label="服务" value={health?.service ?? 'asset-service'} />
-            <StatusMetric label="状态" value={health?.status ?? (props.signedIn ? '等待响应' : '等待登录')} pill />
+            <StatusMetric label={translate('auto.k0427')} value={health?.service ?? 'asset-service'} />
+            <StatusMetric label={translate('auto.k0182')} value={health?.status ?? (props.signedIn ? translate('auto.k0428') : translate('auto.k0429'))} pill />
             <StatusMetric label={meta.shortName} value={String(items.length)} />
             {meta.statuses.map((status) => (
               <StatusMetric key={status} label={status} value={String(statusCounts[status] ?? 0)} />
@@ -675,7 +672,7 @@ export function AssetStructuredWorkbench(props: {
           </div>
           {loadState.error && (
             <div className="inline-error">
-              <strong>同步失败</strong>
+              <strong>{translate('auto.k0148')}</strong>
               <span>{loadState.error}</span>
             </div>
           )}
@@ -683,7 +680,7 @@ export function AssetStructuredWorkbench(props: {
 
         {props.activeTab === 'pages' && (
           <section className="panel insight-panel">
-            <h2>原型同步</h2>
+            <h2>{translate('auto.k0491')}</h2>
             <form className="asset-form" onSubmit={submitPrototypeSync}>
               <div className="asset-form-grid">
                 <label className="field" htmlFor="asset-prototype-project">
@@ -747,14 +744,14 @@ export function AssetStructuredWorkbench(props: {
                   disabled={!props.signedIn || !canManageAssets || prototypeSyncState.loading}
                 >
                   <Save size={16} />
-                  {prototypeSyncDraft.dryRun ? '预检' : '同步'}
+                  {prototypeSyncDraft.dryRun ? translate('auto.k0464') : translate('auto.k0186')}
                 </button>
               </div>
             </form>
             {prototypeSyncResult && (
               <div className="asset-import-result">
                 <strong>{prototypeSyncResult.source}</strong>
-                <span>{prototypeSyncResult.totalRows} 页 · {prototypeSyncResult.created} 创建 · {prototypeSyncResult.updated} 更新 · {prototypeSyncResult.skipped} 跳过 · {prototypeSyncResult.failed} 失败</span>
+                <span>{prototypeSyncResult.totalRows} {translate('auto.k0492')}{prototypeSyncResult.created} {translate('auto.k0467')}{prototypeSyncResult.updated} {translate('auto.k0468')}{prototypeSyncResult.skipped} {translate('auto.k0469')}{prototypeSyncResult.failed} {translate('auto.k0369')}</span>
               </div>
             )}
             <StateLine state={prototypeSyncState} />
@@ -770,7 +767,7 @@ export function AssetStructuredWorkbench(props: {
 
         <section className="panel insight-panel asset-detail-panel">
           <div className="panel-title-row">
-            <h2>{meta.name}详情</h2>
+            <h2>{meta.name}{translate('auto.k0333')}</h2>
             {selected && <AssetStatusPill value={selected.status} />}
           </div>
 
@@ -801,7 +798,7 @@ export function AssetStructuredWorkbench(props: {
               </div>
 
               <div className="asset-source-trace">
-                <strong>{props.activeTab === 'pages' ? '原型来源' : '流程摘要'}</strong>
+                <strong>{props.activeTab === 'pages' ? translate('auto.k0493') : translate('auto.k0494')}</strong>
                 {props.activeTab === 'pages' ? (
                   <>
                     <div>
@@ -847,7 +844,7 @@ export function AssetStructuredWorkbench(props: {
                 jsonLabel={meta.jsonLabel}
                 onChange={setEditDraft}
                 onSubmit={submitEdit}
-                submitLabel={`保存${meta.shortName}`}
+                submitLabel={translate('auto.k0495', { value0: meta.shortName })}
                 compact
                 selectedStatus={selected.status}
               />
@@ -866,8 +863,8 @@ export function AssetStructuredWorkbench(props: {
             <div className="empty-state compact">
               <Pencil size={20} />
               <div>
-                <strong>{detailState.loading ? '正在加载详情' : props.signedIn ? `未选择${meta.name}` : '等待登录'}</strong>
-                <span>{detailState.error ?? `从列表中选择${meta.name}`}</span>
+                <strong>{detailState.loading ? translate('auto.k0437') : props.signedIn ? translate('auto.k0496', { value0: meta.name }) : translate('auto.k0429')}</strong>
+                <span>{detailState.error ?? translate('auto.k0497', { value0: meta.name })}</span>
               </div>
             </div>
           )}
@@ -906,13 +903,13 @@ function StructuredAssetForm(props: {
           </label>
         )}
         <label className="field" htmlFor={`asset-${props.activeTab}-name`}>
-          <span>名称<b>*</b></span>
+          <span>{translate('auto.k0177')}<b>*</b></span>
           <input
             id={`asset-${props.activeTab}-name`}
             value={props.draft.name}
             disabled={props.disabled}
             onChange={(event) => props.onChange((current) => ({ ...current, name: event.target.value }))}
-            placeholder={props.activeTab === 'pages' ? '结算页' : '下单主流程'}
+            placeholder={props.activeTab === 'pages' ? translate('auto.k0498') : translate('auto.k0499')}
           />
         </label>
         {props.activeTab === 'pages' ? (
@@ -1010,7 +1007,7 @@ function StructuredAssetForm(props: {
       </div>
       {props.activeTab === 'flows' && (
         <label className="field" htmlFor={`asset-${props.activeTab}-description`}>
-          <span>描述</span>
+          <span>{translate('auto.k0443')}</span>
           <textarea
             id={`asset-${props.activeTab}-description`}
             className="compact-textarea"
@@ -1053,19 +1050,19 @@ function structuredMeta(tab: StructuredTabKey) {
     return {
       icon: ClipboardList,
       jsonLabel: 'componentTree',
-      name: '页面资产',
-      shortName: '页面',
+      name: translate('auto.k0500'),
+      shortName: translate('auto.k0134'),
       statuses: ASSET_PAGE_STATUSES,
-      tableTitle: '页面'
+      tableTitle: translate('auto.k0134')
     };
   }
   return {
     icon: GitBranch,
     jsonLabel: 'flowJson',
-    name: '业务流资产',
-    shortName: '业务流',
+    name: translate('auto.k0501'),
+    shortName: translate('auto.k0135'),
     statuses: ASSET_FLOW_STATUSES,
-    tableTitle: '业务流'
+    tableTitle: translate('auto.k0135')
   };
 }
 
@@ -1249,7 +1246,7 @@ function parseJsonDraft(value: string, label: string): { ok: true; value?: unkno
   try {
     return { ok: true, value: JSON.parse(value) };
   } catch {
-    return { ok: false, error: `${label} 必须是合法 JSON` };
+    return { ok: false, error: translate('auto.k0502', { value0: label }) };
   }
 }
 
@@ -1262,9 +1259,9 @@ function parsePrototypePages(value: string): { ok: true; value: AssetPrototypeSy
     if (parsed && typeof parsed === 'object' && Array.isArray((parsed as { pages?: unknown }).pages)) {
       return { ok: true, value: (parsed as { pages: AssetPrototypeSyncPagePayload[] }).pages };
     }
-    return { ok: false, error: 'pages 必须是数组或包含 pages 数组的 JSON' };
+    return { ok: false, error: translate('auto.k0503') };
   } catch {
-    return { ok: false, error: 'pages 必须是合法 JSON' };
+    return { ok: false, error: translate('auto.k0504') };
   }
 }
 
@@ -1309,7 +1306,7 @@ function errorMessage(error: unknown, fallback: string) {
 
 function StateLine(props: { state: WorkState }) {
   if (props.state.loading) {
-    return <span className="document-state-line">处理中</span>;
+    return <span className="document-state-line">{translate('auto.k0458')}</span>;
   }
   if (props.state.error) {
     return <span className="document-state-line error">{props.state.error}</span>;

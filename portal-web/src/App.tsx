@@ -97,8 +97,9 @@ import {
 } from './platform/forms';
 import { queryClient } from './platform/queryClient';
 import { useThemeStore } from './platform/themeStore';
+import { translate } from './platform/i18n';
 
-/* ===================== 常量 & 类型 ===================== */
+/* ===================== Constants and types ===================== */
 
 const initialLoginForm: LoginFormValues = { username: '', password: '' };
 const initialPasswordForm: PasswordChangeFormValues = { oldPassword: '', newPassword: '', confirmPassword: '' };
@@ -133,135 +134,135 @@ interface SidebarGroupDefinition {
 const pages: PageDefinition[] = [
   {
     key: 'overview',
-    label: '系统概览',
-    title: '系统概览',
-    description: '查看平台健康状态、资源摘要和 WP1-WP4 控制台入口。',
+    label: translate('auto.k0001'),
+    title: translate('auto.k0001'),
+    description: translate('auto.k0002'),
     icon: LayoutDashboard
   },
   {
     key: 'document-input',
-    label: '文档输入',
-    title: '文档输入',
-    description: '管理文档源、字段映射与文本/Markdown 导入，查看解析出的需求数量。',
+    label: translate('auto.k0003'),
+    title: translate('auto.k0003'),
+    description: translate('auto.k0004'),
     icon: FileText
   },
   {
     key: 'asset-library',
-    label: '资产库',
-    title: '资产库',
-    description: '管理 WP3 需求资产，查看来源追踪和后续资产类型入口。',
+    label: translate('auto.k0005'),
+    title: translate('auto.k0005'),
+    description: translate('auto.k0006'),
     icon: Archive
   },
   {
     key: 'test-design',
-    label: '用例生成',
-    title: '用例生成',
-    description: '基于 WP3 需求生成候选测试用例，完成评审后发布到资产库。',
+    label: translate('auto.k0007'),
+    title: translate('auto.k0007'),
+    description: translate('auto.k0008'),
     icon: Sparkles
   },
   {
     key: 'api-automation',
-    label: '接口自动化',
-    title: '接口自动化',
-    description: '导入 OpenAPI 规格，解析接口摘要并维护 endpoint snapshot。',
+    label: translate('auto.k0009'),
+    title: translate('auto.k0009'),
+    description: translate('auto.k0010'),
     icon: ClipboardList
   },
   {
     key: 'ui-e2e',
     label: 'UI E2E',
     title: 'UI E2E',
-    description: '管理 WP7 场景、脚本包、运行摘要和 flaky 治理。',
+    description: translate('auto.k0011'),
     icon: MonitorPlay
   },
   {
     key: 'execution',
-    label: '执行编排',
-    title: '执行编排',
-    description: '管理执行计划、DAG 校验、运行状态、触发配置和调度摘要。',
+    label: translate('auto.k0012'),
+    title: translate('auto.k0012'),
+    description: translate('auto.k0013'),
     icon: GitBranch
   },
   {
     key: 'test-data',
-    label: '测试数据',
-    title: '测试数据',
-    description: '维护数据集、账号池、租借记录和清理任务。',
+    label: translate('auto.k0014'),
+    title: translate('auto.k0014'),
+    description: translate('auto.k0015'),
     icon: KeyRound
   },
   {
     key: 'reports',
-    label: '报告诊断',
-    title: '报告诊断',
-    description: '生成 WP10 报告快照，查看失败诊断、缺陷草稿和脱敏导出摘要。',
+    label: translate('auto.k0016'),
+    title: translate('auto.k0016'),
+    description: translate('auto.k0017'),
     icon: ScrollText
   },
   {
     key: 'model-access',
-    label: '模型接入',
-    title: '模型接入',
-    description: '管理 WP2 模型供应商、Prompt 版本、调用日志与成本。',
+    label: translate('auto.k0018'),
+    title: translate('auto.k0018'),
+    description: translate('auto.k0019'),
     icon: Activity
   },
   {
     key: 'organizations',
-    label: '组织部门',
-    title: '组织部门',
-    description: '维护部门层级、负责人和成员规模。',
+    label: translate('auto.k0020'),
+    title: translate('auto.k0020'),
+    description: translate('auto.k0021'),
     icon: GitBranch
   },
   {
     key: 'users',
-    label: '用户权限',
-    title: '用户与权限',
-    description: '集中查看用户、角色、权限策略与账号状态。',
+    label: translate('auto.k0022'),
+    title: translate('auto.k0023'),
+    description: translate('auto.k0024'),
     icon: UsersRound
   },
   {
     key: 'roles',
-    label: '角色治理',
-    title: '角色治理',
-    description: '维护自定义角色定义、作用域和权限点集合。',
+    label: translate('auto.k0025'),
+    title: translate('auto.k0025'),
+    description: translate('auto.k0026'),
     icon: ShieldCheck
   },
   {
     key: 'projects',
-    label: '项目空间',
-    title: '项目空间',
-    description: '组织测试项目空间、协作成员与资源配额。',
+    label: translate('auto.k0027'),
+    title: translate('auto.k0027'),
+    description: translate('auto.k0028'),
     icon: DatabaseZap
   },
   {
     key: 'applications',
-    label: '应用管理',
-    title: '应用管理',
-    description: '登记被测应用、责任团队、版本流和接入状态。',
+    label: translate('auto.k0029'),
+    title: translate('auto.k0029'),
+    description: translate('auto.k0030'),
     icon: AppWindow
   },
   {
     key: 'environments',
-    label: '环境管理',
-    title: '环境管理',
-    description: '配置测试、预发、生产等环境与访问策略。',
+    label: translate('auto.k0031'),
+    title: translate('auto.k0031'),
+    description: translate('auto.k0032'),
     icon: ServerCog
   },
   {
     key: 'integrations',
-    label: '集成配置',
-    title: '集成配置',
-    description: '维护代码仓库、CI、消息通知和缺陷系统等外部集成。',
+    label: translate('auto.k0033'),
+    title: translate('auto.k0033'),
+    description: translate('auto.k0034'),
     icon: Link2
   },
   {
     key: 'audit',
-    label: '审计日志',
-    title: '审计日志',
-    description: '追踪关键配置、权限变更与初始化操作。',
+    label: translate('auto.k0035'),
+    title: translate('auto.k0035'),
+    description: translate('auto.k0036'),
     icon: ScrollText
   },
   {
     key: 'settings',
-    label: '系统设置',
-    title: '系统设置',
-    description: '管理平台级安全策略、保留周期和运行参数。',
+    label: translate('auto.k0037'),
+    title: translate('auto.k0037'),
+    description: translate('auto.k0038'),
     icon: Settings
   }
 ];
@@ -269,29 +270,29 @@ const pages: PageDefinition[] = [
 const sidebarGroups: SidebarGroupDefinition[] = [
   {
     key: 'workbench',
-    label: '需求与测试',
-    description: '文档、资产和用例设计',
+    label: translate('auto.k0039'),
+    description: translate('auto.k0040'),
     icon: Sparkles,
     pageKeys: ['document-input', 'asset-library', 'test-design']
   },
   {
     key: 'delivery',
-    label: '接口与执行',
-    description: '接口自动化、UI E2E、执行编排、测试数据和报告',
+    label: translate('auto.k0041'),
+    description: translate('auto.k0042'),
     icon: GitBranch,
     pageKeys: ['api-automation', 'ui-e2e', 'execution', 'test-data', 'reports']
   },
   {
     key: 'organization',
-    label: '组织与权限',
-    description: '组织、账号、角色和项目治理',
+    label: translate('auto.k0043'),
+    description: translate('auto.k0044'),
     icon: UsersRound,
     pageKeys: ['organizations', 'users', 'roles', 'projects']
   },
   {
     key: 'platform',
-    label: '平台配置',
-    description: '应用、环境、集成、审计和模型接入',
+    label: translate('auto.k0045'),
+    description: translate('auto.k0046'),
     icon: Settings,
     pageKeys: ['applications', 'environments', 'integrations', 'audit', 'settings', 'model-access']
   }
@@ -406,7 +407,7 @@ export function App() {
   const passwordChangeRequired = Boolean(currentUser?.must_change_password);
   const [openSidebarGroupKey, setOpenSidebarGroupKey] = useState<string | null>(() => sidebarGroupKeyByPageKey[activePage] ?? null);
   const activeSidebarGroupKey = sidebarGroupKeyByPageKey[activePage] ?? null;
-  const activeSidebarGroupLabel = sidebarGroups.find((group) => group.key === activeSidebarGroupKey)?.label ?? '平台总览';
+  const activeSidebarGroupLabel = sidebarGroups.find((group) => group.key === activeSidebarGroupKey)?.label ?? translate('auto.k0047');
 
   useEffect(() => {
     if (location.pathname === '/' || location.pathname === '') {
@@ -521,7 +522,7 @@ export function App() {
           }
           if (err instanceof ApiError && err.code === 'SESSION_EXPIRED') {
             resetSignedInState();
-            addToast('info', '登录已过期，请重新登录');
+            addToast('info', translate('auto.k0048'));
             return;
           }
           notificationStreamRetryRef.current = window.setTimeout(() => {
@@ -557,7 +558,7 @@ export function App() {
       setManagementData(r.data);
       setManagementLoad({ loading: false });
     } catch (err: unknown) {
-      setManagementLoad({ loading: false, error: err instanceof Error ? err.message : '加载失败' });
+      setManagementLoad({ loading: false, error: err instanceof Error ? err.message : translate('auto.k0049') });
     }
   }, [currentUser]);
 
@@ -569,7 +570,7 @@ export function App() {
       setManagementData((prev) => ({ ...prev, auditOutbox: r.data.items }));
       setAuditOutboxLoad({ loading: false });
     } catch (err: unknown) {
-      setAuditOutboxLoad({ loading: false, error: err instanceof Error ? err.message : '加载失败' });
+      setAuditOutboxLoad({ loading: false, error: err instanceof Error ? err.message : translate('auto.k0049') });
     }
   }, [auditOutboxFilters, currentUser]);
 
@@ -657,14 +658,14 @@ export function App() {
       queryClient.setQueryData(['current-user'], userR.data);
       loginForm.reset(initialLoginForm);
       setLoginState({ status: 'idle' });
-      addToast('success', '登录成功');
+      addToast('success', translate('auto.k0050'));
     } catch (err: unknown) {
       clearAuthToken();
       setSessionUser(null);
       if (err instanceof ApiError) {
         setLoginState({ status: 'error', message: err.message });
       } else {
-        setLoginState({ status: 'error', message: '登录失败，请检查网络连接' });
+        setLoginState({ status: 'error', message: translate('auto.k0051') });
       }
     }
   }, (errors) => {
@@ -692,9 +693,9 @@ export function App() {
 
   async function onLogout() {
     const confirmed = await confirm({
-      confirmLabel: '退出',
-      description: '退出后需要重新登录才能继续使用控制台。',
-      title: '确认退出登录？',
+      confirmLabel: translate('auto.k0052'),
+      description: translate('auto.k0053'),
+      title: translate('auto.k0054'),
       tone: 'danger'
     });
     if (!confirmed) {
@@ -702,7 +703,7 @@ export function App() {
     }
     try { await logoutRequest(); } catch { /* ignore */ } finally {
       resetSignedInState();
-      addToast('info', '已退出登录');
+      addToast('info', translate('auto.k0055'));
     }
   }
 
@@ -712,12 +713,12 @@ export function App() {
     try {
       await changePassword({ old_password: oldPassword, new_password: newPassword });
       resetSignedInState();
-      addToast('success', '密码已修改，请重新登录');
+      addToast('success', translate('auto.k0056'));
     } catch (err: unknown) {
       if (err instanceof ApiError) {
         setPasswordDialogState({ status: 'error', message: err.message });
       } else {
-        setPasswordDialogState({ status: 'error', message: '密码修改失败' });
+        setPasswordDialogState({ status: 'error', message: translate('auto.k0057') });
       }
     }
   }, (errors) => {
@@ -736,10 +737,10 @@ export function App() {
     setManagementLoad({ loading: true });
     try {
       await createManagementItem(resource, name);
-      addToast('success', `${_label}「${name}」已创建`);
+      addToast('success', translate('auto.k0058', { value0: _label, value1: name }));
       await refreshManagementData();
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : '创建失败';
+      const msg = err instanceof Error ? err.message : translate('auto.k0059');
       setManagementLoad({ loading: false, error: msg });
       addToast('error', msg);
     }
@@ -753,14 +754,14 @@ export function App() {
       const blob = new Blob([r.text], { type: r.contentType || 'text/csv;charset=utf-8' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
-      a.href = url; a.download = r.filename ?? '审计日志.csv';
+      a.href = url; a.download = r.filename ?? translate('auto.k0060');
       a.click();
       URL.revokeObjectURL(url);
       setAuditExportState({ loading: false });
-      addToast('success', '审计日志已导出');
+      addToast('success', translate('auto.k0061'));
       await refreshManagementData();
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : '导出失败';
+      const msg = err instanceof Error ? err.message : translate('auto.k0062');
       setAuditExportState({ loading: false, error: msg });
       addToast('error', msg);
     }
@@ -769,7 +770,7 @@ export function App() {
   async function onUserLifecycleAction(username: string, action: UserLifecycleAction, roleCodeInput = '') {
     if (!currentUser) return;
     if ((action === 'disable' || action === 'lock') && username === currentUser.username) {
-      addToast('error', action === 'disable' ? '不能停用当前登录账号' : '不能锁定当前登录账号');
+      addToast('error', action === 'disable' ? translate('auto.k0063') : translate('auto.k0064'));
       return;
     }
 
@@ -796,13 +797,13 @@ export function App() {
       };
       await ops[action]();
       const actionLabels: Record<string, string> = {
-        enable: '已启用', unlock: '已解锁', disable: '已停用', lock: '已锁定',
-        'reset-password': '密码已重置', 'assign-role': '角色已分配', 'unassign-role': '角色已解绑'
+        enable: translate('auto.k0065'), unlock: translate('auto.k0066'), disable: translate('auto.k0067'), lock: translate('auto.k0068'),
+        'reset-password': translate('auto.k0069'), 'assign-role': translate('auto.k0070'), 'unassign-role': translate('auto.k0071')
       };
-      addToast('success', `${username} ${actionLabels[action] ?? '操作成功'}`);
+      addToast('success', translate('auto.k0072', { value0: username, value1: actionLabels[action] ?? translate('auto.k2600') }));
       await refreshManagementData();
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : '操作失败';
+      const msg = err instanceof Error ? err.message : translate('auto.k0073');
       setManagementLoad({ loading: false, error: msg });
       addToast('error', msg);
     }
@@ -822,10 +823,10 @@ export function App() {
       setResetPasswordDialogOpen(false);
       resetPasswordForm.reset(initialResetPasswordForm);
       setResetPasswordDialogState({ status: 'idle' });
-      addToast('success', `${username} 密码已重置`);
+      addToast('success', translate('auto.k0074', { value0: username }));
       await refreshManagementData();
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : '重置失败';
+      const msg = err instanceof Error ? err.message : translate('auto.k0075');
       setResetPasswordDialogState({ status: 'error', message: msg });
     }
   }, (errors) => {
@@ -849,7 +850,7 @@ export function App() {
       setNotificationItems((prev) => prev.map((item) => item.id === id ? response.data : item));
       setNotificationUnreadCount((prev) => Math.max(0, prev - 1));
     } catch (err: unknown) {
-      addToast('error', err instanceof Error ? err.message : '通知状态更新失败');
+      addToast('error', err instanceof Error ? err.message : translate('auto.k0076'));
     }
   }
 
@@ -860,7 +861,7 @@ export function App() {
       setNotificationItems((prev) => prev.map((item) => item.unread ? { ...item, unread: false, readAt } : item));
       setNotificationUnreadCount(response.data.unreadCount);
     } catch (err: unknown) {
-      addToast('error', err instanceof Error ? err.message : '通知状态更新失败');
+      addToast('error', err instanceof Error ? err.message : translate('auto.k0076'));
     }
   }
 
@@ -927,14 +928,14 @@ export function App() {
             onMarkAllRead={() => void onMarkAllNotificationsRead()}
           />
         )}
-        <a className="topbar-link" href="#overview" aria-label="打开文档中心">
+        <a className="topbar-link" href="#overview" aria-label={translate('auto.k0077')}>
           <BookOpen size={16} />
           <span>{t('actions.docs')}</span>
         </a>
         <button
           className="topbar-chip topbar-language"
           type="button"
-          aria-label="切换语言"
+          aria-label={translate('auto.k0078')}
           onClick={() => void i18n.changeLanguage(i18n.language === 'zh' ? 'en' : 'zh')}
         >
           <span className="language-flag" aria-hidden="true">CN</span>
@@ -942,7 +943,7 @@ export function App() {
           <ChevronDown size={14} />
         </button>
         <HealthBadge health={health} />
-        <div className="topbar-balance" aria-label="当前版本">
+        <div className="topbar-balance" aria-label={translate('auto.k0079')}>
           <WalletCards size={16} />
           <span>{t('app.enterpriseEdition')}</span>
         </div>
@@ -955,7 +956,7 @@ export function App() {
               <strong>{currentUser.display_name || currentUser.username}</strong>
               <span>{currentUser.email || currentUser.roles?.join(' · ') || ''}</span>
             </div>
-            <button className="btn btn-ghost btn-sm" onClick={onLogout} title="退出登录">
+            <button className="btn btn-ghost btn-sm" onClick={onLogout} title={translate('auto.k0080')}>
               <LogOut size={15} />
               {t('actions.logout')}
             </button>
@@ -1040,7 +1041,7 @@ export function App() {
     <div className="app-shell">
       <a className="skip-link" href="#main-content">{t('nav.skip')}</a>
       {/* Sidebar */}
-      <aside className="sidebar" aria-label="主导航">
+      <aside className="sidebar" aria-label={translate('auto.k0081')}>
         <div className="brand">
           <div className="brand-mark">VA</div>
           <div className="brand-text">
@@ -1049,7 +1050,7 @@ export function App() {
           </div>
         </div>
 
-        <nav className="nav-list" aria-label="功能菜单">
+        <nav className="nav-list" aria-label={translate('auto.k0082')}>
           <button
             className={`nav-item nav-home${activePage === 'overview' ? ' active' : ''}`}
             type="button"
@@ -1057,7 +1058,7 @@ export function App() {
             aria-current={activePage === 'overview' ? 'page' : undefined}
           >
             <LayoutDashboard size={18} />
-            <span>系统概览</span>
+            <span>{translate('auto.k0001')}</span>
           </button>
 
           {visibleSidebarGroups.map((group) => {
@@ -1112,9 +1113,9 @@ export function App() {
           })}
         </nav>
         <div className="sidebar-footer">
-          <button className="nav-item sidebar-mode-toggle" type="button" aria-label="切换主题" onClick={toggleThemeMode}>
+          <button className="nav-item sidebar-mode-toggle" type="button" aria-label={translate('auto.k0083')} onClick={toggleThemeMode}>
             <Moon size={17} />
-            <span>{resolvedThemeMode === 'dark' ? '浅色模式' : '深色模式'}</span>
+            <span>{resolvedThemeMode === 'dark' ? translate('auto.k0084') : translate('auto.k0085')}</span>
           </button>
         </div>
       </aside>
@@ -1161,7 +1162,7 @@ export function App() {
                   id="current-password"
                   type="password"
                   autoComplete="current-password"
-                  placeholder="输入当前密码"
+                  placeholder={translate('auto.k0086')}
                   {...passwordForm.register('oldPassword', { onChange: () => setPasswordDialogState({ status: 'idle' }) })}
                   aria-invalid={Boolean(passwordForm.formState.errors.oldPassword)}
                   required
@@ -1169,12 +1170,12 @@ export function App() {
                 {passwordForm.formState.errors.oldPassword ? <span className="field-error">{passwordForm.formState.errors.oldPassword.message}</span> : null}
               </div>
               <div className="field">
-                <label className="field-label" htmlFor="new-password">新密码</label>
+                <label className="field-label" htmlFor="new-password">{translate('auto.k0087')}</label>
                 <input
                   id="new-password"
                   type="password"
                   autoComplete="new-password"
-                  placeholder="至少 10 位"
+                  placeholder={translate('auto.k0088')}
                   minLength={10}
                   {...passwordForm.register('newPassword', { onChange: () => setPasswordDialogState({ status: 'idle' }) })}
                   aria-invalid={Boolean(passwordForm.formState.errors.newPassword)}
@@ -1188,7 +1189,7 @@ export function App() {
                   id="confirm-new-password"
                   type="password"
                   autoComplete="new-password"
-                  placeholder="再次输入新密码"
+                  placeholder={translate('auto.k0089')}
                   minLength={10}
                   {...passwordForm.register('confirmPassword', { onChange: () => setPasswordDialogState({ status: 'idle' }) })}
                   aria-invalid={Boolean(passwordForm.formState.errors.confirmPassword)}
@@ -1201,7 +1202,7 @@ export function App() {
               )}
               <div className="modal-footer modal-footer-compact">
                 <button className="btn btn-primary" type="submit" disabled={passwordDialogState.status === 'submitting'}>
-                  {passwordDialogState.status === 'submitting' ? '提交中...' : '确认修改'}
+                  {passwordDialogState.status === 'submitting' ? translate('auto.k0090') : translate('auto.k0091')}
                 </button>
               </div>
             </form>
@@ -1223,12 +1224,12 @@ export function App() {
                 <input id="reset-password-username" type="text" {...resetPasswordForm.register('username')} disabled />
               </div>
               <div className="field">
-                <label className="field-label" htmlFor="reset-password-new">新密码</label>
+                <label className="field-label" htmlFor="reset-password-new">{translate('auto.k0087')}</label>
                 <input
                   id="reset-password-new"
                   type="password"
                   autoComplete="new-password"
-                  placeholder="至少 10 位"
+                  placeholder={translate('auto.k0088')}
                   minLength={10}
                   {...resetPasswordForm.register('newPassword', { onChange: () => setResetPasswordDialogState({ status: 'idle' }) })}
                   aria-invalid={Boolean(resetPasswordForm.formState.errors.newPassword)}
@@ -1242,7 +1243,7 @@ export function App() {
                   id="reset-password-confirm"
                   type="password"
                   autoComplete="new-password"
-                  placeholder="再次输入新密码"
+                  placeholder={translate('auto.k0089')}
                   minLength={10}
                   {...resetPasswordForm.register('confirmPassword', { onChange: () => setResetPasswordDialogState({ status: 'idle' }) })}
                   aria-invalid={Boolean(resetPasswordForm.formState.errors.confirmPassword)}
@@ -1255,7 +1256,7 @@ export function App() {
               )}
               <div className="modal-footer modal-footer-compact">
                 <button className="btn btn-primary" type="submit" disabled={resetPasswordDialogState.status === 'submitting'}>
-                  {resetPasswordDialogState.status === 'submitting' ? '提交中...' : '确认重置'}
+                  {resetPasswordDialogState.status === 'submitting' ? translate('auto.k0090') : translate('auto.k0092')}
                 </button>
               </div>
             </form>
@@ -1268,10 +1269,10 @@ export function App() {
 
 function HealthBadge({ health }: { health: { loading: boolean; data?: HealthResult; error?: string } }) {
   if (health.loading) {
-    return <div className="badge badge-neutral"><Activity size={13} />检查中</div>;
+    return <div className="badge badge-neutral"><Activity size={13} />{translate('auto.k0093')}</div>;
   }
   if (health.error || !health.data) {
-    return <div className="badge badge-danger"><Activity size={13} />异常</div>;
+    return <div className="badge badge-danger"><Activity size={13} />{translate('auto.k0094')}</div>;
   }
-  return <div className="badge badge-success"><CheckCircle2 size={13} />正常</div>;
+  return <div className="badge badge-success"><CheckCircle2 size={13} />{translate('auto.k0095')}</div>;
 }

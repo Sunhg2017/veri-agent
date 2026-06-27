@@ -1,6 +1,7 @@
 import { Building2, ClipboardList, DatabaseZap, Link2 } from 'lucide-react';
 import type { HealthResult } from '../api/health';
 import type { ManagementData } from '../api/management';
+import { translate } from '../platform/i18n';
 
 /* ===================== Overview Page ===================== */
 
@@ -14,33 +15,33 @@ export function OverviewPage(props: {
         <div className="metric-card">
           <div className="metric-icon info"><Building2 size={20} /></div>
           <div className="metric-body">
-            <span className="metric-label">部 门</span>
+            <span className="metric-label">{translate('auto.k0374')}</span>
             <strong className="metric-value">{props.managementData.departments.length}</strong>
-            <div className="metric-desc">{countByStatus(props.managementData.departments, '同步正常')} 个同步正常</div>
+            <div className="metric-desc">{countByStatus(props.managementData.departments, translate('auto.k0375'))} {translate('auto.k0376')}</div>
           </div>
         </div>
         <div className="metric-card">
           <div className="metric-icon success"><DatabaseZap size={20} /></div>
           <div className="metric-body">
-            <span className="metric-label">项目空间</span>
+            <span className="metric-label">{translate('auto.k0027')}</span>
             <strong className="metric-value">{props.managementData.projects.length}</strong>
-            <div className="metric-desc">{countByStatus(props.managementData.projects, '进行中')} 个进行中</div>
+            <div className="metric-desc">{countByStatus(props.managementData.projects, translate('auto.k0377'))} {translate('auto.k0378')}</div>
           </div>
         </div>
         <div className="metric-card">
           <div className="metric-icon warning"><Link2 size={20} /></div>
           <div className="metric-body">
-            <span className="metric-label">集 成</span>
+            <span className="metric-label">{translate('auto.k0379')}</span>
             <strong className="metric-value">{props.managementData.integrations.length}</strong>
-            <div className="metric-desc">{countByStatus(props.managementData.integrations, '已连接')} 个已连接</div>
+            <div className="metric-desc">{countByStatus(props.managementData.integrations, translate('auto.k0380'))} {translate('auto.k0381')}</div>
           </div>
         </div>
         <div className="metric-card">
           <div className="metric-icon"><ClipboardList size={20} /></div>
           <div className="metric-body">
-            <span className="metric-label">审计事件</span>
+            <span className="metric-label">{translate('auto.k0382')}</span>
             <strong className="metric-value">{props.managementData.auditLogs.length}</strong>
-            <div className="metric-desc">当前工作区</div>
+            <div className="metric-desc">{translate('auto.k0383')}</div>
           </div>
         </div>
       </section>
@@ -49,14 +50,14 @@ export function OverviewPage(props: {
         <div className="panel">
           <div className="panel-header">
             <div>
-              <h2 className="panel-title">运行状态</h2>
-              <p className="panel-desc">平台 API、资源摘要和审计入口当前状态。</p>
+              <h2 className="panel-title">{translate('auto.k0384')}</h2>
+              <p className="panel-desc">{translate('auto.k0385')}</p>
             </div>
           </div>
           <div className="panel-body">
             <div className="overview-status-list">
-              <DetailItem label="后端健康" value={props.health.data?.status ?? (props.health.loading ? '检查中...' : '不可用')} />
-              <DetailItem label="服务名称" value={props.health.data?.service ?? 'platform-api'} />
+              <DetailItem label={translate('auto.k0386')} value={props.health.data?.status ?? (props.health.loading ? translate('auto.k0349') : translate('auto.k0387'))} />
+              <DetailItem label={translate('auto.k0388')} value={props.health.data?.service ?? 'platform-api'} />
             </div>
           </div>
         </div>
@@ -65,16 +66,15 @@ export function OverviewPage(props: {
           <div className="panel">
             <div className="panel-body">
               <div className="overview-scope-card">
-                <div className="badge badge-primary">WP1 · 平台管理</div>
+                <div className="badge badge-primary">{translate('auto.k0389')}</div>
                 <p className="text-secondary text-sm">
-                  组织、用户、角色权限治理 · 项目、应用、环境基础配置 · 外部集成、审计日志、系统设置
-                </p>
+                  {translate('auto.k0390')}</p>
               </div>
             </div>
           </div>
           {props.health.error && (
             <div className="notice error">
-              <strong>健康检查异常</strong>
+              <strong>{translate('auto.k0391')}</strong>
               <span>{props.health.error}</span>
             </div>
           )}

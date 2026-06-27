@@ -9,6 +9,7 @@ import { testDesignBatchActionLabel } from '../testDesignConfirmation';
 import type { TestDesignGenerationSource } from '../testDesignGenerationSource';
 import { generationSourceText } from '../testDesignGenerationSource';
 import type { TestDesignCandidateDraftQualityIssue } from '../testDesignQuality';
+import { translate } from '../platform/i18n';
 
 type BatchEditSummaryResult = {
   total: number;
@@ -62,12 +63,12 @@ export function GenerationSourceBadge(props: { source: TestDesignGenerationSourc
 
 export function contextPolicyOverrideLimitText(limits: Record<string, number>) {
   const labels: Record<string, string> = {
-    linkedAssetsPerRequirement: '关联资产',
-    explicitAssetsPerType: '显式资产',
-    existingCasesPerRequirement: '历史用例',
-    requirementDescriptionChars: '需求摘要',
-    acceptanceCriteriaChars: '验收摘要',
-    linkedAssetSchemaChars: '资产摘要'
+    linkedAssetsPerRequirement: translate('auto.k0431'),
+    explicitAssetsPerType: translate('auto.k1393'),
+    existingCasesPerRequirement: translate('auto.k1394'),
+    requirementDescriptionChars: translate('auto.k1395'),
+    acceptanceCriteriaChars: translate('auto.k1396'),
+    linkedAssetSchemaChars: translate('auto.k1397')
   };
   const parts = Object.entries(limits).map(([key, value]) => `${labels[key] ?? key} ${value}`);
   return parts.length ? parts.join(' · ') : '-';
@@ -81,7 +82,7 @@ export function contextPolicyStatusTone(status: string) {
 }
 
 export function contextPolicyDigestText(digest?: string) {
-  return digest ? `sha256:${digest.slice(0, 12)}` : '无正文 digest';
+  return digest ? `sha256:${digest.slice(0, 12)}` : translate('auto.k1830');
 }
 
 export function releaseReadinessStatusTone(status?: string) {
@@ -163,8 +164,8 @@ export function ReviewRecordRow(props: { record: TestDesignReviewRecordView }) {
       <div>
         <strong>{props.record.title ?? props.record.candidateId ?? '-'}</strong>
         <em>{props.record.action} · {statusChange} · v{versionChange}</em>
-        <small>{props.record.changedFields.length ? props.record.changedFields.join(', ') : '无字段变更摘要'}</small>
-        {props.record.hasComment && <small>{props.record.commentPreview ?? '包含评审说明'}</small>}
+        <small>{props.record.changedFields.length ? props.record.changedFields.join(', ') : translate('auto.k1831')}</small>
+        {props.record.hasComment && <small>{props.record.commentPreview ?? translate('auto.k1832')}</small>}
         {props.record.diffItems.length > 0 && (
           <div className="test-design-diff-items">
             {props.record.diffItems.slice(0, 8).map((item) => (
@@ -192,8 +193,8 @@ export function BatchActionSummary(props: { result: TestDesignCandidateBatchActi
   const failedItems = props.result.items.filter((item) => item.result !== 'SUCCEEDED');
   return (
     <div className={failedItems.length ? 'notice warning test-design-batch-summary' : 'notice success test-design-batch-summary'}>
-      <strong>{testDesignBatchActionLabel(props.result.action)}结果</strong>
-      <span>成功 {props.result.succeededCount} / {props.result.total}，失败 {props.result.failedCount}</span>
+      <strong>{testDesignBatchActionLabel(props.result.action)}{translate('auto.k0365')}</strong>
+      <span>{translate('auto.k0368')}{props.result.succeededCount} / {props.result.total}{translate('auto.k1833')}{props.result.failedCount}</span>
       {failedItems.length > 0 && (
         <div className="test-design-batch-failures">
           {failedItems.slice(0, 4).map((item) => (
@@ -211,8 +212,8 @@ export function BatchEditSummary(props: { result: BatchEditSummaryResult }) {
   const failedItems = props.result.items.filter((item) => item.result !== 'SUCCEEDED');
   return (
     <div className={failedItems.length ? 'notice warning test-design-batch-summary' : 'notice success test-design-batch-summary'}>
-      <strong>批量字段编辑结果</strong>
-      <span>成功 {props.result.succeededCount} / {props.result.total}，失败 {props.result.failedCount}</span>
+      <strong>{translate('auto.k1834')}</strong>
+      <span>{translate('auto.k0368')}{props.result.succeededCount} / {props.result.total}{translate('auto.k1833')}{props.result.failedCount}</span>
       {failedItems.length > 0 && (
         <div className="test-design-batch-failures">
           {failedItems.slice(0, 4).map((item) => (
@@ -243,7 +244,7 @@ export function ConfirmationDialog(props: {
         <div className="modal-heading">
           <div>
             <h2 id="test-design-confirmation-title">{props.summary.title}</h2>
-            <p className="panel-desc">请确认范围和影响后再继续。</p>
+            <p className="panel-desc">{translate('auto.k1835')}</p>
           </div>
         </div>
         <div className="modal-body">
@@ -259,7 +260,7 @@ export function ConfirmationDialog(props: {
           </div>
           {props.summary.candidateTitles.length > 0 && (
             <div className="test-design-confirmation-candidates">
-              <strong>候选预览</strong>
+              <strong>{translate('auto.k1836')}</strong>
               <ul>
                 {props.summary.candidateTitles.map((title, index) => (
                   <li key={`${title}-${index}`}>{title}</li>
@@ -270,8 +271,7 @@ export function ConfirmationDialog(props: {
         </div>
         <div className="modal-footer">
           <button className="btn btn-secondary btn-sm" type="button" onClick={props.onCancel}>
-            取消
-          </button>
+            {translate('auto.k0220')}</button>
           <button className="btn btn-primary btn-sm" type="button" onClick={props.onConfirm}>
             {props.summary.confirmLabel}
           </button>
@@ -322,20 +322,20 @@ export function shortIdentifier(value: string) {
 
 export function reviewSuccessText(action: 'confirm' | 'reject' | 'ignore') {
   if (action === 'confirm') {
-    return '候选用例已确认';
+    return translate('auto.k1837');
   }
   if (action === 'reject') {
-    return '候选用例已驳回';
+    return translate('auto.k1838');
   }
-  return '候选用例已忽略';
+  return translate('auto.k1839');
 }
 
 export function emptyRequirementText(signedIn: boolean, canRead: boolean, loading: boolean) {
   if (!signedIn) {
-    return '请先登录';
+    return translate('auto.k0454');
   }
   if (!canRead) {
-    return '缺少 testDesign:read 权限';
+    return translate('auto.k1794');
   }
-  return loading ? '加载中' : '暂无匹配需求';
+  return loading ? translate('auto.k0168') : translate('auto.k1840');
 }

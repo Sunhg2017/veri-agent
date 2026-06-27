@@ -23,6 +23,7 @@ import {
   sampleStatusTone,
   shortIdentifier
 } from './TestDesignWorkbenchShared';
+import { translate } from '../platform/i18n';
 
 export type EvaluationSampleFilters = {
   projectId: string;
@@ -100,45 +101,43 @@ export function EvaluationCorpusOperationsPanel(props: {
     <section className="panel test-design-evaluation-corpus">
       <div className="panel-header compact">
         <div>
-          <h2 className="panel-title">真实样本维护</h2>
+          <h2 className="panel-title">{translate('auto.k1500')}</h2>
           <p className="panel-desc">
-            {props.evaluationSummary?.projectId || props.filters.projectId || '未选择项目'}
+            {props.evaluationSummary?.projectId || props.filters.projectId || translate('auto.k1501')}
             {' · '}
-            {props.evaluationSummary?.promptKey || props.filters.promptKey || '未选择 Prompt'}
+            {props.evaluationSummary?.promptKey || props.filters.promptKey || translate('auto.k1502')}
           </p>
         </div>
         <div className="toolbar-actions">
           <button className="btn btn-secondary btn-sm" type="button" disabled={props.state.loading} onClick={props.onRefresh}>
             <RefreshCw size={15} />
-            刷新
-          </button>
+            {translate('auto.k0170')}</button>
           <button className="btn btn-secondary btn-sm" type="button" disabled={!props.canPolicyManage} onClick={props.onNewSample}>
             <Plus size={15} />
-            新建样本
-          </button>
+            {translate('auto.k1503')}</button>
         </div>
       </div>
       <div className="panel-body compact main-stack">
         <StateLine state={props.state} />
         <div className="test-design-quality-metrics test-design-evaluation-metrics">
           <div className="test-design-quality-metric tone-info">
-            <span>维护样本</span>
+            <span>{translate('auto.k1504')}</span>
             <strong>{props.sampleSummary?.totalCount ?? props.evaluationSummary?.maintainedSampleCount ?? 0}</strong>
-            <small>当前筛选 {props.sampleTotal}</small>
+            <small>{translate('auto.k1505')}{props.sampleTotal}</small>
           </div>
           <div className="test-design-quality-metric tone-success">
             <span>Golden</span>
             <strong>{props.sampleSummary?.goldenCount ?? props.evaluationSummary?.goldenSampleCount ?? 0}</strong>
-            <small>基线 {props.sampleSummary?.baselineVersionCount ?? props.evaluationSummary?.baselineVersionCount ?? 0}</small>
+            <small>{translate('auto.k1506')}{props.sampleSummary?.baselineVersionCount ?? props.evaluationSummary?.baselineVersionCount ?? 0}</small>
           </div>
           <div className="test-design-quality-metric tone-warning">
-            <span>冻结/废弃</span>
+            <span>{translate('auto.k1507')}</span>
             <strong>{(props.sampleSummary?.frozenCount ?? props.evaluationSummary?.frozenSampleCount ?? 0)
               + (props.sampleSummary?.deprecatedCount ?? props.evaluationSummary?.deprecatedSampleCount ?? 0)}</strong>
-            <small>冻结 {props.sampleSummary?.frozenCount ?? props.evaluationSummary?.frozenSampleCount ?? 0}</small>
+            <small>{translate('auto.k1508')}{props.sampleSummary?.frozenCount ?? props.evaluationSummary?.frozenSampleCount ?? 0}</small>
           </div>
           <div className={`test-design-quality-metric tone-${calibrationStatusTone(latestCalibrationStatus)}`}>
-            <span>长期校准</span>
+            <span>{translate('auto.k1509')}</span>
             <strong>{props.calibrationSummary?.totalRunCount ?? props.evaluationSummary?.calibrationRunCount ?? 0}</strong>
             <small>{latestCalibrationStatus}</small>
           </div>
@@ -146,7 +145,7 @@ export function EvaluationCorpusOperationsPanel(props: {
 
         <div className="form-grid test-design-evaluation-filter">
           <label className="field">
-            <span className="field-label">项目 ID</span>
+            <span className="field-label">{translate('auto.k1389')}</span>
             <input
               value={props.filters.projectId}
               onChange={(event) => props.onFiltersChange((current) => ({ ...current, projectId: event.target.value }))}
@@ -162,7 +161,7 @@ export function EvaluationCorpusOperationsPanel(props: {
             />
           </label>
           <label className="field">
-            <span className="field-label">版本</span>
+            <span className="field-label">{translate('auto.k0178')}</span>
             <input
               value={props.filters.promptVersion}
               onChange={(event) => props.onFiltersChange((current) => ({ ...current, promptVersion: event.target.value }))}
@@ -170,31 +169,31 @@ export function EvaluationCorpusOperationsPanel(props: {
             />
           </label>
           <label className="field">
-            <span className="field-label">状态</span>
+            <span className="field-label">{translate('auto.k0182')}</span>
             <select
               value={props.filters.status}
               onChange={(event) => props.onFiltersChange((current) => ({ ...current, status: event.target.value }))}
             >
-              <option value="">全部</option>
+              <option value="">{translate('auto.k0195')}</option>
               {evaluationSampleStatuses.map((status) => (
                 <option key={status} value={status}>{status}</option>
               ))}
             </select>
           </label>
           <label className="field">
-            <span className="field-label">覆盖类型</span>
+            <span className="field-label">{translate('auto.k1315')}</span>
             <select
               value={props.filters.coverageType}
               onChange={(event) => props.onFiltersChange((current) => ({ ...current, coverageType: event.target.value }))}
             >
-              <option value="">全部</option>
+              <option value="">{translate('auto.k0195')}</option>
               {TEST_DESIGN_COVERAGE_TYPES.map((coverageType) => (
                 <option key={coverageType} value={coverageType}>{coverageType}</option>
               ))}
             </select>
           </label>
           <label className="field">
-            <span className="field-label">基线</span>
+            <span className="field-label">{translate('auto.k1506')}</span>
             <input
               value={props.filters.baselineVersion}
               onChange={(event) => props.onFiltersChange((current) => ({ ...current, baselineVersion: event.target.value }))}
@@ -202,11 +201,11 @@ export function EvaluationCorpusOperationsPanel(props: {
             />
           </label>
           <label className="field">
-            <span className="field-label">关键词</span>
+            <span className="field-label">{translate('auto.k1316')}</span>
             <input
               value={props.filters.keyword}
               onChange={(event) => props.onFiltersChange((current) => ({ ...current, keyword: event.target.value }))}
-              placeholder="样本标题 / 标签"
+              placeholder={translate('auto.k1510')}
             />
           </label>
         </div>
@@ -214,23 +213,23 @@ export function EvaluationCorpusOperationsPanel(props: {
         <div className="test-design-evaluation-grid">
           <form className="test-design-evaluation-form" onSubmit={props.onSaveSample}>
             <div className="test-design-evaluation-form-heading">
-              <strong>{selectedSample ? '编辑样本' : '新建样本'}</strong>
+              <strong>{selectedSample ? translate('auto.k1511') : translate('auto.k1503')}</strong>
               {selectedSample && (
                 <span className={`badge badge-${sampleStatusTone(selectedSample.status)}`}>{selectedSample.status}</span>
               )}
             </div>
             <div className="form-grid">
               <label className="field">
-                <span className="field-label">样本 Key</span>
+                <span className="field-label">{translate('auto.k1512')}</span>
                 <input
                   value={props.sampleDraft.sampleKey}
                   onChange={(event) => props.onSampleDraftChange((current) => ({ ...current, sampleKey: event.target.value }))}
-                  placeholder="留空自动生成"
+                  placeholder={translate('auto.k1513')}
                   disabled={!props.canPolicyManage}
                 />
               </label>
               <label className="field">
-                <span className="field-label">标题</span>
+                <span className="field-label">{translate('auto.k0440')}</span>
                 <input
                   value={props.sampleDraft.title}
                   onChange={(event) => props.onSampleDraftChange((current) => ({ ...current, title: event.target.value }))}
@@ -238,7 +237,7 @@ export function EvaluationCorpusOperationsPanel(props: {
                 />
               </label>
               <label className="field">
-                <span className="field-label">来源</span>
+                <span className="field-label">{translate('auto.k0179')}</span>
                 <select
                   value={props.sampleDraft.sourceType}
                   onChange={(event) => props.onSampleDraftChange((current) => ({ ...current, sourceType: event.target.value }))}
@@ -250,7 +249,7 @@ export function EvaluationCorpusOperationsPanel(props: {
                 </select>
               </label>
               <label className="field">
-                <span className="field-label">覆盖类型</span>
+                <span className="field-label">{translate('auto.k1315')}</span>
                 <select
                   value={props.sampleDraft.coverageType}
                   onChange={(event) => props.onSampleDraftChange((current) => ({ ...current, coverageType: event.target.value }))}
@@ -262,7 +261,7 @@ export function EvaluationCorpusOperationsPanel(props: {
                 </select>
               </label>
               <label className="field">
-                <span className="field-label">优先级</span>
+                <span className="field-label">{translate('auto.k0419')}</span>
                 <select
                   value={props.sampleDraft.priority}
                   onChange={(event) => props.onSampleDraftChange((current) => ({ ...current, priority: event.target.value }))}
@@ -274,7 +273,7 @@ export function EvaluationCorpusOperationsPanel(props: {
                 </select>
               </label>
               <label className="field">
-                <span className="field-label">状态</span>
+                <span className="field-label">{translate('auto.k0182')}</span>
                 <select
                   value={props.sampleDraft.status}
                   onChange={(event) => props.onSampleDraftChange((current) => ({ ...current, status: event.target.value }))}
@@ -294,7 +293,7 @@ export function EvaluationCorpusOperationsPanel(props: {
                 />
               </label>
               <label className="field">
-                <span className="field-label">Prompt 版本</span>
+                <span className="field-label">{translate('auto.k1514')}</span>
                 <input
                   value={props.sampleDraft.promptVersion}
                   onChange={(event) => props.onSampleDraftChange((current) => ({ ...current, promptVersion: event.target.value }))}
@@ -302,7 +301,7 @@ export function EvaluationCorpusOperationsPanel(props: {
                 />
               </label>
               <label className="field">
-                <span className="field-label">基线版本</span>
+                <span className="field-label">{translate('auto.k1515')}</span>
                 <input
                   value={props.sampleDraft.baselineVersion}
                   onChange={(event) => props.onSampleDraftChange((current) => ({ ...current, baselineVersion: event.target.value }))}
@@ -311,17 +310,17 @@ export function EvaluationCorpusOperationsPanel(props: {
                 />
               </label>
               <label className="field">
-                <span className="field-label">标签</span>
+                <span className="field-label">{translate('auto.k0803')}</span>
                 <input
                   value={props.sampleDraft.tags}
                   onChange={(event) => props.onSampleDraftChange((current) => ({ ...current, tags: event.target.value }))}
-                  placeholder="逗号分隔"
+                  placeholder={translate('auto.k1516')}
                   disabled={!props.canPolicyManage}
                 />
               </label>
             </div>
             <label className="field">
-              <span className="field-label">需求摘要</span>
+              <span className="field-label">{translate('auto.k1395')}</span>
               <textarea
                 value={props.sampleDraft.requirementSummary}
                 onChange={(event) => props.onSampleDraftChange((current) => ({ ...current, requirementSummary: event.target.value }))}
@@ -330,7 +329,7 @@ export function EvaluationCorpusOperationsPanel(props: {
               />
             </label>
             <label className="field">
-              <span className="field-label">期望用例轮廓</span>
+              <span className="field-label">{translate('auto.k1517')}</span>
               <textarea
                 value={props.sampleDraft.expectedCaseOutline}
                 onChange={(event) => props.onSampleDraftChange((current) => ({ ...current, expectedCaseOutline: event.target.value }))}
@@ -339,7 +338,7 @@ export function EvaluationCorpusOperationsPanel(props: {
               />
             </label>
             <label className="field">
-              <span className="field-label">断言说明</span>
+              <span className="field-label">{translate('auto.k1518')}</span>
               <textarea
                 value={props.sampleDraft.assertionNotes}
                 onChange={(event) => props.onSampleDraftChange((current) => ({ ...current, assertionNotes: event.target.value }))}
@@ -348,7 +347,7 @@ export function EvaluationCorpusOperationsPanel(props: {
               />
             </label>
             <label className="field">
-              <span className="field-label">维护备注</span>
+              <span className="field-label">{translate('auto.k1519')}</span>
               <textarea
                 value={props.sampleDraft.maintenanceNote}
                 onChange={(event) => props.onSampleDraftChange((current) => ({ ...current, maintenanceNote: event.target.value }))}
@@ -359,30 +358,25 @@ export function EvaluationCorpusOperationsPanel(props: {
             <div className="toolbar-actions test-design-evaluation-actions">
               <button className="btn btn-primary btn-sm" type="submit" disabled={!canMutate}>
                 <Save size={15} />
-                保存样本
-              </button>
+                {translate('auto.k1520')}</button>
               <button className="btn btn-secondary btn-sm" type="button" disabled={!canMutate || !props.selectedCandidateId} onClick={props.onExtractFromCandidate}>
                 <ClipboardCheck size={15} />
-                从候选提取
-              </button>
+                {translate('auto.k1521')}</button>
               <button className="btn btn-secondary btn-sm" type="button" disabled={!canMutate || !selectedSample} onClick={() => props.onTransitionSample('GOLDEN')}>
                 <CheckCircle2 size={15} />
-                纳入 GOLDEN
-              </button>
+                {translate('auto.k1522')}</button>
               <button className="btn btn-secondary btn-sm" type="button" disabled={!canMutate || !selectedSample} onClick={() => props.onTransitionSample('FROZEN')}>
                 <Repeat2 size={15} />
-                冻结
-              </button>
+                {translate('auto.k1508')}</button>
               <button className="btn btn-secondary btn-sm" type="button" disabled={!canMutate || !selectedSample} onClick={() => props.onTransitionSample('DEPRECATED')}>
                 <XCircle size={15} />
-                废弃
-              </button>
+                {translate('auto.k0621')}</button>
             </div>
           </form>
 
           <div className="test-design-evaluation-side">
             <div className="test-design-evaluation-list-heading">
-              <strong>样本列表</strong>
+              <strong>{translate('auto.k1523')}</strong>
               <span>{props.samples.length} / {props.sampleTotal}</span>
             </div>
             <div className="test-design-evaluation-list">
@@ -398,7 +392,7 @@ export function EvaluationCorpusOperationsPanel(props: {
                       <strong>{sample.title || sample.sampleKey}</strong>
                       <em>{sample.sampleKey} · {sample.coverageType} · {sample.promptVersion || '-'}</em>
                       <small>
-                        {sample.baselineVersion || '无基线'}
+                        {sample.baselineVersion || translate('auto.k1524')}
                         {sample.sampleDigest ? ` · ${shortIdentifier(sample.sampleDigest)}` : ''}
                       </small>
                     </span>
@@ -406,7 +400,7 @@ export function EvaluationCorpusOperationsPanel(props: {
                   </button>
                 ))
               ) : (
-                <div className="notice info">暂无真实样本</div>
+                <div className="notice info">{translate('auto.k1525')}</div>
               )}
             </div>
           </div>
@@ -415,12 +409,12 @@ export function EvaluationCorpusOperationsPanel(props: {
         <div className="test-design-calibration-grid">
           <div className="test-design-calibration-form">
             <div className="test-design-evaluation-form-heading">
-              <strong>长期校准</strong>
+              <strong>{translate('auto.k1509')}</strong>
               <span className={`badge badge-${calibrationStatusTone(latestCalibrationStatus)}`}>{latestCalibrationStatus}</span>
             </div>
             <div className="form-grid">
               <label className="field">
-                <span className="field-label">项目 ID</span>
+                <span className="field-label">{translate('auto.k1389')}</span>
                 <input
                   value={props.calibrationDraft.projectId}
                   onChange={(event) => props.onCalibrationDraftChange((current) => ({ ...current, projectId: event.target.value }))}
@@ -436,7 +430,7 @@ export function EvaluationCorpusOperationsPanel(props: {
                 />
               </label>
               <label className="field">
-                <span className="field-label">Prompt 版本</span>
+                <span className="field-label">{translate('auto.k1514')}</span>
                 <input
                   value={props.calibrationDraft.promptVersion}
                   onChange={(event) => props.onCalibrationDraftChange((current) => ({ ...current, promptVersion: event.target.value }))}
@@ -444,7 +438,7 @@ export function EvaluationCorpusOperationsPanel(props: {
                 />
               </label>
               <label className="field">
-                <span className="field-label">基线版本</span>
+                <span className="field-label">{translate('auto.k1515')}</span>
                 <input
                   value={props.calibrationDraft.baselineVersion}
                   onChange={(event) => props.onCalibrationDraftChange((current) => ({ ...current, baselineVersion: event.target.value }))}
@@ -452,7 +446,7 @@ export function EvaluationCorpusOperationsPanel(props: {
                 />
               </label>
               <label className="field">
-                <span className="field-label">运行模式</span>
+                <span className="field-label">{translate('auto.k1526')}</span>
                 <select
                   value={props.calibrationDraft.runMode}
                   onChange={(event) => props.onCalibrationDraftChange((current) => ({ ...current, runMode: event.target.value }))}
@@ -465,7 +459,7 @@ export function EvaluationCorpusOperationsPanel(props: {
               </label>
             </div>
             <label className="field">
-              <span className="field-label">校准备注</span>
+              <span className="field-label">{translate('auto.k1527')}</span>
               <textarea
                 value={props.calibrationDraft.notes}
                 onChange={(event) => props.onCalibrationDraftChange((current) => ({ ...current, notes: event.target.value }))}
@@ -476,28 +470,27 @@ export function EvaluationCorpusOperationsPanel(props: {
             <div className="toolbar-actions">
               <button className="btn btn-primary btn-sm" type="button" disabled={!canMutate} onClick={props.onRunCalibration}>
                 <Sparkles size={15} />
-                触发校准
-              </button>
+                {translate('auto.k1528')}</button>
             </div>
           </div>
           <div className="test-design-calibration-list">
             <div className="test-design-evaluation-list-heading">
-              <strong>校准记录</strong>
+              <strong>{translate('auto.k1529')}</strong>
               <span>{props.calibrationRuns.length}</span>
             </div>
             {props.calibrationRuns.length ? (
               props.calibrationRuns.map((run) => (
                 <div className="test-design-calibration-row" key={run.id}>
                   <span>
-                    <strong>{run.promptVersion || '-'} · {run.baselineVersion || '无基线'}</strong>
-                    <em>{run.runMode} · 样本 {run.sampleCount} · 候选 {run.candidateCount}</em>
-                    <small>回归 {run.regressionCount} · {run.createdAt ?? '-'}</small>
+                    <strong>{run.promptVersion || '-'} · {run.baselineVersion || translate('auto.k1524')}</strong>
+                    <em>{run.runMode} {translate('auto.k1530')}{run.sampleCount} {translate('auto.k1531')}{run.candidateCount}</em>
+                    <small>{translate('auto.k1532')}{run.regressionCount} · {run.createdAt ?? '-'}</small>
                   </span>
                   <span className={`badge badge-${calibrationStatusTone(run.status)}`}>{run.status}</span>
                 </div>
               ))
             ) : (
-              <div className="notice info">暂无校准运行</div>
+              <div className="notice info">{translate('auto.k1533')}</div>
             )}
           </div>
         </div>

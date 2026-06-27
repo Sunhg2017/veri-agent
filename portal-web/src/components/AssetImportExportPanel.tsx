@@ -9,6 +9,7 @@ import {
 } from '../api/assets';
 import type { CurrentUser } from '../api/auth';
 import { hasPermission } from '../permissions';
+import { translate } from '../platform/i18n';
 
 type WorkState = {
   loading: boolean;
@@ -70,7 +71,7 @@ export function AssetImportExportPanel(props: {
   async function submitImport(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!draft.projectId.trim() || !draft.content.trim()) {
-      setState({ loading: false, error: 'projectId 和导入内容必填' });
+      setState({ loading: false, error: translate('auto.k0459') });
       return;
     }
     setState({ loading: true });
@@ -79,20 +80,20 @@ export function AssetImportExportPanel(props: {
       setLastResult(response.data);
       setState({
         loading: false,
-        success: `${draft.dryRun ? '预检' : '导入'}完成：${response.data.created} 创建，${response.data.updated} 更新，${response.data.failed} 失败`,
+        success: translate('auto.k0460', { value0: draft.dryRun ? translate('auto.k0464') : translate('auto.k0175'), value1: response.data.created, value2: response.data.updated, value3: response.data.failed }),
         traceId: response.trace_id
       });
       if (!draft.dryRun && response.data.failed === 0) {
         props.onImported?.();
       }
     } catch (error: unknown) {
-      setState({ loading: false, error: errorMessage(error, '导入失败') });
+      setState({ loading: false, error: errorMessage(error, translate('auto.k0144')) });
     }
   }
 
   async function submitExport() {
     if (!draft.projectId.trim()) {
-      setState({ loading: false, error: 'projectId 必填' });
+      setState({ loading: false, error: translate('auto.k0461') });
       return;
     }
     setState({ loading: true });
@@ -103,9 +104,9 @@ export function AssetImportExportPanel(props: {
         projectId: draft.projectId
       });
       downloadText(response.text, response.filename ?? fallbackFileName(draft.assetType, draft.format), response.contentType);
-      setState({ loading: false, success: '导出已生成', traceId: response.traceId });
+      setState({ loading: false, success: translate('auto.k0462'), traceId: response.traceId });
     } catch (error: unknown) {
-      setState({ loading: false, error: errorMessage(error, '导出失败') });
+      setState({ loading: false, error: errorMessage(error, translate('auto.k0062')) });
     }
   }
 
@@ -116,7 +117,7 @@ export function AssetImportExportPanel(props: {
 
   return (
     <section className="panel insight-panel asset-import-export-panel">
-      <h2>导入导出</h2>
+      <h2>{translate('auto.k0463')}</h2>
       <form className="asset-form" onSubmit={submitImport}>
         <div className="asset-form-grid">
           <label className="field" htmlFor="asset-io-type">
@@ -179,18 +180,17 @@ export function AssetImportExportPanel(props: {
         <div className="document-actions">
           <button className="primary-button" type="submit" disabled={importDisabled || !draft.projectId.trim() || !draft.content.trim()}>
             <Upload size={16} />
-            {draft.dryRun ? '预检' : '导入'}
+            {draft.dryRun ? translate('auto.k0464') : translate('auto.k0175')}
           </button>
           <button className="secondary-button" type="button" disabled={exportDisabled || !draft.projectId.trim()} onClick={submitExport}>
             <Download size={16} />
-            导出
-          </button>
+            {translate('auto.k0465')}</button>
         </div>
       </form>
       {lastResult && (
         <div className="asset-import-result">
           <strong>{lastResult.assetType} · {lastResult.format}</strong>
-          <span>{lastResult.totalRows} 行 · {lastResult.created} 创建 · {lastResult.updated} 更新 · {lastResult.skipped} 跳过 · {lastResult.failed} 失败</span>
+          <span>{lastResult.totalRows} {translate('auto.k0466')}{lastResult.created} {translate('auto.k0467')}{lastResult.updated} {translate('auto.k0468')}{lastResult.skipped} {translate('auto.k0469')}{lastResult.failed} {translate('auto.k0369')}</span>
         </div>
       )}
       <StateLine state={state} />
@@ -233,7 +233,7 @@ function errorMessage(error: unknown, fallback: string) {
 
 function StateLine(props: { state: WorkState }) {
   if (props.state.loading) {
-    return <span className="document-state-line">处理中</span>;
+    return <span className="document-state-line">{translate('auto.k0458')}</span>;
   }
   if (props.state.error) {
     return <span className="document-state-line error">{props.state.error}</span>;

@@ -60,6 +60,7 @@ import {
   type TestPooledAccount
 } from '../api/testData';
 import { canUseButton, hasPermission } from '../permissions';
+import { translate } from '../platform/i18n';
 
 type WorkState = {
   loading: boolean;
@@ -146,10 +147,10 @@ type TaskDraft = {
 };
 
 const tabs: Array<{ key: TabKey; label: string; icon: ReactNode }> = [
-  { key: 'data-sets', label: '数据集', icon: <DatabaseZap size={15} /> },
-  { key: 'account-pools', label: '账号池', icon: <KeyRound size={15} /> },
-  { key: 'leases', label: '租借', icon: <Clock3 size={15} /> },
-  { key: 'tasks', label: '清理任务', icon: <ListChecks size={15} /> }
+  { key: 'data-sets', label: translate('auto.k1202'), icon: <DatabaseZap size={15} /> },
+  { key: 'account-pools', label: translate('auto.k1203'), icon: <KeyRound size={15} /> },
+  { key: 'leases', label: translate('auto.k1204'), icon: <Clock3 size={15} /> },
+  { key: 'tasks', label: translate('auto.k1205'), icon: <ListChecks size={15} /> }
 ];
 
 const initialDataSetDraft: DataSetDraft = {
@@ -297,7 +298,7 @@ export function TestDataWorkbench(props: { signedIn: boolean; currentUser: Curre
       setSelectedTaskId((current) => current || taskResult.data.items[0]?.id || '');
       setLoadState({ loading: false, traceId: healthResult.trace_id || dataSetResult.trace_id || poolResult.trace_id });
     } catch (error: unknown) {
-      setLoadState(errorState(error, '测试数据工作台加载失败'));
+      setLoadState(errorState(error, translate('auto.k1206')));
     }
   }, [canRead, props.signedIn]);
 
@@ -316,7 +317,7 @@ export function TestDataWorkbench(props: { signedIn: boolean; currentUser: Curre
       setDataSetDraft(dataSetDraftFromDetail(result.data));
       setDataSetState({ loading: false, traceId: result.trace_id });
     } catch (error: unknown) {
-      setDataSetState(errorState(error, '数据集详情加载失败'));
+      setDataSetState(errorState(error, translate('auto.k1207')));
     }
   }, [canRead]);
 
@@ -333,7 +334,7 @@ export function TestDataWorkbench(props: { signedIn: boolean; currentUser: Curre
       setSelectedAccountId((current) => current || result.data.accounts[0]?.id || '');
       setPoolState({ loading: false, traceId: result.trace_id });
     } catch (error: unknown) {
-      setPoolState(errorState(error, '账号池详情加载失败'));
+      setPoolState(errorState(error, translate('auto.k1208')));
     }
   }, [canRead]);
 
@@ -351,7 +352,7 @@ export function TestDataWorkbench(props: { signedIn: boolean; currentUser: Curre
       setLeaseDetail(result.data);
       setLeaseState({ loading: false, traceId: result.trace_id });
     } catch (error: unknown) {
-      setLeaseState(errorState(error, '租借详情加载失败'));
+      setLeaseState(errorState(error, translate('auto.k1209')));
     }
   }, [canRead]);
 
@@ -365,7 +366,7 @@ export function TestDataWorkbench(props: { signedIn: boolean; currentUser: Curre
       setTaskDetail(result.data);
       setTaskState({ loading: false, traceId: result.trace_id });
     } catch (error: unknown) {
-      setTaskState(errorState(error, '任务详情加载失败'));
+      setTaskState(errorState(error, translate('auto.k1210')));
     }
   }, [canRead]);
 
@@ -390,11 +391,11 @@ export function TestDataWorkbench(props: { signedIn: boolean; currentUser: Curre
   }, [refreshTaskDetail, selectedTaskId]);
 
   if (!props.signedIn) {
-    return <div className="notice warning">请先登录后查看测试数据。</div>;
+    return <div className="notice warning">{translate('auto.k1211')}</div>;
   }
 
   if (!canRead) {
-    return <div className="notice error">当前账号缺少 testData:read 权限。</div>;
+    return <div className="notice error">{translate('auto.k1212')}</div>;
   }
 
   async function onCreateDataSet(event: FormEvent<HTMLFormElement>) {
@@ -425,10 +426,10 @@ export function TestDataWorkbench(props: { signedIn: boolean; currentUser: Curre
       });
       setSelectedDataSetId(result.data.id);
       setDataSetDetail(result.data);
-      setDataSetState({ loading: false, success: '数据集已创建', traceId: result.trace_id });
+      setDataSetState({ loading: false, success: translate('auto.k1213'), traceId: result.trace_id });
       await refreshWorkbench();
     } catch (error: unknown) {
-      setDataSetState(errorState(error, '数据集创建失败'));
+      setDataSetState(errorState(error, translate('auto.k1214')));
     }
   }
 
@@ -456,10 +457,10 @@ export function TestDataWorkbench(props: { signedIn: boolean; currentUser: Curre
         sourceRefDigest: optionalText(dataSetDraft.sourceRefDigest)
       });
       setDataSetDetail(result.data);
-      setDataSetState({ loading: false, success: '数据集已保存', traceId: result.trace_id });
+      setDataSetState({ loading: false, success: translate('auto.k1215'), traceId: result.trace_id });
       await refreshWorkbench();
     } catch (error: unknown) {
-      setDataSetState(errorState(error, '数据集保存失败'));
+      setDataSetState(errorState(error, translate('auto.k1216')));
     }
   }
 
@@ -469,10 +470,10 @@ export function TestDataWorkbench(props: { signedIn: boolean; currentUser: Curre
     try {
       const result = await archiveTestDataSet(selectedDataSetId);
       setDataSetDetail(result.data);
-      setDataSetState({ loading: false, success: '数据集已归档', traceId: result.trace_id });
+      setDataSetState({ loading: false, success: translate('auto.k1217'), traceId: result.trace_id });
       await refreshWorkbench();
     } catch (error: unknown) {
-      setDataSetState(errorState(error, '数据集归档失败'));
+      setDataSetState(errorState(error, translate('auto.k1218')));
     }
   }
 
@@ -496,11 +497,11 @@ export function TestDataWorkbench(props: { signedIn: boolean; currentUser: Curre
         }]
       });
       setRecordDraft(initialRecordDraft);
-      setDataSetState({ loading: false, success: `记录已导入 ${result.data.importedCount} 条`, traceId: result.trace_id });
+      setDataSetState({ loading: false, success: translate('auto.k1219', { value0: result.data.importedCount }), traceId: result.trace_id });
       await refreshDataSetDetail(selectedDataSetId);
       await refreshWorkbench();
     } catch (error: unknown) {
-      setDataSetState(errorState(error, '记录导入失败'));
+      setDataSetState(errorState(error, translate('auto.k1220')));
     }
   }
 
@@ -510,9 +511,9 @@ export function TestDataWorkbench(props: { signedIn: boolean; currentUser: Curre
     try {
       const result = await exportTestDataSet(selectedDataSetId);
       setDataSetExport(result.data);
-      setDataSetExportState({ loading: false, success: '脱敏导出摘要已生成', traceId: result.trace_id });
+      setDataSetExportState({ loading: false, success: translate('auto.k1221'), traceId: result.trace_id });
     } catch (error: unknown) {
-      setDataSetExportState(errorState(error, '脱敏导出失败'));
+      setDataSetExportState(errorState(error, translate('auto.k1222')));
     }
   }
 
@@ -522,9 +523,9 @@ export function TestDataWorkbench(props: { signedIn: boolean; currentUser: Curre
     try {
       const result = await downloadTestDataSetExport(selectedDataSetId);
       triggerBrowserDownload(result.blob, result.filename ?? 'wp8-data-set-export.json');
-      setDataSetExportState({ loading: false, success: `导出文件已下载 ${result.filename ?? ''}`.trim(), traceId: result.traceId });
+      setDataSetExportState({ loading: false, success: translate('auto.k1223', { value0: result.filename ?? '' }).trim(), traceId: result.traceId });
     } catch (error: unknown) {
-      setDataSetExportState(errorState(error, '脱敏导出文件下载失败'));
+      setDataSetExportState(errorState(error, translate('auto.k1224')));
     }
   }
 
@@ -538,11 +539,11 @@ export function TestDataWorkbench(props: { signedIn: boolean; currentUser: Curre
         recordKeyPrefix: optionalText(generateDraft.recordKeyPrefix),
         tags: splitList(generateDraft.tagsText)
       });
-      setDataSetState({ loading: false, success: `已生成 ${result.data.generatedCount} 条模拟记录`, traceId: result.trace_id });
+      setDataSetState({ loading: false, success: translate('auto.k1225', { value0: result.data.generatedCount }), traceId: result.trace_id });
       await refreshDataSetDetail(selectedDataSetId);
       await refreshWorkbench();
     } catch (error: unknown) {
-      setDataSetState(errorState(error, '模拟记录生成失败'));
+      setDataSetState(errorState(error, translate('auto.k1226')));
     }
   }
 
@@ -552,9 +553,9 @@ export function TestDataWorkbench(props: { signedIn: boolean; currentUser: Curre
     try {
       const result = await exportTestAccountLease(selectedLeaseId);
       setLeaseExport(result.data);
-      setLeaseExportState({ loading: false, success: '租借脱敏导出摘要已生成', traceId: result.trace_id });
+      setLeaseExportState({ loading: false, success: translate('auto.k1227'), traceId: result.trace_id });
     } catch (error: unknown) {
-      setLeaseExportState(errorState(error, '租借脱敏导出失败'));
+      setLeaseExportState(errorState(error, translate('auto.k1228')));
     }
   }
 
@@ -564,9 +565,9 @@ export function TestDataWorkbench(props: { signedIn: boolean; currentUser: Curre
     try {
       const result = await downloadTestAccountLeaseExport(selectedLeaseId);
       triggerBrowserDownload(result.blob, result.filename ?? 'wp8-account-lease-export.json');
-      setLeaseExportState({ loading: false, success: `租借导出文件已下载 ${result.filename ?? ''}`.trim(), traceId: result.traceId });
+      setLeaseExportState({ loading: false, success: translate('auto.k1229', { value0: result.filename ?? '' }).trim(), traceId: result.traceId });
     } catch (error: unknown) {
-      setLeaseExportState(errorState(error, '租借导出文件下载失败'));
+      setLeaseExportState(errorState(error, translate('auto.k1230')));
     }
   }
 
@@ -593,10 +594,10 @@ export function TestDataWorkbench(props: { signedIn: boolean; currentUser: Curre
       setSelectedPoolId(result.data.id);
       setSelectedAccountId('');
       setPoolDetail(result.data);
-      setPoolState({ loading: false, success: '账号池已创建', traceId: result.trace_id });
+      setPoolState({ loading: false, success: translate('auto.k1231'), traceId: result.trace_id });
       await refreshWorkbench();
     } catch (error: unknown) {
-      setPoolState(errorState(error, '账号池创建失败'));
+      setPoolState(errorState(error, translate('auto.k1232')));
     }
   }
 
@@ -618,10 +619,10 @@ export function TestDataWorkbench(props: { signedIn: boolean; currentUser: Curre
         defaultTtlSeconds: poolDraft.defaultTtlSeconds
       });
       setPoolDetail(result.data);
-      setPoolState({ loading: false, success: '账号池已保存', traceId: result.trace_id });
+      setPoolState({ loading: false, success: translate('auto.k1233'), traceId: result.trace_id });
       await refreshWorkbench();
     } catch (error: unknown) {
-      setPoolState(errorState(error, '账号池保存失败'));
+      setPoolState(errorState(error, translate('auto.k1234')));
     }
   }
 
@@ -631,10 +632,10 @@ export function TestDataWorkbench(props: { signedIn: boolean; currentUser: Curre
     try {
       const result = await disableTestAccountPool(selectedPoolId);
       setPoolDetail(result.data);
-      setPoolState({ loading: false, success: '账号池已禁用', traceId: result.trace_id });
+      setPoolState({ loading: false, success: translate('auto.k1235'), traceId: result.trace_id });
       await refreshWorkbench();
     } catch (error: unknown) {
-      setPoolState(errorState(error, '账号池禁用失败'));
+      setPoolState(errorState(error, translate('auto.k1236')));
     }
   }
 
@@ -644,10 +645,10 @@ export function TestDataWorkbench(props: { signedIn: boolean; currentUser: Curre
     try {
       const result = await archiveTestAccountPool(selectedPoolId);
       setPoolDetail(result.data);
-      setPoolState({ loading: false, success: '账号池已归档', traceId: result.trace_id });
+      setPoolState({ loading: false, success: translate('auto.k1237'), traceId: result.trace_id });
       await refreshWorkbench();
     } catch (error: unknown) {
-      setPoolState(errorState(error, '账号池归档失败'));
+      setPoolState(errorState(error, translate('auto.k1238')));
     }
   }
 
@@ -678,11 +679,11 @@ export function TestDataWorkbench(props: { signedIn: boolean; currentUser: Curre
         });
       setSelectedAccountId(result.data.id);
       setAccountDraft({ ...accountDraftFromAccount(result.data), secretRef: '' });
-      setPoolState({ loading: false, success: selectedAccountId ? '账号摘要已更新' : '账号摘要已新增', traceId: result.trace_id });
+      setPoolState({ loading: false, success: selectedAccountId ? translate('auto.k1239') : translate('auto.k1240'), traceId: result.trace_id });
       await refreshPoolDetail(selectedPoolId);
       await refreshWorkbench();
     } catch (error: unknown) {
-      setPoolState(errorState(error, '账号保存失败'));
+      setPoolState(errorState(error, translate('auto.k1241')));
     }
   }
 
@@ -704,10 +705,10 @@ export function TestDataWorkbench(props: { signedIn: boolean; currentUser: Curre
       });
       setSelectedLeaseId(result.data.id);
       setLeaseDetail(result.data);
-      setLeaseState({ loading: false, success: '账号租借已申请', traceId: result.trace_id });
+      setLeaseState({ loading: false, success: translate('auto.k1242'), traceId: result.trace_id });
       await refreshWorkbench();
     } catch (error: unknown) {
-      setLeaseState(errorState(error, '租借申请失败'));
+      setLeaseState(errorState(error, translate('auto.k1243')));
     }
   }
 
@@ -717,10 +718,10 @@ export function TestDataWorkbench(props: { signedIn: boolean; currentUser: Curre
     try {
       const result = await renewTestAccountLease(selectedLeaseId, { ttlSeconds: leaseDraft.renewTtlSeconds });
       setLeaseDetail(result.data);
-      setLeaseState({ loading: false, success: '租借已续期', traceId: result.trace_id });
+      setLeaseState({ loading: false, success: translate('auto.k1244'), traceId: result.trace_id });
       await refreshWorkbench();
     } catch (error: unknown) {
-      setLeaseState(errorState(error, '租借续期失败'));
+      setLeaseState(errorState(error, translate('auto.k1245')));
     }
   }
 
@@ -733,10 +734,10 @@ export function TestDataWorkbench(props: { signedIn: boolean; currentUser: Curre
         accountStatus: optionalText(leaseDraft.accountStatus)
       });
       setLeaseDetail(result.data);
-      setLeaseState({ loading: false, success: '租借已释放', traceId: result.trace_id });
+      setLeaseState({ loading: false, success: translate('auto.k1246'), traceId: result.trace_id });
       await refreshWorkbench();
     } catch (error: unknown) {
-      setLeaseState(errorState(error, '租借释放失败'));
+      setLeaseState(errorState(error, translate('auto.k1247')));
     }
   }
 
@@ -760,10 +761,10 @@ export function TestDataWorkbench(props: { signedIn: boolean; currentUser: Curre
       });
       setSelectedTaskId(result.data.id);
       setTaskDetail(result.data);
-      setTaskState({ loading: false, success: '清理任务已创建', traceId: result.trace_id });
+      setTaskState({ loading: false, success: translate('auto.k1248'), traceId: result.trace_id });
       await refreshWorkbench();
     } catch (error: unknown) {
-      setTaskState(errorState(error, '清理任务创建失败'));
+      setTaskState(errorState(error, translate('auto.k1249')));
     }
   }
 
@@ -781,10 +782,10 @@ export function TestDataWorkbench(props: { signedIn: boolean; currentUser: Curre
         resultSummary: parsed.values.resultSummary
       });
       setTaskDetail(result.data);
-      setTaskState({ loading: false, success: '清理任务已重试', traceId: result.trace_id });
+      setTaskState({ loading: false, success: translate('auto.k1250'), traceId: result.trace_id });
       await refreshWorkbench();
     } catch (error: unknown) {
-      setTaskState(errorState(error, '清理任务重试失败'));
+      setTaskState(errorState(error, translate('auto.k1251')));
     }
   }
 
@@ -813,37 +814,36 @@ export function TestDataWorkbench(props: { signedIn: boolean; currentUser: Curre
   return (
     <section className="test-data-workbench" data-testid="test-data-workbench">
       <div className="metric-grid test-data-metric-grid">
-        <MetricCard label="数据集" value={String(dataSets.length)} icon={<DatabaseZap size={18} />} />
-        <MetricCard label="可用账号" value={String(summary.available)} icon={<KeyRound size={18} />} />
-        <MetricCard label="ACTIVE 租借" value={String(summary.activeLeases)} icon={<Clock3 size={18} />} />
-        <MetricCard label="失败任务" value={String(summary.failedTasks)} icon={<AlertTriangle size={18} />} />
+        <MetricCard label={translate('auto.k1202')} value={String(dataSets.length)} icon={<DatabaseZap size={18} />} />
+        <MetricCard label={translate('auto.k1252')} value={String(summary.available)} icon={<KeyRound size={18} />} />
+        <MetricCard label={translate('auto.k1253')} value={String(summary.activeLeases)} icon={<Clock3 size={18} />} />
+        <MetricCard label={translate('auto.k1254')} value={String(summary.failedTasks)} icon={<AlertTriangle size={18} />} />
       </div>
 
       <section className="panel">
         <div className="panel-header">
           <div>
-            <div className="panel-title">WP8 控制面策略</div>
-            <div className="panel-desc">{health ? `${health.service} · ${health.status}` : loadState.loading ? '加载中' : '未加载'}</div>
+            <div className="panel-title">{translate('auto.k1255')}</div>
+            <div className="panel-desc">{health ? `${health.service} · ${health.status}` : loadState.loading ? translate('auto.k0168') : translate('auto.k0169')}</div>
           </div>
           <button className="btn btn-ghost btn-sm" type="button" onClick={() => void refreshWorkbench()} disabled={loadState.loading}>
             <RefreshCw size={15} />
-            刷新
-          </button>
+            {translate('auto.k0170')}</button>
         </div>
         <div className="panel-body compact">
           <StateLine state={loadState} />
           <div className="test-data-policy-grid">
-            <PolicyItem label="控制面" value={health?.enabled ? 'ENABLED' : 'DISABLED'} />
-            <PolicyItem label="清理执行" value={health?.cleanupEnabled ? 'ENABLED' : 'DISABLED'} />
-            <PolicyItem label="脱敏导出" value={health?.exportEnabled ? 'ENABLED' : 'DISABLED'} />
-            <PolicyItem label="记录上限" value={String(health?.recordMaxCount ?? 0)} />
-            <PolicyItem label="默认 TTL" value={`${health?.defaultLeaseTtlSeconds ?? 0}s`} />
-            <PolicyItem label="导出权限" value={canExport ? 'ALLOWED' : 'BLOCKED'} />
+            <PolicyItem label={translate('auto.k1256')} value={health?.enabled ? 'ENABLED' : 'DISABLED'} />
+            <PolicyItem label={translate('auto.k1257')} value={health?.cleanupEnabled ? 'ENABLED' : 'DISABLED'} />
+            <PolicyItem label={translate('auto.k1258')} value={health?.exportEnabled ? 'ENABLED' : 'DISABLED'} />
+            <PolicyItem label={translate('auto.k1259')} value={String(health?.recordMaxCount ?? 0)} />
+            <PolicyItem label={translate('auto.k1260')} value={`${health?.defaultLeaseTtlSeconds ?? 0}s`} />
+            <PolicyItem label={translate('auto.k1261')} value={canExport ? 'ALLOWED' : 'BLOCKED'} />
           </div>
         </div>
       </section>
 
-      <div className="test-data-tabs" role="tablist" aria-label="测试数据工作台">
+      <div className="test-data-tabs" role="tablist" aria-label={translate('auto.k1262')}>
         {tabs.map((tab) => (
           <button
             key={tab.key}
@@ -872,33 +872,30 @@ export function TestDataWorkbench(props: { signedIn: boolean; currentUser: Curre
         <form className="panel" onSubmit={onCreateDataSet}>
           <div className="panel-header">
             <div>
-              <div className="panel-title">{selectedDataSetId ? '数据集表单' : '新建数据集'}</div>
-              <div className="panel-desc">只维护 schema、摘要和引用 digest</div>
+              <div className="panel-title">{selectedDataSetId ? translate('auto.k1263') : translate('auto.k1264')}</div>
+              <div className="panel-desc">{translate('auto.k1265')}</div>
             </div>
             <div className="test-data-panel-actions">
               <button className="btn btn-primary btn-sm" type="submit" disabled={!canManage || dataSetState.loading}>
                 <DatabaseZap size={15} />
-                创建
-              </button>
+                {translate('auto.k0862')}</button>
               <button className="btn btn-secondary btn-sm" type="button" onClick={() => void onUpdateDataSet()} disabled={!selectedDataSetId || !canManage || dataSetState.loading}>
                 <ShieldCheck size={15} />
-                保存
-              </button>
+                {translate('auto.k0806')}</button>
               <button className="btn btn-ghost btn-sm" type="button" onClick={() => void onArchiveDataSet()} disabled={!selectedDataSetId || !canManage || dataSetDetail?.status === 'ARCHIVED'}>
                 <Archive size={15} />
-                归档
-              </button>
+                {translate('auto.k0871')}</button>
             </div>
           </div>
           <div className="panel-body">
             <div className="form-grid">
               <Field label="projectId"><input value={dataSetDraft.projectId} onChange={(event) => setDataSetDraftValue('projectId', event.target.value)} /></Field>
               <Field label="code"><input value={dataSetDraft.code} onChange={(event) => setDataSetDraftValue('code', event.target.value)} /></Field>
-              <Field label="名称"><input value={dataSetDraft.name} onChange={(event) => setDataSetDraftValue('name', event.target.value)} /></Field>
-              <Field label="状态"><StatusSelect value={dataSetDraft.status} onChange={(value) => setDataSetDraftValue('status', value)} /></Field>
+              <Field label={translate('auto.k0177')}><input value={dataSetDraft.name} onChange={(event) => setDataSetDraftValue('name', event.target.value)} /></Field>
+              <Field label={translate('auto.k0182')}><StatusSelect value={dataSetDraft.status} onChange={(value) => setDataSetDraftValue('status', value)} /></Field>
               <Field label="applicationId"><input value={dataSetDraft.applicationId} onChange={(event) => setDataSetDraftValue('applicationId', event.target.value)} /></Field>
               <Field label="environmentId"><input value={dataSetDraft.environmentId} onChange={(event) => setDataSetDraftValue('environmentId', event.target.value)} /></Field>
-              <Field label="敏感级别">
+              <Field label={translate('auto.k0276')}>
                 <select value={dataSetDraft.sensitivityLevel} onChange={(event) => setDataSetDraftValue('sensitivityLevel', event.target.value)}>
                   <option value="INTERNAL">INTERNAL</option>
                   <option value="CONFIDENTIAL">CONFIDENTIAL</option>
@@ -925,14 +922,14 @@ export function TestDataWorkbench(props: { signedIn: boolean; currentUser: Curre
         <section className="panel">
           <div className="panel-header">
             <div>
-              <div className="panel-title">数据集列表</div>
-              <div className="panel-desc">{dataSets.length} 条 · 记录摘要不含正文</div>
+              <div className="panel-title">{translate('auto.k1266')}</div>
+              <div className="panel-desc">{dataSets.length} {translate('auto.k1267')}</div>
             </div>
           </div>
           <div className="panel-body compact">
             <div className="table-wrap test-data-table-wrap">
               <table>
-                <thead><tr><th>数据集</th><th>项目</th><th>状态</th><th>记录</th></tr></thead>
+                <thead><tr><th>{translate('auto.k1202')}</th><th>{translate('auto.k0176')}</th><th>{translate('auto.k0182')}</th><th>{translate('auto.k1268')}</th></tr></thead>
                 <tbody>
                   {dataSets.length ? dataSets.map((item) => (
                     <tr key={item.id} className={selectedDataSetId === item.id ? 'selected-row' : undefined} onClick={() => setSelectedDataSetId(item.id)}>
@@ -942,7 +939,7 @@ export function TestDataWorkbench(props: { signedIn: boolean; currentUser: Curre
                       <td>{item.recordCount}</td>
                     </tr>
                   )) : (
-                    <tr><td className="table-empty" colSpan={4}>{loadState.loading ? '加载中' : '暂无数据集'}</td></tr>
+                    <tr><td className="table-empty" colSpan={4}>{loadState.loading ? translate('auto.k0168') : translate('auto.k1269')}</td></tr>
                   )}
                 </tbody>
               </table>
@@ -963,37 +960,33 @@ export function TestDataWorkbench(props: { signedIn: boolean; currentUser: Curre
         <form className="panel" onSubmit={onCreatePool}>
           <div className="panel-header">
             <div>
-              <div className="panel-title">账号池表单</div>
-              <div className="panel-desc">凭据只作为写入输入，列表仅显示 digest</div>
+              <div className="panel-title">{translate('auto.k1270')}</div>
+              <div className="panel-desc">{translate('auto.k1271')}</div>
             </div>
             <div className="test-data-panel-actions">
               <button className="btn btn-primary btn-sm" type="submit" disabled={!canManage || poolState.loading}>
                 <KeyRound size={15} />
-                创建
-              </button>
+                {translate('auto.k0862')}</button>
               <button className="btn btn-secondary btn-sm" type="button" onClick={() => void onUpdatePool()} disabled={!selectedPoolId || !canManage || poolState.loading}>
                 <ShieldCheck size={15} />
-                保存
-              </button>
+                {translate('auto.k0806')}</button>
               <button className="btn btn-secondary btn-sm" type="button" onClick={() => void onDisablePool()} disabled={!selectedPoolId || !canManage || poolDetail?.status === 'DISABLED'}>
                 <Trash2 size={15} />
-                禁用
-              </button>
+                {translate('auto.k1272')}</button>
               <button className="btn btn-ghost btn-sm" type="button" onClick={() => void onArchivePool()} disabled={!selectedPoolId || !canManage || poolDetail?.status === 'ARCHIVED'}>
                 <Archive size={15} />
-                归档
-              </button>
+                {translate('auto.k0871')}</button>
             </div>
           </div>
           <div className="panel-body">
             <div className="form-grid">
               <Field label="projectId"><input value={poolDraft.projectId} onChange={(event) => setPoolDraftValue('projectId', event.target.value)} /></Field>
               <Field label="code"><input value={poolDraft.code} onChange={(event) => setPoolDraftValue('code', event.target.value)} /></Field>
-              <Field label="名称"><input value={poolDraft.name} onChange={(event) => setPoolDraftValue('name', event.target.value)} /></Field>
-              <Field label="状态"><StatusSelect value={poolDraft.status} onChange={(value) => setPoolDraftValue('status', value)} /></Field>
+              <Field label={translate('auto.k0177')}><input value={poolDraft.name} onChange={(event) => setPoolDraftValue('name', event.target.value)} /></Field>
+              <Field label={translate('auto.k0182')}><StatusSelect value={poolDraft.status} onChange={(value) => setPoolDraftValue('status', value)} /></Field>
               <Field label="applicationId"><input value={poolDraft.applicationId} onChange={(event) => setPoolDraftValue('applicationId', event.target.value)} /></Field>
               <Field label="environmentId"><input value={poolDraft.environmentId} onChange={(event) => setPoolDraftValue('environmentId', event.target.value)} /></Field>
-              <Field label="默认 TTL"><input type="number" min={1} max={86400} value={poolDraft.defaultTtlSeconds} onChange={(event) => setPoolDraftValue('defaultTtlSeconds', Number(event.target.value))} /></Field>
+              <Field label={translate('auto.k1260')}><input type="number" min={1} max={86400} value={poolDraft.defaultTtlSeconds} onChange={(event) => setPoolDraftValue('defaultTtlSeconds', Number(event.target.value))} /></Field>
             </div>
             <Field label="leasePolicy JSON"><textarea value={poolDraft.leasePolicyText} onChange={(event) => setPoolDraftValue('leasePolicyText', event.target.value)} /></Field>
             <StateLine state={poolState} />
@@ -1003,8 +996,8 @@ export function TestDataWorkbench(props: { signedIn: boolean; currentUser: Curre
         <section className="panel">
           <div className="panel-header">
             <div>
-              <div className="panel-title">账号池与账号摘要</div>
-              <div className="panel-desc">{accountPools.length} 个池 · selected {shortId(selectedPoolId)}</div>
+              <div className="panel-title">{translate('auto.k1273')}</div>
+              <div className="panel-desc">{accountPools.length} {translate('auto.k1274')}{shortId(selectedPoolId)}</div>
             </div>
           </div>
           <div className="panel-body compact">
@@ -1017,7 +1010,7 @@ export function TestDataWorkbench(props: { signedIn: boolean; currentUser: Curre
                   <span><strong>{pool.name}</strong><small>{pool.projectId} · {pool.code}</small></span>
                   <StatusBadge status={pool.status} />
                 </button>
-              )) : <div className="table-empty">暂无账号池</div>}
+              )) : <div className="table-empty">{translate('auto.k1275')}</div>}
             </div>
             <AccountForm />
             <AccountList />
@@ -1033,13 +1026,12 @@ export function TestDataWorkbench(props: { signedIn: boolean; currentUser: Curre
         <form className="panel" onSubmit={onAcquireLease}>
           <div className="panel-header">
             <div>
-              <div className="panel-title">申请租借</div>
-              <div className="panel-desc">冲突和权限错误会展示 traceId</div>
+              <div className="panel-title">{translate('auto.k1276')}</div>
+              <div className="panel-desc">{translate('auto.k1277')}</div>
             </div>
             <button className="btn btn-primary btn-sm" type="submit" disabled={!canLease || leaseState.loading}>
               <Play size={15} />
-              申请
-            </button>
+              {translate('auto.k1278')}</button>
           </div>
           <div className="panel-body">
             <div className="form-grid">
@@ -1060,24 +1052,22 @@ export function TestDataWorkbench(props: { signedIn: boolean; currentUser: Curre
         <section className="panel">
           <div className="panel-header">
             <div>
-              <div className="panel-title">租借记录</div>
-              <div className="panel-desc">{leases.length} 条 · token 仅显示 digest</div>
+              <div className="panel-title">{translate('auto.k1279')}</div>
+              <div className="panel-desc">{leases.length} {translate('auto.k1280')}</div>
             </div>
             <div className="test-data-panel-actions">
               <button className="btn btn-secondary btn-sm" type="button" onClick={() => void onRenewLease()} disabled={!selectedLeaseId || !canLease || leaseState.loading}>
                 <RotateCcw size={15} />
-                续租
-              </button>
+                {translate('auto.k1281')}</button>
               <button className="btn btn-ghost btn-sm" type="button" onClick={() => void onReleaseLease()} disabled={!selectedLeaseId || !canLease || leaseState.loading}>
                 <CheckCircle2 size={15} />
-                释放
-              </button>
+                {translate('auto.k1282')}</button>
             </div>
           </div>
           <div className="panel-body compact">
             <div className="form-grid">
-              <Field label="续租 TTL"><input type="number" min={1} max={86400} value={leaseDraft.renewTtlSeconds} onChange={(event) => setLeaseDraftValue('renewTtlSeconds', Number(event.target.value))} /></Field>
-              <Field label="释放账号状态">
+              <Field label={translate('auto.k1283')}><input type="number" min={1} max={86400} value={leaseDraft.renewTtlSeconds} onChange={(event) => setLeaseDraftValue('renewTtlSeconds', Number(event.target.value))} /></Field>
+              <Field label={translate('auto.k1284')}>
                 <select value={leaseDraft.accountStatus} onChange={(event) => setLeaseDraftValue('accountStatus', event.target.value)}>
                   <option value="AVAILABLE">AVAILABLE</option>
                   <option value="LOCKED">LOCKED</option>
@@ -1085,14 +1075,14 @@ export function TestDataWorkbench(props: { signedIn: boolean; currentUser: Curre
                 </select>
               </Field>
             </div>
-            <Field label="释放原因"><input value={leaseDraft.releaseReason} onChange={(event) => setLeaseDraftValue('releaseReason', event.target.value)} /></Field>
+            <Field label={translate('auto.k1285')}><input value={leaseDraft.releaseReason} onChange={(event) => setLeaseDraftValue('releaseReason', event.target.value)} /></Field>
             <div className="test-data-list">
               {leases.length ? leases.map((lease) => (
                 <button key={lease.id} className={selectedLeaseId === lease.id ? 'test-data-list-item active' : 'test-data-list-item'} type="button" onClick={() => setSelectedLeaseId(lease.id)}>
                   <span><strong>{shortId(lease.id)}</strong><small>{lease.projectId} · {lease.holderRef} · {formatDateTime(lease.expiresAt)}</small></span>
                   <StatusBadge status={lease.status} />
                 </button>
-              )) : <div className="table-empty">暂无租借记录</div>}
+              )) : <div className="table-empty">{translate('auto.k1286')}</div>}
             </div>
             {leaseDetail && (
               <div className="test-data-summary">
@@ -1115,17 +1105,16 @@ export function TestDataWorkbench(props: { signedIn: boolean; currentUser: Curre
         <form className="panel" onSubmit={onCreateTask}>
           <div className="panel-header">
             <div>
-              <div className="panel-title">清理任务</div>
-              <div className="panel-desc">{health?.cleanupEnabled ? '清理执行已启用' : '清理执行关闭时只记录控制面任务'}</div>
+              <div className="panel-title">{translate('auto.k1205')}</div>
+              <div className="panel-desc">{health?.cleanupEnabled ? translate('auto.k1287') : translate('auto.k1288')}</div>
             </div>
             <button className="btn btn-primary btn-sm" type="submit" disabled={!canCleanup || taskState.loading}>
               <ListChecks size={15} />
-              创建
-            </button>
+              {translate('auto.k0862')}</button>
           </div>
           <div className="panel-body">
             {!health?.cleanupEnabled && (
-              <div className="notice warning">cleanupEnabled=false，当前环境不会执行破坏性清理动作。</div>
+              <div className="notice warning">{translate('auto.k1289')}</div>
             )}
             <div className="form-grid">
               <Field label="projectId"><input value={taskDraft.projectId} onChange={(event) => setTaskDraftValue('projectId', event.target.value)} /></Field>
@@ -1149,13 +1138,12 @@ export function TestDataWorkbench(props: { signedIn: boolean; currentUser: Curre
         <section className="panel">
           <div className="panel-header">
             <div>
-              <div className="panel-title">任务列表</div>
-              <div className="panel-desc">{tasks.length} 条 · 失败摘要可见</div>
+              <div className="panel-title">{translate('auto.k1290')}</div>
+              <div className="panel-desc">{tasks.length} {translate('auto.k1291')}</div>
             </div>
             <button className="btn btn-secondary btn-sm" type="button" onClick={() => void onRetryTask()} disabled={!selectedTaskId || !canCleanup || taskState.loading}>
               <RotateCcw size={15} />
-              重试
-            </button>
+              {translate('auto.k0227')}</button>
           </div>
           <div className="panel-body compact">
             <Field label="retry requestKey"><input value={taskDraft.retryRequestKey} onChange={(event) => setTaskDraftValue('retryRequestKey', event.target.value)} /></Field>
@@ -1165,7 +1153,7 @@ export function TestDataWorkbench(props: { signedIn: boolean; currentUser: Curre
                   <span><strong>{task.taskType}</strong><small>{task.projectId} · {task.requestKey} · trace {task.traceId ?? '-'}</small></span>
                   <StatusBadge status={task.status} />
                 </button>
-              )) : <div className="table-empty">暂无清理任务</div>}
+              )) : <div className="table-empty">{translate('auto.k1292')}</div>}
             </div>
             {taskDetail && (
               <div className="test-data-summary">
@@ -1186,11 +1174,10 @@ export function TestDataWorkbench(props: { signedIn: boolean; currentUser: Curre
     return (
       <form className="test-data-subform" onSubmit={onImportRecord}>
         <div className="test-data-subheader">
-          <strong>导入记录摘要</strong>
+          <strong>{translate('auto.k1293')}</strong>
           <button className="btn btn-secondary btn-sm" type="submit" disabled={!selectedDataSetId || !canManage || dataSetState.loading}>
             <Upload size={15} />
-            导入
-          </button>
+            {translate('auto.k0175')}</button>
         </div>
         <div className="form-grid">
           <Field label="recordKey"><input value={recordDraft.recordKey} onChange={(event) => setRecordDraftValue('recordKey', event.target.value)} /></Field>
@@ -1208,14 +1195,13 @@ export function TestDataWorkbench(props: { signedIn: boolean; currentUser: Curre
     return (
       <form className="test-data-subform" onSubmit={onGenerateRecords}>
         <div className="test-data-subheader">
-          <strong>生成模拟记录</strong>
+          <strong>{translate('auto.k1294')}</strong>
           <button className="btn btn-secondary btn-sm" type="submit" disabled={!selectedDataSetId || !generatedSource || !canManage || dataSetState.loading}>
             <Sparkles size={15} />
-            自动造数
-          </button>
+            {translate('auto.k1295')}</button>
         </div>
         {!generatedSource && (
-          <div className="table-empty">仅 `GENERATED` 数据集支持自动造数；其他来源类型继续使用导入记录摘要。</div>
+          <div className="table-empty">{translate('auto.k1296')}</div>
         )}
         <div className="form-grid">
           <Field label="count">
@@ -1246,8 +1232,8 @@ export function TestDataWorkbench(props: { signedIn: boolean; currentUser: Curre
     return (
       <div className="test-data-subform">
         <div className="test-data-subheader">
-          <strong>记录摘要</strong>
-          <span>{dataSetDetail?.records.length ?? 0} 条</span>
+          <strong>{translate('auto.k1297')}</strong>
+          <span>{dataSetDetail?.records.length ?? 0} {translate('auto.k0181')}</span>
         </div>
         <div className="test-data-record-grid">
           {dataSetDetail?.records.length ? dataSetDetail.records.slice(0, 8).map((record) => (
@@ -1256,7 +1242,7 @@ export function TestDataWorkbench(props: { signedIn: boolean; currentUser: Curre
               <span className="mono">{shortId(record.recordDigest)}</span>
               <small>{summaryText(record.maskedSummary)}</small>
             </div>
-          )) : <div className="table-empty">暂无记录摘要</div>}
+          )) : <div className="table-empty">{translate('auto.k1298')}</div>}
         </div>
       </div>
     );
@@ -1266,7 +1252,7 @@ export function TestDataWorkbench(props: { signedIn: boolean; currentUser: Curre
     return (
       <div className="test-data-subform" data-testid="test-data-export-panel">
         <div className="test-data-subheader">
-          <strong>脱敏导出摘要</strong>
+          <strong>{translate('auto.k1299')}</strong>
           <div className="test-data-panel-actions">
             <button
               className="btn btn-secondary btn-sm"
@@ -1275,8 +1261,7 @@ export function TestDataWorkbench(props: { signedIn: boolean; currentUser: Curre
               disabled={!selectedDataSetId || !canExport || !health?.exportEnabled || dataSetExportState.loading}
             >
               <Download size={15} />
-              导出摘要
-            </button>
+              {translate('auto.k0221')}</button>
             <button
               className="btn btn-ghost btn-sm"
               type="button"
@@ -1284,8 +1269,7 @@ export function TestDataWorkbench(props: { signedIn: boolean; currentUser: Curre
               disabled={!selectedDataSetId || !canExport || !health?.exportEnabled || dataSetExportState.loading}
             >
               <Download size={15} />
-              下载文件
-            </button>
+              {translate('auto.k1186')}</button>
           </div>
         </div>
         <StateLine state={dataSetExportState} />
@@ -1311,11 +1295,11 @@ export function TestDataWorkbench(props: { signedIn: boolean; currentUser: Curre
                   <small>keys {record.maskedSummaryKeys.join(', ') || '-'}</small>
                   <small>tags {record.tags.join(', ') || '-'}</small>
                 </div>
-              )) : <div className="table-empty">暂无可导出记录</div>}
+              )) : <div className="table-empty">{translate('auto.k1300')}</div>}
             </div>
           </>
         ) : (
-          <div className="table-empty">{health?.exportEnabled ? '尚未生成导出摘要' : '当前环境关闭脱敏导出'}</div>
+          <div className="table-empty">{health?.exportEnabled ? translate('auto.k1301') : translate('auto.k1302')}</div>
         )}
       </div>
     );
@@ -1325,7 +1309,7 @@ export function TestDataWorkbench(props: { signedIn: boolean; currentUser: Curre
     return (
       <div className="test-data-subform" data-testid="test-lease-export-panel">
         <div className="test-data-subheader">
-          <strong>租借脱敏导出摘要</strong>
+          <strong>{translate('auto.k1303')}</strong>
           <div className="test-data-panel-actions">
             <button
               className="btn btn-secondary btn-sm"
@@ -1334,8 +1318,7 @@ export function TestDataWorkbench(props: { signedIn: boolean; currentUser: Curre
               disabled={!selectedLeaseId || !canExport || !health?.exportEnabled || leaseExportState.loading}
             >
               <Download size={15} />
-              导出摘要
-            </button>
+              {translate('auto.k0221')}</button>
             <button
               className="btn btn-ghost btn-sm"
               type="button"
@@ -1343,8 +1326,7 @@ export function TestDataWorkbench(props: { signedIn: boolean; currentUser: Curre
               disabled={!selectedLeaseId || !canExport || !health?.exportEnabled || leaseExportState.loading}
             >
               <Download size={15} />
-              下载文件
-            </button>
+              {translate('auto.k1186')}</button>
           </div>
         </div>
         <StateLine state={leaseExportState} />
@@ -1375,7 +1357,7 @@ export function TestDataWorkbench(props: { signedIn: boolean; currentUser: Curre
             </div>
           </>
         ) : (
-          <div className="table-empty">{health?.exportEnabled ? '尚未生成租借导出摘要' : '当前环境关闭脱敏导出'}</div>
+          <div className="table-empty">{health?.exportEnabled ? translate('auto.k1304') : translate('auto.k1302')}</div>
         )}
       </div>
     );
@@ -1386,25 +1368,23 @@ export function TestDataWorkbench(props: { signedIn: boolean; currentUser: Curre
     return (
       <form className="test-data-subform" onSubmit={onSaveAccount}>
         <div className="test-data-subheader">
-          <strong>{selectedAccount ? '编辑账号摘要' : '新增账号摘要'}</strong>
+          <strong>{selectedAccount ? translate('auto.k1305') : translate('auto.k1306')}</strong>
           <div className="test-data-panel-actions">
             <button className="btn btn-ghost btn-sm" type="button" onClick={() => {
               setSelectedAccountId('');
               setAccountDraft(initialAccountDraft);
             }}>
               <RefreshCw size={15} />
-              新增
-            </button>
+              {translate('auto.k0894')}</button>
             <button className="btn btn-secondary btn-sm" type="submit" disabled={!selectedPoolId || !canManage || poolState.loading}>
               <ShieldCheck size={15} />
-              保存账号
-            </button>
+              {translate('auto.k1307')}</button>
           </div>
         </div>
         <div className="form-grid">
           <Field label="accountKey"><input value={accountDraft.accountKey} onChange={(event) => setAccountDraftValue('accountKey', event.target.value)} /></Field>
           <Field label="displayName"><input value={accountDraft.displayName} onChange={(event) => setAccountDraftValue('displayName', event.target.value)} /></Field>
-          <Field label="状态">
+          <Field label={translate('auto.k0182')}>
             <select value={accountDraft.status} onChange={(event) => setAccountDraftValue('status', event.target.value)}>
               <option value="AVAILABLE">AVAILABLE</option>
               <option value="LEASED">LEASED</option>
@@ -1420,7 +1400,7 @@ export function TestDataWorkbench(props: { signedIn: boolean; currentUser: Curre
               autoComplete="off"
               value={accountDraft.secretRef}
               onChange={(event) => setAccountDraftValue('secretRef', event.target.value)}
-              placeholder={selectedAccount ? '留空则不替换' : '输入凭据引用'}
+              placeholder={selectedAccount ? translate('auto.k1308') : translate('auto.k1309')}
             />
           </Field>
         </div>
@@ -1451,7 +1431,7 @@ export function TestDataWorkbench(props: { signedIn: boolean; currentUser: Curre
             <small className="mono">secret digest {shortId(account.secretRefDigest)}</small>
             <small>{summaryText(account.scopeSummary)}</small>
           </button>
-        )) : <div className="table-empty">暂无账号摘要</div>}
+        )) : <div className="table-empty">{translate('auto.k1310')}</div>}
       </div>
     );
   }
@@ -1617,7 +1597,7 @@ function parseJsonFields(fields: Array<[string, string]>): { ok: true; values: R
       const parsed = text.trim() ? JSON.parse(text) : {};
       values[key] = parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed as Record<string, unknown> : {};
     } catch {
-      return { ok: false, message: `${key} 必须是合法 JSON object` };
+      return { ok: false, message: translate('auto.k1311', { value0: key }) };
     }
   }
   return { ok: true, values };
