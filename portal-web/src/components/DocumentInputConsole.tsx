@@ -892,10 +892,12 @@ export function DocumentInputConsole(props: { signedIn: boolean; currentUser: Cu
                 <h2>文档源管理</h2>
               </div>
             </div>
-            <button className="secondary-button" type="button" disabled={!props.signedIn || loadState.loading} onClick={refreshAll}>
-              <RefreshCw size={16} />
-              刷新
-            </button>
+            <div className="panel-toolbar-actions">
+              <button className="secondary-button" type="button" disabled={!props.signedIn || loadState.loading} onClick={refreshAll}>
+                <RefreshCw size={16} />
+                刷新
+              </button>
+            </div>
           </div>
 
           <form className="document-form" onSubmit={submitSource}>
@@ -1032,6 +1034,7 @@ export function DocumentInputConsole(props: { signedIn: boolean; currentUser: Cu
                 {editingSourceId ? '保存文档源' : '新增文档源'}
               </button>
               <button className="secondary-button" type="button" disabled={sourceState.loading} onClick={resetSourceDraft}>
+                <XCircle size={16} />
                 取消编辑
               </button>
               <StateLine state={sourceState} />
