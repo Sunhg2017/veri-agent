@@ -1,4 +1,5 @@
 import { Bell, CheckCheck, LoaderCircle } from 'lucide-react';
+import dayjs from 'dayjs';
 import { useEffect, useMemo, useRef } from 'react';
 import type { UserNotification } from '../api/notifications';
 
@@ -15,14 +16,9 @@ export interface NotificationCenterProps {
 
 function notificationTimeLabel(value?: string) {
   if (!value) return '';
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return '';
-  return date.toLocaleString('zh-CN', {
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit'
-  });
+  const date = dayjs(value);
+  if (!date.isValid()) return '';
+  return date.format('MM/DD HH:mm');
 }
 
 export function NotificationCenter(props: NotificationCenterProps) {

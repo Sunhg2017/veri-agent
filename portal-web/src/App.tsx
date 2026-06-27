@@ -25,7 +25,12 @@ import {
   UsersRound,
   type LucideIcon
 } from 'lucide-react';
-import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import { Navigate, useLocation, useNavigate } from 'react-router-dom';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { useQuery } from '@tanstack/react-query';
 import {
   changePassword,
   fetchCurrentUser,
@@ -79,25 +84,25 @@ import {
   type PageKey,
   type UserLifecycleAction
 } from './permissions';
+import { Spinner } from './components/ui/State';
+import { useConfirmDialog } from './components/ui/ConfirmDialog';
+import { useAppSessionStore } from './platform/appStore';
+import {
+  loginSchema,
+  passwordChangeSchema,
+  resetPasswordSchema,
+  type LoginFormValues,
+  type PasswordChangeFormValues,
+  type ResetPasswordFormValues
+} from './platform/forms';
+import { queryClient } from './platform/queryClient';
+import { useThemeStore } from './platform/themeStore';
 
 /* ===================== 常量 & 类型 ===================== */
 
-const initialLoginForm: LoginPayload = { username: '', password: '' };
-
-type PasswordForm = {
-  oldPassword: string;
-  newPassword: string;
-  confirmPassword: string;
-};
-
-type ResetPasswordForm = {
-  username: string;
-  newPassword: string;
-  confirmPassword: string;
-};
-
-const initialPasswordForm: PasswordForm = { oldPassword: '', newPassword: '', confirmPassword: '' };
-const initialResetPasswordForm: ResetPasswordForm = { username: '', newPassword: '', confirmPassword: '' };
+const initialLoginForm: LoginFormValues = { username: '', password: '' };
+const initialPasswordForm: PasswordChangeFormValues = { oldPassword: '', newPassword: '', confirmPassword: '' };
+const initialResetPasswordForm: ResetPasswordFormValues = { username: '', newPassword: '', confirmPassword: '' };
 
 type LoginState =
   | { status: 'idle' }
@@ -304,32 +309,33 @@ const emptyManagementData: ManagementData = {
 
 /* ===================== Page Routing ===================== */
 
-function activePageFromHash(): PageKey {
-  const pageKey = window.location.hash.replace(/^#\/?/, '').split('/')[0];
+function activePageFromPath(pathname: string): PageKey {
+  const pageKey = pathname.replace(/^\/+/, '').split('/')[0];
   return pages.some((p) => p.key === pageKey) ? (pageKey as PageKey) : 'overview';
-}
-
-function navigateToPage(page: PageKey) {
-  window.location.hash = `#${page}`;
 }
 
 /* ===================== Main App ===================== */
 
 export function App() {
+  const { i18n, t } = useTranslation();
+  const location = useLocation();
+  const navigate = useNavigate();
+  const confirm = useConfirmDialog();
+  const toggleThemeMode = useThemeStore((state) => state.toggleMode);
+  const resolvedThemeMode = useThemeStore((state) => state.resolvedMode);
+  const sessionUser = useAppSessionStore((state) => state.currentUser);
+  const setSessionUser = useAppSessionStore((state) => state.setCurrentUser);
+
   // -- Auth state --
-  const [activePage, setActivePage] = useState<PageKey>(() => activePageFromHash());
-  const [loginForm, setLoginForm] = useState<LoginPayload>(initialLoginForm);
+  const activePage = activePageFromPath(location.pathname);
   const [loginState, setLoginState] = useState<LoginState>({ status: 'idle' });
-  const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null);
+  const currentUser = sessionUser;
   const [passwordDialogOpen, setPasswordDialogOpen] = useState(false);
-  const [passwordForm, setPasswordForm] = useState<PasswordForm>(initialPasswordForm);
   const [passwordDialogState, setPasswordDialogState] = useState<PasswordDialogState>({ status: 'idle' });
   const [resetPasswordDialogOpen, setResetPasswordDialogOpen] = useState(false);
-  const [resetPasswordForm, setResetPasswordForm] = useState<ResetPasswordForm>(initialResetPasswordForm);
   const [resetPasswordDialogState, setResetPasswordDialogState] = useState<PasswordDialogState>({ status: 'idle' });
 
   // -- Data state --
-  const [health, setHealth] = useState<{ loading: boolean; data?: HealthResult; error?: string }>({ loading: true });
   const [managementData, setManagementData] = useState<ManagementData>(emptyManagementData);
   const [managementLoad, setManagementLoad] = useState<{ loading: boolean; error?: string }>({ loading: false });
   const [auditExportState, setAuditExportState] = useState<{ loading: boolean; error?: string }>({ loading: false });
@@ -343,6 +349,42 @@ export function App() {
 
   // -- Toast --
   const { addToast, toastContainer } = useToast();
+  const loginForm = useForm<LoginFormValues>({
+    defaultValues: initialLoginForm,
+    resolver: zodResolver(loginSchema)
+  });
+  const passwordForm = useForm<PasswordChangeFormValues>({
+    defaultValues: initialPasswordForm,
+    resolver: zodResolver(passwordChangeSchema)
+  });
+  const resetPasswordForm = useForm<ResetPasswordFormValues>({
+    defaultValues: initialResetPasswordForm,
+    resolver: zodResolver(resetPasswordSchema)
+  });
+  const healthQuery = useQuery({
+    queryFn: async () => {
+      const response = await fetchHealth();
+      return response.data;
+    },
+    queryKey: ['platform-health']
+  });
+  const currentUserQuery = useQuery({
+    enabled: Boolean(getAuthToken()),
+    queryFn: async () => {
+      const response = await fetchCurrentUser();
+      return response.data;
+    },
+    queryKey: ['current-user'],
+    retry: 0
+  });
+  const health = useMemo(
+    () => ({
+      data: healthQuery.data,
+      error: healthQuery.error instanceof Error ? healthQuery.error.message : undefined,
+      loading: healthQuery.isLoading
+    }),
+    [healthQuery.data, healthQuery.error, healthQuery.isLoading]
+  );
 
   const visiblePages = useMemo(() => pages.filter((p) => canAccessPage(currentUser, p.key)), [currentUser]);
   const visiblePagesByKey = useMemo(
@@ -366,20 +408,11 @@ export function App() {
   const activeSidebarGroupKey = sidebarGroupKeyByPageKey[activePage] ?? null;
   const activeSidebarGroupLabel = sidebarGroups.find((group) => group.key === activeSidebarGroupKey)?.label ?? '平台总览';
 
-  /* ---------- Hash routing ---------- */
-
   useEffect(() => {
-    function sync() { setActivePage(activePageFromHash()); }
-    window.addEventListener('hashchange', sync);
-    return () => window.removeEventListener('hashchange', sync);
-  }, []);
-
-  useEffect(() => {
-    if (!canAccessPage(currentUser, activePage)) {
-      window.history.replaceState(null, '', '#overview');
-      setActivePage('overview');
+    if (location.pathname === '/' || location.pathname === '') {
+      navigate('/overview', { replace: true });
     }
-  }, [activePage, currentUser]);
+  }, [location.pathname, navigate]);
 
   useEffect(() => {
     setOpenSidebarGroupKey(activeSidebarGroupKey);
@@ -391,27 +424,18 @@ export function App() {
     }
   }, [openSidebarGroupKey, visibleSidebarGroups]);
 
-  /* ---------- Initial data loading ---------- */
+  useEffect(() => {
+    if (currentUserQuery.data) {
+      setSessionUser(currentUserQuery.data);
+    }
+  }, [currentUserQuery.data, setSessionUser]);
 
   useEffect(() => {
-    let active = true;
-    fetchHealth()
-      .then((r) => { if (active) setHealth({ loading: false, data: r.data }); })
-      .catch((err: unknown) => { if (active) setHealth({ loading: false, error: err instanceof Error ? err.message : 'Health check failed' }); });
-    return () => { active = false; };
-  }, []);
-
-  useEffect(() => {
-    if (!getAuthToken()) return;
-    fetchCurrentUser()
-      .then((r) => {
-        setCurrentUser(r.data);
-      })
-      .catch(() => {
-        clearAuthToken();
-        setCurrentUser(null);
-      });
-  }, []);
+    if (currentUserQuery.isError) {
+      clearAuthToken();
+      setSessionUser(null);
+    }
+  }, [currentUserQuery.isError, setSessionUser]);
 
   useEffect(() => {
     if (!currentUser || currentUser.must_change_password) {
@@ -620,37 +644,37 @@ export function App() {
 
   /* ---------- Auth actions ---------- */
 
-  async function onLogin(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (!loginForm.username.trim() || !loginForm.password) {
-      setLoginState({ status: 'error', message: '请输入账号和密码' });
-      return;
-    }
+  const onLogin = loginForm.handleSubmit(async (values) => {
     setLoginState({ status: 'loading' });
     try {
-      const r = await loginRequest(loginForm);
+      const payload: LoginPayload = { username: values.username.trim(), password: values.password };
+      const r = await loginRequest(payload);
       setAuthToken(r.data.access_token);
       setRefreshToken(r.data.refresh_token);
       setSessionId(r.data.session_id);
       const userR = await fetchCurrentUser();
-      setCurrentUser(userR.data);
-      setLoginForm(initialLoginForm);
+      setSessionUser(userR.data);
+      queryClient.setQueryData(['current-user'], userR.data);
+      loginForm.reset(initialLoginForm);
       setLoginState({ status: 'idle' });
       addToast('success', '登录成功');
     } catch (err: unknown) {
       clearAuthToken();
-      setCurrentUser(null);
+      setSessionUser(null);
       if (err instanceof ApiError) {
         setLoginState({ status: 'error', message: err.message });
       } else {
         setLoginState({ status: 'error', message: '登录失败，请检查网络连接' });
       }
     }
-  }
+  }, (errors) => {
+    setLoginState({ status: 'error', message: errors.username?.message ?? errors.password?.message ?? t('validation.loginRequired') });
+  });
 
   function resetSignedInState() {
     clearAuthToken();
-    setCurrentUser(null);
+    setSessionUser(null);
+    queryClient.clear();
     setManagementData(emptyManagementData);
     setManagementLoad({ loading: false });
     setAuditExportState({ loading: false });
@@ -660,39 +684,30 @@ export function App() {
     setNotificationItems([]);
     setNotificationUnreadCount(0);
     setNotificationLoad({ loading: false, loaded: false });
-    setLoginForm(initialLoginForm);
+    loginForm.reset(initialLoginForm);
     setPasswordDialogOpen(false);
-    setPasswordForm(initialPasswordForm);
+    passwordForm.reset(initialPasswordForm);
     setPasswordDialogState({ status: 'idle' });
   }
 
   async function onLogout() {
+    const confirmed = await confirm({
+      confirmLabel: '退出',
+      description: '退出后需要重新登录才能继续使用控制台。',
+      title: '确认退出登录？',
+      tone: 'danger'
+    });
+    if (!confirmed) {
+      return;
+    }
     try { await logoutRequest(); } catch { /* ignore */ } finally {
       resetSignedInState();
       addToast('info', '已退出登录');
     }
   }
 
-  async function onChangePassword(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
+  const onChangePassword = passwordForm.handleSubmit(async ({ oldPassword, newPassword }) => {
     if (!currentUser) return;
-    const { oldPassword, newPassword, confirmPassword } = passwordForm;
-    if (!oldPassword || !newPassword || !confirmPassword) {
-      setPasswordDialogState({ status: 'error', message: '请填写完整密码信息' });
-      return;
-    }
-    if (newPassword !== confirmPassword) {
-      setPasswordDialogState({ status: 'error', message: '两次输入的新密码不一致' });
-      return;
-    }
-    if (newPassword.length < 10) {
-      setPasswordDialogState({ status: 'error', message: '新密码至少 10 位' });
-      return;
-    }
-    if (oldPassword === newPassword) {
-      setPasswordDialogState({ status: 'error', message: '新密码不能与旧密码相同' });
-      return;
-    }
     setPasswordDialogState({ status: 'submitting' });
     try {
       await changePassword({ old_password: oldPassword, new_password: newPassword });
@@ -705,7 +720,12 @@ export function App() {
         setPasswordDialogState({ status: 'error', message: '密码修改失败' });
       }
     }
-  }
+  }, (errors) => {
+    setPasswordDialogState({
+      status: 'error',
+      message: errors.oldPassword?.message ?? errors.newPassword?.message ?? errors.confirmPassword?.message ?? t('validation.passwordComplete')
+    });
+  });
 
   /* ---------- Management actions ---------- */
 
@@ -790,39 +810,30 @@ export function App() {
 
   function openResetPasswordDialog(username: string) {
     setResetPasswordDialogOpen(true);
-    setResetPasswordForm({ username, newPassword: '', confirmPassword: '' });
+    resetPasswordForm.reset({ username, newPassword: '', confirmPassword: '' });
     setResetPasswordDialogState({ status: 'idle' });
   }
 
-  async function onResetPassword(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
+  const onResetPassword = resetPasswordForm.handleSubmit(async ({ username, newPassword }) => {
     if (!currentUser) return;
-    const { newPassword, confirmPassword } = resetPasswordForm;
-    if (!newPassword || !confirmPassword) {
-      setResetPasswordDialogState({ status: 'error', message: '请填写新密码和确认密码' });
-      return;
-    }
-    if (newPassword !== confirmPassword) {
-      setResetPasswordDialogState({ status: 'error', message: '两次输入的密码不一致' });
-      return;
-    }
-    if (newPassword.length < 10) {
-      setResetPasswordDialogState({ status: 'error', message: '密码至少 10 位' });
-      return;
-    }
     setResetPasswordDialogState({ status: 'submitting' });
     try {
-      await resetUserPassword(resetPasswordForm.username, newPassword);
+      await resetUserPassword(username, newPassword);
       setResetPasswordDialogOpen(false);
-      setResetPasswordForm(initialResetPasswordForm);
+      resetPasswordForm.reset(initialResetPasswordForm);
       setResetPasswordDialogState({ status: 'idle' });
-      addToast('success', `${resetPasswordForm.username} 密码已重置`);
+      addToast('success', `${username} 密码已重置`);
       await refreshManagementData();
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : '重置失败';
       setResetPasswordDialogState({ status: 'error', message: msg });
     }
-  }
+  }, (errors) => {
+    setResetPasswordDialogState({
+      status: 'error',
+      message: errors.newPassword?.message ?? errors.confirmPassword?.message ?? t('validation.passwordConfirmRequired')
+    });
+  });
 
   async function onToggleNotifications() {
     const nextOpen = !notificationOpen;
@@ -918,17 +929,22 @@ export function App() {
         )}
         <a className="topbar-link" href="#overview" aria-label="打开文档中心">
           <BookOpen size={16} />
-          <span>文档</span>
+          <span>{t('actions.docs')}</span>
         </a>
-        <button className="topbar-chip topbar-language" type="button" aria-label="切换语言">
+        <button
+          className="topbar-chip topbar-language"
+          type="button"
+          aria-label="切换语言"
+          onClick={() => void i18n.changeLanguage(i18n.language === 'zh' ? 'en' : 'zh')}
+        >
           <span className="language-flag" aria-hidden="true">CN</span>
-          <span>ZH</span>
+          <span>{i18n.language === 'zh' ? 'ZH' : 'EN'}</span>
           <ChevronDown size={14} />
         </button>
         <HealthBadge health={health} />
         <div className="topbar-balance" aria-label="当前版本">
           <WalletCards size={16} />
-          <span>企业版</span>
+          <span>{t('app.enterpriseEdition')}</span>
         </div>
         {currentUser && (
           <div className="auth-panel">
@@ -941,7 +957,7 @@ export function App() {
             </div>
             <button className="btn btn-ghost btn-sm" onClick={onLogout} title="退出登录">
               <LogOut size={15} />
-              退出
+              {t('actions.logout')}
             </button>
           </div>
         )}
@@ -958,32 +974,36 @@ export function App() {
         <div className="login-card" role="main" aria-labelledby="login-title">
           <div className="login-brand">
             <div className="brand-mark">VA</div>
-            <div className="brand-name" id="login-title">Veri Agent</div>
-            <div className="brand-subtitle">测试平台 · 请登录</div>
+            <div className="brand-name" id="login-title">{t('app.name')}</div>
+            <div className="brand-subtitle">{t('auth.loginSubtitle')}</div>
           </div>
           <form className="login-form" onSubmit={onLogin}>
             <div className="field">
-              <label className="field-label" htmlFor="login-username">账号</label>
+              <label className="field-label" htmlFor="login-username">{t('auth.account')}</label>
               <input
                 id="login-username"
                 type="text"
-                placeholder="请输入用户名"
+                placeholder={t('auth.usernamePlaceholder')}
                 autoComplete="username"
                 autoFocus
-                value={loginForm.username}
-                onChange={(e) => { setLoginForm((f) => ({ ...f, username: e.target.value })); setLoginState({ status: 'idle' }); }}
+                {...loginForm.register('username', { onChange: () => setLoginState({ status: 'idle' }) })}
+                aria-invalid={Boolean(loginForm.formState.errors.username)}
+                required
               />
+              {loginForm.formState.errors.username ? <span className="field-error">{loginForm.formState.errors.username.message}</span> : null}
             </div>
             <div className="field">
-              <label className="field-label" htmlFor="login-password">密码</label>
+              <label className="field-label" htmlFor="login-password">{t('auth.password')}</label>
               <input
                 id="login-password"
                 type="password"
-                placeholder="请输入密码"
+                placeholder={t('auth.passwordPlaceholder')}
                 autoComplete="current-password"
-                value={loginForm.password}
-                onChange={(e) => { setLoginForm((f) => ({ ...f, password: e.target.value })); setLoginState({ status: 'idle' }); }}
+                {...loginForm.register('password', { onChange: () => setLoginState({ status: 'idle' }) })}
+                aria-invalid={Boolean(loginForm.formState.errors.password)}
+                required
               />
+              {loginForm.formState.errors.password ? <span className="field-error">{loginForm.formState.errors.password.message}</span> : null}
             </div>
             {loginState.status === 'error' && (
               <div className="login-error">{loginState.message}</div>
@@ -992,7 +1012,7 @@ export function App() {
               className="btn btn-primary login-submit"
               type="submit"
             >
-              登 录
+              {t('auth.login')}
             </button>
           </form>
         </div>
@@ -1006,22 +1026,26 @@ export function App() {
       <div className="login-page">
         <div className="login-card login-loading-card">
           <div className="brand-mark">VA</div>
-          <div>正在验证登录状态...</div>
+          <Spinner label={t('auth.validating')} />
         </div>
       </div>
     );
   }
 
+  if (!canAccessPage(currentUser, activePage)) {
+    return <Navigate to="/overview" replace />;
+  }
+
   return (
     <div className="app-shell">
-      <a className="skip-link" href="#main-content">跳到主内容</a>
+      <a className="skip-link" href="#main-content">{t('nav.skip')}</a>
       {/* Sidebar */}
       <aside className="sidebar" aria-label="主导航">
         <div className="brand">
           <div className="brand-mark">VA</div>
           <div className="brand-text">
-            <div className="brand-name">Veri Agent</div>
-            <div className="brand-subtitle">测试平台</div>
+            <div className="brand-name">{t('app.name')}</div>
+            <div className="brand-subtitle">{t('app.subtitle')}</div>
           </div>
         </div>
 
@@ -1029,7 +1053,7 @@ export function App() {
           <button
             className={`nav-item nav-home${activePage === 'overview' ? ' active' : ''}`}
             type="button"
-            onClick={() => navigateToPage('overview')}
+            onClick={() => navigate('/overview')}
             aria-current={activePage === 'overview' ? 'page' : undefined}
           >
             <LayoutDashboard size={18} />
@@ -1072,7 +1096,7 @@ export function App() {
                           key={page.key}
                           className={`nav-subitem${selected ? ' active' : ''}`}
                           type="button"
-                          onClick={() => navigateToPage(page.key)}
+                          onClick={() => navigate(`/${page.key}`)}
                           aria-current={selected ? 'page' : undefined}
                           title={page.description}
                         >
@@ -1088,9 +1112,9 @@ export function App() {
           })}
         </nav>
         <div className="sidebar-footer">
-          <button className="nav-item sidebar-mode-toggle" type="button" aria-label="深色模式暂未启用">
+          <button className="nav-item sidebar-mode-toggle" type="button" aria-label="切换主题" onClick={toggleThemeMode}>
             <Moon size={17} />
-            <span>深色模式</span>
+            <span>{resolvedThemeMode === 'dark' ? '浅色模式' : '深色模式'}</span>
           </button>
         </div>
       </aside>
@@ -1122,32 +1146,55 @@ export function App() {
         <div className="modal-backdrop" onClick={passwordChangeRequired ? undefined : () => setPasswordDialogOpen(false)}>
           <div className="modal-panel" onClick={(e) => e.stopPropagation()}>
             <div className="modal-heading">
-              <h2>{passwordChangeRequired ? '请修改初始密码' : '修改密码'}</h2>
+              <h2>{passwordChangeRequired ? t('auth.passwordInitialTitle') : t('auth.passwordChangeTitle')}</h2>
               <button className="btn btn-ghost btn-sm" onClick={passwordChangeRequired ? onLogout : () => setPasswordDialogOpen(false)} disabled={passwordDialogState.status === 'submitting'}>
-                {passwordChangeRequired ? '退出登录' : '取消'}
+                {passwordChangeRequired ? t('actions.logout') : t('actions.cancel')}
               </button>
             </div>
             <form className="modal-body" onSubmit={onChangePassword}>
               {passwordChangeRequired && (
-                <div className="notice warning">首次登录或密码已被管理员重置，请设置新密码后继续使用。</div>
+                <div className="notice warning">{t('auth.initialPasswordNotice')}</div>
               )}
               <div className="field">
-                <label className="field-label">当前密码</label>
-                <input type="password" autoComplete="current-password" placeholder="输入当前密码"
-                  value={passwordForm.oldPassword}
-                  onChange={(e) => { setPasswordForm((f) => ({ ...f, oldPassword: e.target.value })); setPasswordDialogState({ status: 'idle' }); }} />
+                <label className="field-label" htmlFor="current-password">{t('auth.currentPassword')}</label>
+                <input
+                  id="current-password"
+                  type="password"
+                  autoComplete="current-password"
+                  placeholder="输入当前密码"
+                  {...passwordForm.register('oldPassword', { onChange: () => setPasswordDialogState({ status: 'idle' }) })}
+                  aria-invalid={Boolean(passwordForm.formState.errors.oldPassword)}
+                  required
+                />
+                {passwordForm.formState.errors.oldPassword ? <span className="field-error">{passwordForm.formState.errors.oldPassword.message}</span> : null}
               </div>
               <div className="field">
-                <label className="field-label">新密码</label>
-                <input type="password" autoComplete="new-password" placeholder="至少 10 位"
-                  value={passwordForm.newPassword}
-                  onChange={(e) => { setPasswordForm((f) => ({ ...f, newPassword: e.target.value })); setPasswordDialogState({ status: 'idle' }); }} />
+                <label className="field-label" htmlFor="new-password">新密码</label>
+                <input
+                  id="new-password"
+                  type="password"
+                  autoComplete="new-password"
+                  placeholder="至少 10 位"
+                  minLength={10}
+                  {...passwordForm.register('newPassword', { onChange: () => setPasswordDialogState({ status: 'idle' }) })}
+                  aria-invalid={Boolean(passwordForm.formState.errors.newPassword)}
+                  required
+                />
+                {passwordForm.formState.errors.newPassword ? <span className="field-error">{passwordForm.formState.errors.newPassword.message}</span> : null}
               </div>
               <div className="field">
-                <label className="field-label">确认新密码</label>
-                <input type="password" autoComplete="new-password" placeholder="再次输入新密码"
-                  value={passwordForm.confirmPassword}
-                  onChange={(e) => { setPasswordForm((f) => ({ ...f, confirmPassword: e.target.value })); setPasswordDialogState({ status: 'idle' }); }} />
+                <label className="field-label" htmlFor="confirm-new-password">{t('auth.passwordConfirm')}</label>
+                <input
+                  id="confirm-new-password"
+                  type="password"
+                  autoComplete="new-password"
+                  placeholder="再次输入新密码"
+                  minLength={10}
+                  {...passwordForm.register('confirmPassword', { onChange: () => setPasswordDialogState({ status: 'idle' }) })}
+                  aria-invalid={Boolean(passwordForm.formState.errors.confirmPassword)}
+                  required
+                />
+                {passwordForm.formState.errors.confirmPassword ? <span className="field-error">{passwordForm.formState.errors.confirmPassword.message}</span> : null}
               </div>
               {passwordDialogState.status === 'error' && (
                 <div className="notice error">{passwordDialogState.message}</div>
@@ -1167,25 +1214,41 @@ export function App() {
         <div className="modal-backdrop" onClick={() => resetPasswordDialogState.status !== 'submitting' && setResetPasswordDialogOpen(false)}>
           <div className="modal-panel" onClick={(e) => e.stopPropagation()}>
             <div className="modal-heading">
-              <h2>重置密码</h2>
-              <button className="btn btn-ghost btn-sm" onClick={() => setResetPasswordDialogOpen(false)} disabled={resetPasswordDialogState.status === 'submitting'}>取消</button>
+              <h2>{t('auth.passwordResetTitle')}</h2>
+              <button className="btn btn-ghost btn-sm" onClick={() => setResetPasswordDialogOpen(false)} disabled={resetPasswordDialogState.status === 'submitting'}>{t('actions.cancel')}</button>
             </div>
             <form className="modal-body" onSubmit={onResetPassword}>
               <div className="field">
-                <label className="field-label">账号</label>
-                <input type="text" value={resetPasswordForm.username} disabled />
+                <label className="field-label" htmlFor="reset-password-username">{t('auth.account')}</label>
+                <input id="reset-password-username" type="text" {...resetPasswordForm.register('username')} disabled />
               </div>
               <div className="field">
-                <label className="field-label">新密码</label>
-                <input type="password" autoComplete="new-password" placeholder="至少 10 位"
-                  value={resetPasswordForm.newPassword}
-                  onChange={(e) => { setResetPasswordForm((f) => ({ ...f, newPassword: e.target.value })); setResetPasswordDialogState({ status: 'idle' }); }} />
+                <label className="field-label" htmlFor="reset-password-new">新密码</label>
+                <input
+                  id="reset-password-new"
+                  type="password"
+                  autoComplete="new-password"
+                  placeholder="至少 10 位"
+                  minLength={10}
+                  {...resetPasswordForm.register('newPassword', { onChange: () => setResetPasswordDialogState({ status: 'idle' }) })}
+                  aria-invalid={Boolean(resetPasswordForm.formState.errors.newPassword)}
+                  required
+                />
+                {resetPasswordForm.formState.errors.newPassword ? <span className="field-error">{resetPasswordForm.formState.errors.newPassword.message}</span> : null}
               </div>
               <div className="field">
-                <label className="field-label">确认新密码</label>
-                <input type="password" autoComplete="new-password" placeholder="再次输入新密码"
-                  value={resetPasswordForm.confirmPassword}
-                  onChange={(e) => { setResetPasswordForm((f) => ({ ...f, confirmPassword: e.target.value })); setResetPasswordDialogState({ status: 'idle' }); }} />
+                <label className="field-label" htmlFor="reset-password-confirm">{t('auth.passwordConfirm')}</label>
+                <input
+                  id="reset-password-confirm"
+                  type="password"
+                  autoComplete="new-password"
+                  placeholder="再次输入新密码"
+                  minLength={10}
+                  {...resetPasswordForm.register('confirmPassword', { onChange: () => setResetPasswordDialogState({ status: 'idle' }) })}
+                  aria-invalid={Boolean(resetPasswordForm.formState.errors.confirmPassword)}
+                  required
+                />
+                {resetPasswordForm.formState.errors.confirmPassword ? <span className="field-error">{resetPasswordForm.formState.errors.confirmPassword.message}</span> : null}
               </div>
               {resetPasswordDialogState.status === 'error' && (
                 <div className="notice error">{resetPasswordDialogState.message}</div>

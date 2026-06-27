@@ -292,7 +292,7 @@ export function TestDesignCandidateReviewPanel(props: {
           <table>
             <thead>
               <tr>
-                <th style={{ width: 48 }}></th>
+                <th className="table-check-column"></th>
                 <th>标题</th>
                 <th>覆盖</th>
                 <th>优先级</th>

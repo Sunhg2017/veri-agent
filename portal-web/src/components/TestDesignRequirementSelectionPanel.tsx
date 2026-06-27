@@ -86,7 +86,7 @@ export function TestDesignRequirementSelectionPanel(props: {
           <table>
             <thead>
               <tr>
-                <th style={{ width: 48 }}></th>
+                <th className="table-check-column"></th>
                 <th>需求</th>
                 <th>优先级</th>
                 <th>来源</th>

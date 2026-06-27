@@ -1,5 +1,6 @@
 import { AlertTriangle, RotateCcw } from 'lucide-react';
 import { Component, type ErrorInfo, type ReactNode } from 'react';
+import { reportError } from '../platform/monitoring';
 
 interface AppErrorBoundaryProps {
   children: ReactNode;
@@ -21,7 +22,10 @@ export class AppErrorBoundary extends Component<AppErrorBoundaryProps, AppErrorB
   }
 
   componentDidCatch(error: Error, errorInfo: ErrorInfo) {
-    console.error('Portal render failed', error, errorInfo);
+    reportError(error, {
+      componentStack: errorInfo.componentStack ?? undefined,
+      severity: 'error'
+    });
   }
 
   private reset = () => {

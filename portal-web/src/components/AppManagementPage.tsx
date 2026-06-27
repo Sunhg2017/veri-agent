@@ -175,7 +175,7 @@ export function ManagementPage(props: ManagementPageProps) {
           </span>,
           item.last_seen,
           ...(canMutateUsers ? [(
-            <div className="row-actions" key={`${item.username}-actions`} style={{ justifyContent: 'flex-start' }}>
+            <div className="row-actions row-actions-start" key={`${item.username}-actions`}>
               <RoleBindingControls
                 username={item.username}
                 roles={data.roles}
@@ -251,7 +251,7 @@ export function ManagementPage(props: ManagementPageProps) {
         columns={['角色', '作用域', '状态', '说明']}
         rows={data.roles.map((item: RoleView) => [
           <span key={item.code}>
-            <div style={{ fontWeight: 600, fontSize: 14 }}>{item.name}</div>
+            <div className="management-primary-text">{item.name}</div>
             <div className="text-tertiary text-xs">{item.code}</div>
           </span>,
           roleScope(item),
@@ -651,10 +651,10 @@ function DataSection(props: DataSectionProps) {
       <div className="panel">
         <div className="panel-header">
           <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
-              <div className="section-icon" style={{ width: 32, height: 32 }}><Icon size={17} /></div>
+            <div className="management-section-heading">
+              <div className="section-icon management-section-icon"><Icon size={17} /></div>
               <div>
-                <div className="text-tertiary text-xs font-semibold" style={{ marginBottom: 2 }}>{props.eyebrow}</div>
+                <div className="text-tertiary text-xs font-semibold management-eyebrow">{props.eyebrow}</div>
                 <h2 className="panel-title">{props.title}</h2>
               </div>
             </div>
@@ -687,7 +687,7 @@ function DataSection(props: DataSectionProps) {
         </div>
         <div className="panel-body">
           {props.loadState.error && (
-            <div className="notice error" style={{ marginBottom: 16 }}>{props.loadState.error}</div>
+            <div className="notice error management-notice">{props.loadState.error}</div>
           )}
           {props.rows.length === 0 && !props.loadState.loading ? (
             <div className="empty-state">
@@ -703,7 +703,7 @@ function DataSection(props: DataSectionProps) {
                 </thead>
                 <tbody>
                   {props.loadState.loading ? (
-                    <tr><td colSpan={props.columns.length}><div className="skeleton skeleton-text" style={{ margin: '8px 0' }} /></td></tr>
+                    <tr><td colSpan={props.columns.length}><div className="skeleton skeleton-text management-skeleton-row" /></td></tr>
                   ) : (
                     props.rows.map((row, idx) => (
                       <tr key={idx}>{row.map((cell, ci) => <td key={ci}>{cell}</td>)}</tr>
@@ -817,7 +817,7 @@ function ResourceLifecyclePanel<T extends object>(props: ResourceLifecyclePanelP
         </div>
 
         {loading && <div className="skeleton skeleton-text" />}
-        {error && <div className="notice error" style={{ marginBottom: 12 }}>{error}</div>}
+        {error && <div className="notice error management-notice-sm">{error}</div>}
 
         {detail && !loading && (
           <>
@@ -1007,39 +1007,39 @@ function ScopedRolePanel(props: {
   return (
     <div className="panel">
       <div className="panel-body">
-        <div style={{ marginBottom: 12 }}>
-          <div className="text-tertiary text-xs font-semibold" style={{ marginBottom: 2 }}>成员</div>
-          <h3 className="panel-title" style={{ fontSize: 15 }}>{props.title}</h3>
+        <div className="management-side-heading">
+          <div className="text-tertiary text-xs font-semibold management-eyebrow">成员</div>
+          <h3 className="panel-title management-side-title">{props.title}</h3>
         </div>
 
-        <div className="field" style={{ marginBottom: 12 }}>
+        <div className="field management-select-field">
           <select
             value={selectedKey}
             onChange={(e) => setSelectedKey(e.target.value)}
             disabled={!props.signedIn}
-            style={{ width: '100%', minHeight: 38, border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '0 10px', fontSize: 13 }}
+            className="management-full-control"
           >
             <option value="">选择{props.resourceLabel}...</option>
             {props.resources.map((r) => <option key={r} value={r}>{r}</option>)}
           </select>
         </div>
 
-        {error && <div className="notice error" style={{ marginBottom: 12 }}>{error}</div>}
+        {error && <div className="notice error management-notice-sm">{error}</div>}
 
         {selectedKey && (
           <>
             {loading ? (
               <div className="skeleton skeleton-text" />
             ) : members.length === 0 ? (
-              <div className="empty-state" style={{ padding: '12px 0' }}>
+              <div className="empty-state management-empty-compact">
                 <span>暂无成员</span>
               </div>
             ) : (
-              <div style={{ display: 'grid', gap: 8 }}>
+              <div className="management-item-list">
                 {members.map((m) => (
-                  <div key={m.username} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, padding: '6px 0', borderBottom: '1px solid var(--border-light)' }}>
+                  <div key={m.username} className="management-list-row">
                     <div>
-                      <div style={{ fontSize: 14, fontWeight: 600 }}>{m.display_name || m.username}</div>
+                      <div className="management-primary-text">{m.display_name || m.username}</div>
                       <div className="text-tertiary text-xs">{m.role}</div>
                     </div>
                     {props.canManage && (
@@ -1051,18 +1051,18 @@ function ScopedRolePanel(props: {
             )}
 
             {props.canManage && (
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 110px auto', gap: 6, marginTop: 12 }}>
+              <div className="management-member-add-grid">
                 <input
                   type="text"
                   placeholder="输入用户名"
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
-                  style={{ flex: 1, minHeight: 34, border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '0 10px', fontSize: 13 }}
+                  className="management-compact-control"
                 />
                 <select
                   value={roleCode}
                   onChange={(e) => setRoleCode(e.target.value)}
-                  style={{ minHeight: 34, border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '0 8px', fontSize: 13 }}
+                  className="management-compact-control"
                 >
                   {props.roles.map((role) => <option key={role} value={role}>{role}</option>)}
                 </select>
@@ -1109,17 +1109,17 @@ function EnvironmentConnectivityPanel(props: {
   return (
     <div className="panel">
       <div className="panel-body">
-        <div style={{ marginBottom: 12 }}>
-          <div className="text-tertiary text-xs font-semibold" style={{ marginBottom: 2 }}>连通性</div>
-          <h3 className="panel-title" style={{ fontSize: 15 }}>环境连通性检查</h3>
+        <div className="management-side-heading">
+          <div className="text-tertiary text-xs font-semibold management-eyebrow">连通性</div>
+          <h3 className="panel-title management-side-title">环境连通性检查</h3>
         </div>
 
-        <div className="field" style={{ marginBottom: 12 }}>
+        <div className="field management-select-field">
           <select
             value={selectedKey}
             onChange={(e) => setSelectedKey(e.target.value)}
             disabled={!props.signedIn}
-            style={{ width: '100%', minHeight: 38, border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '0 10px', fontSize: 13 }}
+            className="management-full-control"
           >
             <option value="">选择环境...</option>
             {props.resources.map((r) => <option key={r} value={r}>{r}</option>)}
@@ -1127,20 +1127,20 @@ function EnvironmentConnectivityPanel(props: {
         </div>
 
         {props.canRun && selectedKey && (
-          <button className="btn btn-primary btn-sm" onClick={check} disabled={loading} style={{ width: '100%', marginBottom: 12 }}>
+          <button className="btn btn-primary btn-sm management-full-action" onClick={check} disabled={loading}>
             {loading ? '检查中...' : '执行连通性检查'}
           </button>
         )}
 
-        {error && <div className="notice error" style={{ marginBottom: 12 }}>{error}</div>}
+        {error && <div className="notice error management-notice-sm">{error}</div>}
 
         {result && (
-          <div style={{ padding: 12, background: 'var(--bg)', borderRadius: 'var(--radius-sm)', display: 'grid', gap: 8 }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+          <div className="management-result-card">
+            <div className="management-result-head">
               <StatusBadge status={result.status} />
               <span className="text-tertiary text-xs">{result.latencyMs ?? '-'}ms</span>
             </div>
-            <p className="text-secondary text-sm" style={{ lineHeight: 1.5, overflowWrap: 'anywhere' }}>{result.message}</p>
+            <p className="text-secondary text-sm management-wrap-text">{result.message}</p>
           </div>
         )}
       </div>
@@ -1175,17 +1175,17 @@ function RoleDefinitionPanel(props: {
   return (
     <div className="panel">
       <div className="panel-body">
-        <div style={{ marginBottom: 12 }}>
-          <div className="text-tertiary text-xs font-semibold" style={{ marginBottom: 2 }}>角色定义</div>
-          <h3 className="panel-title" style={{ fontSize: 15 }}>角色详情</h3>
+        <div className="management-side-heading">
+          <div className="text-tertiary text-xs font-semibold management-eyebrow">角色定义</div>
+          <h3 className="panel-title management-side-title">角色详情</h3>
         </div>
 
-        <div className="field" style={{ marginBottom: 12 }}>
+        <div className="field management-select-field">
           <select
             value={selectedCode}
             onChange={(e) => setSelectedCode(e.target.value)}
             disabled={!props.signedIn}
-            style={{ width: '100%', minHeight: 38, border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '0 10px', fontSize: 13 }}
+            className="management-full-control"
           >
             <option value="">选择角色...</option>
             {props.roles.map((r) => <option key={r.code} value={r.code}>{r.name} ({r.code})</option>)}
@@ -1193,7 +1193,7 @@ function RoleDefinitionPanel(props: {
         </div>
 
         {loading && <div className="skeleton skeleton-text" />}
-        {error && <div className="notice error" style={{ marginBottom: 12 }}>{error}</div>}
+        {error && <div className="notice error management-notice-sm">{error}</div>}
 
         {detail && !loading && (
           <>
@@ -1220,9 +1220,9 @@ function RoleDefinitionPanel(props: {
             </div>
 
             <div className="divider" />
-            <div className="text-tertiary text-xs font-semibold" style={{ marginBottom: 8 }}>权限点 ({rolePermissions.length})</div>
+            <div className="text-tertiary text-xs font-semibold management-permission-heading">权限点 ({rolePermissions.length})</div>
             {rolePermissions.length > 0 ? (
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+              <div className="management-chip-list">
                 {rolePermissions.map((p: string) => (
                   <span key={p} className="badge badge-info">{p}</span>
                 ))}
@@ -1250,10 +1250,10 @@ function AuditPage(props: ManagementPageProps) {
       <div className="panel">
         <div className="panel-header">
           <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
-              <div className="section-icon" style={{ width: 32, height: 32 }}><ScrollText size={17} /></div>
+            <div className="management-section-heading">
+              <div className="section-icon management-section-icon"><ScrollText size={17} /></div>
               <div>
-                <div className="text-tertiary text-xs font-semibold" style={{ marginBottom: 2 }}>审计</div>
+                <div className="text-tertiary text-xs font-semibold management-eyebrow">审计</div>
                 <h2 className="panel-title">审计日志</h2>
               </div>
             </div>
@@ -1266,7 +1266,7 @@ function AuditPage(props: ManagementPageProps) {
           </div>
         </div>
         <div className="panel-body">
-          {loadState.error && <div className="notice error" style={{ marginBottom: 16 }}>{loadState.error}</div>}
+          {loadState.error && <div className="notice error management-notice">{loadState.error}</div>}
           {data.auditLogs.length === 0 && !loadState.loading ? (
             <div className="empty-state">
               <div className="empty-state-icon"><ScrollText size={32} opacity={0.4} /></div>
@@ -1288,7 +1288,7 @@ function AuditPage(props: ManagementPageProps) {
                 </thead>
                 <tbody>
                   {loadState.loading ? (
-                    <tr><td colSpan={6}><div className="skeleton skeleton-text" style={{ margin: '8px 0' }} /></td></tr>
+                    <tr><td colSpan={6}><div className="skeleton skeleton-text management-skeleton-row" /></td></tr>
                   ) : (
                     data.auditLogs.map((log: AuditLogView, idx: number) => (
                       <tr key={idx}>
@@ -1296,10 +1296,10 @@ function AuditPage(props: ManagementPageProps) {
                         <td>{log.actor}</td>
                         <td>{log.action}</td>
                         <td>
-                          <div style={{ fontWeight: 600 }}>{log.target}</div>
+                          <div className="management-primary-text">{log.target}</div>
                         </td>
                         <td><StatusBadge status={log.result} /></td>
-                        <td className="text-sm text-secondary" style={{ maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{log.target || '-'}</td>
+                        <td className="text-sm text-secondary management-ellipsis-cell">{log.target || '-'}</td>
                       </tr>
                     ))
                   )}
@@ -1323,16 +1323,16 @@ function AuditOutboxPanel(props: ManagementPageProps) {
   return (
     <div className="panel">
       <div className="panel-body">
-        <div style={{ marginBottom: 12 }}>
-          <div className="text-tertiary text-xs font-semibold" style={{ marginBottom: 2 }}>待处理</div>
-          <h3 className="panel-title" style={{ fontSize: 15 }}>Audit Outbox</h3>
+        <div className="management-side-heading">
+          <div className="text-tertiary text-xs font-semibold management-eyebrow">待处理</div>
+          <h3 className="panel-title management-side-title">Audit Outbox</h3>
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 12 }}>
+        <div className="management-outbox-filter-grid">
           <select
             value={props.auditOutboxFilters.status}
             onChange={(e) => props.onAuditOutboxFiltersChange({ ...props.auditOutboxFilters, status: e.target.value })}
-            style={{ width: '100%', minHeight: 34, border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '0 8px', fontSize: 12 }}
+            className="management-compact-control"
           >
             <option value="">全部状态</option>
             <option value="PENDING">待处理</option>
@@ -1343,39 +1343,39 @@ function AuditOutboxPanel(props: ManagementPageProps) {
             type="text" placeholder="Trace ID"
             value={props.auditOutboxFilters.traceId}
             onChange={(e) => props.onAuditOutboxFiltersChange({ ...props.auditOutboxFilters, traceId: e.target.value })}
-            style={{ width: '100%', minHeight: 34, border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '0 8px', fontSize: 12 }}
+            className="management-compact-control"
           />
         </div>
         <input
           type="text" placeholder="搜索资源 ID..."
           value={props.auditOutboxFilters.search}
           onChange={(e) => props.onAuditOutboxFiltersChange({ ...props.auditOutboxFilters, search: e.target.value })}
-          style={{ width: '100%', minHeight: 34, border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '0 10px', fontSize: 13, marginBottom: 12 }}
+          className="management-compact-control management-search-control"
         />
 
-        <button className="btn btn-secondary btn-sm" onClick={() => props.onAuditOutboxRefresh()} disabled={props.auditOutboxLoad.loading} style={{ width: '100%', marginBottom: 12 }}>
+        <button className="btn btn-secondary btn-sm management-full-action" onClick={() => props.onAuditOutboxRefresh()} disabled={props.auditOutboxLoad.loading}>
           {props.auditOutboxLoad.loading ? '加载中...' : '查询'}
         </button>
 
         {props.auditOutboxLoad.error && (
-          <div className="notice error" style={{ marginBottom: 12 }}>{props.auditOutboxLoad.error}</div>
+          <div className="notice error management-notice-sm">{props.auditOutboxLoad.error}</div>
         )}
 
-        <div style={{ display: 'grid', gap: 8 }}>
+        <div className="management-item-list">
           {props.data.auditOutbox.length === 0 && !props.auditOutboxLoad.loading ? (
             <div className="text-tertiary text-sm">暂无待处理事件</div>
           ) : (
             props.data.auditOutbox.map((item: AuditOutboxView, idx: number) => (
-              <div key={idx} style={{ padding: '8px 10px', border: '1px solid var(--border-light)', borderRadius: 'var(--radius-sm)' }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-                  <strong style={{ fontSize: 13 }}>{item.eventAction}</strong>
+              <div key={idx} className="management-outbox-item">
+                <div className="management-result-head">
+                  <strong className="management-outbox-title">{item.eventAction}</strong>
                   <StatusBadge status={item.status} />
                 </div>
-                <div className="text-tertiary text-xs" style={{ marginTop: 4 }}>
+                <div className="text-tertiary text-xs management-meta-line">
                   {item.resourceType}/{item.resourceId}
                 </div>
                 {item.lastError && (
-                  <div className="text-xs" style={{ color: 'var(--danger)', marginTop: 4 }}>{item.lastError}</div>
+                  <div className="text-xs management-error-line">{item.lastError}</div>
                 )}
               </div>
             ))

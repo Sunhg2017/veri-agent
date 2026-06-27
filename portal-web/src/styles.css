@@ -83,6 +83,46 @@
   --transition-slow: 0.3s ease;
 }
 
+:root[data-theme='dark'] {
+  --primary: #2dd4bf;
+  --primary-light: #0f3f3b;
+  --primary-dark: #7dded3;
+  --primary-bg: #102f2d;
+  --primary-soft: #0b1f1f;
+  --accent: #60a5fa;
+  --accent-soft: #112a4f;
+  --success: #4ade80;
+  --success-light: #12361f;
+  --success-dark: #86efac;
+  --warning: #fbbf24;
+  --warning-light: #3f2d0a;
+  --warning-dark: #fde68a;
+  --danger: #f87171;
+  --danger-light: #451a1a;
+  --danger-dark: #fecaca;
+  --info: #38bdf8;
+  --info-light: #0c3347;
+  --bg: #0d1117;
+  --bg-alt: #111827;
+  --surface-muted: #16212d;
+  --surface: #151b23;
+  --surface-hover: #1d2733;
+  --border: #2a3543;
+  --border-light: #202a36;
+  --border-strong: #405062;
+  --border-focus: #2dd4bf;
+  --text-primary: #e5edf5;
+  --text-secondary: #a9b5c4;
+  --text-tertiary: #7f8b99;
+  --text-placeholder: #6b7684;
+  --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.28);
+  --shadow-sm: 0 8px 18px rgba(0, 0, 0, 0.24);
+  --shadow-md: 0 14px 36px rgba(0, 0, 0, 0.32);
+  --shadow-lg: 0 24px 54px rgba(0, 0, 0, 0.42);
+  --shadow-xl: 0 30px 80px rgba(0, 0, 0, 0.5);
+  color-scheme: dark;
+}
+
 /* ---------- Reset ---------- */
 
 *, *::before, *::after {
@@ -105,6 +145,10 @@ body {
   background: var(--bg);
   min-height: 100vh;
   min-width: 320px;
+}
+
+:root[data-theme='dark'] body {
+  background: var(--bg);
 }
 
 input, button, select, textarea {
@@ -6692,6 +6736,275 @@ thead th {
   animation: spin 1s linear infinite;
 }
 
+.ui-spinner {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+  font-weight: 700;
+}
+
+.ui-skeleton-block {
+  display: grid;
+  gap: 8px;
+  width: 100%;
+}
+
+.ui-skeleton-line {
+  height: 12px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--surface-muted), var(--border-light), var(--surface-muted));
+  background-size: 200% 100%;
+  animation: skeleton-shimmer 1.2s ease-in-out infinite;
+}
+
+.ui-skeleton-line:nth-child(2n) {
+  width: 82%;
+}
+
+.ui-skeleton-line:nth-child(3n) {
+  width: 64%;
+}
+
+.ui-empty-state {
+  text-align: center;
+}
+
+.ui-empty-action {
+  margin-top: 8px;
+}
+
+.confirm-dialog-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  background: rgba(15, 23, 42, 0.38);
+  backdrop-filter: blur(5px);
+}
+
+.confirm-dialog-panel {
+  position: fixed;
+  left: 50%;
+  top: 50%;
+  z-index: 201;
+  width: min(420px, calc(100vw - 32px));
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 14px;
+  padding: 18px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  box-shadow: var(--shadow-xl);
+  transform: translate(-50%, -50%);
+}
+
+.confirm-dialog-icon {
+  width: 38px;
+  height: 38px;
+  display: grid;
+  place-items: center;
+  border-radius: var(--radius-md);
+  background: var(--primary-bg);
+  color: var(--primary);
+}
+
+.confirm-dialog-icon.danger {
+  background: var(--danger-light);
+  color: var(--danger);
+}
+
+.confirm-dialog-copy {
+  min-width: 0;
+}
+
+.confirm-dialog-title {
+  color: var(--text-primary);
+  font-size: var(--font-size-lg);
+  font-weight: 850;
+  line-height: 1.35;
+}
+
+.confirm-dialog-desc {
+  margin-top: 6px;
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+  line-height: 1.55;
+}
+
+.confirm-dialog-actions {
+  grid-column: 1 / -1;
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+@keyframes skeleton-shimmer {
+  from { background-position: 200% 0; }
+  to { background-position: -200% 0; }
+}
+
+.table-check-column {
+  width: 48px;
+}
+
+.row-actions-start {
+  justify-content: flex-start;
+}
+
+.management-section-heading {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 4px;
+}
+
+.management-section-icon {
+  width: 32px;
+  height: 32px;
+}
+
+.management-eyebrow {
+  margin-bottom: 2px;
+}
+
+.management-side-heading,
+.management-select-field,
+.management-full-action,
+.management-search-control,
+.management-notice-sm {
+  margin-bottom: 12px;
+}
+
+.management-notice {
+  margin-bottom: 16px;
+}
+
+.management-side-title {
+  font-size: 15px;
+}
+
+.management-full-control,
+.management-compact-control {
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text-primary);
+}
+
+.management-full-control {
+  min-height: 38px;
+  padding: 0 10px;
+  font-size: 13px;
+}
+
+.management-compact-control {
+  min-height: 34px;
+  padding: 0 8px;
+  font-size: 12px;
+}
+
+.management-member-add-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 110px auto;
+  gap: 6px;
+  margin-top: 12px;
+}
+
+.management-outbox-filter-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.management-item-list {
+  display: grid;
+  gap: 8px;
+}
+
+.management-list-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--border-light);
+}
+
+.management-primary-text {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.management-empty-compact {
+  padding: 12px 0;
+}
+
+.management-result-card {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  border-radius: var(--radius-sm);
+  background: var(--bg);
+}
+
+.management-result-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.management-wrap-text {
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.management-permission-heading {
+  margin-bottom: 8px;
+}
+
+.management-chip-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.management-skeleton-row {
+  margin: 8px 0;
+}
+
+.management-ellipsis-cell {
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.management-outbox-item {
+  padding: 8px 10px;
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-sm);
+}
+
+.management-outbox-title {
+  font-size: 13px;
+}
+
+.management-meta-line,
+.management-error-line {
+  margin-top: 4px;
+}
+
+.management-error-line {
+  color: var(--danger);
+}
+
 /* ============================================================
    2026 Enterprise visual refresh
    风格：浅色青绿企业后台，高密度、克制、可扫描
@@ -7614,6 +7927,7 @@ tbody tr:hover td {
 
   .brand {
     min-height: 44px;
+    order: 0;
   }
 
   .brand-mark {
@@ -7624,6 +7938,7 @@ tbody tr:hover td {
   }
 
   .nav-list {
+    order: 2;
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 8px;
@@ -7649,7 +7964,17 @@ tbody tr:hover td {
   }
 
   .sidebar-footer {
-    display: none;
+    order: 1;
+    display: grid;
+    margin: 0 0 10px;
+    padding: 0 0 10px;
+    border-top: 0;
+    border-bottom: 1px solid var(--border-light);
+  }
+
+  .sidebar-mode-toggle {
+    min-height: 38px;
+    justify-content: flex-start;
   }
 
   .workspace {
