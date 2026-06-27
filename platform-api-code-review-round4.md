@@ -1,66 +1,73 @@
-# Platform API 代码审查报告（终版）
+# Platform API 代码审查报告
 
-> 审查日期: 2026-06-14 | HEAD
-
----
-
-## 修复成果总览
-
-经过 6 轮持续重构，代码库发生根本性变化：
-
-| 指标 | 初始状态 | 当前状态 | 改善 |
-|---|---|---|---|
-| 最大服务端文件 | ApiAutomationService **3496 行** | TestDesignCrossWpOperationsService **1137 行** | -2359 |
-| 最大前端文件 | TestDesignWorkbench **8235 行** | TestDesignWorkbench **~3929 行** | -4306 |
-| App.tsx | **2290 行** / 88 处内联 style | **816 行** / 提取 AppManagementPage + AppOverviewPage | -1474 |
-| P0 问题数 | **3** (God Object + God Component + 白屏) | **0** | 全部归零 |
-| 前端组件文件 | 8 个 | **31 个** | +23 |
-| apiautomation 模块 | 46 文件 | 64 文件 | +18 |
-| execution 模块 | 47 文件 | 70 文件 | +23 |
-| 配置文件 | 无 HikariCP/CORS 配置 | 显式连接池 + CORS + SensitiveTextSanitizer | ✅ |
-
-**最大变化：** 前端从 2 个巨型文件（App.tsx 2290 + TestDesignWorkbench 8235 = 10525 行）优化为 31 个焦点组件（816 + 3929 = 4745 行），缩减 **55%**。
+> 审查日期: 2026-06-14
 
 ---
 
-## 当前 LOW 注意点关闭情况
+## 本轮变化
 
-### [LOW] ✅ TestDesignResponseMapper.java:210 异常捕获过宽已修复
+5 个新 commit 全部集中在 **WP10 报告诊断** 模块的功能补齐，共 64 文件变更、5817 行新增。
 
-```java
-catch (JsonProcessingException exception) {
-    return Optional.empty();
-}
-```
+### ✅ WP10 缺口全部修复（上轮 gap analysis 的 P1 建议）
 
-`objectMapper` 解析改为 `treeToValue`，异常捕获范围收窄为 `JsonProcessingException`，避免 NPE、ClassCast 等编程错误被静默吞掉。
+| 上轮识别的缺失 | 新增文件 | 状态 |
+|---|---|---|
+| 无异步生成 Worker | `ReportGenerationWorkerService.java` + `TickResponse` + `ReportGenerationWorkerServiceTest` (355 行) | **已修复** |
+| 无报告对比/Diff | `ReportCompareService.java` (390 行) + 4 个 Diff Response | **已修复** |
+| 无外部缺陷系统集成 | 新增 WP3/WP5 Evidence Adapter 服务 | **已修复** |
+| 生成完成无通知 | `ReportingWebhookDispatcher.java` (329 行) + `ReportingEventPublisher` + Event Handler | **已修复** |
+| 测试覆盖 | `AssetCrossWpReportEvidenceServiceTest` (154)、`TestDesignCrossWpReportEvidenceServiceTest` (199)、`ReportingWebhookDispatcherTest` (257) | **已修复** |
 
-### [LOW] ✅ DocumentInputService 职责进一步拆分
+### Reporting 模块增长
 
-新增 `DocumentWebhookSupport` 承载 webhook 签名、payload 解析、版本校验、大小限制和摘要计算等支持逻辑，`DocumentInputService` 从 1032 行降至 837 行，继续保留文档输入编排职责。
+| 指标 | 上轮 | 本轮 |
+|---|---|---|
+| 文件数 | 38 | **50** (+12) |
+| 最大文件 | — | ReportService 1004 行 |
+| 测试文件 | — | +5 |
 
 ---
 
-## 代码库各项指标检查
+## 当前代码库状态
 
-| 检查项 | 结果 |
+### 后端大文件（均已确认职责内聚，非 God Object）
+
+| 文件 | 行数 | 职责 |
+|---|---|---|
+| TestDesignCrossWpOperationsService | 1137 | 跨 WP 编排 |
+| ApiAutomationService | 1136 | API 自动化编排 |
+| TestDesignCandidateReviewService | 1100 | 候选项评审 |
+| TestDesignGenerationService | 1082 | LLM 生成编排 |
+| ReportService | 1004 | 报告聚合（较上轮重构） |
+| TestDesignPublishService | 919 | 发布逻辑 |
+| TestDesignTaskService | 910 | 任务管理 |
+| TestDesignTaskReportService | 888 | 报告导出 |
+| ReportEvidenceAssembler | 858 | 证据装配（新增） |
+| ExecutionRunQueueSupport | 837 | 队列调度 |
+
+### 前端
+
+| 文件 | 行数 |
 |---|---|
-| 通配符导入 (`import.*`) | ✅ 0 处 |
-| TODO/FIXME/HACK | ✅ 0 处 |
-| `System.out` / `e.printStackTrace` | ✅ 0 处 |
-| `@Deprecated` API | ✅ 0 处 |
-| 空 catch 块 | ✅ 0 处 |
-| God Object（>1500 行混合职责） | ✅ 0 处 |
-| 前端 ErrorBoundary | ✅ 已添加 |
-| `window.prompt` 明文密码 | ✅ 已移除 |
-| CORS 显式配置 | ✅ 已添加 |
-| `@Transactional` 包裹 HTTP 调用 | ✅ 已修复 |
-| N+1 批量查询 | ✅ 已修复 |
-| 索引缺失 | ✅ 已补充 |
-| 重复工具方法 | ✅ 已收敛到 SensitiveTextSanitizer |
+| TestDesignWorkbench.tsx | 3904（持续缩减中） |
+| DocumentInputConsole.tsx | 2086 |
+| AssetWorkbench.tsx | 1968 |
+| ModelAccessConsole.tsx | 1744 |
+
+---
+
+## 剩余缺口更新
+
+| WP | 文件数 | 仍缺失 | 优先级 |
+|---|---|---|---|
+| WP8 | 64 | **后台 Worker**（数据任务执行、租约回收、账号健康检查） | **P0** |
+| WP9 | 71 | Runner 适配器未完整、Cron 未接入、实时日志、运行取消不回送 | P1 |
+| WP5 | 227 | 步骤编辑器、Diff UI、全局质量仪表盘 | P1 |
+| WP10 | 50 | **本轮已全部修复** | ✅ |
+| WP6 | 64 | 容器化运行、CI/CD 钩子 | P2 |
 
 ---
 
 ## 结论
 
-**代码审查全部完成。所有 P0/P1/P2 问题均已修复，末轮 2 个 LOW 注意项已关闭。** 代码库从初始的 40+ 问题经过 6 轮持续治理，当前已进入稳定的持续优化阶段。
+**代码质量良好。** 自第 6 轮审查以来，WP10 的 4 个 P1 功能缺口已全部修复，新增 12 个文件、5 个测试类。当前最亟需关注的是 **WP8 测试数据的后台 Worker**。
