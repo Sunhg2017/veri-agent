@@ -5,6 +5,7 @@ import {
   CheckCircle2,
   Eye,
   FilePlus2,
+  GripVertical,
   Link2,
   Pencil,
   Plus,
@@ -38,9 +39,15 @@ import {
   type AssetVersionHistoryView
 } from '../api/assets';
 import { hasPermission } from '../permissions';
+import {
+  applyStepRichTextMarkup,
+  moveItemByKey,
+  type StepRichTextStyle
+} from '../stepRichText';
 import { AssetImportExportPanel } from './AssetImportExportPanel';
 import type { AssetNavigationKey } from './AssetStructuredWorkbench';
 import { AssetVersionHistoryPanel } from './AssetVersionHistoryPanel';
+import { StepRichTextField } from './StepRichTextField';
 
 type AssetNavigationTab = {
   key: AssetNavigationKey;
@@ -132,6 +139,7 @@ export function AssetCaseWorkbench(props: {
   const [stepsState, setStepsState] = useState<WorkState>({ loading: false });
   const [versions, setVersions] = useState<AssetVersionHistoryView[]>([]);
   const [versionState, setVersionState] = useState<WorkState>({ loading: false });
+  const [draggingStepKey, setDraggingStepKey] = useState('');
 
   useEffect(() => {
     function syncFromHash() {
@@ -602,8 +610,10 @@ export function AssetCaseWorkbench(props: {
           >
             <StepEditor
               disabled={createDisabled}
+              draggingStepKey={draggingStepKey}
               steps={createSteps}
               onChange={setCreateSteps}
+              onDraggingStepKeyChange={setDraggingStepKey}
               title="初始步骤"
             />
           </CaseForm>
@@ -745,7 +755,14 @@ export function AssetCaseWorkbench(props: {
               <StateLine state={mutationState} />
 
               <form className="asset-form" onSubmit={submitSteps}>
-                <StepEditor disabled={stepsDisabled} steps={stepDrafts} onChange={setStepDrafts} title="编辑步骤" />
+                <StepEditor
+                  disabled={stepsDisabled}
+                  draggingStepKey={draggingStepKey}
+                  steps={stepDrafts}
+                  onChange={setStepDrafts}
+                  onDraggingStepKeyChange={setDraggingStepKey}
+                  title="编辑步骤"
+                />
                 <div className="document-actions">
                   <button className="primary-button" type="submit" disabled={stepsDisabled}>
                     <Save size={16} />
@@ -893,7 +910,9 @@ function CaseForm(props: {
 
 function StepEditor(props: {
   disabled: boolean;
+  draggingStepKey: string;
   onChange: (updater: (current: StepDraft[]) => StepDraft[]) => void;
+  onDraggingStepKeyChange: (stepKey: string) => void;
   steps: StepDraft[];
   title: string;
 }) {
@@ -918,6 +937,25 @@ function StepEditor(props: {
     props.onChange((current) => (current.length <= 1 ? current : current.filter((_, stepIndex) => stepIndex !== index)));
   }
 
+  function applyMarkup(index: number, field: 'action' | 'expectedResult', style: StepRichTextStyle) {
+    const target = document.getElementById(`asset-step-${field}-${props.steps[index]?.key}`) as HTMLTextAreaElement | null;
+    const value = props.steps[index]?.[field] ?? '';
+    const edit = applyStepRichTextMarkup(value, style, target?.selectionStart ?? value.length, target?.selectionEnd ?? value.length);
+    updateStep(index, { [field]: edit.value });
+    window.requestAnimationFrame(() => {
+      target?.focus();
+      target?.setSelectionRange(edit.selectionStart, edit.selectionEnd);
+    });
+  }
+
+  function dropStep(targetKey: string) {
+    if (!props.draggingStepKey || props.draggingStepKey === targetKey) {
+      return;
+    }
+    props.onChange((current) => moveItemByKey(current, (step) => step.key, props.draggingStepKey, targetKey));
+    props.onDraggingStepKeyChange('');
+  }
+
   return (
     <div className="asset-step-editor">
       <div className="panel-title-row">
@@ -933,30 +971,37 @@ function StepEditor(props: {
         </button>
       </div>
       {props.steps.map((step, index) => (
-        <div className="asset-step-row" key={step.key}>
+        <div
+          className={props.draggingStepKey === step.key ? 'asset-step-row dragging' : 'asset-step-row'}
+          draggable={!props.disabled}
+          key={step.key}
+          onDragStart={() => props.onDraggingStepKeyChange(step.key)}
+          onDragEnd={() => props.onDraggingStepKeyChange('')}
+          onDragOver={(event) => event.preventDefault()}
+          onDrop={() => dropStep(step.key)}
+        >
+          <button className="mini-button icon-only asset-step-drag" type="button" title="拖拽排序" disabled={props.disabled}>
+            <GripVertical size={14} />
+          </button>
           <div className="asset-step-index">{index + 1}</div>
-          <label className="field" htmlFor={`asset-step-action-${step.key}`}>
-            <span>动作</span>
-            <textarea
-              id={`asset-step-action-${step.key}`}
-              className="compact-textarea"
-              value={step.action}
-              disabled={props.disabled}
-              onChange={(event) => updateStep(index, { action: event.target.value })}
-              placeholder="输入账号密码并点击登录"
-            />
-          </label>
-          <label className="field" htmlFor={`asset-step-expected-${step.key}`}>
-            <span>预期结果</span>
-            <textarea
-              id={`asset-step-expected-${step.key}`}
-              className="compact-textarea"
-              value={step.expectedResult}
-              disabled={props.disabled}
-              onChange={(event) => updateStep(index, { expectedResult: event.target.value })}
-              placeholder="进入工作台首页"
-            />
-          </label>
+          <StepRichTextField
+            disabled={props.disabled}
+            id={`asset-step-action-${step.key}`}
+            label="动作"
+            onChange={(value) => updateStep(index, { action: value })}
+            onFormat={(style) => applyMarkup(index, 'action', style)}
+            placeholder="输入账号密码并点击登录"
+            value={step.action}
+          />
+          <StepRichTextField
+            disabled={props.disabled}
+            id={`asset-step-expectedResult-${step.key}`}
+            label="预期结果"
+            onChange={(value) => updateStep(index, { expectedResult: value })}
+            onFormat={(style) => applyMarkup(index, 'expectedResult', style)}
+            placeholder="进入工作台首页"
+            value={step.expectedResult}
+          />
           <div className="asset-step-actions">
             <button className="mini-button icon-only" type="button" title="上移" disabled={props.disabled || index === 0} onClick={() => moveStep(index, -1)}>
               <ArrowUp size={14} />

@@ -5,7 +5,7 @@
 | 工作包 | WP3 测试资产管理 |
 | 当前口径 | 单个 `platform-api` Java 服务内的 asset 领域模块 |
 | 依赖 | WP1 项目上下文、RBAC、审计；WP4 发布链路 |
-| 日期 | 2026-05-23 |
+| 日期 | 2026-06-27 |
 
 ## 1. 当前范围
 
@@ -19,7 +19,7 @@ WP3 当前提供测试资产的最小闭环：需求、API、页面、业务流�
 4. 业务流资产：创建、详情、编辑、列表分页。
 5. 测试用例：创建、详情、编辑、步骤替换、列表分页。
 6. 追踪链接：需求到 API、页面、业务流和用例的链接创建与查询。
-7. 版本历史：需求和测试用例返回 `version`，写入、编辑、WP4 幂等更新和用例步骤替换会保存版本快照、字段 diff、操作者和 traceId；portal-web 需求/测试用例详情可查看历史版本、变更字段、diff、snapshot 和链路 traceId，并可按历史版本回滚。
+7. 版本历史：需求和测试用例返回 `version`，写入、编辑、WP4 幂等更新和用例步骤替换会保存版本快照、字段 diff、操作者和 traceId；portal-web 需求/测试用例详情可查看历史版本、变更字段、字段级可视化 diff、原始 `diff_json`/snapshot 和链路 traceId，并可按历史版本回滚。
 8. 资产生命周期：需求、API、页面、业务流和测试用例支持独立 `lifecycleStatus=ACTIVE/ARCHIVED/DELETED`，列表默认仅返回 ACTIVE，可按生命周期筛选；归档保留唯一性，软删除释放现有唯一性约束，恢复前校验冲突。
 9. 追踪矩阵与影响分析：前端基于需求、API、测试用例和追踪链接做只读聚合，展示覆盖状态、缺口和一跳影响范围；后端提供 `/impact` 聚合接口，纳入需求、API、页面、业务流和用例节点。
 10. WP4 发布：`IMPORT + sourceRef` 需求幂等写入，重复导入在 DRAFT 状态下更新，非 DRAFT 差异阻断。
@@ -141,7 +141,8 @@ PostgreSQL 表位于 `db/migration/wp1/V20260518_014__wp3_asset_base_schema.sql`
 - 支持页面资产列表、详情、创建、编辑、`projectId/status/source/keyword` 筛选、`sourceRef/sourceVersion/screenshotUrl` 展示和 `componentTree` JSON 预览/编辑校验。
 - 页面资产页支持 Figma/蓝湖/Axure 原型同步表单，可粘贴标准化 pages JSON，支持 dryRun、同步结果和失败明细。
 - 支持业务流资产列表、详情、创建、编辑、`projectId/status/keyword` 筛选、状态流入口和 `flowJson` JSON 预览/编辑校验。
-- 支持测试用例列表、详情、创建、编辑、`projectId/status/source/keyword` 筛选、关联需求/API 展示与跳转、步骤新增/删除/上移/下移和整体保存。
+- 支持测试用例列表、详情、创建、编辑、`projectId/status/source/keyword` 筛选、关联需求/API 展示与跳转、步骤新增/删除/上移/下移、拖拽排序、action/expectedResult 轻量富文本编辑预览和整体保存。
+- 支持测试用例历史版本的字段级 diff 可视化，针对 `steps` 会将 before/after 步骤摘要展开为可读对比；原始 `diff_json` 和 snapshot 仍可展开用于排障。
 - 支持追踪矩阵只读页面：按 `projectId`、需求/API/用例状态、覆盖状态和关键词筛选，展示需求维度覆盖矩阵、缺 API/用例缺口、孤立 API/用例和需求/API/用例的一跳影响范围。
 - 追踪矩阵当前复用现有列表与 `/api/v1/asset/links` 读契约；需求详情展示 API、页面、业务流和用例追踪链接。多跳影响评分、补链编辑和页面/业务流可视化矩阵仍归后续增强。
 

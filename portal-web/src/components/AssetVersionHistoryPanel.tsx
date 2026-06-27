@@ -1,5 +1,6 @@
 import { History, RefreshCw, RotateCcw } from 'lucide-react';
 import type { AssetVersionHistoryView } from '../api/assets';
+import { assetVersionDiffRows, formatAssetVersionDiffValue } from '../assetVersionDiff';
 
 type VersionHistoryState = {
   loading: boolean;
@@ -75,16 +76,7 @@ export function AssetVersionHistoryPanel(props: AssetVersionHistoryPanelProps) {
                   </button>
                 </div>
               )}
-              <div className="asset-version-json-grid">
-                <div>
-                  <strong>diff</strong>
-                  <pre>{formatHistoryJson(item.diff)}</pre>
-                </div>
-                <div>
-                  <strong>snapshot</strong>
-                  <pre>{formatHistoryJson(item.snapshot)}</pre>
-                </div>
-              </div>
+              <AssetVersionDiffViewer diff={item.diff} snapshot={item.snapshot} />
             </details>
           ))}
         </div>
@@ -100,6 +92,44 @@ export function AssetVersionHistoryPanel(props: AssetVersionHistoryPanelProps) {
 
       {props.state.error && props.items.length > 0 && <span className="document-state-line error">{props.state.error}</span>}
       {props.state.traceId && !props.state.error && <span className="document-state-line">Trace ID：{props.state.traceId}</span>}
+    </div>
+  );
+}
+
+function AssetVersionDiffViewer(props: { diff: unknown; snapshot: unknown }) {
+  const rows = assetVersionDiffRows(props.diff);
+  return (
+    <div className="asset-version-diff-viewer">
+      <div className="asset-version-diff-heading">
+        <strong>字段差异</strong>
+        <span>{rows.length ? `${rows.length} 项` : '无字段级差异'}</span>
+      </div>
+      {rows.length ? (
+        <div className="asset-version-diff-list">
+          {rows.map((row) => (
+            <div className={`asset-version-diff-row ${row.tone}`} key={row.path}>
+              <strong>{row.path}</strong>
+              <del>{formatAssetVersionDiffValue(row.before)}</del>
+              <ins>{formatAssetVersionDiffValue(row.after)}</ins>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <pre>{formatHistoryJson(props.diff)}</pre>
+      )}
+      <details className="asset-version-raw-json">
+        <summary>原始 JSON</summary>
+        <div className="asset-version-json-grid">
+          <div>
+            <strong>diff_json</strong>
+            <pre>{formatHistoryJson(props.diff)}</pre>
+          </div>
+          <div>
+            <strong>snapshot</strong>
+            <pre>{formatHistoryJson(props.snapshot)}</pre>
+          </div>
+        </div>
+      </details>
     </div>
   );
 }

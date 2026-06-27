@@ -43,6 +43,8 @@ import {
   type CandidateFilters,
   type TestDesignStepDraft
 } from '../testDesignWorkbenchState';
+import { applyStepRichTextMarkup, type StepRichTextStyle } from '../stepRichText';
+import { StepRichTextField } from './StepRichTextField';
 import { StateLine, type WorkState } from './TestDesignOverviewPanels';
 import {
   BatchActionSummary,
@@ -108,6 +110,17 @@ export function TestDesignCandidateReviewPanel(props: {
   onRemoveStepDraft: (stepId: string) => void;
 }) {
   const candidateDraft = props.candidateDraft;
+
+  function applyStepMarkup(step: TestDesignStepDraft, field: 'action' | 'expectedResult', style: StepRichTextStyle) {
+    const target = document.getElementById(`test-design-step-${field}-${step.id}`) as HTMLTextAreaElement | null;
+    const value = step[field] ?? '';
+    const edit = applyStepRichTextMarkup(value, style, target?.selectionStart ?? value.length, target?.selectionEnd ?? value.length);
+    props.onUpdateStepDraft(step.id, { [field]: edit.value });
+    window.requestAnimationFrame(() => {
+      target?.focus();
+      target?.setSelectionRange(edit.selectionStart, edit.selectionEnd);
+    });
+  }
 
   return (
     <section className="panel">
@@ -423,14 +436,22 @@ export function TestDesignCandidateReviewPanel(props: {
                       <GripVertical size={14} />
                     </button>
                     <span className="asset-step-index">{index + 1}</span>
-                    <label className="field">
-                      <span className="field-label">操作</span>
-                      <textarea value={step.action} onChange={(event) => props.onUpdateStepDraft(step.id, { action: event.target.value })} disabled={!props.canReview || props.mutationState.loading} />
-                    </label>
-                    <label className="field">
-                      <span className="field-label">预期</span>
-                      <textarea value={step.expectedResult} onChange={(event) => props.onUpdateStepDraft(step.id, { expectedResult: event.target.value })} disabled={!props.canReview || props.mutationState.loading} />
-                    </label>
+                    <StepRichTextField
+                      disabled={!props.canReview || props.mutationState.loading}
+                      id={`test-design-step-action-${step.id}`}
+                      label="操作"
+                      onChange={(value) => props.onUpdateStepDraft(step.id, { action: value })}
+                      onFormat={(style) => applyStepMarkup(step, 'action', style)}
+                      value={step.action}
+                    />
+                    <StepRichTextField
+                      disabled={!props.canReview || props.mutationState.loading}
+                      id={`test-design-step-expectedResult-${step.id}`}
+                      label="预期"
+                      onChange={(value) => props.onUpdateStepDraft(step.id, { expectedResult: value })}
+                      onFormat={(style) => applyStepMarkup(step, 'expectedResult', style)}
+                      value={step.expectedResult}
+                    />
                     <div className="test-design-step-actions">
                       <button className="btn btn-secondary btn-icon btn-xs" type="button" title="上移" disabled={!props.canReview || props.mutationState.loading || index === 0} onClick={() => props.onMoveStepDraft(step.id, -1)}>
                         <ArrowUp size={14} />
