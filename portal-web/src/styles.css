@@ -6838,6 +6838,23 @@ thead th {
   margin-top: 8px;
 }
 
+.storybook-shell {
+  min-height: 100vh;
+  padding: 24px;
+  background: var(--bg);
+  color: var(--text-primary);
+}
+
+.storybook-shell > * {
+  max-width: 960px;
+}
+
+.storybook-stack {
+  display: grid;
+  justify-items: start;
+  gap: 12px;
+}
+
 .ui-data-table-wrap {
   min-width: 0;
 }
