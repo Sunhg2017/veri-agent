@@ -14,6 +14,7 @@ import java.util.concurrent.TimeUnit;
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.context.annotation.Profile;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Component;
@@ -28,17 +29,17 @@ public class KafkaPlatformEventPublisher implements PlatformEventPublisher {
 
     private final KafkaTemplate<String, String> kafkaTemplate;
     private final ObjectMapper objectMapper;
-    private final PlatformEventDispatcher dispatcher;
+    private final ObjectProvider<PlatformEventDispatcher> dispatcherProvider;
     private final ScheduledThreadPoolExecutor delayExecutor;
 
     public KafkaPlatformEventPublisher(
             KafkaTemplate<String, String> kafkaTemplate,
             ObjectMapper objectMapper,
-            PlatformEventDispatcher dispatcher
+            ObjectProvider<PlatformEventDispatcher> dispatcherProvider
     ) {
         this.kafkaTemplate = kafkaTemplate;
         this.objectMapper = objectMapper;
-        this.dispatcher = dispatcher;
+        this.dispatcherProvider = dispatcherProvider;
         this.delayExecutor = new ScheduledThreadPoolExecutor(1, new KafkaDelayThreadFactory());
         this.delayExecutor.setRemoveOnCancelPolicy(true);
     }
@@ -63,7 +64,8 @@ public class KafkaPlatformEventPublisher implements PlatformEventPublisher {
                     if (exception != null) {
                         log.error("Kafka platform event publish failed topic={}, event_type={}, event_id={}",
                                 topic, event.eventType(), event.eventId(), exception);
-                        dispatcher.dispatch(event);
+                        // 仅在 Kafka 发布失败时再解析 dispatcher，避免启动期提前拉起回退链路。
+                        dispatcherProvider.getObject().dispatch(event);
                         return;
                     }
                     log.info("Kafka platform event published topic={}, partition={}, offset={}, event_type={}, event_id={}",

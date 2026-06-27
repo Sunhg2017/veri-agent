@@ -74,6 +74,59 @@ services:
       - veri-agent-net
 
   # ─────────────────────────────────────────────────
+  # XXL-JOB MySQL + Admin (shared scheduling control plane)
+  # ─────────────────────────────────────────────────
+  xxl-job-mysql:
+    build:
+      context: ..
+      dockerfile: infra/Dockerfile.xxl-job-mysql
+    container_name: veri-agent-xxl-job-mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: root_pwd
+      MYSQL_ROOT_HOST: "%"
+      MYSQL_DATABASE: xxl_job
+      TZ: Asia/Shanghai
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+    ports:
+      - "3307:3306"
+    volumes:
+      - veri-agent-xxl-job-mysql:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -proot_pwd >/dev/null 2>&1"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+    networks:
+      - veri-agent-net
+
+  xxl-job-admin:
+    image: xuxueli/xxl-job-admin:3.1.0
+    container_name: veri-agent-xxl-job-admin
+    ports:
+      - "8088:8080"
+    environment:
+      PARAMS: >-
+        --spring.datasource.url=jdbc:mysql://xxl-job-mysql:3306/xxl_job?useUnicode=true&characterEncoding=UTF-8&autoReconnect=true&serverTimezone=Asia/Shanghai&useSSL=false
+        --spring.datasource.username=root
+        --spring.datasource.password=root_pwd
+        --spring.datasource.driver-class-name=com.mysql.cj.jdbc.Driver
+        --xxl.job.accessToken=shared-xxl-job-access-token
+    volumes:
+      - veri-agent-xxl-job-admin:/data/applogs
+    depends_on:
+      xxl-job-mysql:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "bash -lc 'exec 3<>/dev/tcp/127.0.0.1/8080'"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+    networks:
+      - veri-agent-net
+
+  # ─────────────────────────────────────────────────
   # platform-api (统一管理控制面，含 WP1 + WP2 + WP3 功能)
   # ─────────────────────────────────────────────────
   platform-api:
@@ -93,6 +146,11 @@ services:
       # Redis / Kafka
       PLATFORM_REDIS_ADDRESS: redis://redis:6379
       PLATFORM_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      # XXL-JOB
+      PLATFORM_XXL_JOB_ENABLED: "true"
+      PLATFORM_XXL_JOB_ADMIN_ADDRESSES: http://xxl-job-admin:8080/xxl-job-admin
+      PLATFORM_XXL_JOB_ACCESS_TOKEN: shared-xxl-job-access-token
+      PLATFORM_XXL_JOB_EXECUTOR_PORT: "9999"
       # 认证
       WP1_AUTH_TOKEN_SECRET: local-auth-secret-32-byte-minimum!
       WP1_ACCESS_TOKEN_TTL_MINUTES: 120
@@ -116,6 +174,8 @@ services:
       redis:
         condition: service_healthy
       kafka:
+        condition: service_healthy
+      xxl-job-admin:
         condition: service_healthy
     networks:
       - veri-agent-net
@@ -143,3 +203,5 @@ volumes:
   veri-agent-postgres:
   veri-agent-redis:
   veri-agent-kafka:
+  veri-agent-xxl-job-mysql:
+  veri-agent-xxl-job-admin:

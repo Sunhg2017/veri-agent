@@ -6,25 +6,25 @@
 
     <resultMap id="userRowMap" type="com.songhg.veri.agent.auth.infrastructure.mapper.AuthUserRow">
         <constructor>
-            <arg column="user_id" javaType="java.util.UUID"/>
-            <arg column="username" javaType="java.lang.String"/>
-            <arg column="display_name" javaType="java.lang.String"/>
-            <arg column="email" javaType="java.lang.String"/>
-            <arg column="password_hash" javaType="java.lang.String"/>
-            <arg column="must_change_password" javaType="_boolean"/>
-            <arg column="auth_version" javaType="_long"/>
-            <arg column="role_codes" javaType="java.lang.String"/>
+            <arg column="user_id" name="userId" javaType="java.util.UUID"/>
+            <arg column="username" name="username" javaType="java.lang.String"/>
+            <arg column="display_name" name="displayName" javaType="java.lang.String"/>
+            <arg column="email" name="email" javaType="java.lang.String"/>
+            <arg column="password_hash" name="passwordHash" javaType="java.lang.String"/>
+            <arg column="must_change_password" name="mustChangePassword" javaType="_boolean"/>
+            <arg column="auth_version" name="authVersion" javaType="_long"/>
+            <arg column="role_codes" name="roleCodes" javaType="java.lang.String"/>
         </constructor>
     </resultMap>
 
     <resultMap id="sessionMap" type="com.songhg.veri.agent.auth.domain.AuthSessionRecord">
         <constructor>
-            <arg column="id" javaType="java.util.UUID"/>
-            <arg column="user_id" javaType="java.util.UUID"/>
-            <arg column="refresh_token_hash" javaType="java.lang.String"/>
-            <arg column="auth_version" javaType="_long"/>
-            <arg column="expires_at" javaType="java.time.Instant"/>
-            <arg column="revoked" javaType="_boolean"/>
+            <arg column="id" name="sessionId" javaType="java.util.UUID"/>
+            <arg column="user_id" name="userId" javaType="java.util.UUID"/>
+            <arg column="refresh_token_hash" name="refreshTokenHash" javaType="java.lang.String"/>
+            <arg column="auth_version" name="authVersion" javaType="_long"/>
+            <arg column="expires_at" name="expiresAt" javaType="java.time.Instant"/>
+            <arg column="revoked" name="revoked" javaType="_boolean"/>
         </constructor>
     </resultMap>
 

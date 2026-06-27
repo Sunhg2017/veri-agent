@@ -1,0 +1,14 @@
+FROM mysql:8.0
+
+# Pin the official XXL-JOB schema in-repo so local deploys do not depend on network fetches.
+COPY infra/xxl-job/tables_xxl_job.sql /docker-entrypoint-initdb.d/01_tables_xxl_job.sql
+
+RUN cat <<'SQL' >/docker-entrypoint-initdb.d/02_platform_api_group.sql
+INSERT INTO `xxl_job_group`(`app_name`, `title`, `address_type`, `address_list`, `update_time`)
+VALUES ('platform-api', 'Veri Agent', 0, NULL, now())
+ON DUPLICATE KEY UPDATE
+  `title` = VALUES(`title`),
+  `address_type` = VALUES(`address_type`),
+  `address_list` = VALUES(`address_list`),
+  `update_time` = VALUES(`update_time`);
+SQL
