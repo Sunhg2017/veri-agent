@@ -3,6 +3,8 @@ import {
   AppWindow,
   Archive,
   CheckCircle2,
+  ChevronDown,
+  ChevronRight,
   ClipboardList,
   DatabaseZap,
   FileText,
@@ -110,6 +112,14 @@ interface PageDefinition {
   title: string;
   description: string;
   icon: LucideIcon;
+}
+
+interface SidebarGroupDefinition {
+  key: string;
+  label: string;
+  description: string;
+  icon: LucideIcon;
+  pageKeys: PageKey[];
 }
 
 const pages: PageDefinition[] = [
@@ -248,6 +258,41 @@ const pages: PageDefinition[] = [
   }
 ];
 
+const sidebarGroups: SidebarGroupDefinition[] = [
+  {
+    key: 'workbench',
+    label: '需求与测试',
+    description: '文档、资产和用例设计',
+    icon: Sparkles,
+    pageKeys: ['document-input', 'asset-library', 'test-design']
+  },
+  {
+    key: 'delivery',
+    label: '接口与执行',
+    description: '接口自动化、UI E2E、执行编排、测试数据和报告',
+    icon: GitBranch,
+    pageKeys: ['api-automation', 'ui-e2e', 'execution', 'test-data', 'reports']
+  },
+  {
+    key: 'organization',
+    label: '组织与权限',
+    description: '组织、账号、角色和项目治理',
+    icon: UsersRound,
+    pageKeys: ['organizations', 'users', 'roles', 'projects']
+  },
+  {
+    key: 'platform',
+    label: '平台配置',
+    description: '应用、环境、集成、审计和模型接入',
+    icon: Settings,
+    pageKeys: ['applications', 'environments', 'integrations', 'audit', 'settings', 'model-access']
+  }
+];
+
+const sidebarGroupKeyByPageKey: Partial<Record<PageKey, string>> = Object.fromEntries(
+  sidebarGroups.flatMap((group) => group.pageKeys.map((pageKey) => [pageKey, group.key] as const))
+);
+
 const emptyManagementData: ManagementData = {
   departments: [], users: [], roles: [], permissions: [],
   projects: [], applications: [], environments: [], integrations: [],
@@ -297,8 +342,25 @@ export function App() {
   const { addToast, toastContainer } = useToast();
 
   const visiblePages = useMemo(() => pages.filter((p) => canAccessPage(currentUser, p.key)), [currentUser]);
+  const visiblePagesByKey = useMemo(
+    () => new Map(visiblePages.map((page) => [page.key, page] as const)),
+    [visiblePages]
+  );
+  const visibleSidebarGroups = useMemo(
+    () => sidebarGroups
+      .map((group) => ({
+        ...group,
+        pages: group.pageKeys
+          .map((pageKey) => visiblePagesByKey.get(pageKey))
+          .filter((page): page is PageDefinition => Boolean(page))
+      }))
+      .filter((group) => group.pages.length > 0),
+    [visiblePagesByKey]
+  );
   const activeDefinition = pages.find((p) => p.key === activePage) ?? pages[0];
   const passwordChangeRequired = Boolean(currentUser?.must_change_password);
+  const [openSidebarGroupKey, setOpenSidebarGroupKey] = useState<string | null>(() => sidebarGroupKeyByPageKey[activePage] ?? null);
+  const activeSidebarGroupKey = sidebarGroupKeyByPageKey[activePage] ?? null;
 
   /* ---------- Hash routing ---------- */
 
@@ -314,6 +376,16 @@ export function App() {
       setActivePage('overview');
     }
   }, [activePage, currentUser]);
+
+  useEffect(() => {
+    setOpenSidebarGroupKey(activeSidebarGroupKey);
+  }, [activePage]);
+
+  useEffect(() => {
+    if (openSidebarGroupKey && !visibleSidebarGroups.some((group) => group.key === openSidebarGroupKey)) {
+      setOpenSidebarGroupKey(null);
+    }
+  }, [openSidebarGroupKey, visibleSidebarGroups]);
 
   /* ---------- Initial data loading ---------- */
 
@@ -934,20 +1006,63 @@ export function App() {
         </div>
 
         <nav className="nav-list">
-          {visiblePages.map((page) => {
-            const Icon = page.icon;
-            const selected = activePage === page.key;
+          <button
+            className={`nav-item nav-home${activePage === 'overview' ? ' active' : ''}`}
+            type="button"
+            onClick={() => navigateToPage('overview')}
+            aria-current={activePage === 'overview' ? 'page' : undefined}
+          >
+            <LayoutDashboard size={18} />
+            <span>系统概览</span>
+          </button>
+
+          {visibleSidebarGroups.map((group) => {
+            const GroupIcon = group.icon;
+            const isOpen = openSidebarGroupKey === group.key;
+            const isActiveGroup = group.pages.some((page) => page.key === activePage);
             return (
-              <button
-                key={page.key}
-                className={`nav-item${selected ? ' active' : ''}`}
-                type="button"
-                onClick={() => navigateToPage(page.key)}
-                aria-current={selected ? 'page' : undefined}
-              >
-                <Icon size={18} />
-                <span>{page.label}</span>
-              </button>
+              <section key={group.key} className={`nav-group${isOpen ? ' open' : ''}${isActiveGroup ? ' active' : ''}`}>
+                <button
+                  className={`nav-group-toggle${isOpen ? ' open' : ''}${isActiveGroup ? ' active' : ''}`}
+                  type="button"
+                  onClick={() => setOpenSidebarGroupKey((prev) => (prev === group.key ? null : group.key))}
+                  aria-expanded={isOpen}
+                  title={group.description}
+                >
+                  <span className="nav-group-toggle-main">
+                    <GroupIcon size={16} />
+                    <span className="nav-group-toggle-text">
+                      <span className="nav-group-label">{group.label}</span>
+                      <span className="nav-group-description">{group.description}</span>
+                    </span>
+                  </span>
+                  <span className="nav-group-toggle-meta">
+                    <span className="nav-group-count">{group.pages.length}</span>
+                    {isOpen ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+                  </span>
+                </button>
+                {isOpen && (
+                  <div className="nav-sublist">
+                    {group.pages.map((page) => {
+                      const Icon = page.icon;
+                      const selected = activePage === page.key;
+                      return (
+                        <button
+                          key={page.key}
+                          className={`nav-subitem${selected ? ' active' : ''}`}
+                          type="button"
+                          onClick={() => navigateToPage(page.key)}
+                          aria-current={selected ? 'page' : undefined}
+                          title={page.description}
+                        >
+                          <Icon size={16} />
+                          <span>{page.label}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </section>
             );
           })}
         </nav>
