@@ -4,6 +4,7 @@ import { App } from './App';
 import { AppErrorBoundary } from './components/AppErrorBoundary';
 import { AppProviders } from './platform/Providers';
 import './platform/i18n';
+import 'antd/dist/reset.css';
 import './styles.css';
 
 createRoot(document.getElementById('root') as HTMLElement).render(

@@ -17,3 +17,18 @@ if (!window.matchMedia) {
     }))
   });
 }
+
+class ResizeObserverMock implements ResizeObserver {
+  observe() {}
+
+  unobserve() {}
+
+  disconnect() {}
+}
+
+if (!globalThis.ResizeObserver) {
+  Object.defineProperty(globalThis, 'ResizeObserver', {
+    configurable: true,
+    value: ResizeObserverMock
+  });
+}

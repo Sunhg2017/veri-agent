@@ -9002,3 +9002,225 @@ select option {
   background: var(--surface);
   color: var(--text-primary);
 }
+
+/* ============================================================
+   Ant Design enterprise console rewrite
+   ============================================================ */
+
+.va-login-page {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--primary-bg) 52%, var(--bg)) 0%, var(--bg) 52%),
+    var(--bg);
+}
+
+.va-login-card {
+  width: min(420px, 100%);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-lg);
+}
+
+.va-login-brand {
+  display: grid;
+  gap: 4px;
+  justify-items: start;
+  margin-bottom: 22px;
+}
+
+.va-login-brand h2 {
+  margin: 0;
+}
+
+.va-login-mark,
+.va-console-brand-mark {
+  width: 42px;
+  height: 42px;
+  display: grid;
+  place-items: center;
+  border-radius: 8px;
+  background: linear-gradient(135deg, #0f766e, #155e75);
+  color: #fff;
+  font-weight: 800;
+  letter-spacing: 0;
+}
+
+.va-login-alert {
+  margin-bottom: 16px;
+}
+
+.va-modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.va-console {
+  min-height: 100vh;
+  background: var(--bg);
+}
+
+.va-console-sider {
+  border-right: 1px solid var(--border);
+  background: var(--surface) !important;
+}
+
+.va-console-brand {
+  min-height: 72px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+.va-console-brand strong,
+.va-console-brand span {
+  display: block;
+}
+
+.va-console-brand strong {
+  color: var(--text-primary);
+  font-size: 16px;
+}
+
+.va-console-brand span {
+  color: var(--text-tertiary);
+  font-size: 12px;
+}
+
+.va-console-menu {
+  border-inline-end: 0 !important;
+  background: transparent !important;
+  padding: 10px 8px;
+}
+
+.va-console-header {
+  height: 72px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 0 24px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.va-console-page-title {
+  min-width: 0;
+}
+
+.va-console-current {
+  display: block;
+  color: var(--text-primary);
+  font-size: 20px;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.va-console-page-title h3 {
+  margin: 0;
+  line-height: 1.2;
+}
+
+.va-console-user {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.va-console-content {
+  min-width: 0;
+  padding: 20px 24px 32px;
+  background: var(--bg);
+}
+
+.va-console-hero {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.va-console-hero h2 {
+  margin: 0 0 4px;
+}
+
+.va-console-alert,
+.va-console-summary {
+  margin-bottom: 16px;
+}
+
+.va-console-metrics {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.va-console-workspace {
+  border: 1px solid var(--border);
+}
+
+.va-console-toolbar {
+  margin-bottom: 16px;
+}
+
+.va-console-search {
+  width: min(320px, 100%);
+}
+
+.va-console-section-desc {
+  display: block;
+  margin-bottom: 12px;
+}
+
+.va-detail-json {
+  max-height: 360px;
+  overflow: auto;
+  margin: 0;
+  padding: 10px;
+  border-radius: 6px;
+  background: var(--surface-muted);
+  color: var(--text-primary);
+  font-size: 12px;
+  white-space: pre-wrap;
+}
+
+.va-notification-card {
+  width: min(380px, calc(100vw - 32px));
+  max-height: 520px;
+  overflow: auto;
+  box-shadow: var(--shadow-lg);
+}
+
+@media (max-width: 1180px) {
+  .va-console-metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 720px) {
+  .va-console-header {
+    height: auto;
+    min-height: 72px;
+    align-items: flex-start;
+    flex-direction: column;
+    padding: 14px 16px;
+  }
+
+  .va-console-content {
+    padding: 16px;
+  }
+
+  .va-console-hero {
+    flex-direction: column;
+  }
+
+  .va-console-metrics {
+    grid-template-columns: 1fr;
+  }
+}
