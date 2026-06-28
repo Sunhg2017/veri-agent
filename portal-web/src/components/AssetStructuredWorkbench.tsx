@@ -11,6 +11,7 @@ import {
   XCircle,
   type LucideIcon
 } from 'lucide-react';
+import { Drawer } from 'antd';
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
 import type { CurrentUser } from '../api/auth';
 import {
@@ -115,6 +116,8 @@ type PrototypeSyncDraft = {
   pagesJson: string;
 };
 
+type StructuredDrawer = 'create' | 'edit' | 'prototype-sync' | null;
+
 const initialFilters: StructuredFilters = {
   projectId: '',
   status: '',
@@ -167,6 +170,7 @@ export function AssetStructuredWorkbench(props: {
   const [prototypeSyncDraft, setPrototypeSyncDraft] = useState<PrototypeSyncDraft>(initialPrototypeSyncDraft);
   const [prototypeSyncState, setPrototypeSyncState] = useState<WorkState>({ loading: false });
   const [prototypeSyncResult, setPrototypeSyncResult] = useState<AssetPrototypeSyncResult | null>(null);
+  const [openDrawer, setOpenDrawer] = useState<StructuredDrawer>(null);
 
   const meta = structuredMeta(props.activeTab);
 
@@ -355,6 +359,7 @@ export function AssetStructuredWorkbench(props: {
       setSelectedId(nextItem.id);
       setEditDraft(draftFromView(props.activeTab, nextItem));
       upsertItem(setItems, nextItem);
+      setOpenDrawer(null);
       setCreateState({ loading: false, success: translate('auto.k0474', { value0: meta.name }), traceId: response.trace_id });
       void reloadVersions(nextItem.id);
       selectItem(nextItem.id);
@@ -397,6 +402,7 @@ export function AssetStructuredWorkbench(props: {
       setSelected(nextItem);
       setEditDraft(draftFromView(props.activeTab, nextItem));
       upsertItem(setItems, nextItem);
+      setOpenDrawer(null);
       setMutationState({ loading: false, success: translate('auto.k0478', { value0: meta.name }), traceId: response.trace_id });
       void reloadVersions(nextItem.id);
     } catch (error: unknown) {
@@ -471,12 +477,35 @@ export function AssetStructuredWorkbench(props: {
         success: translate('auto.k0460', { value0: prototypeSyncDraft.dryRun ? translate('auto.k0464') : translate('auto.k0186'), value1: response.data.created, value2: response.data.updated, value3: response.data.failed }),
         traceId: response.trace_id
       });
+      if (!prototypeSyncDraft.dryRun || response.data.failed === 0) {
+        setOpenDrawer(null);
+      }
       if (!prototypeSyncDraft.dryRun && response.data.failed === 0) {
         void refreshAssets();
       }
     } catch (error: unknown) {
       setPrototypeSyncState({ loading: false, error: errorMessage(error, translate('auto.k0484')) });
     }
+  }
+
+  function openCreateDrawer() {
+    setCreateDraft(initialDraft(props.activeTab));
+    setCreateState({ loading: false });
+    setOpenDrawer('create');
+  }
+
+  function openEditDrawer() {
+    if (!selected) {
+      return;
+    }
+    setEditDraft(draftFromView(props.activeTab, selected));
+    setMutationState({ loading: false });
+    setOpenDrawer('edit');
+  }
+
+  function openPrototypeSyncDrawer() {
+    setPrototypeSyncState({ loading: false });
+    setOpenDrawer('prototype-sync');
   }
 
   return (
@@ -634,24 +663,45 @@ export function AssetStructuredWorkbench(props: {
         </section>
 
         <section className="panel module-panel asset-panel">
-          <div className="section-heading">
-            <div className="section-icon">
-              <FilePlus2 size={20} />
+          <div className="panel-toolbar">
+            <div className="section-heading compact">
+              <div className="section-icon">
+                <FilePlus2 size={20} />
+              </div>
+              <div>
+                <span className="eyebrow">Create</span>
+                <h2>{translate('auto.k0489')}{meta.name}</h2>
+              </div>
             </div>
-            <div>
-              <span className="eyebrow">Create</span>
-              <h2>{translate('auto.k0489')}{meta.name}</h2>
-            </div>
+            <button className="primary-button" type="button" disabled={createDisabled} onClick={openCreateDrawer}>
+              <FilePlus2 size={16} />
+              {translate('auto.k0490', { value0: meta.shortName })}</button>
           </div>
-          <StructuredAssetForm
-            activeTab={props.activeTab}
-            draft={createDraft}
-            disabled={createDisabled}
-            jsonLabel={meta.jsonLabel}
-            onChange={setCreateDraft}
-            onSubmit={submitCreate}
-            submitLabel={translate('auto.k0490', { value0: meta.shortName })}
-          />
+          <Drawer
+            className="asset-form-drawer"
+            destroyOnHidden
+            maskClosable={!createState.loading}
+            open={openDrawer === 'create'}
+            placement="right"
+            title={`${translate('auto.k0489')}${meta.name}`}
+            width={760}
+            onClose={() => {
+              if (!createState.loading) {
+                setOpenDrawer(null);
+              }
+            }}
+          >
+            <StructuredAssetForm
+              activeTab={props.activeTab}
+              className="document-drawer-form"
+              draft={createDraft}
+              disabled={createDisabled}
+              jsonLabel={meta.jsonLabel}
+              onChange={setCreateDraft}
+              onSubmit={submitCreate}
+              submitLabel={translate('auto.k0490', { value0: meta.shortName })}
+            />
+          </Drawer>
           <StateLine state={createState} />
         </section>
       </div>
@@ -677,8 +727,27 @@ export function AssetStructuredWorkbench(props: {
 
         {props.activeTab === 'pages' && (
           <section className="panel insight-panel">
-            <h2>{translate('auto.k0491')}</h2>
-            <form className="asset-form" onSubmit={submitPrototypeSync}>
+            <div className="panel-title-row">
+              <h2>{translate('auto.k0491')}</h2>
+              <button className="mini-button" type="button" disabled={!props.signedIn || !canManageAssets || prototypeSyncState.loading} onClick={openPrototypeSyncDrawer}>
+                <Save size={14} />
+                {prototypeSyncDraft.dryRun ? translate('auto.k0464') : translate('auto.k0186')}</button>
+            </div>
+            <Drawer
+              className="asset-form-drawer"
+              destroyOnHidden
+              maskClosable={!prototypeSyncState.loading}
+              open={openDrawer === 'prototype-sync'}
+              placement="right"
+              title={translate('auto.k0491')}
+              width={760}
+              onClose={() => {
+                if (!prototypeSyncState.loading) {
+                  setOpenDrawer(null);
+                }
+              }}
+            >
+            <form className="asset-form document-drawer-form" onSubmit={submitPrototypeSync}>
               <div className="asset-form-grid">
                 <label className="field" htmlFor="asset-prototype-project">
                   <span>projectId</span>
@@ -745,6 +814,7 @@ export function AssetStructuredWorkbench(props: {
                 </button>
               </div>
             </form>
+            </Drawer>
             {prototypeSyncResult && (
               <div className="asset-import-result">
                 <strong>{prototypeSyncResult.source}</strong>
@@ -834,17 +904,37 @@ export function AssetStructuredWorkbench(props: {
                 <pre>{formatJsonText(selected.jsonText)}</pre>
               </div>
 
-              <StructuredAssetForm
-                activeTab={props.activeTab}
-                draft={editDraft}
-                disabled={editDisabled}
-                jsonLabel={meta.jsonLabel}
-                onChange={setEditDraft}
-                onSubmit={submitEdit}
-                submitLabel={translate('auto.k0495', { value0: meta.shortName })}
-                compact
-                selectedStatus={selected.status}
-              />
+              <button className="mini-button" type="button" disabled={editDisabled} onClick={openEditDrawer}>
+                <Pencil size={14} />
+                {translate('auto.k0495', { value0: meta.shortName })}</button>
+              <Drawer
+                className="asset-form-drawer"
+                destroyOnHidden
+                maskClosable={!mutationState.loading}
+                open={openDrawer === 'edit'}
+                placement="right"
+                title={translate('auto.k0495', { value0: meta.shortName })}
+                width={760}
+                onClose={() => {
+                  if (!mutationState.loading) {
+                    setOpenDrawer(null);
+                  }
+                }}
+              >
+                <StructuredAssetForm
+                  activeTab={props.activeTab}
+                  className="document-drawer-form"
+                  draft={editDraft}
+                  disabled={editDisabled}
+                  jsonLabel={meta.jsonLabel}
+                  onChange={setEditDraft}
+                  onSubmit={submitEdit}
+                  submitLabel={translate('auto.k0495', { value0: meta.shortName })}
+                  compact
+                  selectedStatus={selected.status}
+                />
+                <StateLine state={mutationState} />
+              </Drawer>
               <AssetVersionHistoryPanel
                 currentVersion={versions[0]?.version}
                 disabled={disabled}
@@ -873,6 +963,7 @@ export function AssetStructuredWorkbench(props: {
 
 function StructuredAssetForm(props: {
   activeTab: StructuredTabKey;
+  className?: string;
   compact?: boolean;
   disabled: boolean;
   draft: StructuredDraft;
@@ -885,7 +976,7 @@ function StructuredAssetForm(props: {
   const statusOptions = props.selectedStatus ? statusOptionsFor(props.activeTab, props.selectedStatus) : structuredMeta(props.activeTab).statuses;
 
   return (
-    <form className="asset-form" onSubmit={props.onSubmit}>
+    <form className={props.className ? `asset-form ${props.className}` : 'asset-form'} onSubmit={props.onSubmit}>
       <div className="asset-form-grid">
         {!props.compact && (
           <label className="field" htmlFor={`asset-${props.activeTab}-project`}>

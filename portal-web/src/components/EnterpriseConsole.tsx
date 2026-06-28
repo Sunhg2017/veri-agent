@@ -25,6 +25,7 @@ import {
   App as AntApp,
   Avatar,
   Badge,
+  Breadcrumb,
   Button,
   Card,
   Dropdown,
@@ -79,7 +80,7 @@ import { TestDesignWorkbench } from './TestDesignWorkbench';
 import { UiE2eWorkbench } from './UiE2eWorkbench';
 
 const { Header, Sider, Content } = Layout;
-const { Text, Title } = Typography;
+const { Title } = Typography;
 
 type ResetPasswordForm = {
   confirmPassword: string;
@@ -415,10 +416,13 @@ export function EnterpriseConsole(props: {
       </Sider>
       <Layout>
         <Header className="va-console-header">
-          <div className="va-console-page-title">
-            <Text type="secondary">{activeDefinition.group}</Text>
-            <Text className="va-console-current">{activeDefinition.label}</Text>
-          </div>
+          <Breadcrumb
+            className="va-console-breadcrumb"
+            items={[
+              { title: activeDefinition.group },
+              { title: activeDefinition.label }
+            ]}
+          />
           <Space size="middle">
             <NotificationDropdown
               items={notificationsQuery.data?.items ?? []}

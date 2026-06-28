@@ -3422,6 +3422,10 @@ tbody tr:hover td {
   min-width: 0;
 }
 
+.document-drawer-form {
+  padding-bottom: 12px;
+}
+
 .document-form-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(180px, 1fr));
@@ -3473,6 +3477,102 @@ tbody tr:hover td {
 .document-source-table {
   max-height: 360px;
   background: var(--surface);
+}
+
+.document-source-drawer .ant-drawer-body,
+.document-import-drawer .ant-drawer-body,
+.api-automation-import-drawer .ant-drawer-body,
+.report-generate-drawer .ant-drawer-body,
+.execution-plan-drawer .ant-drawer-body,
+.execution-trigger-drawer .ant-drawer-body,
+.test-data-drawer .ant-drawer-body,
+.ui-e2e-drawer .ant-drawer-body,
+.asset-form-drawer .ant-drawer-body {
+  background: var(--bg);
+}
+
+.document-source-drawer .ant-drawer-content,
+.document-import-drawer .ant-drawer-content,
+.api-automation-import-drawer .ant-drawer-content,
+.report-generate-drawer .ant-drawer-content,
+.execution-plan-drawer .ant-drawer-content,
+.execution-trigger-drawer .ant-drawer-content,
+.test-data-drawer .ant-drawer-content,
+.ui-e2e-drawer .ant-drawer-content,
+.asset-form-drawer .ant-drawer-content,
+.document-source-drawer .ant-drawer-header,
+.document-import-drawer .ant-drawer-header,
+.api-automation-import-drawer .ant-drawer-header,
+.report-generate-drawer .ant-drawer-header,
+.execution-plan-drawer .ant-drawer-header,
+.execution-trigger-drawer .ant-drawer-header,
+.test-data-drawer .ant-drawer-header,
+.ui-e2e-drawer .ant-drawer-header,
+.asset-form-drawer .ant-drawer-header {
+  background: var(--surface);
+  border-color: var(--border);
+  color: var(--text-primary);
+}
+
+.document-source-drawer .ant-drawer-title,
+.document-import-drawer .ant-drawer-title,
+.api-automation-import-drawer .ant-drawer-title,
+.report-generate-drawer .ant-drawer-title,
+.execution-plan-drawer .ant-drawer-title,
+.execution-trigger-drawer .ant-drawer-title,
+.test-data-drawer .ant-drawer-title,
+.ui-e2e-drawer .ant-drawer-title,
+.asset-form-drawer .ant-drawer-title {
+  color: var(--text-primary);
+  font-weight: 800;
+}
+
+.document-source-drawer .ant-drawer-close,
+.document-import-drawer .ant-drawer-close,
+.api-automation-import-drawer .ant-drawer-close,
+.report-generate-drawer .ant-drawer-close,
+.execution-plan-drawer .ant-drawer-close,
+.execution-trigger-drawer .ant-drawer-close,
+.test-data-drawer .ant-drawer-close,
+.ui-e2e-drawer .ant-drawer-close,
+.asset-form-drawer .ant-drawer-close {
+  color: var(--text-secondary);
+}
+
+.document-source-drawer .document-form,
+.document-import-drawer .document-form,
+.api-automation-import-drawer .document-form,
+.report-generate-drawer .document-form,
+.execution-plan-drawer .document-form,
+.execution-trigger-drawer .execution-trigger-form,
+.test-data-drawer .document-form,
+.ui-e2e-drawer .ui-e2e-form,
+.asset-form-drawer .asset-form,
+.asset-form-drawer .asset-edit-form {
+  padding: 4px;
+}
+
+.document-source-drawer .document-actions,
+.document-import-drawer .document-actions,
+.api-automation-import-drawer .document-actions,
+.report-generate-drawer .report-actions-row,
+.execution-plan-drawer .execution-form-actions,
+.execution-trigger-drawer .document-actions,
+.test-data-drawer .document-actions,
+.ui-e2e-drawer .report-actions-row,
+.asset-form-drawer .document-actions {
+  position: sticky;
+  bottom: -24px;
+  margin: 4px -4px -4px;
+  padding: 14px 4px 4px;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--bg) 0%, transparent), var(--bg) 42%);
+}
+
+.execution-plan-drawer .panel-header,
+.execution-plan-drawer .panel-body {
+  border: 0;
+  background: transparent;
+  padding-inline: 0;
 }
 
 .document-source-table table {
@@ -9108,21 +9208,20 @@ select option {
   background: var(--surface);
 }
 
-.va-console-page-title {
+.va-console-breadcrumb {
   min-width: 0;
 }
 
-.va-console-current {
-  display: block;
-  color: var(--text-primary);
-  font-size: 20px;
+.va-console-breadcrumb .ant-breadcrumb-link,
+.va-console-breadcrumb .ant-breadcrumb-separator {
+  color: var(--text-tertiary);
+  font-size: 13px;
   font-weight: 700;
-  line-height: 1.2;
 }
 
-.va-console-page-title h3 {
-  margin: 0;
-  line-height: 1.2;
+.va-console-breadcrumb li:last-child .ant-breadcrumb-link {
+  color: var(--text-primary);
+  font-weight: 800;
 }
 
 .va-console-user {

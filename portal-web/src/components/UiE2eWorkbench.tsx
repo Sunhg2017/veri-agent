@@ -11,6 +11,7 @@ import {
   ShieldCheck,
   Square
 } from 'lucide-react';
+import { Drawer } from 'antd';
 import { useCallback, useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react';
 import type { CurrentUser } from '../api/auth';
 import {
@@ -134,6 +135,8 @@ type SimpleFilters = {
   keyword: string;
 };
 
+type UiE2eDrawer = 'scene' | 'bundle' | 'run' | 'flaky' | null;
+
 type SceneFilters = SimpleFilters & {
   applicationId: string;
   environmentId: string;
@@ -212,6 +215,7 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
   const [runBackfillDraft, setRunBackfillDraft] = useState<UiE2eRunBackfillDraft>(initialUiE2eRunBackfillDraft);
   const [runBackfillResult, setRunBackfillResult] = useState<UiE2eRunSummaryBackfill | null>(null);
   const [flakyDraft, setFlakyDraft] = useState<UiE2eFlakyDraft>(initialUiE2eFlakyDraft);
+  const [openDrawer, setOpenDrawer] = useState<UiE2eDrawer>(null);
 
   const [loadState, setLoadState] = useState<WorkState>({ loading: false });
   const [sceneActionState, setSceneActionState] = useState<WorkState>({ loading: false });
@@ -508,6 +512,7 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
         setSceneDraft(sceneDraftFromDetail(result.data));
         setEditingSceneId(result.data.id);
         applySceneDefaults(result.data);
+        setOpenDrawer(null);
         setSceneActionState({ loading: false, success: translate('auto.k1848'), traceId: result.trace_id });
       } catch (error: unknown) {
         setSceneActionState({ loading: false, error: error instanceof Error ? error.message : translate('auto.k1849') });
@@ -533,6 +538,7 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
       }));
       setEditingSceneId('');
       applySceneDefaults(result.data);
+      setOpenDrawer(null);
       setSceneActionState({ loading: false, success: translate('auto.k1850'), traceId: result.trace_id });
     } catch (error: unknown) {
       setSceneActionState({ loading: false, error: error instanceof Error ? error.message : translate('auto.k1851') });
@@ -616,6 +622,7 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
       setSelectedBundleId(result.data.id);
       setBundles((current) => [summaryFromBundleDetail(result.data), ...current.filter((bundle) => bundle.id !== result.data.id)]);
       applyBundleDefaults(result.data);
+      setOpenDrawer(null);
       setBundleActionState({ loading: false, success: translate('auto.k0151'), traceId: result.trace_id });
     } catch (error: unknown) {
       setBundleActionState({ loading: false, error: error instanceof Error ? error.message : translate('auto.k1860') });
@@ -689,6 +696,7 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
       setSelectedRunId(result.data.id);
       setRuns((current) => [summaryFromRunDetail(result.data), ...current.filter((run) => run.id !== result.data.id)]);
       applyRunDefaults(result.data);
+      setOpenDrawer(null);
       setRunActionState({
         loading: false,
         success: result.data.idempotentReplay ? translate('auto.k1868') : translate('auto.k1869'),
@@ -828,6 +836,7 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
       setFlakyDetail(result.data);
       setRuns((current) => current.map((run) => run.id === result.data.runId ? { ...run, flakyStatus: result.data.status } : run));
       setRunDetail((current) => current && current.id === result.data.runId ? { ...current, flakyMark: result.data } : current);
+      setOpenDrawer(null);
       setFlakyActionState({ loading: false, success: translate('auto.k1880'), traceId: result.trace_id });
     } catch (error: unknown) {
       setFlakyActionState({ loading: false, error: error instanceof Error ? error.message : translate('auto.k1881') });
@@ -916,7 +925,18 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
             <StateLine state={loadState} />
           </Panel>
 
-          <Panel title={translate('auto.k1890')} desc={translate('auto.k1891')}>
+          <Panel
+            title={translate('auto.k1890')}
+            desc={translate('auto.k1891')}
+            action={(
+              <div className="report-actions-row compact">
+                <button className="btn btn-primary btn-sm" type="button" onClick={openCreateSceneDrawer} disabled={!canManage || sceneActionState.loading}>
+                  <FileText size={15} />{translate('auto.k1903')}</button>
+                <button className="btn btn-secondary btn-sm" type="button" onClick={openEditSceneDrawer} disabled={!canManage || sceneActionState.loading || !sceneDetail || sceneDetail.status === 'ARCHIVED'}>
+                  <FileText size={15} />{translate('auto.k1905')}</button>
+              </div>
+            )}
+          >
             <form className="ui-e2e-filter-grid" onSubmit={(event) => { event.preventDefault(); void refreshWorkbench(); }}>
               <Field label="projectId">
                 <input value={sceneFilters.projectId} onChange={(event) => setSceneFilters((current) => ({ ...current, projectId: event.target.value }))} placeholder="project-alpha" />
@@ -996,7 +1016,21 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
               <div className="notice info">
                 {translate('auto.k1892')}{labelUiE2eSceneFocusMode(sceneFocusMode)}{translate('auto.k1893')}{visibleScenes.length} {translate('auto.k1894')}</div>
             )}
-            <form className="ui-e2e-form" onSubmit={onSubmitScene}>
+            <Drawer
+              className="ui-e2e-drawer"
+              destroyOnHidden
+              maskClosable={!sceneActionState.loading}
+              open={openDrawer === 'scene'}
+              placement="right"
+              title={editingSceneId ? translate('auto.k1902') : translate('auto.k1903')}
+              width={900}
+              onClose={() => {
+                if (!sceneActionState.loading) {
+                  setOpenDrawer(null);
+                }
+              }}
+            >
+            <form className="ui-e2e-form document-drawer-form" onSubmit={onSubmitScene}>
               <div className="form-grid">
                 <Field label="projectId">
                   <input value={sceneDraft.projectId} onChange={(event) => setSceneDraftValue('projectId', event.target.value)} placeholder="project-alpha" disabled={!canManage || sceneActionState.loading || Boolean(editingSceneId)} />
@@ -1156,6 +1190,7 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
               </div>
               <StateLine state={sceneActionState} />
             </form>
+            </Drawer>
             <ListPanel
               items={visibleScenes}
               selectedId={selectedSceneId}
@@ -1193,8 +1228,29 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
             />
           </Panel>
 
-          <Panel title={translate('auto.k1910')} desc={translate('auto.k1911')}>
-            <form className="ui-e2e-form" onSubmit={(event) => { event.preventDefault(); void onCreateBundle(); }}>
+          <Panel
+            title={translate('auto.k1910')}
+            desc={translate('auto.k1911')}
+            action={(
+              <button className="btn btn-primary btn-sm" type="button" onClick={openCreateBundleDrawer} disabled={!canManage || bundleActionState.loading}>
+                <FileText size={15} />{translate('auto.k0218')}</button>
+            )}
+          >
+            <Drawer
+              className="ui-e2e-drawer"
+              destroyOnHidden
+              maskClosable={!bundleActionState.loading}
+              open={openDrawer === 'bundle'}
+              placement="right"
+              title={translate('auto.k0218')}
+              width={560}
+              onClose={() => {
+                if (!bundleActionState.loading) {
+                  setOpenDrawer(null);
+                }
+              }}
+            >
+            <form className="ui-e2e-form document-drawer-form" onSubmit={(event) => { event.preventDefault(); void onCreateBundle(); }}>
               <div className="form-grid">
                 <Field label="sceneId">
                   <input value={bundleSceneId} onChange={(event) => setBundleSceneId(event.target.value)} placeholder={selectedSceneId || translate('auto.k1912')} disabled={!canManage || bundleActionState.loading} />
@@ -1206,6 +1262,13 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
               <div className="report-actions-row">
                 <button className="btn btn-primary" type="submit" disabled={!canManage || bundleActionState.loading}>
                   <FileText size={16} />{translate('auto.k0218')}</button>
+                <button className="btn btn-secondary" type="button" disabled={bundleActionState.loading} onClick={() => setOpenDrawer(null)}>
+                  {translate('actions.cancel')}</button>
+              </div>
+              <StateLine state={bundleActionState} />
+            </form>
+            </Drawer>
+            <div className="report-actions-row compact">
                 <button className="btn btn-secondary" type="button" onClick={() => void onReviewBundle('submit')} disabled={!canReview || bundleActionState.loading || !bundleDetail || !['DRAFT', 'REJECTED', 'STATIC_CHECK_FAILED'].includes(bundleDetail.status)}>
                   <RefreshCw size={16} />{translate('auto.k1914')}</button>
                 <button className="btn btn-secondary" type="button" onClick={() => void onReviewBundle('approve')} disabled={!canReview || bundleActionState.loading || bundleDetail?.status !== 'REVIEWING'}>
@@ -1216,9 +1279,8 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
                   <Archive size={16} />{translate('auto.k0871')}</button>
                 <button className="btn btn-secondary" type="button" onClick={() => void onExportBundle()} disabled={!canExport || bundleActionState.loading || !bundleDetail}>
                   <Download size={16} />{translate('auto.k0221')}</button>
-              </div>
-              <StateLine state={bundleActionState} />
-            </form>
+            </div>
+            <StateLine state={bundleActionState} />
             <form className="ui-e2e-filter-grid" onSubmit={(event) => { event.preventDefault(); void refreshWorkbench(); }}>
               <Field label="projectId">
                 <input value={bundleFilters.projectId} onChange={(event) => setBundleFilters((current) => ({ ...current, projectId: event.target.value }))} placeholder="project-alpha" />
@@ -1294,8 +1356,29 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
             />
           </Panel>
 
-          <Panel title={translate('auto.k1917')} desc={translate('auto.k1918')}>
-            <form className="ui-e2e-form" onSubmit={onCreateRun}>
+          <Panel
+            title={translate('auto.k1917')}
+            desc={translate('auto.k1918')}
+            action={(
+              <button className="btn btn-primary btn-sm" type="button" onClick={openCreateRunDrawer} disabled={!canExecute || runActionState.loading}>
+                <Play size={15} />{translate('auto.k1924')}</button>
+            )}
+          >
+            <Drawer
+              className="ui-e2e-drawer"
+              destroyOnHidden
+              maskClosable={!runActionState.loading}
+              open={openDrawer === 'run'}
+              placement="right"
+              title={translate('auto.k1924')}
+              width={900}
+              onClose={() => {
+                if (!runActionState.loading) {
+                  setOpenDrawer(null);
+                }
+              }}
+            >
+            <form className="ui-e2e-form document-drawer-form" onSubmit={onCreateRun}>
               <div className="form-grid">
                 <Field label="projectId">
                   <input value={runDraft.projectId} onChange={(event) => setRunDraftValue('projectId', event.target.value)} placeholder="project-alpha" disabled={!canExecute || runActionState.loading} />
@@ -1370,12 +1453,8 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
                   <>
                     <button className="btn btn-primary" type="submit" disabled={runCreateDisabled} title={runCreateButtonTitle}>
                       <Play size={16} />{translate('auto.k1924')}</button>
-                    <button className="btn btn-secondary" type="button" onClick={() => void onCancelRun()} disabled={runActionState.loading || !runDetail || !isUiE2eRunActiveStatus(runDetail.status)}>
-                      <Square size={16} />{translate('auto.k1925')}</button>
                   </>
                 )}
-                <button className="btn btn-secondary" type="button" onClick={() => void onExportRun()} disabled={!canExport || runActionState.loading || !runDetail}>
-                  <Download size={16} />{translate('auto.k0221')}</button>
                 <button className="btn btn-secondary" type="button" onClick={() => void onCreateBatchRun()} disabled={runBatchDisabled}>
                   <Play size={16} />{translate('auto.k1926')}</button>
                 <button className="btn btn-secondary" type="button" onClick={() => void onBackfillRunSummary()} disabled={runBackfillDisabled}>
@@ -1553,6 +1632,18 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
               ) : null}
               <StateLine state={runActionState} />
             </form>
+            </Drawer>
+            <div className="report-actions-row compact">
+              <button className="btn btn-secondary btn-sm" type="button" onClick={() => void onCancelRun()} disabled={runActionState.loading || !runDetail || !isUiE2eRunActiveStatus(runDetail.status)}>
+                <Square size={15} />{translate('auto.k1925')}</button>
+              <button className="btn btn-secondary btn-sm" type="button" onClick={() => void onExportRun()} disabled={!canExport || runActionState.loading || !runDetail}>
+                <Download size={15} />{translate('auto.k0221')}</button>
+              <button className="btn btn-secondary btn-sm" type="button" onClick={() => void onCreateBatchRun()} disabled={runBatchDisabled}>
+                <Play size={15} />{translate('auto.k1926')}</button>
+              <button className="btn btn-secondary btn-sm" type="button" onClick={() => void onBackfillRunSummary()} disabled={runBackfillDisabled}>
+                <RefreshCw size={15} />{translate('auto.k1927')}</button>
+            </div>
+            <StateLine state={runActionState} />
             <form className="ui-e2e-filter-grid" onSubmit={(event) => { event.preventDefault(); void refreshWorkbench(); }}>
               <Field label="projectId">
                 <input value={runFilters.projectId} onChange={(event) => setRunFilters((current) => ({ ...current, projectId: event.target.value }))} placeholder="project-alpha" />
@@ -1630,8 +1721,29 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
             />
           </Panel>
 
-          <Panel title={translate('auto.k1939')} desc={translate('auto.k1940')}>
-            <form className="ui-e2e-form" onSubmit={onUpsertFlaky}>
+          <Panel
+            title={translate('auto.k1939')}
+            desc={translate('auto.k1940')}
+            action={(
+              <button className="btn btn-primary btn-sm" type="button" onClick={openFlakyDrawer} disabled={!canFlaky || flakyActionState.loading}>
+                <Bug size={15} />{translate('auto.k1943')}</button>
+            )}
+          >
+            <Drawer
+              className="ui-e2e-drawer"
+              destroyOnHidden
+              maskClosable={!flakyActionState.loading}
+              open={openDrawer === 'flaky'}
+              placement="right"
+              title={translate('auto.k1943')}
+              width={640}
+              onClose={() => {
+                if (!flakyActionState.loading) {
+                  setOpenDrawer(null);
+                }
+              }}
+            >
+            <form className="ui-e2e-form document-drawer-form" onSubmit={onUpsertFlaky}>
               <div className="form-grid">
                 <Field label="projectId">
                   <input value={flakyDraft.projectId} onChange={(event) => setFlakyDraftValue('projectId', event.target.value)} placeholder="project-alpha" disabled={!canFlaky || flakyActionState.loading} />
@@ -1660,9 +1772,13 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
               <div className="report-actions-row">
                 <button className="btn btn-primary" type="submit" disabled={!canFlaky || flakyActionState.loading}>
                   <Bug size={16} />{translate('auto.k1943')}</button>
+                <button className="btn btn-secondary" type="button" disabled={flakyActionState.loading} onClick={() => setOpenDrawer(null)}>
+                  {translate('actions.cancel')}</button>
               </div>
               <StateLine state={flakyActionState} />
             </form>
+            </Drawer>
+            <StateLine state={flakyActionState} />
             <form className="ui-e2e-filter-grid" onSubmit={(event) => { event.preventDefault(); void refreshWorkbench(); }}>
               <Field label="projectId">
                 <input value={flakyFilters.projectId} onChange={(event) => setFlakyFilters((current) => ({ ...current, projectId: event.target.value }))} placeholder="project-alpha" />
@@ -1875,6 +1991,48 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
     }));
   }
 
+  function openCreateSceneDrawer() {
+    setEditingSceneId('');
+    setSceneDraft(blankUiE2eSceneDraft(sceneDetail ? {
+      projectId: sceneDetail.projectId,
+      applicationId: sceneDetail.applicationId || '',
+      environmentId: sceneDetail.environmentId || ''
+    } : {
+      projectId: sceneFilters.projectId,
+      applicationId: sceneFilters.applicationId,
+      environmentId: sceneFilters.environmentId
+    }));
+    setSceneImportDraft(initialSceneImportDraft);
+    setSceneActionState({ loading: false });
+    setOpenDrawer('scene');
+  }
+
+  function openEditSceneDrawer() {
+    if (!sceneDetail) {
+      return;
+    }
+    setEditingSceneId(sceneDetail.id);
+    setSceneDraft(sceneDraftFromDetail(sceneDetail));
+    setSceneActionState({ loading: false });
+    setOpenDrawer('scene');
+  }
+
+  function openCreateBundleDrawer() {
+    setBundleSceneId(selectedSceneId || bundleSceneId);
+    setBundleActionState({ loading: false });
+    setOpenDrawer('bundle');
+  }
+
+  function openCreateRunDrawer() {
+    setRunActionState({ loading: false });
+    setOpenDrawer('run');
+  }
+
+  function openFlakyDrawer() {
+    setFlakyActionState({ loading: false });
+    setOpenDrawer('flaky');
+  }
+
   function loadSelectedSceneIntoDraft() {
     if (!sceneDetail) {
       return;
@@ -1882,6 +2040,7 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
     setEditingSceneId(sceneDetail.id);
     setSceneDraft(sceneDraftFromDetail(sceneDetail));
     setSceneActionState({ loading: false });
+    setOpenDrawer('scene');
   }
 
   function cancelSceneEditing() {

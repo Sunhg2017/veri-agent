@@ -13,6 +13,7 @@ import {
   Send,
   Upload
 } from 'lucide-react';
+import { Drawer } from 'antd';
 import { useCallback, useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react';
 import type { CurrentUser } from '../api/auth';
 import {
@@ -84,6 +85,7 @@ export function ApiAutomationWorkbench(props: { signedIn: boolean; currentUser: 
   const [selectedSpecId, setSelectedSpecId] = useState('');
   const [detail, setDetail] = useState<ApiAutomationSpecDetail | null>(null);
   const [draft, setDraft] = useState<SpecDraft>(initialDraft);
+  const [importDrawerOpen, setImportDrawerOpen] = useState(false);
   const [loadState, setLoadState] = useState<WorkState>({ loading: false });
   const [importState, setImportState] = useState<WorkState>({ loading: false });
   const [detailState, setDetailState] = useState<WorkState>({ loading: false });
@@ -212,6 +214,7 @@ export function ApiAutomationWorkbench(props: { signedIn: boolean; currentUser: 
         content: draft.content
       });
       setDraft(initialDraft);
+      setImportDrawerOpen(false);
       setSelectedSpecId(result.data.spec.id);
       setDetail(result.data);
       setImportState({ loading: false, success: translate('auto.k0143') });
@@ -451,17 +454,36 @@ export function ApiAutomationWorkbench(props: { signedIn: boolean; currentUser: 
       </section>
 
       <section className="api-automation-layout">
-        <form className="panel" onSubmit={onImport}>
+        <section className="panel">
           <div className="panel-header">
             <div>
               <div className="panel-title">{translate('auto.k0174')}</div>
               <div className="panel-desc">TEXT · JSON/YAML</div>
             </div>
-            <button className="btn btn-primary btn-sm" type="submit" disabled={!canImport || importState.loading}>
+            <button className="btn btn-primary btn-sm" type="button" disabled={!canImport || importState.loading} onClick={() => setImportDrawerOpen(true)}>
               <Upload size={15} />
               {translate('auto.k0175')}</button>
           </div>
-          <div className="panel-body">
+          <div className="panel-body compact">
+            {importState.error && <div className="document-state-line error">{importState.error}</div>}
+            {importState.success && <div className="document-state-line success">{importState.success}</div>}
+          </div>
+        </section>
+        <Drawer
+          className="api-automation-import-drawer"
+          destroyOnHidden
+          maskClosable={!importState.loading}
+          open={importDrawerOpen}
+          placement="right"
+          title={translate('auto.k0174')}
+          width={760}
+          onClose={() => {
+            if (!importState.loading) {
+              setImportDrawerOpen(false);
+            }
+          }}
+        >
+          <form className="document-form document-drawer-form" onSubmit={onImport}>
             <div className="form-grid">
               <Field label={translate('auto.k0176')}>
                 <input value={draft.projectId} onChange={(event) => setDraftValue('projectId', event.target.value)} />
@@ -485,8 +507,15 @@ export function ApiAutomationWorkbench(props: { signedIn: boolean; currentUser: 
             </Field>
             {importState.error && <div className="document-state-line error">{importState.error}</div>}
             {importState.success && <div className="document-state-line success">{importState.success}</div>}
-          </div>
-        </form>
+            <div className="document-actions">
+              <button className="btn btn-primary" type="submit" disabled={!canImport || importState.loading}>
+                <Upload size={16} />
+                {translate('auto.k0175')}</button>
+              <button className="btn btn-secondary" type="button" disabled={importState.loading} onClick={() => setImportDrawerOpen(false)}>
+                {translate('actions.cancel')}</button>
+            </div>
+          </form>
+        </Drawer>
 
         <section className="panel">
           <div className="panel-header">

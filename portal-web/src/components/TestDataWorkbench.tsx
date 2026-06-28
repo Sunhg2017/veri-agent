@@ -15,6 +15,7 @@ import {
   Trash2,
   Upload
 } from 'lucide-react';
+import { Drawer } from 'antd';
 import { useCallback, useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react';
 import type { CurrentUser } from '../api/auth';
 import { ApiError } from '../api/client';
@@ -71,6 +72,8 @@ type WorkState = {
 };
 
 type TabKey = 'data-sets' | 'account-pools' | 'leases' | 'tasks';
+type TestDataDrawer = 'data-set' | 'record-import' | 'record-generate' | 'pool' | 'account' | 'lease' | 'task' | null;
+type DraftMode = 'create' | 'edit';
 
 type DataSetDraft = {
   projectId: string;
@@ -259,6 +262,9 @@ export function TestDataWorkbench(props: { signedIn: boolean; currentUser: Curre
   const [accountDraft, setAccountDraft] = useState<AccountDraft>(initialAccountDraft);
   const [leaseDraft, setLeaseDraft] = useState<LeaseDraft>(initialLeaseDraft);
   const [taskDraft, setTaskDraft] = useState<TaskDraft>(initialTaskDraft);
+  const [openDrawer, setOpenDrawer] = useState<TestDataDrawer>(null);
+  const [dataSetDraftMode, setDataSetDraftMode] = useState<DraftMode>('create');
+  const [poolDraftMode, setPoolDraftMode] = useState<DraftMode>('create');
   const [loadState, setLoadState] = useState<WorkState>({ loading: false });
   const [dataSetState, setDataSetState] = useState<WorkState>({ loading: false });
   const [poolState, setPoolState] = useState<WorkState>({ loading: false });
@@ -427,6 +433,8 @@ export function TestDataWorkbench(props: { signedIn: boolean; currentUser: Curre
       });
       setSelectedDataSetId(result.data.id);
       setDataSetDetail(result.data);
+      setOpenDrawer(null);
+      setDataSetDraftMode('edit');
       setDataSetState({ loading: false, success: translate('auto.k1213'), traceId: result.trace_id });
       await refreshWorkbench();
     } catch (error: unknown) {
@@ -458,11 +466,17 @@ export function TestDataWorkbench(props: { signedIn: boolean; currentUser: Curre
         sourceRefDigest: optionalText(dataSetDraft.sourceRefDigest)
       });
       setDataSetDetail(result.data);
+      setOpenDrawer(null);
       setDataSetState({ loading: false, success: translate('auto.k1215'), traceId: result.trace_id });
       await refreshWorkbench();
     } catch (error: unknown) {
       setDataSetState(errorState(error, translate('auto.k1216')));
     }
+  }
+
+  async function submitUpdateDataSet(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    await onUpdateDataSet();
   }
 
   async function onArchiveDataSet() {
@@ -498,6 +512,7 @@ export function TestDataWorkbench(props: { signedIn: boolean; currentUser: Curre
         }]
       });
       setRecordDraft(initialRecordDraft);
+      setOpenDrawer(null);
       setDataSetState({ loading: false, success: translate('auto.k1219', { value0: result.data.importedCount }), traceId: result.trace_id });
       await refreshDataSetDetail(selectedDataSetId);
       await refreshWorkbench();
@@ -540,6 +555,7 @@ export function TestDataWorkbench(props: { signedIn: boolean; currentUser: Curre
         recordKeyPrefix: optionalText(generateDraft.recordKeyPrefix),
         tags: splitList(generateDraft.tagsText)
       });
+      setOpenDrawer(null);
       setDataSetState({ loading: false, success: translate('auto.k1225', { value0: result.data.generatedCount }), traceId: result.trace_id });
       await refreshDataSetDetail(selectedDataSetId);
       await refreshWorkbench();
@@ -595,6 +611,8 @@ export function TestDataWorkbench(props: { signedIn: boolean; currentUser: Curre
       setSelectedPoolId(result.data.id);
       setSelectedAccountId('');
       setPoolDetail(result.data);
+      setOpenDrawer(null);
+      setPoolDraftMode('edit');
       setPoolState({ loading: false, success: translate('auto.k1231'), traceId: result.trace_id });
       await refreshWorkbench();
     } catch (error: unknown) {
@@ -620,11 +638,17 @@ export function TestDataWorkbench(props: { signedIn: boolean; currentUser: Curre
         defaultTtlSeconds: poolDraft.defaultTtlSeconds
       });
       setPoolDetail(result.data);
+      setOpenDrawer(null);
       setPoolState({ loading: false, success: translate('auto.k1233'), traceId: result.trace_id });
       await refreshWorkbench();
     } catch (error: unknown) {
       setPoolState(errorState(error, translate('auto.k1234')));
     }
+  }
+
+  async function submitUpdatePool(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    await onUpdatePool();
   }
 
   async function onDisablePool() {
@@ -680,6 +704,7 @@ export function TestDataWorkbench(props: { signedIn: boolean; currentUser: Curre
         });
       setSelectedAccountId(result.data.id);
       setAccountDraft({ ...accountDraftFromAccount(result.data), secretRef: '' });
+      setOpenDrawer(null);
       setPoolState({ loading: false, success: selectedAccountId ? translate('auto.k1239') : translate('auto.k1240'), traceId: result.trace_id });
       await refreshPoolDetail(selectedPoolId);
       await refreshWorkbench();
@@ -706,6 +731,7 @@ export function TestDataWorkbench(props: { signedIn: boolean; currentUser: Curre
       });
       setSelectedLeaseId(result.data.id);
       setLeaseDetail(result.data);
+      setOpenDrawer(null);
       setLeaseState({ loading: false, success: translate('auto.k1242'), traceId: result.trace_id });
       await refreshWorkbench();
     } catch (error: unknown) {
@@ -762,6 +788,7 @@ export function TestDataWorkbench(props: { signedIn: boolean; currentUser: Curre
       });
       setSelectedTaskId(result.data.id);
       setTaskDetail(result.data);
+      setOpenDrawer(null);
       setTaskState({ loading: false, success: translate('auto.k1248'), traceId: result.trace_id });
       await refreshWorkbench();
     } catch (error: unknown) {
@@ -870,25 +897,44 @@ export function TestDataWorkbench(props: { signedIn: boolean; currentUser: Curre
   function renderDataSets() {
     return (
       <section className="test-data-layout">
-        <form className="panel" onSubmit={onCreateDataSet}>
+        <section className="panel">
           <div className="panel-header">
             <div>
-              <div className="panel-title">{selectedDataSetId ? translate('auto.k1263') : translate('auto.k1264')}</div>
+              <div className="panel-title">{translate('auto.k1264')}</div>
               <div className="panel-desc">{translate('auto.k1265')}</div>
             </div>
             <div className="test-data-panel-actions">
-              <button className="btn btn-primary btn-sm" type="submit" disabled={!canManage || dataSetState.loading}>
+              <button className="btn btn-primary btn-sm" type="button" onClick={openCreateDataSetDrawer} disabled={!canManage || dataSetState.loading}>
                 <DatabaseZap size={15} />
-                {translate('auto.k0862')}</button>
-              <button className="btn btn-secondary btn-sm" type="button" onClick={() => void onUpdateDataSet()} disabled={!selectedDataSetId || !canManage || dataSetState.loading}>
+                {translate('auto.k1264')}</button>
+              <button className="btn btn-secondary btn-sm" type="button" onClick={openEditDataSetDrawer} disabled={!selectedDataSetId || !canManage || dataSetState.loading}>
                 <ShieldCheck size={15} />
-                {translate('auto.k0806')}</button>
+                {translate('auto.k0746')}{translate('auto.k1202')}</button>
               <button className="btn btn-ghost btn-sm" type="button" onClick={() => void onArchiveDataSet()} disabled={!selectedDataSetId || !canManage || dataSetDetail?.status === 'ARCHIVED'}>
                 <Archive size={15} />
                 {translate('auto.k0871')}</button>
             </div>
           </div>
-          <div className="panel-body">
+          <div className="panel-body compact">
+            <StateLine state={dataSetState} />
+          </div>
+        </section>
+
+        <Drawer
+          className="test-data-drawer"
+          destroyOnHidden
+          maskClosable={!dataSetState.loading}
+          open={openDrawer === 'data-set'}
+          placement="right"
+          title={dataSetDraftMode === 'edit' ? `${translate('auto.k0746')}${translate('auto.k1202')}` : translate('auto.k1264')}
+          width={760}
+          onClose={() => {
+            if (!dataSetState.loading) {
+              setOpenDrawer(null);
+            }
+          }}
+        >
+          <form className="document-form document-drawer-form" onSubmit={dataSetDraftMode === 'edit' ? submitUpdateDataSet : onCreateDataSet}>
             <div className="form-grid">
               <Field label="projectId"><input value={dataSetDraft.projectId} onChange={(event) => setDataSetDraftValue('projectId', event.target.value)} /></Field>
               <Field label="code"><input value={dataSetDraft.code} onChange={(event) => setDataSetDraftValue('code', event.target.value)} /></Field>
@@ -916,15 +962,32 @@ export function TestDataWorkbench(props: { signedIn: boolean; currentUser: Curre
               <Field label="schema JSON"><textarea value={dataSetDraft.schemaText} onChange={(event) => setDataSetDraftValue('schemaText', event.target.value)} /></Field>
               <Field label="cleanupPolicy JSON"><textarea value={dataSetDraft.cleanupPolicyText} onChange={(event) => setDataSetDraftValue('cleanupPolicyText', event.target.value)} /></Field>
             </div>
+            <div className="document-actions">
+              <button className="btn btn-primary" type="submit" disabled={!canManage || dataSetState.loading}>
+                <DatabaseZap size={16} />
+                {dataSetDraftMode === 'edit'
+                  ? translate('auto.k0495', { value0: translate('auto.k1202') })
+                  : translate('auto.k0490', { value0: translate('auto.k1202') })}</button>
+              <button className="btn btn-secondary" type="button" disabled={dataSetState.loading} onClick={() => setOpenDrawer(null)}>
+                {translate('actions.cancel')}</button>
+            </div>
             <StateLine state={dataSetState} />
-          </div>
-        </form>
+          </form>
+        </Drawer>
 
         <section className="panel">
           <div className="panel-header">
             <div>
               <div className="panel-title">{translate('auto.k1266')}</div>
               <div className="panel-desc">{dataSets.length} {translate('auto.k1267')}</div>
+            </div>
+            <div className="test-data-panel-actions">
+              <button className="btn btn-secondary btn-sm" type="button" onClick={openImportRecordDrawer} disabled={!selectedDataSetId || !canManage || dataSetState.loading}>
+                <Upload size={15} />
+                {translate('auto.k1293')}</button>
+              <button className="btn btn-secondary btn-sm" type="button" onClick={openGenerateRecordsDrawer} disabled={!selectedDataSetId || dataSetDetail?.sourceType !== 'GENERATED' || !canManage || dataSetState.loading}>
+                <Sparkles size={15} />
+                {translate('auto.k1294')}</button>
             </div>
           </div>
           <div className="panel-body compact">
@@ -945,8 +1008,8 @@ export function TestDataWorkbench(props: { signedIn: boolean; currentUser: Curre
                 </tbody>
               </table>
             </div>
-            <RecordImportForm />
-            <RecordGenerateForm />
+            <RecordImportDrawer />
+            <RecordGenerateDrawer />
             <RecordList />
             <DataSetExportPanel />
           </div>
@@ -958,19 +1021,19 @@ export function TestDataWorkbench(props: { signedIn: boolean; currentUser: Curre
   function renderAccountPools() {
     return (
       <section className="test-data-layout">
-        <form className="panel" onSubmit={onCreatePool}>
+        <section className="panel">
           <div className="panel-header">
             <div>
               <div className="panel-title">{translate('auto.k1270')}</div>
               <div className="panel-desc">{translate('auto.k1271')}</div>
             </div>
             <div className="test-data-panel-actions">
-              <button className="btn btn-primary btn-sm" type="submit" disabled={!canManage || poolState.loading}>
+              <button className="btn btn-primary btn-sm" type="button" onClick={openCreatePoolDrawer} disabled={!canManage || poolState.loading}>
                 <KeyRound size={15} />
-                {translate('auto.k0862')}</button>
-              <button className="btn btn-secondary btn-sm" type="button" onClick={() => void onUpdatePool()} disabled={!selectedPoolId || !canManage || poolState.loading}>
+                {translate('auto.k0490', { value0: translate('auto.k1203') })}</button>
+              <button className="btn btn-secondary btn-sm" type="button" onClick={openEditPoolDrawer} disabled={!selectedPoolId || !canManage || poolState.loading}>
                 <ShieldCheck size={15} />
-                {translate('auto.k0806')}</button>
+                {translate('auto.k0746')}{translate('auto.k1203')}</button>
               <button className="btn btn-secondary btn-sm" type="button" onClick={() => void onDisablePool()} disabled={!selectedPoolId || !canManage || poolDetail?.status === 'DISABLED'}>
                 <Trash2 size={15} />
                 {translate('auto.k1272')}</button>
@@ -979,7 +1042,26 @@ export function TestDataWorkbench(props: { signedIn: boolean; currentUser: Curre
                 {translate('auto.k0871')}</button>
             </div>
           </div>
-          <div className="panel-body">
+          <div className="panel-body compact">
+            <StateLine state={poolState} />
+          </div>
+        </section>
+
+        <Drawer
+          className="test-data-drawer"
+          destroyOnHidden
+          maskClosable={!poolState.loading}
+          open={openDrawer === 'pool'}
+          placement="right"
+          title={poolDraftMode === 'edit' ? `${translate('auto.k0746')}${translate('auto.k1203')}` : translate('auto.k0490', { value0: translate('auto.k1203') })}
+          width={720}
+          onClose={() => {
+            if (!poolState.loading) {
+              setOpenDrawer(null);
+            }
+          }}
+        >
+          <form className="document-form document-drawer-form" onSubmit={poolDraftMode === 'edit' ? submitUpdatePool : onCreatePool}>
             <div className="form-grid">
               <Field label="projectId"><input value={poolDraft.projectId} onChange={(event) => setPoolDraftValue('projectId', event.target.value)} /></Field>
               <Field label="code"><input value={poolDraft.code} onChange={(event) => setPoolDraftValue('code', event.target.value)} /></Field>
@@ -990,15 +1072,32 @@ export function TestDataWorkbench(props: { signedIn: boolean; currentUser: Curre
               <Field label={translate('auto.k1260')}><input type="number" min={1} max={86400} value={poolDraft.defaultTtlSeconds} onChange={(event) => setPoolDraftValue('defaultTtlSeconds', Number(event.target.value))} /></Field>
             </div>
             <Field label="leasePolicy JSON"><textarea value={poolDraft.leasePolicyText} onChange={(event) => setPoolDraftValue('leasePolicyText', event.target.value)} /></Field>
+            <div className="document-actions">
+              <button className="btn btn-primary" type="submit" disabled={!canManage || poolState.loading}>
+                <KeyRound size={16} />
+                {poolDraftMode === 'edit'
+                  ? translate('auto.k0495', { value0: translate('auto.k1203') })
+                  : translate('auto.k0490', { value0: translate('auto.k1203') })}</button>
+              <button className="btn btn-secondary" type="button" disabled={poolState.loading} onClick={() => setOpenDrawer(null)}>
+                {translate('actions.cancel')}</button>
+            </div>
             <StateLine state={poolState} />
-          </div>
-        </form>
+          </form>
+        </Drawer>
 
         <section className="panel">
           <div className="panel-header">
             <div>
               <div className="panel-title">{translate('auto.k1273')}</div>
               <div className="panel-desc">{accountPools.length} {translate('auto.k1274')}{shortId(selectedPoolId)}</div>
+            </div>
+            <div className="test-data-panel-actions">
+              <button className="btn btn-secondary btn-sm" type="button" onClick={openCreateAccountDrawer} disabled={!selectedPoolId || !canManage || poolState.loading}>
+                <KeyRound size={15} />
+                {translate('auto.k1306')}</button>
+              <button className="btn btn-ghost btn-sm" type="button" onClick={openEditAccountDrawer} disabled={!selectedAccountId || !canManage || poolState.loading}>
+                <ShieldCheck size={15} />
+                {translate('auto.k1305')}</button>
             </div>
           </div>
           <div className="panel-body compact">
@@ -1013,7 +1112,7 @@ export function TestDataWorkbench(props: { signedIn: boolean; currentUser: Curre
                 </button>
               )) : <div className="table-empty">{translate('auto.k1275')}</div>}
             </div>
-            <AccountForm />
+            <AccountDrawer />
             <AccountList />
           </div>
         </section>
@@ -1024,17 +1123,36 @@ export function TestDataWorkbench(props: { signedIn: boolean; currentUser: Curre
   function renderLeases() {
     return (
       <section className="test-data-layout">
-        <form className="panel" onSubmit={onAcquireLease}>
+        <section className="panel">
           <div className="panel-header">
             <div>
               <div className="panel-title">{translate('auto.k1276')}</div>
               <div className="panel-desc">{translate('auto.k1277')}</div>
             </div>
-            <button className="btn btn-primary btn-sm" type="submit" disabled={!canLease || leaseState.loading}>
+            <button className="btn btn-primary btn-sm" type="button" onClick={openAcquireLeaseDrawer} disabled={!canLease || leaseState.loading}>
               <Play size={15} />
-              {translate('auto.k1278')}</button>
+              {translate('auto.k1276')}</button>
           </div>
-          <div className="panel-body">
+          <div className="panel-body compact">
+            <StateLine state={leaseState} />
+          </div>
+        </section>
+
+        <Drawer
+          className="test-data-drawer"
+          destroyOnHidden
+          maskClosable={!leaseState.loading}
+          open={openDrawer === 'lease'}
+          placement="right"
+          title={translate('auto.k1276')}
+          width={720}
+          onClose={() => {
+            if (!leaseState.loading) {
+              setOpenDrawer(null);
+            }
+          }}
+        >
+          <form className="document-form document-drawer-form" onSubmit={onAcquireLease}>
             <div className="form-grid">
               <Field label="projectId"><input value={leaseDraft.projectId} onChange={(event) => setLeaseDraftValue('projectId', event.target.value)} /></Field>
               <Field label="poolId"><input value={leaseDraft.poolId || selectedPoolId} onChange={(event) => setLeaseDraftValue('poolId', event.target.value)} /></Field>
@@ -1046,9 +1164,16 @@ export function TestDataWorkbench(props: { signedIn: boolean; currentUser: Curre
               <Field label="environmentId"><input value={leaseDraft.environmentId} onChange={(event) => setLeaseDraftValue('environmentId', event.target.value)} /></Field>
             </div>
             <Field label="roleTags"><input value={leaseDraft.roleTagsText} onChange={(event) => setLeaseDraftValue('roleTagsText', event.target.value)} /></Field>
+            <div className="document-actions">
+              <button className="btn btn-primary" type="submit" disabled={!canLease || leaseState.loading}>
+                <Play size={16} />
+                {translate('auto.k1276')}</button>
+              <button className="btn btn-secondary" type="button" disabled={leaseState.loading} onClick={() => setOpenDrawer(null)}>
+                {translate('actions.cancel')}</button>
+            </div>
             <StateLine state={leaseState} />
-          </div>
-        </form>
+          </form>
+        </Drawer>
 
         <section className="panel">
           <div className="panel-header">
@@ -1103,17 +1228,39 @@ export function TestDataWorkbench(props: { signedIn: boolean; currentUser: Curre
   function renderTasks() {
     return (
       <section className="test-data-layout">
-        <form className="panel" onSubmit={onCreateTask}>
+        <section className="panel">
           <div className="panel-header">
             <div>
               <div className="panel-title">{translate('auto.k1205')}</div>
               <div className="panel-desc">{health?.cleanupEnabled ? translate('auto.k1287') : translate('auto.k1288')}</div>
             </div>
-            <button className="btn btn-primary btn-sm" type="submit" disabled={!canCleanup || taskState.loading}>
+            <button className="btn btn-primary btn-sm" type="button" onClick={openCreateTaskDrawer} disabled={!canCleanup || taskState.loading}>
               <ListChecks size={15} />
-              {translate('auto.k0862')}</button>
+              {translate('auto.k0490', { value0: translate('auto.k1205') })}</button>
           </div>
-          <div className="panel-body">
+          <div className="panel-body compact">
+            {!health?.cleanupEnabled && (
+              <div className="notice warning">{translate('auto.k1289')}</div>
+            )}
+            <StateLine state={taskState} />
+          </div>
+        </section>
+
+        <Drawer
+          className="test-data-drawer"
+          destroyOnHidden
+          maskClosable={!taskState.loading}
+          open={openDrawer === 'task'}
+          placement="right"
+          title={translate('auto.k0490', { value0: translate('auto.k1205') })}
+          width={720}
+          onClose={() => {
+            if (!taskState.loading) {
+              setOpenDrawer(null);
+            }
+          }}
+        >
+          <form className="document-form document-drawer-form" onSubmit={onCreateTask}>
             {!health?.cleanupEnabled && (
               <div className="notice warning">{translate('auto.k1289')}</div>
             )}
@@ -1132,9 +1279,16 @@ export function TestDataWorkbench(props: { signedIn: boolean; currentUser: Curre
             </div>
             <Field label="targetRef"><input value={taskDraft.targetRef} onChange={(event) => setTaskDraftValue('targetRef', event.target.value)} /></Field>
             <Field label="resultSummary JSON"><textarea value={taskDraft.resultSummaryText} onChange={(event) => setTaskDraftValue('resultSummaryText', event.target.value)} /></Field>
+            <div className="document-actions">
+              <button className="btn btn-primary" type="submit" disabled={!canCleanup || taskState.loading}>
+                <ListChecks size={16} />
+                {translate('auto.k0490', { value0: translate('auto.k1205') })}</button>
+              <button className="btn btn-secondary" type="button" disabled={taskState.loading} onClick={() => setOpenDrawer(null)}>
+                {translate('actions.cancel')}</button>
+            </div>
             <StateLine state={taskState} />
-          </div>
-        </form>
+          </form>
+        </Drawer>
 
         <section className="panel">
           <div className="panel-header">
@@ -1171,61 +1325,95 @@ export function TestDataWorkbench(props: { signedIn: boolean; currentUser: Curre
     );
   }
 
-  function RecordImportForm() {
+  function RecordImportDrawer() {
     return (
-      <form className="test-data-subform" onSubmit={onImportRecord}>
-        <div className="test-data-subheader">
-          <strong>{translate('auto.k1293')}</strong>
-          <button className="btn btn-secondary btn-sm" type="submit" disabled={!selectedDataSetId || !canManage || dataSetState.loading}>
+      <Drawer
+        className="test-data-drawer"
+        destroyOnHidden
+        maskClosable={!dataSetState.loading}
+        open={openDrawer === 'record-import'}
+        placement="right"
+        title={translate('auto.k1293')}
+        width={640}
+        onClose={() => {
+          if (!dataSetState.loading) {
+            setOpenDrawer(null);
+          }
+        }}
+      >
+        <form className="document-form document-drawer-form" onSubmit={onImportRecord}>
+          <div className="form-grid">
+            <Field label="recordKey"><input value={recordDraft.recordKey} onChange={(event) => setRecordDraftValue('recordKey', event.target.value)} /></Field>
+            <Field label="recordDigest"><input value={recordDraft.recordDigest} onChange={(event) => setRecordDraftValue('recordDigest', event.target.value)} /></Field>
+            <Field label="externalRefDigest"><input value={recordDraft.externalRefDigest} onChange={(event) => setRecordDraftValue('externalRefDigest', event.target.value)} /></Field>
+            <Field label="tags"><input value={recordDraft.tagsText} onChange={(event) => setRecordDraftValue('tagsText', event.target.value)} /></Field>
+          </div>
+          <Field label="maskedSummary JSON"><textarea value={recordDraft.maskedSummaryText} onChange={(event) => setRecordDraftValue('maskedSummaryText', event.target.value)} /></Field>
+          <div className="document-actions">
+            <button className="btn btn-primary" type="submit" disabled={!selectedDataSetId || !canManage || dataSetState.loading}>
             <Upload size={15} />
-            {translate('auto.k0175')}</button>
-        </div>
-        <div className="form-grid">
-          <Field label="recordKey"><input value={recordDraft.recordKey} onChange={(event) => setRecordDraftValue('recordKey', event.target.value)} /></Field>
-          <Field label="recordDigest"><input value={recordDraft.recordDigest} onChange={(event) => setRecordDraftValue('recordDigest', event.target.value)} /></Field>
-          <Field label="externalRefDigest"><input value={recordDraft.externalRefDigest} onChange={(event) => setRecordDraftValue('externalRefDigest', event.target.value)} /></Field>
-          <Field label="tags"><input value={recordDraft.tagsText} onChange={(event) => setRecordDraftValue('tagsText', event.target.value)} /></Field>
-        </div>
-        <Field label="maskedSummary JSON"><textarea value={recordDraft.maskedSummaryText} onChange={(event) => setRecordDraftValue('maskedSummaryText', event.target.value)} /></Field>
-      </form>
+            {translate('auto.k1293')}</button>
+            <button className="btn btn-secondary" type="button" disabled={dataSetState.loading} onClick={() => setOpenDrawer(null)}>
+              {translate('actions.cancel')}</button>
+          </div>
+          <StateLine state={dataSetState} />
+        </form>
+      </Drawer>
     );
   }
 
-  function RecordGenerateForm() {
+  function RecordGenerateDrawer() {
     const generatedSource = dataSetDetail?.sourceType === 'GENERATED';
     return (
-      <form className="test-data-subform" onSubmit={onGenerateRecords}>
-        <div className="test-data-subheader">
-          <strong>{translate('auto.k1294')}</strong>
-          <button className="btn btn-secondary btn-sm" type="submit" disabled={!selectedDataSetId || !generatedSource || !canManage || dataSetState.loading}>
-            <Sparkles size={15} />
-            {translate('auto.k1295')}</button>
-        </div>
-        {!generatedSource && (
-          <div className="table-empty">{translate('auto.k1296')}</div>
-        )}
-        <div className="form-grid">
-          <Field label="count">
-            <input
-              type="number"
-              min={1}
-              max={200}
-              value={generateDraft.count}
-              onChange={(event) => setGenerateDraftValue('count', Number(event.target.value))}
-            />
-          </Field>
-          <Field label="recordKeyPrefix">
-            <input
-              value={generateDraft.recordKeyPrefix}
-              onChange={(event) => setGenerateDraftValue('recordKeyPrefix', event.target.value)}
-              placeholder={dataSetDetail ? `${dataSetDetail.code}:gen` : 'dataset:gen'}
-            />
-          </Field>
-          <Field label="tags">
-            <input value={generateDraft.tagsText} onChange={(event) => setGenerateDraftValue('tagsText', event.target.value)} />
-          </Field>
-        </div>
-      </form>
+      <Drawer
+        className="test-data-drawer"
+        destroyOnHidden
+        maskClosable={!dataSetState.loading}
+        open={openDrawer === 'record-generate'}
+        placement="right"
+        title={translate('auto.k1294')}
+        width={560}
+        onClose={() => {
+          if (!dataSetState.loading) {
+            setOpenDrawer(null);
+          }
+        }}
+      >
+        <form className="document-form document-drawer-form" onSubmit={onGenerateRecords}>
+          {!generatedSource && (
+            <div className="table-empty">{translate('auto.k1296')}</div>
+          )}
+          <div className="form-grid">
+            <Field label="count">
+              <input
+                type="number"
+                min={1}
+                max={200}
+                value={generateDraft.count}
+                onChange={(event) => setGenerateDraftValue('count', Number(event.target.value))}
+              />
+            </Field>
+            <Field label="recordKeyPrefix">
+              <input
+                value={generateDraft.recordKeyPrefix}
+                onChange={(event) => setGenerateDraftValue('recordKeyPrefix', event.target.value)}
+                placeholder={dataSetDetail ? `${dataSetDetail.code}:gen` : 'dataset:gen'}
+              />
+            </Field>
+            <Field label="tags">
+              <input value={generateDraft.tagsText} onChange={(event) => setGenerateDraftValue('tagsText', event.target.value)} />
+            </Field>
+          </div>
+          <div className="document-actions">
+            <button className="btn btn-primary" type="submit" disabled={!selectedDataSetId || !generatedSource || !canManage || dataSetState.loading}>
+              <Sparkles size={16} />
+              {translate('auto.k1294')}</button>
+            <button className="btn btn-secondary" type="button" disabled={dataSetState.loading} onClick={() => setOpenDrawer(null)}>
+              {translate('actions.cancel')}</button>
+          </div>
+          <StateLine state={dataSetState} />
+        </form>
+      </Drawer>
     );
   }
 
@@ -1364,50 +1552,59 @@ export function TestDataWorkbench(props: { signedIn: boolean; currentUser: Curre
     );
   }
 
-  function AccountForm() {
+  function AccountDrawer() {
     const selectedAccount = poolDetail?.accounts.find((account) => account.id === selectedAccountId);
     return (
-      <form className="test-data-subform" onSubmit={onSaveAccount}>
-        <div className="test-data-subheader">
-          <strong>{selectedAccount ? translate('auto.k1305') : translate('auto.k1306')}</strong>
-          <div className="test-data-panel-actions">
-            <button className="btn btn-ghost btn-sm" type="button" onClick={() => {
-              setSelectedAccountId('');
-              setAccountDraft(initialAccountDraft);
-            }}>
-              <RefreshCw size={15} />
-              {translate('auto.k0894')}</button>
-            <button className="btn btn-secondary btn-sm" type="submit" disabled={!selectedPoolId || !canManage || poolState.loading}>
-              <ShieldCheck size={15} />
-              {translate('auto.k1307')}</button>
+      <Drawer
+        className="test-data-drawer"
+        destroyOnHidden
+        maskClosable={!poolState.loading}
+        open={openDrawer === 'account'}
+        placement="right"
+        title={selectedAccount ? translate('auto.k1305') : translate('auto.k1306')}
+        width={720}
+        onClose={() => {
+          if (!poolState.loading) {
+            setOpenDrawer(null);
+          }
+        }}
+      >
+        <form className="document-form document-drawer-form" onSubmit={onSaveAccount}>
+          <div className="form-grid">
+            <Field label="accountKey"><input value={accountDraft.accountKey} onChange={(event) => setAccountDraftValue('accountKey', event.target.value)} /></Field>
+            <Field label="displayName"><input value={accountDraft.displayName} onChange={(event) => setAccountDraftValue('displayName', event.target.value)} /></Field>
+            <Field label={translate('auto.k0182')}>
+              <select value={accountDraft.status} onChange={(event) => setAccountDraftValue('status', event.target.value)}>
+                <option value="AVAILABLE">{dictionaryLabel('AVAILABLE')}</option>
+                <option value="LEASED">{dictionaryLabel('LEASED')}</option>
+                <option value="LOCKED">{dictionaryLabel('LOCKED')}</option>
+                <option value="DISABLED">{dictionaryLabel('DISABLED')}</option>
+              </select>
+            </Field>
+            <Field label="roleTags"><input value={accountDraft.roleTagsText} onChange={(event) => setAccountDraftValue('roleTagsText', event.target.value)} /></Field>
+            <Field label="lastHealthStatus"><input value={accountDraft.lastHealthStatus} onChange={(event) => setAccountDraftValue('lastHealthStatus', event.target.value)} /></Field>
+            <Field label="secretRef">
+              <input
+                type="password"
+                autoComplete="off"
+                value={accountDraft.secretRef}
+                onChange={(event) => setAccountDraftValue('secretRef', event.target.value)}
+                placeholder={selectedAccount ? translate('auto.k1308') : translate('auto.k1309')}
+              />
+            </Field>
           </div>
-        </div>
-        <div className="form-grid">
-          <Field label="accountKey"><input value={accountDraft.accountKey} onChange={(event) => setAccountDraftValue('accountKey', event.target.value)} /></Field>
-          <Field label="displayName"><input value={accountDraft.displayName} onChange={(event) => setAccountDraftValue('displayName', event.target.value)} /></Field>
-          <Field label={translate('auto.k0182')}>
-            <select value={accountDraft.status} onChange={(event) => setAccountDraftValue('status', event.target.value)}>
-              <option value="AVAILABLE">{dictionaryLabel('AVAILABLE')}</option>
-              <option value="LEASED">{dictionaryLabel('LEASED')}</option>
-              <option value="LOCKED">{dictionaryLabel('LOCKED')}</option>
-              <option value="DISABLED">{dictionaryLabel('DISABLED')}</option>
-            </select>
-          </Field>
-          <Field label="roleTags"><input value={accountDraft.roleTagsText} onChange={(event) => setAccountDraftValue('roleTagsText', event.target.value)} /></Field>
-          <Field label="lastHealthStatus"><input value={accountDraft.lastHealthStatus} onChange={(event) => setAccountDraftValue('lastHealthStatus', event.target.value)} /></Field>
-          <Field label="secretRef">
-            <input
-              type="password"
-              autoComplete="off"
-              value={accountDraft.secretRef}
-              onChange={(event) => setAccountDraftValue('secretRef', event.target.value)}
-              placeholder={selectedAccount ? translate('auto.k1308') : translate('auto.k1309')}
-            />
-          </Field>
-        </div>
-        <Field label="lastHealthSummary"><input value={accountDraft.lastHealthSummary} onChange={(event) => setAccountDraftValue('lastHealthSummary', event.target.value)} /></Field>
-        <Field label="scopeSummary JSON"><textarea value={accountDraft.scopeSummaryText} onChange={(event) => setAccountDraftValue('scopeSummaryText', event.target.value)} /></Field>
-      </form>
+          <Field label="lastHealthSummary"><input value={accountDraft.lastHealthSummary} onChange={(event) => setAccountDraftValue('lastHealthSummary', event.target.value)} /></Field>
+          <Field label="scopeSummary JSON"><textarea value={accountDraft.scopeSummaryText} onChange={(event) => setAccountDraftValue('scopeSummaryText', event.target.value)} /></Field>
+          <div className="document-actions">
+            <button className="btn btn-primary" type="submit" disabled={!selectedPoolId || !canManage || poolState.loading}>
+              <ShieldCheck size={16} />
+              {translate('auto.k1307')}</button>
+            <button className="btn btn-secondary" type="button" disabled={poolState.loading} onClick={() => setOpenDrawer(null)}>
+              {translate('actions.cancel')}</button>
+          </div>
+          <StateLine state={poolState} />
+        </form>
+      </Drawer>
     );
   }
 
@@ -1442,6 +1639,34 @@ export function TestDataWorkbench(props: { signedIn: boolean; currentUser: Curre
     setDataSetState({ loading: false });
   }
 
+  function openCreateDataSetDrawer() {
+    setDataSetDraft(initialDataSetDraft);
+    setDataSetDraftMode('create');
+    setDataSetState({ loading: false });
+    setOpenDrawer('data-set');
+  }
+
+  function openEditDataSetDrawer() {
+    if (!dataSetDetail) {
+      return;
+    }
+    setDataSetDraft(dataSetDraftFromDetail(dataSetDetail));
+    setDataSetDraftMode('edit');
+    setDataSetState({ loading: false });
+    setOpenDrawer('data-set');
+  }
+
+  function openImportRecordDrawer() {
+    setRecordDraft(initialRecordDraft);
+    setDataSetState({ loading: false });
+    setOpenDrawer('record-import');
+  }
+
+  function openGenerateRecordsDrawer() {
+    setDataSetState({ loading: false });
+    setOpenDrawer('record-generate');
+  }
+
   function setRecordDraftValue<K extends keyof RecordDraft>(key: K, value: RecordDraft[K]) {
     setRecordDraft((current) => ({ ...current, [key]: value }));
     setDataSetState({ loading: false });
@@ -1457,6 +1682,40 @@ export function TestDataWorkbench(props: { signedIn: boolean; currentUser: Curre
     setPoolState({ loading: false });
   }
 
+  function openCreatePoolDrawer() {
+    setPoolDraft(initialPoolDraft);
+    setPoolDraftMode('create');
+    setPoolState({ loading: false });
+    setOpenDrawer('pool');
+  }
+
+  function openEditPoolDrawer() {
+    if (!poolDetail) {
+      return;
+    }
+    setPoolDraft(poolDraftFromDetail(poolDetail));
+    setPoolDraftMode('edit');
+    setPoolState({ loading: false });
+    setOpenDrawer('pool');
+  }
+
+  function openCreateAccountDrawer() {
+    setSelectedAccountId('');
+    setAccountDraft(initialAccountDraft);
+    setPoolState({ loading: false });
+    setOpenDrawer('account');
+  }
+
+  function openEditAccountDrawer() {
+    const selectedAccount = poolDetail?.accounts.find((account) => account.id === selectedAccountId);
+    if (!selectedAccount) {
+      return;
+    }
+    setAccountDraft({ ...accountDraftFromAccount(selectedAccount), secretRef: '' });
+    setPoolState({ loading: false });
+    setOpenDrawer('account');
+  }
+
   function setAccountDraftValue<K extends keyof AccountDraft>(key: K, value: AccountDraft[K]) {
     setAccountDraft((current) => ({ ...current, [key]: value }));
     setPoolState({ loading: false });
@@ -1467,9 +1726,32 @@ export function TestDataWorkbench(props: { signedIn: boolean; currentUser: Curre
     setLeaseState({ loading: false });
   }
 
+  function openAcquireLeaseDrawer() {
+    setLeaseDraft((current) => ({
+      ...initialLeaseDraft,
+      projectId: current.projectId,
+      applicationId: current.applicationId,
+      environmentId: current.environmentId,
+      poolId: selectedPoolId || current.poolId
+    }));
+    setLeaseState({ loading: false });
+    setOpenDrawer('lease');
+  }
+
   function setTaskDraftValue<K extends keyof TaskDraft>(key: K, value: TaskDraft[K]) {
     setTaskDraft((current) => ({ ...current, [key]: value }));
     setTaskState({ loading: false });
+  }
+
+  function openCreateTaskDrawer() {
+    setTaskDraft((current) => ({
+      ...initialTaskDraft,
+      projectId: current.projectId,
+      dataSetId: selectedDataSetId || current.dataSetId,
+      retryRequestKey: current.retryRequestKey
+    }));
+    setTaskState({ loading: false });
+    setOpenDrawer('task');
   }
 }
 

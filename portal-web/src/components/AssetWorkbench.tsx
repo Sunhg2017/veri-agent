@@ -16,6 +16,7 @@ import {
   XCircle,
   type LucideIcon
 } from 'lucide-react';
+import { Drawer } from 'antd';
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
 import type { CurrentUser } from '../api/auth';
 import {
@@ -104,6 +105,8 @@ type ApiFilters = {
   method: string;
   keyword: string;
 };
+
+type AssetDrawer = 'requirement-create' | 'requirement-edit' | 'api-create' | 'api-edit' | null;
 
 const initialRequirementDraft: RequirementDraft = {
   projectId: '',
@@ -209,6 +212,7 @@ export function AssetWorkbench(props: { signedIn: boolean; currentUser: CurrentU
   const [apiMutationState, setApiMutationState] = useState<WorkState>({ loading: false });
   const [apiVersions, setApiVersions] = useState<AssetVersionHistoryView[]>([]);
   const [apiVersionState, setApiVersionState] = useState<WorkState>({ loading: false });
+  const [openDrawer, setOpenDrawer] = useState<AssetDrawer>(null);
 
   const refreshRequirements = useCallback(async () => {
     if (!props.signedIn || !canReadAssets) {
@@ -530,6 +534,36 @@ export function AssetWorkbench(props: { signedIn: boolean; currentUser: CurrentU
     }
   }
 
+  function openCreateRequirementDrawer() {
+    setCreateDraft(initialRequirementDraft);
+    setCreateState({ loading: false });
+    setOpenDrawer('requirement-create');
+  }
+
+  function openEditRequirementDrawer() {
+    if (!selectedRequirement) {
+      return;
+    }
+    setEditDraft(requirementDraftFromView(selectedRequirement));
+    setMutationState({ loading: false });
+    setOpenDrawer('requirement-edit');
+  }
+
+  function openCreateApiDrawer() {
+    setApiCreateDraft(initialApiDraft);
+    setApiCreateState({ loading: false });
+    setOpenDrawer('api-create');
+  }
+
+  function openEditApiDrawer() {
+    if (!selectedApi) {
+      return;
+    }
+    setApiEditDraft(apiDraftFromView(selectedApi));
+    setApiMutationState({ loading: false });
+    setOpenDrawer('api-edit');
+  }
+
   if (activeTab === 'pages' || activeTab === 'flows') {
     return (
       <AssetStructuredWorkbench
@@ -587,6 +621,7 @@ export function AssetWorkbench(props: { signedIn: boolean; currentUser: CurrentU
       setSelectedRequirementId(response.data.id);
       setEditDraft(requirementDraftFromView(response.data));
       upsertRequirement(setRequirements, response.data);
+      setOpenDrawer(null);
       setCreateState({ loading: false, success: translate('auto.k0626'), traceId: response.trace_id });
       void reloadRequirementVersions(response.data.id);
       if (response.data.id) {
@@ -621,6 +656,7 @@ export function AssetWorkbench(props: { signedIn: boolean; currentUser: CurrentU
       setSelectedRequirement(response.data);
       setEditDraft(requirementDraftFromView(response.data));
       upsertRequirement(setRequirements, response.data);
+      setOpenDrawer(null);
       setMutationState({ loading: false, success: translate('auto.k0629'), traceId: response.trace_id });
       void reloadRequirementVersions(response.data.id);
     } catch (error: unknown) {
@@ -680,6 +716,7 @@ export function AssetWorkbench(props: { signedIn: boolean; currentUser: CurrentU
       setSelectedApiId(response.data.id);
       setApiEditDraft(apiDraftFromView(response.data));
       upsertApi(setApis, response.data);
+      setOpenDrawer(null);
       setApiCreateState({ loading: false, success: translate('auto.k0636'), traceId: response.trace_id });
       void reloadApiVersions(response.data.id);
       if (response.data.id) {
@@ -714,6 +751,7 @@ export function AssetWorkbench(props: { signedIn: boolean; currentUser: CurrentU
       setSelectedApi(response.data);
       setApiEditDraft(apiDraftFromView(response.data));
       upsertApi(setApis, response.data);
+      setOpenDrawer(null);
       setApiMutationState({ loading: false, success: translate('auto.k0640'), traceId: response.trace_id });
       void reloadApiVersions(response.data.id);
     } catch (error: unknown) {
@@ -1051,17 +1089,37 @@ export function AssetWorkbench(props: { signedIn: boolean; currentUser: CurrentU
         <section className="panel module-panel asset-panel">
           {activeTab === 'requirements' ? (
             <>
-          <div className="section-heading">
-            <div className="section-icon">
-              <FilePlus2 size={20} />
+          <div className="panel-toolbar">
+            <div className="section-heading compact">
+              <div className="section-icon">
+                <FilePlus2 size={20} />
+              </div>
+              <div>
+                <span className="eyebrow">Create</span>
+                <h2>{translate('auto.k0648')}</h2>
+              </div>
             </div>
-            <div>
-              <span className="eyebrow">Create</span>
-              <h2>{translate('auto.k0648')}</h2>
-            </div>
+            <button className="primary-button" type="button" disabled={createDisabled} onClick={openCreateRequirementDrawer}>
+              <FilePlus2 size={16} />
+              {translate('auto.k0651')}</button>
           </div>
 
-          <form className="asset-form" onSubmit={submitCreate}>
+          <StateLine state={createState} />
+          <Drawer
+            className="asset-form-drawer"
+            destroyOnHidden
+            maskClosable={!createState.loading}
+            open={openDrawer === 'requirement-create'}
+            placement="right"
+            title={translate('auto.k0648')}
+            width={760}
+            onClose={() => {
+              if (!createState.loading) {
+                setOpenDrawer(null);
+              }
+            }}
+          >
+          <form className="asset-form document-drawer-form" onSubmit={submitCreate}>
             <div className="asset-form-grid">
               <label className="field" htmlFor="asset-create-project">
                 <span>projectId<b>*</b></span>
@@ -1166,11 +1224,14 @@ export function AssetWorkbench(props: { signedIn: boolean; currentUser: CurrentU
                 type="submit"
                 disabled={createDisabled || !createDraft.projectId.trim() || !createDraft.title.trim()}
               >
-                <Save size={16} />
-                {translate('auto.k0651')}</button>
-              <StateLine state={createState} />
+                    <Save size={16} />
+                    {translate('auto.k0651')}</button>
+              <button className="secondary-button" type="button" disabled={createState.loading} onClick={() => setOpenDrawer(null)}>
+                {translate('actions.cancel')}</button>
             </div>
+            <StateLine state={createState} />
           </form>
+          </Drawer>
             </>
           ) : (
             <>
@@ -1185,16 +1246,31 @@ export function AssetWorkbench(props: { signedIn: boolean; currentUser: CurrentU
                   </div>
                 </div>
                 <button
-                  className="mini-button"
+                  className="primary-button"
                   type="button"
-                  disabled
-                  title={translate('auto.k0653')}
+                  disabled={apiCreateDisabled}
+                  onClick={openCreateApiDrawer}
                 >
-                  <Upload size={14} />
-                  {translate('auto.k0654')}</button>
+                  <FilePlus2 size={16} />
+                  {translate('auto.k0656')}</button>
               </div>
 
-              <form className="asset-form" onSubmit={submitCreateApi}>
+              <StateLine state={apiCreateState} />
+              <Drawer
+                className="asset-form-drawer"
+                destroyOnHidden
+                maskClosable={!apiCreateState.loading}
+                open={openDrawer === 'api-create'}
+                placement="right"
+                title={translate('auto.k0652')}
+                width={800}
+                onClose={() => {
+                  if (!apiCreateState.loading) {
+                    setOpenDrawer(null);
+                  }
+                }}
+              >
+              <form className="asset-form document-drawer-form" onSubmit={submitCreateApi}>
                 <div className="asset-form-grid">
                   <label className="field" htmlFor="asset-api-create-project">
                     <span>projectId<b>*</b></span>
@@ -1310,9 +1386,12 @@ export function AssetWorkbench(props: { signedIn: boolean; currentUser: CurrentU
                   >
                     <Save size={16} />
                     {translate('auto.k0656')}</button>
-                  <StateLine state={apiCreateState} />
+                  <button className="secondary-button" type="button" disabled={apiCreateState.loading} onClick={() => setOpenDrawer(null)}>
+                    {translate('actions.cancel')}</button>
                 </div>
+                <StateLine state={apiCreateState} />
               </form>
+              </Drawer>
             </>
           )}
         </section>
@@ -1415,7 +1494,26 @@ export function AssetWorkbench(props: { signedIn: boolean; currentUser: CurrentU
                 </div>
               </div>
 
-              <form className="resource-edit-form asset-edit-form" onSubmit={submitEdit}>
+              {canManageAssets && (
+                <button className="mini-button" type="button" onClick={openEditRequirementDrawer} disabled={editDisabled}>
+                  <Pencil size={14} />
+                  {translate('auto.k0661')}</button>
+              )}
+              <Drawer
+                className="asset-form-drawer"
+                destroyOnHidden
+                maskClosable={!mutationState.loading}
+                open={openDrawer === 'requirement-edit'}
+                placement="right"
+                title={translate('auto.k0661')}
+                width={700}
+                onClose={() => {
+                  if (!mutationState.loading) {
+                    setOpenDrawer(null);
+                  }
+                }}
+              >
+              <form className="resource-edit-form asset-edit-form document-drawer-form" onSubmit={submitEdit}>
                 <label>
                   <span>{translate('auto.k0440')}</span>
                   <input
@@ -1458,7 +1556,11 @@ export function AssetWorkbench(props: { signedIn: boolean; currentUser: CurrentU
                     <Save size={14} />
                     {translate('auto.k0661')}</button>
                 )}
+                <button className="mini-button" type="button" disabled={mutationState.loading} onClick={() => setOpenDrawer(null)}>
+                  {translate('actions.cancel')}</button>
+                <StateLine state={mutationState} />
               </form>
+              </Drawer>
 
               {canReviewAssets && (
                 <div className="asset-status-flow">
@@ -1595,7 +1697,26 @@ export function AssetWorkbench(props: { signedIn: boolean; currentUser: CurrentU
                     <pre>{formatSchema(selectedApi.responseSchema)}</pre>
                   </div>
 
-                  <form className="resource-edit-form asset-edit-form" onSubmit={submitEditApi}>
+                  {canManageAssets && (
+                    <button className="mini-button" type="button" onClick={openEditApiDrawer} disabled={apiEditDisabled}>
+                      <Pencil size={14} />
+                      {translate('auto.k0669')}</button>
+                  )}
+                  <Drawer
+                    className="asset-form-drawer"
+                    destroyOnHidden
+                    maskClosable={!apiMutationState.loading}
+                    open={openDrawer === 'api-edit'}
+                    placement="right"
+                    title={translate('auto.k0669')}
+                    width={760}
+                    onClose={() => {
+                      if (!apiMutationState.loading) {
+                        setOpenDrawer(null);
+                      }
+                    }}
+                  >
+                  <form className="resource-edit-form asset-edit-form document-drawer-form" onSubmit={submitEditApi}>
                     <label>
                       <span>{translate('auto.k0177')}</span>
                       <input
@@ -1682,7 +1803,11 @@ export function AssetWorkbench(props: { signedIn: boolean; currentUser: CurrentU
                         <Save size={14} />
                         {translate('auto.k0669')}</button>
                     )}
+                    <button className="mini-button" type="button" disabled={apiMutationState.loading} onClick={() => setOpenDrawer(null)}>
+                      {translate('actions.cancel')}</button>
+                    <StateLine state={apiMutationState} />
                   </form>
+                  </Drawer>
 
                   <AssetVersionHistoryPanel
                     currentVersion={apiVersions[0]?.version}

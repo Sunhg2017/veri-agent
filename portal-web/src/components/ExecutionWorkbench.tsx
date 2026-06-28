@@ -13,6 +13,7 @@ import {
   Trash2,
   Webhook
 } from 'lucide-react';
+import { Drawer } from 'antd';
 import { useCallback, useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react';
 import type { CurrentUser } from '../api/auth';
 import { ApiError } from '../api/client';
@@ -130,7 +131,9 @@ export function ExecutionWorkbench(props: { signedIn: boolean; currentUser: Curr
   const [triggerEvents, setTriggerEvents] = useState<ExecutionTriggerEvent[]>([]);
   const [planDraft, setPlanDraft] = useState<ExecutionPlanDraft>(initialExecutionPlanDraft);
   const [planDraftMode, setPlanDraftMode] = useState<'create' | 'edit'>('create');
+  const [planDrawerOpen, setPlanDrawerOpen] = useState(false);
   const [triggerDraft, setTriggerDraft] = useState<TriggerDraft>(initialTriggerDraft);
+  const [triggerDrawerOpen, setTriggerDrawerOpen] = useState(false);
   const [manualReason, setManualReason] = useState('');
   const [manualRequestKey, setManualRequestKey] = useState('');
   const [loadState, setLoadState] = useState<WorkState>({ loading: false });
@@ -404,6 +407,7 @@ export function ExecutionWorkbench(props: { signedIn: boolean; currentUser: Curr
       setPlanDetail(result.data);
       setPlanDraft(executionPlanDraftFromDetail(result.data));
       setPlanDraftMode('edit');
+      setPlanDrawerOpen(false);
       setPlanActionState({ loading: false, success: translate('auto.k0827') });
     } catch (error: unknown) {
       setPlanActionState({ loading: false, error: error instanceof Error ? error.message : translate('auto.k0828') });
@@ -423,10 +427,16 @@ export function ExecutionWorkbench(props: { signedIn: boolean; currentUser: Curr
       setPlanDetail(result.data);
       setPlanDraft(executionPlanDraftFromDetail(result.data));
       setPlans((current) => current.map((plan) => plan.id === result.data.id ? result.data : plan));
+      setPlanDrawerOpen(false);
       setPlanActionState({ loading: false, success: translate('auto.k0829') });
     } catch (error: unknown) {
       setPlanActionState({ loading: false, error: error instanceof Error ? error.message : translate('auto.k0830') });
     }
+  }
+
+  async function submitUpdatePlan(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    await onUpdatePlan();
   }
 
   async function onArchivePlan() {
@@ -547,6 +557,8 @@ export function ExecutionWorkbench(props: { signedIn: boolean; currentUser: Curr
       });
       setTriggers((current) => [result.data, ...current.filter((trigger) => trigger.id !== result.data.id)]);
       setSelectedTriggerId(result.data.id);
+      setTriggerDrawerOpen(false);
+      setTriggerDraft(initialTriggerDraft);
       setTriggerActionState({ loading: false, success: translate('auto.k0845') });
     } catch (error: unknown) {
       setTriggerActionState({ loading: false, error: error instanceof Error ? error.message : translate('auto.k0846') });
@@ -653,8 +665,49 @@ export function ExecutionWorkbench(props: { signedIn: boolean; currentUser: Curr
       </section>
 
       <section className="execution-layout">
-        <form className="panel" onSubmit={onCreatePlan}>
+        <section className="panel">
           <div className="panel-header">
+            <div>
+              <div className="panel-title">{translate('auto.k0860')}</div>
+              <div className="panel-desc">{translate('auto.k0861')}</div>
+            </div>
+            <div className="execution-panel-actions">
+              <button className="btn btn-primary btn-sm" type="button" onClick={openCreatePlanDrawer} disabled={!canManage || planActionState.loading}>
+                <FileText size={15} />
+                {translate('auto.k0860')}
+              </button>
+              <button className="btn btn-secondary btn-sm" type="button" onClick={openEditPlanDrawer} disabled={!canManage || !planDetail || planActionState.loading}>
+                <ShieldCheck size={15} />
+                {translate('auto.k0859')}
+              </button>
+              <button className="btn btn-ghost btn-sm" type="button" onClick={() => void onArchivePlan()} disabled={!canManage || !selectedPlanId || planActionState.loading || planDetail?.status === 'ARCHIVED'}>
+                <Trash2 size={15} />
+                {translate('auto.k0871')}
+              </button>
+            </div>
+          </div>
+          <div className="panel-body compact">
+            {planActionState.error && <div className="document-state-line error">{planActionState.error}</div>}
+            {planActionState.success && <div className="document-state-line success">{planActionState.success}</div>}
+          </div>
+        </section>
+
+        <Drawer
+          className="execution-plan-drawer"
+          destroyOnHidden
+          maskClosable={!planActionState.loading}
+          open={planDrawerOpen}
+          placement="right"
+          title={planDraftMode === 'edit' ? translate('auto.k0859') : translate('auto.k0860')}
+          width={900}
+          onClose={() => {
+            if (!planActionState.loading) {
+              setPlanDrawerOpen(false);
+            }
+          }}
+        >
+        <form className="document-form document-drawer-form" onSubmit={planDraftMode === 'edit' ? submitUpdatePlan : onCreatePlan}>
+          <div className="panel-header execution-drawer-header">
             <div>
               <div className="panel-title">{planDraftMode === 'edit' ? translate('auto.k0859') : translate('auto.k0860')}</div>
               <div className="panel-desc">{translate('auto.k0861')}</div>
@@ -665,7 +718,7 @@ export function ExecutionWorkbench(props: { signedIn: boolean; currentUser: Curr
                 {translate('auto.k0489')}</button>
               <button className="btn btn-primary btn-sm" type="submit" disabled={!canManage || planActionState.loading}>
                 <FileText size={15} />
-                {translate('auto.k0862')}</button>
+                {planDraftMode === 'edit' ? translate('auto.k0870') : translate('auto.k0860')}</button>
             </div>
           </div>
           <div className="panel-body">
@@ -771,9 +824,6 @@ export function ExecutionWorkbench(props: { signedIn: boolean; currentUser: Curr
               ))}
             </div>
             <div className="execution-panel-actions execution-form-actions">
-              <button className="btn btn-secondary btn-sm" type="button" onClick={() => void onUpdatePlan()} disabled={!canManage || !selectedPlanId || planActionState.loading || planDraftMode !== 'edit'}>
-                <ShieldCheck size={15} />
-                {translate('auto.k0870')}</button>
               <button className="btn btn-ghost btn-sm" type="button" onClick={() => void onArchivePlan()} disabled={!canManage || !selectedPlanId || planActionState.loading || planDetail?.status === 'ARCHIVED'}>
                 <Trash2 size={15} />
                 {translate('auto.k0871')}</button>
@@ -782,6 +832,7 @@ export function ExecutionWorkbench(props: { signedIn: boolean; currentUser: Curr
             {planActionState.success && <div className="document-state-line success">{planActionState.success}</div>}
           </div>
         </form>
+        </Drawer>
 
         <section className="panel" data-testid="execution-plan-list">
           <div className="panel-header">
@@ -1055,9 +1106,31 @@ export function ExecutionWorkbench(props: { signedIn: boolean; currentUser: Curr
               <div className="panel-title">{translate('auto.k0892')}</div>
               <div className="panel-desc">{triggers.length} {translate('auto.k0893')}</div>
             </div>
+            <button
+              className="btn btn-primary btn-sm"
+              type="button"
+              onClick={openCreateTriggerDrawer}
+              disabled={!canManage || !selectedPlanId || triggerActionState.loading}
+            >
+              <Webhook size={15} />
+              {translate('auto.k0894')}</button>
           </div>
           <div className="panel-body compact">
-            <form className="execution-trigger-form" onSubmit={onCreateTrigger}>
+            <Drawer
+              className="execution-trigger-drawer"
+              destroyOnHidden
+              maskClosable={!triggerActionState.loading}
+              open={triggerDrawerOpen}
+              placement="right"
+              title={translate('auto.k0894')}
+              width={560}
+              onClose={() => {
+                if (!triggerActionState.loading) {
+                  setTriggerDrawerOpen(false);
+                }
+              }}
+            >
+            <form className="execution-trigger-form document-drawer-form" onSubmit={onCreateTrigger}>
               <Field label={translate('auto.k0286')}>
                 <select value={triggerDraft.triggerType} onChange={(event) => setTriggerDraftValue('triggerType', event.target.value as TriggerDraft['triggerType'])}>
                   <option value="WEBHOOK">{dictionaryLabel('WEBHOOK')}</option>
@@ -1090,10 +1163,17 @@ export function ExecutionWorkbench(props: { signedIn: boolean; currentUser: Curr
               <Field label="secretRef">
                 <input value={triggerDraft.secretRef} onChange={(event) => setTriggerDraftValue('secretRef', event.target.value)} />
               </Field>
-              <button className="btn btn-primary btn-sm" type="submit" disabled={!canManage || !selectedPlanId || triggerActionState.loading}>
-                <Webhook size={15} />
-                {translate('auto.k0894')}</button>
+              <div className="document-actions">
+                <button className="btn btn-primary" type="submit" disabled={!canManage || !selectedPlanId || triggerActionState.loading}>
+                  <Webhook size={16} />
+                  {translate('auto.k0894')}</button>
+                <button className="btn btn-secondary" type="button" disabled={triggerActionState.loading} onClick={() => setTriggerDrawerOpen(false)}>
+                  {translate('actions.cancel')}</button>
+              </div>
+              {triggerActionState.error && <div className="document-state-line error">{triggerActionState.error}</div>}
+              {triggerActionState.success && <div className="document-state-line success">{triggerActionState.success}</div>}
             </form>
+            </Drawer>
             {triggerActionState.error && <div className="document-state-line error">{triggerActionState.error}</div>}
             {triggerActionState.success && <div className="document-state-line success">{triggerActionState.success}</div>}
             {lastTriggerDryRun && (
@@ -1192,6 +1272,27 @@ export function ExecutionWorkbench(props: { signedIn: boolean; currentUser: Curr
       nodes: current.nodes.length <= 1 ? current.nodes : current.nodes.filter((_, nodeIndex) => nodeIndex !== index)
     }));
     setPlanActionState({ loading: false });
+  }
+
+  function openCreatePlanDrawer() {
+    resetPlanDraft();
+    setPlanDrawerOpen(true);
+  }
+
+  function openEditPlanDrawer() {
+    if (!planDetail) {
+      return;
+    }
+    setPlanDraft(executionPlanDraftFromDetail(planDetail));
+    setPlanDraftMode('edit');
+    setPlanActionState({ loading: false });
+    setPlanDrawerOpen(true);
+  }
+
+  function openCreateTriggerDrawer() {
+    setTriggerDraft(initialTriggerDraft);
+    setTriggerActionState({ loading: false });
+    setTriggerDrawerOpen(true);
   }
 
   function resetPlanDraft() {

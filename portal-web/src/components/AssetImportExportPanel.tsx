@@ -1,4 +1,5 @@
 import { Download, Upload } from 'lucide-react';
+import { Drawer } from 'antd';
 import { useEffect, useState, type FormEvent } from 'react';
 import {
   exportAssetsText,
@@ -51,6 +52,7 @@ export function AssetImportExportPanel(props: {
     ...initialDraft,
     assetType: assetTypeOptions[0] ?? initialDraft.assetType
   }));
+  const [importDrawerOpen, setImportDrawerOpen] = useState(false);
   const [state, setState] = useState<WorkState>({ loading: false });
   const [lastResult, setLastResult] = useState<AssetImportResult | null>(null);
 
@@ -84,6 +86,9 @@ export function AssetImportExportPanel(props: {
         success: translate('auto.k0460', { value0: draft.dryRun ? translate('auto.k0464') : translate('auto.k0175'), value1: response.data.created, value2: response.data.updated, value3: response.data.failed }),
         traceId: response.trace_id
       });
+      if (!draft.dryRun || response.data.failed === 0) {
+        setImportDrawerOpen(false);
+      }
       if (!draft.dryRun && response.data.failed === 0) {
         props.onImported?.();
       }
@@ -118,8 +123,32 @@ export function AssetImportExportPanel(props: {
 
   return (
     <section className="panel insight-panel asset-import-export-panel">
-      <h2>{translate('auto.k0463')}</h2>
-      <form className="asset-form" onSubmit={submitImport}>
+      <div className="panel-title-row">
+        <h2>{translate('auto.k0463')}</h2>
+        <div className="document-actions">
+          <button className="mini-button" type="button" disabled={importDisabled} onClick={() => setImportDrawerOpen(true)}>
+            <Upload size={14} />
+            {translate('auto.k0175')}</button>
+          <button className="mini-button" type="button" disabled={exportDisabled || !draft.projectId.trim()} onClick={submitExport}>
+            <Download size={14} />
+            {translate('auto.k0465')}</button>
+        </div>
+      </div>
+      <Drawer
+        className="asset-form-drawer"
+        destroyOnHidden
+        maskClosable={!state.loading}
+        open={importDrawerOpen}
+        placement="right"
+        title={translate('auto.k0463')}
+        width={720}
+        onClose={() => {
+          if (!state.loading) {
+            setImportDrawerOpen(false);
+          }
+        }}
+      >
+      <form className="asset-form document-drawer-form" onSubmit={submitImport}>
         <div className="asset-form-grid">
           <label className="field" htmlFor="asset-io-type">
             <span>assetType</span>
@@ -183,11 +212,11 @@ export function AssetImportExportPanel(props: {
             <Upload size={16} />
             {draft.dryRun ? translate('auto.k0464') : translate('auto.k0175')}
           </button>
-          <button className="secondary-button" type="button" disabled={exportDisabled || !draft.projectId.trim()} onClick={submitExport}>
-            <Download size={16} />
-            {translate('auto.k0465')}</button>
+          <button className="secondary-button" type="button" disabled={state.loading} onClick={() => setImportDrawerOpen(false)}>
+            {translate('actions.cancel')}</button>
         </div>
       </form>
+      </Drawer>
       {lastResult && (
         <div className="asset-import-result">
           <strong>{lastResult.assetType} · {lastResult.format}</strong>

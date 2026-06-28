@@ -14,6 +14,7 @@ import {
   ShieldCheck,
   Sparkles
 } from 'lucide-react';
+import { Drawer } from 'antd';
 import { useCallback, useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react';
 import type { CurrentUser } from '../api/auth';
 import {
@@ -102,6 +103,7 @@ export function ReportsWorkbench(props: { signedIn: boolean; currentUser: Curren
   const [baselineReportId, setBaselineReportId] = useState('');
   const [selectedReportIds, setSelectedReportIds] = useState<string[]>([]);
   const [generateDraft, setGenerateDraft] = useState<GenerateDraft>(initialGenerateDraft);
+  const [generateDrawerOpen, setGenerateDrawerOpen] = useState(false);
   const [loadState, setLoadState] = useState<WorkState>({ loading: false });
   const [detailState, setDetailState] = useState<WorkState>({ loading: false });
   const [generateState, setGenerateState] = useState<WorkState>({ loading: false });
@@ -226,6 +228,7 @@ export function ReportsWorkbench(props: { signedIn: boolean; currentUser: Curren
         success: result.data.idempotentReplay ? translate('auto.k1095') : translate('auto.k1096'),
         traceId: result.trace_id
       });
+      setGenerateDrawerOpen(false);
       setGenerateDraft((current) => ({ ...current, requestKey: '', reason: '' }));
     } catch (error: unknown) {
       setGenerateState({ loading: false, error: error instanceof Error ? error.message : translate('auto.k1097') });
@@ -463,8 +466,36 @@ export function ReportsWorkbench(props: { signedIn: boolean; currentUser: Curren
             <StateLine state={loadState} />
           </Panel>
 
-          <Panel title={translate('auto.k1131')} desc={translate('auto.k1132')} testId="report-generate-panel">
-            <form className="report-generate-form" onSubmit={onGenerateReport}>
+          <Panel
+            title={translate('auto.k1131')}
+            desc={translate('auto.k1132')}
+            testId="report-generate-panel"
+            action={(
+              <button className="btn btn-primary btn-sm" type="button" disabled={!canGenerate || generateState.loading} onClick={() => setGenerateDrawerOpen(true)}>
+                <FileText size={15} />{translate('auto.k1131')}
+              </button>
+            )}
+          >
+            <StateLine state={generateState} />
+            {detail?.status === 'FAILED' && (
+              <button className="btn btn-secondary btn-sm" type="button" onClick={() => void onRetryReport()} disabled={!canGenerate || generateState.loading}>
+                <RefreshCw size={15} />{translate('auto.k1135')}</button>
+            )}
+            <Drawer
+              className="report-generate-drawer"
+              destroyOnHidden
+              maskClosable={!generateState.loading}
+              open={generateDrawerOpen}
+              placement="right"
+              title={translate('auto.k1131')}
+              width={640}
+              onClose={() => {
+                if (!generateState.loading) {
+                  setGenerateDrawerOpen(false);
+                }
+              }}
+            >
+            <form className="report-generate-form document-drawer-form" onSubmit={onGenerateReport}>
               <div className="form-grid">
                 <Field label="projectId">
                   <input value={generateDraft.projectId} onChange={(event) => setGenerateDraftValue('projectId', event.target.value)} placeholder="project-alpha" disabled={!canGenerate || generateState.loading} />
@@ -482,13 +513,12 @@ export function ReportsWorkbench(props: { signedIn: boolean; currentUser: Curren
               <div className="report-actions-row">
                 <button className="btn btn-primary" type="submit" disabled={!canGenerate || generateState.loading}>
                   <FileText size={16} />{translate('auto.k1131')}</button>
-                {detail?.status === 'FAILED' && (
-                  <button className="btn btn-secondary" type="button" onClick={() => void onRetryReport()} disabled={!canGenerate || generateState.loading}>
-                    <RefreshCw size={16} />{translate('auto.k1135')}</button>
-                )}
+                <button className="btn btn-secondary" type="button" disabled={generateState.loading} onClick={() => setGenerateDrawerOpen(false)}>
+                  {translate('actions.cancel')}</button>
               </div>
               <StateLine state={generateState} />
             </form>
+            </Drawer>
           </Panel>
 
           <Panel

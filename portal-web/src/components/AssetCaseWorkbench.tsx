@@ -16,6 +16,7 @@ import {
   XCircle,
   type LucideIcon
 } from 'lucide-react';
+import { Drawer } from 'antd';
 import { useCallback, useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react';
 import type { CurrentUser } from '../api/auth';
 import {
@@ -89,6 +90,8 @@ type StepDraft = {
   expectedResult: string;
 };
 
+type CaseDrawer = 'create' | 'edit' | 'steps' | null;
+
 const initialFilters: CaseFilters = {
   projectId: '',
   status: '',
@@ -142,6 +145,7 @@ export function AssetCaseWorkbench(props: {
   const [versions, setVersions] = useState<AssetVersionHistoryView[]>([]);
   const [versionState, setVersionState] = useState<WorkState>({ loading: false });
   const [draggingStepKey, setDraggingStepKey] = useState('');
+  const [openDrawer, setOpenDrawer] = useState<CaseDrawer>(null);
 
   useEffect(() => {
     function syncFromHash() {
@@ -347,6 +351,7 @@ export function AssetCaseWorkbench(props: {
       setEditDraft(draftFromCase(response.data));
       setStepDrafts(stepsToDrafts(response.data.steps));
       upsertCase(setItems, response.data);
+      setOpenDrawer(null);
       setCreateState({ loading: false, success: translate('auto.k0403'), traceId: response.trace_id });
       void reloadVersions(response.data.id);
       selectItem(response.data.id);
@@ -384,6 +389,7 @@ export function AssetCaseWorkbench(props: {
       setSelected(nextCase);
       setEditDraft(draftFromCase(nextCase));
       upsertCase(setItems, nextCase);
+      setOpenDrawer(null);
       setMutationState({ loading: false, success: translate('auto.k0408'), traceId: response.trace_id });
       void reloadVersions(response.data.id);
     } catch (error: unknown) {
@@ -418,6 +424,7 @@ export function AssetCaseWorkbench(props: {
       setSelected(nextCase);
       setStepDrafts(stepsToDrafts(response.data));
       upsertCase(setItems, nextCase);
+      setOpenDrawer(null);
       setStepsState({ loading: false, success: translate('auto.k0411'), traceId: response.trace_id });
       void reloadVersions(selected.id);
     } catch (error: unknown) {
@@ -430,6 +437,31 @@ export function AssetCaseWorkbench(props: {
       return;
     }
     window.location.hash = `#asset-library/${tabKey}/${encodeURIComponent(itemId)}`;
+  }
+
+  function openCreateDrawer() {
+    setCreateDraft(initialCaseDraft);
+    setCreateSteps([emptyStep()]);
+    setCreateState({ loading: false });
+    setOpenDrawer('create');
+  }
+
+  function openEditDrawer() {
+    if (!selected) {
+      return;
+    }
+    setEditDraft(draftFromCase(selected));
+    setMutationState({ loading: false });
+    setOpenDrawer('edit');
+  }
+
+  function openStepsDrawer() {
+    if (!selected) {
+      return;
+    }
+    setStepDrafts(stepsToDrafts(selected.steps));
+    setStepsState({ loading: false });
+    setOpenDrawer('steps');
   }
 
   return (
@@ -586,31 +618,53 @@ export function AssetCaseWorkbench(props: {
         </section>
 
         <section className="panel module-panel asset-panel">
-          <div className="section-heading">
-            <div className="section-icon">
-              <FilePlus2 size={20} />
+          <div className="panel-toolbar">
+            <div className="section-heading compact">
+              <div className="section-icon">
+                <FilePlus2 size={20} />
+              </div>
+              <div>
+                <span className="eyebrow">Create</span>
+                <h2>{translate('auto.k0423')}</h2>
+              </div>
             </div>
-            <div>
-              <span className="eyebrow">Create</span>
-              <h2>{translate('auto.k0423')}</h2>
-            </div>
+            <button className="primary-button" type="button" disabled={createDisabled} onClick={openCreateDrawer}>
+              <FilePlus2 size={16} />
+              {translate('auto.k0424')}</button>
           </div>
-          <CaseForm
-            draft={createDraft}
-            disabled={createDisabled}
-            onChange={setCreateDraft}
-            onSubmit={submitCreate}
-            submitLabel={translate('auto.k0424')}
+          <Drawer
+            className="asset-form-drawer"
+            destroyOnHidden
+            maskClosable={!createState.loading}
+            open={openDrawer === 'create'}
+            placement="right"
+            title={translate('auto.k0423')}
+            width={800}
+            onClose={() => {
+              if (!createState.loading) {
+                setOpenDrawer(null);
+              }
+            }}
           >
-            <StepEditor
+            <CaseForm
+              className="document-drawer-form"
+              draft={createDraft}
               disabled={createDisabled}
-              draggingStepKey={draggingStepKey}
-              steps={createSteps}
-              onChange={setCreateSteps}
-              onDraggingStepKeyChange={setDraggingStepKey}
-              title={translate('auto.k0425')}
-            />
-          </CaseForm>
+              onChange={setCreateDraft}
+              onSubmit={submitCreate}
+              submitLabel={translate('auto.k0424')}
+            >
+              <StepEditor
+                disabled={createDisabled}
+                draggingStepKey={draggingStepKey}
+                steps={createSteps}
+                onChange={setCreateSteps}
+                onDraggingStepKeyChange={setDraggingStepKey}
+                title={translate('auto.k0425')}
+              />
+              <StateLine state={createState} />
+            </CaseForm>
+          </Drawer>
           <StateLine state={createState} />
         </section>
       </div>
@@ -736,19 +790,59 @@ export function AssetCaseWorkbench(props: {
                 state={versionState}
               />
 
-              <CaseForm
-                compact
-                draft={editDraft}
-                disabled={editDisabled}
-                onChange={setEditDraft}
-                onSubmit={submitEdit}
-                selectedStatus={selected.status}
-                statusDisabled={!canReviewAssets}
-                submitLabel={translate('auto.k0434')}
-              />
+              <div className="document-actions">
+                <button className="mini-button" type="button" disabled={editDisabled} onClick={openEditDrawer}>
+                  <Pencil size={14} />
+                  {translate('auto.k0434')}</button>
+                <button className="mini-button" type="button" disabled={stepsDisabled} onClick={openStepsDrawer}>
+                  <Save size={14} />
+                  {translate('auto.k0436')}</button>
+              </div>
+              <Drawer
+                className="asset-form-drawer"
+                destroyOnHidden
+                maskClosable={!mutationState.loading}
+                open={openDrawer === 'edit'}
+                placement="right"
+                title={translate('auto.k0434')}
+                width={700}
+                onClose={() => {
+                  if (!mutationState.loading) {
+                    setOpenDrawer(null);
+                  }
+                }}
+              >
+                <CaseForm
+                  className="document-drawer-form"
+                  compact
+                  draft={editDraft}
+                  disabled={editDisabled}
+                  onChange={setEditDraft}
+                  onSubmit={submitEdit}
+                  selectedStatus={selected.status}
+                  statusDisabled={!canReviewAssets}
+                  submitLabel={translate('auto.k0434')}
+                >
+                  <StateLine state={mutationState} />
+                </CaseForm>
+              </Drawer>
               <StateLine state={mutationState} />
 
-              <form className="asset-form" onSubmit={submitSteps}>
+              <Drawer
+                className="asset-form-drawer"
+                destroyOnHidden
+                maskClosable={!stepsState.loading}
+                open={openDrawer === 'steps'}
+                placement="right"
+                title={translate('auto.k0435')}
+                width={760}
+                onClose={() => {
+                  if (!stepsState.loading) {
+                    setOpenDrawer(null);
+                  }
+                }}
+              >
+              <form className="asset-form document-drawer-form" onSubmit={submitSteps}>
                 <StepEditor
                   disabled={stepsDisabled}
                   draggingStepKey={draggingStepKey}
@@ -762,7 +856,9 @@ export function AssetCaseWorkbench(props: {
                     <Save size={16} />
                     {translate('auto.k0436')}</button>
                 </div>
+                <StateLine state={stepsState} />
               </form>
+              </Drawer>
               <StateLine state={stepsState} />
               <StateLine state={detailState} />
             </div>
@@ -783,6 +879,7 @@ export function AssetCaseWorkbench(props: {
 
 function CaseForm(props: {
   children?: ReactNode;
+  className?: string;
   compact?: boolean;
   disabled: boolean;
   draft: CaseDraft;
@@ -795,7 +892,7 @@ function CaseForm(props: {
   const statusOptions = props.selectedStatus ? statusOptionsFor(props.selectedStatus) : ASSET_TEST_CASE_STATUSES;
 
   return (
-    <form className="asset-form" onSubmit={props.onSubmit}>
+    <form className={props.className ? `asset-form ${props.className}` : 'asset-form'} onSubmit={props.onSubmit}>
       <div className="asset-form-grid">
         {!props.compact && (
           <label className="field" htmlFor="asset-case-project">

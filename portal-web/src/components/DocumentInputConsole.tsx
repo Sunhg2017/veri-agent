@@ -6,6 +6,7 @@ import {
   History,
   ListChecks,
   Pencil,
+  Plus,
   RefreshCw,
   RotateCcw,
   Save,
@@ -15,6 +16,7 @@ import {
   Webhook,
   XCircle
 } from 'lucide-react';
+import { Drawer } from 'antd';
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
 import type { CurrentUser } from '../api/auth';
 import {
@@ -188,7 +190,9 @@ export function DocumentInputConsole(props: { signedIn: boolean; currentUser: Cu
   const [replayState, setReplayState] = useState<WorkState>({ loading: false });
   const [sourceDraft, setSourceDraft] = useState<SourceDraft>(initialSourceDraft);
   const [editingSourceId, setEditingSourceId] = useState('');
+  const [sourceDrawerOpen, setSourceDrawerOpen] = useState(false);
   const [importDraft, setImportDraft] = useState<ImportDraft>(initialImportDraft);
+  const [importDrawerOpen, setImportDrawerOpen] = useState(false);
   const [importFile, setImportFile] = useState<File | null>(null);
   const [mappingText, setMappingText] = useState('{\n  "titlePath": "title",\n  "descriptionPath": "description",\n  "priorityPath": "priority",\n  "acceptanceCriteriaPath": "acceptanceCriteria",\n  "tagsPath": "tags"\n}');
   const [loadState, setLoadState] = useState<WorkState>({ loading: false });
@@ -565,6 +569,7 @@ export function DocumentInputConsole(props: { signedIn: boolean; currentUser: Cu
       const traceId = (await reloadSources()) || response.trace_id;
       setEditingSourceId('');
       setSourceDraft(initialSourceDraft);
+      setSourceDrawerOpen(false);
       setSourceState({ loading: false, success: editingSourceId ? translate('auto.k0690') : translate('auto.k0691'), traceId });
     } catch (error: unknown) {
       setSourceState({ loading: false, error: errorMessage(error, translate('auto.k0692')) });
@@ -607,6 +612,7 @@ export function DocumentInputConsole(props: { signedIn: boolean; currentUser: Cu
       const traceId = (await reloadImports()) || response.trace_id;
       setLastImportResult(response.data);
       setSelectedImportId(response.data.id);
+      setImportDrawerOpen(false);
       setImportState({ loading: false, success: translate('auto.k0697'), traceId });
     } catch (error: unknown) {
       try {
@@ -845,12 +851,31 @@ export function DocumentInputConsole(props: { signedIn: boolean; currentUser: Cu
       description: source.description ?? ''
     });
     setSourceState({ loading: false });
+    setSourceDrawerOpen(true);
+  }
+
+  function openCreateSourceDrawer() {
+    setEditingSourceId('');
+    setSourceDraft(initialSourceDraft);
+    setSourceState({ loading: false });
+    setSourceDrawerOpen(true);
   }
 
   function resetSourceDraft() {
     setEditingSourceId('');
     setSourceDraft(initialSourceDraft);
     setSourceState({ loading: false });
+    setSourceDrawerOpen(false);
+  }
+
+  function openImportDrawer() {
+    setImportState({ loading: false });
+    setImportDrawerOpen(true);
+  }
+
+  function closeImportDrawer() {
+    setImportDrawerOpen(false);
+    setImportState({ loading: false });
   }
 
   function toggleCandidateSelection(candidateId: string) {
@@ -895,13 +920,36 @@ export function DocumentInputConsole(props: { signedIn: boolean; currentUser: Cu
               </div>
             </div>
             <div className="panel-toolbar-actions">
+              <button
+                className="primary-button"
+                type="button"
+                disabled={sourceDisabled || sourceState.loading}
+                onClick={openCreateSourceDrawer}
+              >
+                <Plus size={16} />
+                {translate('auto.k0738')}
+              </button>
               <button className="secondary-button" type="button" disabled={!props.signedIn || loadState.loading} onClick={refreshAll}>
                 <RefreshCw size={16} />
                 {translate('auto.k0170')}</button>
             </div>
           </div>
 
-          <form className="document-form" onSubmit={submitSource}>
+          <Drawer
+            className="document-source-drawer"
+            destroyOnHidden
+            maskClosable={!sourceState.loading}
+            open={sourceDrawerOpen}
+            placement="right"
+            title={editingSourceId ? translate('auto.k0737') : translate('auto.k0738')}
+            width={720}
+            onClose={() => {
+              if (!sourceState.loading) {
+                resetSourceDraft();
+              }
+            }}
+          >
+          <form className="document-form document-drawer-form" onSubmit={submitSource}>
             <div className="document-form-grid">
               <label className="field" htmlFor="source-project-id">
                 <span>defaultProjectId</span>
@@ -1040,6 +1088,7 @@ export function DocumentInputConsole(props: { signedIn: boolean; currentUser: Cu
               <StateLine state={sourceState} />
             </div>
           </form>
+          </Drawer>
 
           <div className="table-wrap document-source-table">
             <table>
@@ -1131,17 +1180,39 @@ export function DocumentInputConsole(props: { signedIn: boolean; currentUser: Cu
         </section>
 
         <section className="panel module-panel document-panel">
-          <div className="section-heading">
-            <div className="section-icon">
-              <Upload size={20} />
+          <div className="panel-toolbar">
+            <div className="section-heading compact">
+              <div className="section-icon">
+                <Upload size={20} />
+              </div>
+              <div>
+                <span className="eyebrow">Import</span>
+                <h2>{translate('auto.k0748')}</h2>
+              </div>
             </div>
-            <div>
-              <span className="eyebrow">Import</span>
-              <h2>{translate('auto.k0748')}</h2>
+            <div className="panel-toolbar-actions">
+              <button className="primary-button" type="button" disabled={importDisabled || importState.loading} onClick={openImportDrawer}>
+                <Upload size={16} />
+                {translate('auto.k0755')}
+              </button>
             </div>
           </div>
 
-          <form className="document-form" onSubmit={submitImport}>
+          <Drawer
+            className="document-import-drawer"
+            destroyOnHidden
+            maskClosable={!importState.loading}
+            open={importDrawerOpen}
+            placement="right"
+            title={translate('auto.k0748')}
+            width={760}
+            onClose={() => {
+              if (!importState.loading) {
+                closeImportDrawer();
+              }
+            }}
+          >
+          <form className="document-form document-drawer-form" onSubmit={submitImport}>
             <div className="document-form-grid">
               <label className="field" htmlFor="import-project-id">
                 <span>projectId<b>*</b></span>
@@ -1271,6 +1342,7 @@ export function DocumentInputConsole(props: { signedIn: boolean; currentUser: Cu
               <StateLine state={importState} />
             </div>
           </form>
+          </Drawer>
 
           {lastImportResult && (
             <div className="document-result-strip">
@@ -1685,7 +1757,7 @@ export function DocumentInputConsole(props: { signedIn: boolean; currentUser: Cu
                     <div className="document-actions candidate-actions">
                       <button className="mini-button" type="button" disabled={candidateDisabled || candidateState.loading || !draft.title.trim()} onClick={() => saveCandidate(candidate.id)}>
                         <Save size={14} />
-                        {translate('auto.k0806')}</button>
+                        {translate('auto.k0495', { value0: translate('auto.k0795') })}</button>
                       <button className="mini-button" type="button" disabled={candidateDisabled || candidateState.loading} onClick={() => confirmCandidate(candidate.id)}>
                         <CheckCircle2 size={14} />
                         {translate('auto.k0807')}</button>
