@@ -79,10 +79,10 @@ async function runWp6MainFlow(page: Page, assertResponsive: boolean) {
   await page.getByRole('button', { name: 'Diff' }).click();
   await expect(page.getByText('Diff：NEW 1 · CHANGED 1 · MATCHED 0')).toBeVisible();
   await expect(page.getByText('SCHEMA_DIGEST_CHANGED')).toBeVisible();
-  await page.getByLabel('Diff 筛选').selectOption('CHANGED');
+  await selectAntdOption(page, page.getByLabel('Diff 筛选'), '变更');
   await expect(page.getByText('SCHEMA_DIGEST_CHANGED')).toBeVisible();
   await expect(page.getByText('NO_MATCHING_WP3_API')).toHaveCount(0);
-  await page.getByLabel('Diff 筛选').selectOption('ALL');
+  await selectAntdOption(page, page.getByLabel('Diff 筛选'), '全部');
 
   await page.getByRole('button', { name: '同步' }).click();
   await expect(page.getByText('同步：CREATED 1 · UPDATED 1 · FAILED 0').first()).toBeVisible();
@@ -90,7 +90,7 @@ async function runWp6MainFlow(page: Page, assertResponsive: boolean) {
 
   await page.getByLabel('选择 GET /v1/orders/{id}').check();
   await expect(page.getByText('API 范围 1/2')).toBeVisible();
-  await page.getByLabel('生成模式').selectOption('FALLBACK_ONLY');
+  await selectAntdOption(page, page.getByLabel('生成模式'), '仅兜底');
   await page.getByLabel('WP3 用例 ID').fill('asset-case-smoke-1, asset-case-smoke-2');
   await page.getByRole('button', { name: '生成用例' }).click();
   await expect(page.getByText('生成：COMPLETED · API 2 · CASE 4').first()).toBeVisible();
@@ -165,6 +165,11 @@ async function expectNoHorizontalOverflow(page: Page, selector: string) {
     return rect.left < -1 || rect.right > window.innerWidth + 1 || document.documentElement.scrollWidth > window.innerWidth + 1;
   });
   expect(overflow).toBe(false);
+}
+
+async function selectAntdOption(page: Page, control: ReturnType<Page['getByLabel']>, optionName: string) {
+  await control.locator('xpath=./ancestor-or-self::*[contains(concat(" ", normalize-space(@class), " "), " ant-select ")][1]').locator('.ant-select-selector').click();
+  await page.locator('.ant-select-dropdown:not(.ant-select-dropdown-hidden) .ant-select-item-option-content', { hasText: optionName }).first().click();
 }
 
 class Wp6ApiAutomationMock {

@@ -16,7 +16,7 @@ import {
   Webhook,
   XCircle
 } from 'lucide-react';
-import { Drawer } from 'antd';
+import { Drawer, Select } from 'antd';
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
 import type { CurrentUser } from '../api/auth';
 import {
@@ -163,6 +163,43 @@ const initialCandidateFilters: CandidateFilterState = {
 const ASYNC_IMPORT_STATUSES = new Set(['MODEL_PARSE_QUEUED', 'MODEL_PARSE_RUNNING', 'PUBLISH_QUEUED', 'PUBLISHING']);
 const ASYNC_WEBHOOK_STATUSES = new Set(['ACCEPTED', 'PROCESSING']);
 const EVENT_POLL_INTERVAL_MS = 1500;
+const DOCUMENT_SELECT_POPUP_CLASS = 'document-select-dropdown';
+const SOURCE_STATUS_OPTIONS = [
+  { label: translate('auto.k0734'), value: '' },
+  { label: dictionaryLabel('ENABLED'), value: 'ENABLED' },
+  { label: dictionaryLabel('DISABLED'), value: 'DISABLED' },
+  { label: dictionaryLabel('PLANNED'), value: 'PLANNED' }
+];
+const EVENT_VERSION_OPTIONS = [{ label: '1.0', value: '1.0' }];
+const DOCUMENT_SOURCE_TYPE_SELECT_OPTIONS = documentSourceTypeOptions.map((option) => ({
+  disabled: option.reserved,
+  label: `${option.label}${option.reserved ? translate('auto.k0731') : ''}`,
+  value: option.value
+}));
+const CANDIDATE_STATUS_OPTIONS = [
+  { label: translate('auto.k0367'), value: '' },
+  { label: dictionaryLabel('PENDING'), value: 'PENDING' },
+  { label: dictionaryLabel('CONFIRMED'), value: 'CONFIRMED' },
+  { label: dictionaryLabel('IGNORED'), value: 'IGNORED' },
+  { label: dictionaryLabel('PUBLISH_QUEUED'), value: 'PUBLISH_QUEUED' },
+  { label: dictionaryLabel('PUBLISHING'), value: 'PUBLISHING' },
+  { label: dictionaryLabel('PUBLISHED'), value: 'PUBLISHED' },
+  { label: dictionaryLabel('PUBLISH_FAILED'), value: 'PUBLISH_FAILED' }
+];
+const WEBHOOK_STATUS_OPTIONS = [
+  { label: translate('auto.k0195'), value: '' },
+  { label: dictionaryLabel('FAILED'), value: 'FAILED' },
+  { label: dictionaryLabel('PROCESSING'), value: 'PROCESSING' },
+  { label: dictionaryLabel('PROCESSED'), value: 'PROCESSED' },
+  { label: dictionaryLabel('ACCEPTED'), value: 'ACCEPTED' },
+  { label: dictionaryLabel('REJECTED'), value: 'REJECTED' },
+  { label: dictionaryLabel('DEAD_LETTER'), value: 'DEAD_LETTER' },
+  { label: dictionaryLabel('REPLAYED'), value: 'REPLAYED' }
+];
+
+function selectPopupContainer(triggerNode: HTMLElement) {
+  return (triggerNode.closest('.ant-drawer-content') as HTMLElement | null) ?? document.body;
+}
 
 export function DocumentInputConsole(props: { signedIn: boolean; currentUser: CurrentUser | null }) {
   const [health, setHealth] = useState<DocumentInputHealth | null>(null);
@@ -973,33 +1010,32 @@ export function DocumentInputConsole(props: { signedIn: boolean; currentUser: Cu
               </label>
               <label className="field" htmlFor="source-type">
                 <span>{fieldLabel('sourceType')}</span>
-                <select
+                <Select
+                  className="document-select"
+                  classNames={{ popup: { root: DOCUMENT_SELECT_POPUP_CLASS } }}
+                  getPopupContainer={selectPopupContainer}
                   id="source-type"
                   value={sourceDraft.sourceType}
                   disabled={sourceDisabled || sourceState.loading}
-                  onChange={(event) => setSourceDraft((current) => ({ ...current, sourceType: event.target.value as DocumentSourceType }))}
-                >
-                  {documentSourceTypeOptions.map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}{option.reserved ? translate('auto.k0731') : ''}
-                    </option>
-                  ))}
-                </select>
+                  options={DOCUMENT_SOURCE_TYPE_SELECT_OPTIONS}
+                  optionFilterProp="label"
+                  showSearch
+                  onChange={(value) => setSourceDraft((current) => ({ ...current, sourceType: value as DocumentSourceType }))}
+                />
                 <small>{sourceTypeReserved ? translate('auto.k0732') : translate('auto.k0733')}</small>
               </label>
               <label className="field" htmlFor="source-status">
                 <span>{fieldLabel('status')}</span>
-                <select
+                <Select
+                  className="document-select"
+                  classNames={{ popup: { root: DOCUMENT_SELECT_POPUP_CLASS } }}
+                  getPopupContainer={selectPopupContainer}
                   id="source-status"
                   value={sourceDraft.status}
                   disabled={sourceDisabled || sourceState.loading}
-                  onChange={(event) => setSourceDraft((current) => ({ ...current, status: event.target.value }))}
-                >
-                  <option value="">{translate('auto.k0734')}</option>
-                  <option value="ENABLED">{dictionaryLabel('ENABLED')}</option>
-                  <option value="DISABLED">{dictionaryLabel('DISABLED')}</option>
-                  <option value="PLANNED">{dictionaryLabel('PLANNED')}</option>
-                </select>
+                  options={SOURCE_STATUS_OPTIONS}
+                  onChange={(value) => setSourceDraft((current) => ({ ...current, status: value }))}
+                />
               </label>
               <label className="field" htmlFor="source-code">
                 <span>{fieldLabel('sourceCode')}<b>*</b></span>
@@ -1033,14 +1069,16 @@ export function DocumentInputConsole(props: { signedIn: boolean; currentUser: Cu
               </label>
               <label className="field" htmlFor="source-event-version">
                 <span>{fieldLabel('eventVersion')}</span>
-                <select
+                <Select
+                  className="document-select"
+                  classNames={{ popup: { root: DOCUMENT_SELECT_POPUP_CLASS } }}
+                  getPopupContainer={selectPopupContainer}
                   id="source-event-version"
                   value={sourceDraft.eventVersion}
                   disabled={sourceDisabled || sourceState.loading}
-                  onChange={(event) => setSourceDraft((current) => ({ ...current, eventVersion: event.target.value }))}
-                >
-                  <option value="1.0">1.0</option>
-                </select>
+                  options={EVENT_VERSION_OPTIONS}
+                  onChange={(value) => setSourceDraft((current) => ({ ...current, eventVersion: value }))}
+                />
               </label>
               <label className="field" htmlFor="source-mapping-version">
                 <span>{fieldLabel('mappingVersion')}</span>
@@ -1236,18 +1274,18 @@ export function DocumentInputConsole(props: { signedIn: boolean; currentUser: Cu
               </label>
               <label className="field" htmlFor="import-source-type">
                 <span>{fieldLabel('sourceType')}</span>
-                <select
+                <Select
+                  className="document-select"
+                  classNames={{ popup: { root: DOCUMENT_SELECT_POPUP_CLASS } }}
+                  getPopupContainer={selectPopupContainer}
                   id="import-source-type"
                   value={importDraft.sourceType}
                   disabled={importDisabled || importState.loading}
-                  onChange={(event) => setImportDraft((current) => ({ ...current, sourceType: event.target.value as DocumentSourceType }))}
-                >
-                  {documentSourceTypeOptions.map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}{option.reserved ? translate('auto.k0731') : ''}
-                    </option>
-                  ))}
-                </select>
+                  options={DOCUMENT_SOURCE_TYPE_SELECT_OPTIONS}
+                  optionFilterProp="label"
+                  showSearch
+                  onChange={(value) => setImportDraft((current) => ({ ...current, sourceType: value as DocumentSourceType }))}
+                />
                 <small>{importTypeReserved ? translate('auto.k0750') : translate('auto.k0751')}</small>
               </label>
               <label className="field" htmlFor="import-source-ref">
@@ -1563,21 +1601,16 @@ export function DocumentInputConsole(props: { signedIn: boolean; currentUser: Cu
           </div>
           {selectedImportId && (
             <div className="document-candidate-toolbar candidate-filter-toolbar">
-              <select
+              <Select
+                className="document-inline-select"
+                classNames={{ popup: { root: DOCUMENT_SELECT_POPUP_CLASS } }}
+                getPopupContainer={selectPopupContainer}
                 value={candidateFilters.status}
                 disabled={candidateState.loading}
-                onChange={(event) => setCandidateFilters((current) => ({ ...current, status: event.target.value }))}
+                options={CANDIDATE_STATUS_OPTIONS}
+                onChange={(value) => setCandidateFilters((current) => ({ ...current, status: value }))}
                 aria-label={translate('auto.k0796')}
-              >
-                <option value="">{translate('auto.k0367')}</option>
-                <option value="PENDING">{dictionaryLabel('PENDING')}</option>
-                <option value="CONFIRMED">{dictionaryLabel('CONFIRMED')}</option>
-                <option value="IGNORED">{dictionaryLabel('IGNORED')}</option>
-                <option value="PUBLISH_QUEUED">{dictionaryLabel('PUBLISH_QUEUED')}</option>
-                <option value="PUBLISHING">{dictionaryLabel('PUBLISHING')}</option>
-                <option value="PUBLISHED">{dictionaryLabel('PUBLISHED')}</option>
-                <option value="PUBLISH_FAILED">{dictionaryLabel('PUBLISH_FAILED')}</option>
-              </select>
+              />
               <input
                 type="text"
                 value={candidateFilters.sourceRef}
@@ -1821,21 +1854,16 @@ export function DocumentInputConsole(props: { signedIn: boolean; currentUser: Cu
             </label>
             <label className="field" htmlFor="webhook-status-filter">
               <span>{fieldLabel('status')}</span>
-              <select
+              <Select
+                className="document-select"
+                classNames={{ popup: { root: DOCUMENT_SELECT_POPUP_CLASS } }}
+                getPopupContainer={selectPopupContainer}
                 id="webhook-status-filter"
                 value={eventFilters.status}
                 disabled={!props.signedIn || eventState.loading}
-                onChange={(event) => setEventFilters((current) => ({ ...current, status: event.target.value }))}
-              >
-                <option value="">{translate('auto.k0195')}</option>
-                <option value="FAILED">{dictionaryLabel('FAILED')}</option>
-                <option value="PROCESSING">{dictionaryLabel('PROCESSING')}</option>
-                <option value="PROCESSED">{dictionaryLabel('PROCESSED')}</option>
-                <option value="ACCEPTED">{dictionaryLabel('ACCEPTED')}</option>
-                <option value="REJECTED">{dictionaryLabel('REJECTED')}</option>
-                <option value="DEAD_LETTER">{dictionaryLabel('DEAD_LETTER')}</option>
-                <option value="REPLAYED">{dictionaryLabel('REPLAYED')}</option>
-              </select>
+                options={WEBHOOK_STATUS_OPTIONS}
+                onChange={(value) => setEventFilters((current) => ({ ...current, status: value }))}
+              />
             </label>
           </div>
           <div className="webhook-event-list">

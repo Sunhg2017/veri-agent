@@ -944,6 +944,146 @@ a:hover {
   cursor: not-allowed;
 }
 
+.ui-native-select,
+.ui-select-control,
+.document-select,
+.document-inline-select {
+  min-width: 0;
+  min-height: 36px;
+  color: var(--text-primary);
+  font-size: var(--font-size-sm);
+}
+
+.ui-native-select,
+.ui-select-control,
+.document-select {
+  width: 100%;
+}
+
+.document-inline-select {
+  min-width: 180px;
+}
+
+.ui-native-select .ant-select-selector,
+.ui-select-control .ant-select-selector,
+.document-select .ant-select-selector,
+.document-inline-select .ant-select-selector {
+  min-height: 36px !important;
+  border-color: var(--border) !important;
+  border-radius: var(--radius-sm) !important;
+  background: var(--surface) !important;
+  color: var(--text-primary) !important;
+  box-shadow: none !important;
+  transition: border-color var(--transition-fast), box-shadow var(--transition-fast), background var(--transition-fast) !important;
+}
+
+.ui-native-select .ant-select-selection-search-input,
+.ui-select-control .ant-select-selection-search-input,
+.document-select .ant-select-selection-search-input,
+.document-inline-select .ant-select-selection-search-input {
+  height: 34px !important;
+}
+
+.ui-native-select .ant-select-selection-item,
+.ui-native-select .ant-select-selection-placeholder,
+.ui-select-control .ant-select-selection-item,
+.ui-select-control .ant-select-selection-placeholder,
+.document-select .ant-select-selection-item,
+.document-select .ant-select-selection-placeholder,
+.document-inline-select .ant-select-selection-item,
+.document-inline-select .ant-select-selection-placeholder {
+  color: var(--text-primary) !important;
+  line-height: 34px !important;
+}
+
+.ui-native-select .ant-select-selection-placeholder,
+.ui-select-control .ant-select-selection-placeholder,
+.document-select .ant-select-selection-placeholder,
+.document-inline-select .ant-select-selection-placeholder {
+  color: var(--text-placeholder) !important;
+}
+
+.ui-native-select .ant-select-arrow,
+.ui-select-control .ant-select-arrow,
+.document-select .ant-select-arrow,
+.document-inline-select .ant-select-arrow {
+  color: var(--text-tertiary);
+}
+
+.ui-native-select:hover .ant-select-selector,
+.ui-select-control:hover .ant-select-selector,
+.document-select:hover .ant-select-selector,
+.document-inline-select:hover .ant-select-selector {
+  border-color: var(--border-strong) !important;
+  background: var(--surface-hover) !important;
+}
+
+.ui-native-select.ant-select-focused .ant-select-selector,
+.ui-select-control.ant-select-focused .ant-select-selector,
+.document-select.ant-select-focused .ant-select-selector,
+.document-inline-select.ant-select-focused .ant-select-selector {
+  border-color: var(--primary) !important;
+  background: var(--surface) !important;
+  box-shadow: 0 0 0 3px var(--focus-ring) !important;
+}
+
+.ui-native-select.ant-select-disabled .ant-select-selector,
+.ui-select-control.ant-select-disabled .ant-select-selector,
+.document-select.ant-select-disabled .ant-select-selector,
+.document-inline-select.ant-select-disabled .ant-select-selector {
+  border-color: var(--border-light) !important;
+  background: var(--bg-alt) !important;
+  color: var(--text-tertiary) !important;
+  cursor: not-allowed !important;
+}
+
+.ui-native-select.ant-select-disabled .ant-select-selection-item,
+.ui-select-control.ant-select-disabled .ant-select-selection-item,
+.document-select.ant-select-disabled .ant-select-selection-item,
+.document-inline-select.ant-select-disabled .ant-select-selection-item {
+  color: var(--text-tertiary) !important;
+}
+
+.ui-native-select-dropdown,
+.ui-select-dropdown,
+.document-select-dropdown {
+  padding: 4px !important;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface) !important;
+  box-shadow: var(--shadow-lg);
+}
+
+.ui-native-select-dropdown .ant-select-item,
+.ui-select-dropdown .ant-select-item,
+.document-select-dropdown .ant-select-item {
+  min-height: 32px;
+  padding: 6px 10px;
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  font-size: var(--font-size-sm);
+}
+
+.ui-native-select-dropdown .ant-select-item-option-active:not(.ant-select-item-option-disabled),
+.ui-select-dropdown .ant-select-item-option-active:not(.ant-select-item-option-disabled),
+.document-select-dropdown .ant-select-item-option-active:not(.ant-select-item-option-disabled) {
+  background: var(--surface-hover) !important;
+}
+
+.ui-native-select-dropdown .ant-select-item-option-selected:not(.ant-select-item-option-disabled),
+.ui-select-dropdown .ant-select-item-option-selected:not(.ant-select-item-option-disabled),
+.document-select-dropdown .ant-select-item-option-selected:not(.ant-select-item-option-disabled) {
+  background: color-mix(in srgb, var(--primary) 12%, var(--surface)) !important;
+  color: var(--primary);
+  font-weight: 650;
+}
+
+.ui-native-select-dropdown .ant-select-item-option-disabled,
+.ui-select-dropdown .ant-select-item-option-disabled,
+.document-select-dropdown .ant-select-item-option-disabled {
+  color: var(--text-tertiary) !important;
+}
+
 .field select {
   appearance: none;
   padding-right: 34px;
@@ -7030,9 +7170,9 @@ thead th {
 .text-center { text-align: center; }
 .text-right { text-align: right; }
 
-.ui-select-field.has-error select {
-  border-color: var(--danger);
-  box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.1);
+.ui-select-field.has-error .ant-select-selector {
+  border-color: var(--danger) !important;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--danger) 16%, transparent) !important;
 }
 
 .ui-tree {

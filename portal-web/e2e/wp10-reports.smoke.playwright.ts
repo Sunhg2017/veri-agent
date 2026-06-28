@@ -82,7 +82,7 @@ async function runWp10MainFlow(page: Page, assertResponsive: boolean) {
   expect(mock.reviewDraftStatus).toBe('REVIEWED');
 
   const comparePanel = page.getByTestId('report-compare-panel');
-  await comparePanel.getByLabel('baseline report').selectOption(existingReportId);
+  await selectAntdOption(page, comparePanel.getByLabel('baseline report'), existingReportId);
   await comparePanel.getByRole('button', { name: '开始对比' }).click();
   await expect(comparePanel.getByText('发现 8 项聚合差异')).toBeVisible();
   await expect(comparePanel.getByText('summary.runStatus')).toBeVisible();
@@ -121,6 +121,11 @@ async function expectNoHorizontalOverflow(page: Page, selector: string) {
     return rect.left < -1 || rect.right > window.innerWidth + 1 || document.documentElement.scrollWidth > window.innerWidth + 1;
   });
   expect(overflow).toBe(false);
+}
+
+async function selectAntdOption(page: Page, control: ReturnType<Page['getByLabel']>, optionName: string) {
+  await control.locator('xpath=./ancestor-or-self::*[contains(concat(" ", normalize-space(@class), " "), " ant-select ")][1]').locator('.ant-select-selector').click();
+  await page.locator('.ant-select-dropdown:not(.ant-select-dropdown-hidden) .ant-select-item-option-content', { hasText: optionName }).first().click();
 }
 
 async function expectInfoBlock(page: Page, panel: ReturnType<Page['getByTestId']>, title: string, value: string) {

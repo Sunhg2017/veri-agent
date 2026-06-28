@@ -43,7 +43,7 @@ async function runWp9MainFlow(page: Page, assertResponsive: boolean) {
   await planForm.getByLabel('项目').fill('project-wp9-ui-smoke');
   await planForm.getByLabel('名称').fill('WP9 UI smoke plan');
   await planForm.getByLabel('环境').fill('staging');
-  await planForm.getByLabel('状态').selectOption('READY');
+  await selectAntdOption(page, planForm.getByLabel('状态'), '就绪');
   await planForm.getByLabel('描述').fill('desktop and mobile browser smoke');
 
   await planForm.getByRole('button', { name: '添加节点' }).click();
@@ -55,9 +55,9 @@ async function runWp9MainFlow(page: Page, assertResponsive: boolean) {
   await nodeEditors.nth(0).getByLabel('secretRefs').fill('secret://wp9/ui-runtime');
   await nodeEditors.nth(0).getByLabel('重试次数').fill('2');
   await nodeEditors.nth(1).getByLabel('node key').fill('report');
-  await nodeEditors.nth(1).getByLabel('节点类型').selectOption('REPORT_HANDOFF');
+  await selectAntdOption(page, nodeEditors.nth(1).getByLabel('节点类型'), '报告交接');
   await nodeEditors.nth(1).getByLabel('依赖').fill('api-smoke');
-  await nodeEditors.nth(1).getByLabel('失败策略').selectOption('CONTINUE');
+  await selectAntdOption(page, nodeEditors.nth(1).getByLabel('失败策略'), '继续');
   await nodeEditors.nth(1).getByLabel('重试次数').fill('0');
 
   await planForm.getByRole('button', { name: '创建' }).click();
@@ -157,6 +157,11 @@ async function expectNoHorizontalOverflow(page: Page, selector: string) {
     return rect.left < -1 || rect.right > window.innerWidth + 1 || document.documentElement.scrollWidth > window.innerWidth + 1;
   });
   expect(overflow).toBe(false);
+}
+
+async function selectAntdOption(page: Page, control: ReturnType<Page['getByLabel']>, optionName: string) {
+  await control.locator('xpath=./ancestor-or-self::*[contains(concat(" ", normalize-space(@class), " "), " ant-select ")][1]').locator('.ant-select-selector').click();
+  await page.locator('.ant-select-dropdown:not(.ant-select-dropdown-hidden) .ant-select-item-option-content', { hasText: optionName }).first().click();
 }
 
 class Wp9ExecutionMock {

@@ -24,6 +24,7 @@ import { GenerationSourceBadge } from './TestDesignWorkbenchShared';
 import { taskGenerationSource } from '../testDesignGenerationSource';
 import { dictionaryLabel } from '../platform/dictionaries';
 import { translate } from '../platform/i18n';
+import { NativeSelect } from './ui';
 
 export function TestDesignGenerationConfigPanel(props: {
   canGenerate: boolean;
@@ -54,14 +55,14 @@ export function TestDesignGenerationConfigPanel(props: {
         <form className="main-stack" onSubmit={props.onCreateTask}>
           <label className="field">
             <span className="field-label">{translate('auto.k1603')}</span>
-            <select value={draft.templateId} onChange={(event) => props.onSelectGenerationTemplate(event.target.value)} disabled={!props.canGenerate || props.mutationState.loading || props.templateState.loading}>
+            <NativeSelect value={draft.templateId} onChange={(event) => props.onSelectGenerationTemplate(event.target.value)} disabled={!props.canGenerate || props.mutationState.loading || props.templateState.loading}>
               <option value="">{translate('auto.k1604')}</option>
               {props.templates.filter((template) => template.enabled).map((template) => (
                 <option key={template.id} value={template.id}>
                   {template.projectId ? translate('auto.k0176') : translate('auto.k1605')} · {template.name}
                 </option>
               ))}
-            </select>
+            </NativeSelect>
             <span className="field-hint">
               {props.selectedGenerationTemplate
                 ? `${props.selectedGenerationTemplate.promptKey}@${props.selectedGenerationTemplate.promptVersion} · ${props.selectedGenerationTemplate.generationStrategy}/${props.selectedGenerationTemplate.coverageStrategy}`
@@ -158,7 +159,7 @@ export function TestDesignTaskListPanel(props: {
           </label>
           <label className="field">
             <span className="field-label">{translate('auto.k0182')}</span>
-            <select value={props.taskFilters.status} onChange={(event) => props.onTaskFiltersChange((current) => ({ ...current, status: event.target.value }))} disabled={props.disabled || props.loadState.loading}>
+            <NativeSelect value={props.taskFilters.status} onChange={(event) => props.onTaskFiltersChange((current) => ({ ...current, status: event.target.value }))} disabled={props.disabled || props.loadState.loading}>
               <option value="">{translate('auto.k0195')}</option>
               <option value="DRAFT">{dictionaryLabel('DRAFT')}</option>
               <option value="QUEUED">{dictionaryLabel('QUEUED')}</option>
@@ -170,7 +171,7 @@ export function TestDesignTaskListPanel(props: {
               <option value="PUBLISH_QUEUED">{dictionaryLabel('PUBLISH_QUEUED')}</option>
               <option value="PUBLISHING">{dictionaryLabel('PUBLISHING')}</option>
               <option value="PUBLISHED">{dictionaryLabel('PUBLISHED')}</option>
-            </select>
+            </NativeSelect>
           </label>
           <label className="field">
             <span className="field-label">{translate('auto.k1316')}</span>

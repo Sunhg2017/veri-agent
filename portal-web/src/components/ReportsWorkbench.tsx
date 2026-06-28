@@ -43,6 +43,7 @@ import {
 import { canUseButton, hasPermission } from '../permissions';
 import { dictionaryLabel, displayValueLabel, fieldLabel } from '../platform/dictionaries';
 import { translate } from '../platform/i18n';
+import { NativeSelect } from './ui';
 
 type WorkState = {
   loading: boolean;
@@ -449,14 +450,14 @@ export function ReportsWorkbench(props: { signedIn: boolean; currentUser: Curren
                 <input value={filters.executionRunId} onChange={(event) => setFilters((current) => ({ ...current, executionRunId: event.target.value }))} placeholder="UUID" />
               </Field>
               <Field label="status">
-                <select value={filters.status} onChange={(event) => setFilters((current) => ({ ...current, status: event.target.value }))}>
+                <NativeSelect value={filters.status} onChange={(event) => setFilters((current) => ({ ...current, status: event.target.value }))}>
                   <option value="">{translate('auto.k0195')}</option>
                   <option value="READY">{dictionaryLabel('READY')}</option>
                   <option value="FAILED">{dictionaryLabel('FAILED')}</option>
                   <option value="QUEUED">{dictionaryLabel('QUEUED')}</option>
                   <option value="GENERATING">{dictionaryLabel('GENERATING')}</option>
                   <option value="ARCHIVED">{dictionaryLabel('ARCHIVED')}</option>
-                </select>
+                </NativeSelect>
               </Field>
               <div className="report-filter-actions">
                 <button className="btn btn-secondary" type="submit" disabled={loadState.loading}>
@@ -779,7 +780,7 @@ function ComparePanel(props: {
     >
       <div className="report-compare-controls">
         <Field label="baseline report">
-          <select
+          <NativeSelect
             value={props.baselineReportId}
             onChange={(event) => props.onBaselineChange(event.target.value)}
           >
@@ -789,7 +790,7 @@ function ComparePanel(props: {
                 {report.status} · {shortId(report.executionRunId)} · {report.generatedAt ? formatDateTime(report.generatedAt) : shortId(report.id)}
               </option>
             ))}
-          </select>
+          </NativeSelect>
         </Field>
       </div>
       {props.reports.length === 0 && (

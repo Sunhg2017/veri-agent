@@ -43,6 +43,7 @@ import type { AssetNavigationKey } from './AssetStructuredWorkbench';
 import { AssetTraceTopologyPanel, describeTopologyFocus } from './AssetTraceTopologyPanel';
 import { dictionaryLabel } from '../platform/dictionaries';
 import { translate } from '../platform/i18n';
+import { NativeSelect } from './ui';
 
 type AssetNavigationTab = {
   key: AssetNavigationKey;
@@ -435,7 +436,7 @@ export function AssetTraceWorkbench(props: {
             </label>
             <label className="field" htmlFor="asset-trace-filter-requirement-status">
               <span>{translate('auto.k0533')}</span>
-              <select
+              <NativeSelect
                 id="asset-trace-filter-requirement-status"
                 value={filters.requirementStatus}
                 disabled={disabled}
@@ -445,11 +446,11 @@ export function AssetTraceWorkbench(props: {
                 {ASSET_REQUIREMENT_STATUSES.map((status) => (
                   <option key={status} value={status}>{dictionaryLabel(status)}</option>
                 ))}
-              </select>
+              </NativeSelect>
             </label>
             <label className="field" htmlFor="asset-trace-filter-api-status">
               <span>{translate('auto.k0534')}</span>
-              <select
+              <NativeSelect
                 id="asset-trace-filter-api-status"
                 value={filters.apiStatus}
                 disabled={disabled}
@@ -459,11 +460,11 @@ export function AssetTraceWorkbench(props: {
                 {ASSET_API_STATUSES.map((status) => (
                   <option key={status} value={status}>{dictionaryLabel(status)}</option>
                 ))}
-              </select>
+              </NativeSelect>
             </label>
             <label className="field" htmlFor="asset-trace-filter-page-status">
               <span>{translate('auto.k0535')}</span>
-              <select
+              <NativeSelect
                 id="asset-trace-filter-page-status"
                 value={filters.pageStatus}
                 disabled={disabled}
@@ -473,11 +474,11 @@ export function AssetTraceWorkbench(props: {
                 {ASSET_PAGE_STATUSES.map((status) => (
                   <option key={status} value={status}>{dictionaryLabel(status)}</option>
                 ))}
-              </select>
+              </NativeSelect>
             </label>
             <label className="field" htmlFor="asset-trace-filter-flow-status">
               <span>{translate('auto.k0536')}</span>
-              <select
+              <NativeSelect
                 id="asset-trace-filter-flow-status"
                 value={filters.flowStatus}
                 disabled={disabled}
@@ -487,11 +488,11 @@ export function AssetTraceWorkbench(props: {
                 {ASSET_FLOW_STATUSES.map((status) => (
                   <option key={status} value={status}>{dictionaryLabel(status)}</option>
                 ))}
-              </select>
+              </NativeSelect>
             </label>
             <label className="field" htmlFor="asset-trace-filter-case-status">
               <span>{translate('auto.k0537')}</span>
-              <select
+              <NativeSelect
                 id="asset-trace-filter-case-status"
                 value={filters.caseStatus}
                 disabled={disabled}
@@ -501,11 +502,11 @@ export function AssetTraceWorkbench(props: {
                 {ASSET_TEST_CASE_STATUSES.map((status) => (
                   <option key={status} value={status}>{dictionaryLabel(status)}</option>
                 ))}
-              </select>
+              </NativeSelect>
             </label>
             <label className="field" htmlFor="asset-trace-filter-coverage">
               <span>{translate('auto.k0538')}</span>
-              <select
+              <NativeSelect
                 id="asset-trace-filter-coverage"
                 value={filters.coverage}
                 disabled={disabled}
@@ -515,7 +516,7 @@ export function AssetTraceWorkbench(props: {
                 <option value="covered">{translate('auto.k0521')}</option>
                 <option value="partial">{translate('auto.k0522')}</option>
                 <option value="uncovered">{translate('auto.k0523')}</option>
-              </select>
+              </NativeSelect>
             </label>
             <label className="field" htmlFor="asset-trace-filter-keyword">
               <span>keyword</span>

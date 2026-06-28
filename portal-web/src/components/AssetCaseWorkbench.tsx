@@ -51,6 +51,7 @@ import { AssetVersionHistoryPanel } from './AssetVersionHistoryPanel';
 import { StepRichTextField } from './StepRichTextField';
 import { dictionaryLabel, fieldLabel } from '../platform/dictionaries';
 import { translate } from '../platform/i18n';
+import { NativeSelect } from './ui';
 
 type AssetNavigationTab = {
   key: AssetNavigationKey;
@@ -515,7 +516,7 @@ export function AssetCaseWorkbench(props: {
             </label>
             <label className="field" htmlFor="asset-cases-filter-status">
               <span>{fieldLabel('status')}</span>
-              <select
+              <NativeSelect
                 id="asset-cases-filter-status"
                 value={filters.status}
                 disabled={disabled}
@@ -525,11 +526,11 @@ export function AssetCaseWorkbench(props: {
                 {ASSET_TEST_CASE_STATUSES.map((status) => (
                   <option key={status} value={status}>{dictionaryLabel(status)}</option>
                 ))}
-              </select>
+              </NativeSelect>
             </label>
             <label className="field" htmlFor="asset-cases-filter-source">
               <span>{fieldLabel('source')}</span>
-              <select
+              <NativeSelect
                 id="asset-cases-filter-source"
                 value={filters.source}
                 disabled={disabled}
@@ -539,7 +540,7 @@ export function AssetCaseWorkbench(props: {
                 {caseSources.map((source) => (
                   <option key={source} value={source}>{dictionaryLabel(source)}</option>
                 ))}
-              </select>
+              </NativeSelect>
             </label>
             <label className="field" htmlFor="asset-cases-filter-keyword">
               <span>{fieldLabel('keyword')}</span>
@@ -938,7 +939,7 @@ function CaseForm(props: {
         </label>
         <label className="field" htmlFor={`asset-case-${props.compact ? 'edit-' : ''}priority`}>
           <span>{fieldLabel('priority')}</span>
-          <select
+          <NativeSelect
             id={`asset-case-${props.compact ? 'edit-' : ''}priority`}
             value={props.draft.priority}
             disabled={props.disabled}
@@ -947,11 +948,11 @@ function CaseForm(props: {
             {ASSET_REQUIREMENT_PRIORITIES.map((priority) => (
               <option key={priority} value={priority}>{dictionaryLabel(priority)}</option>
             ))}
-          </select>
+          </NativeSelect>
         </label>
         <label className="field" htmlFor={`asset-case-${props.compact ? 'edit-' : ''}status`}>
           <span>{fieldLabel('status')}</span>
-          <select
+          <NativeSelect
             id={`asset-case-${props.compact ? 'edit-' : ''}status`}
             value={props.draft.status}
             disabled={props.disabled || props.statusDisabled}
@@ -960,7 +961,7 @@ function CaseForm(props: {
             {statusOptions.map((status) => (
               <option key={status} value={status}>{dictionaryLabel(status)}</option>
             ))}
-          </select>
+          </NativeSelect>
         </label>
         <label className="field" htmlFor={`asset-case-${props.compact ? 'edit-' : ''}tags`}>
           <span>{fieldLabel('tags')}</span>

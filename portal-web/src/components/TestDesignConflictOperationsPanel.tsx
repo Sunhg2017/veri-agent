@@ -33,6 +33,7 @@ import {
 } from './TestDesignWorkbenchShared';
 import { dictionaryLabel } from '../platform/dictionaries';
 import { translate } from '../platform/i18n';
+import { NativeSelect } from './ui';
 
 export function TestDesignConflictOperationsPanel(props: {
   canRead: boolean;
@@ -114,7 +115,7 @@ export function TestDesignConflictOperationsPanel(props: {
           </label>
           <label className="field">
             <span className="field-label">{translate('auto.k1364')}</span>
-            <select
+            <NativeSelect
               value={props.filters.resolutionStatus}
               onChange={(event) => props.onFiltersChange((current) => ({
                 ...current,
@@ -125,11 +126,11 @@ export function TestDesignConflictOperationsPanel(props: {
               <option value="OPEN">{dictionaryLabel('OPEN')}</option>
               <option value="RESOLVED">{dictionaryLabel('RESOLVED')}</option>
               <option value="ALL">{dictionaryLabel('ALL')}</option>
-            </select>
+            </NativeSelect>
           </label>
           <label className="field">
             <span className="field-label">{translate('auto.k1314')}</span>
-            <select
+            <NativeSelect
               value={props.filters.candidateStatus}
               onChange={(event) => props.onFiltersChange((current) => ({ ...current, candidateStatus: event.target.value }))}
               disabled={!props.canRead || props.state.loading}
@@ -138,7 +139,7 @@ export function TestDesignConflictOperationsPanel(props: {
               {TEST_DESIGN_CANDIDATE_STATUSES.map((status) => (
                 <option value={status} key={status}>{dictionaryLabel(status)}</option>
               ))}
-            </select>
+            </NativeSelect>
           </label>
           <label className="field">
             <span className="field-label">{translate('auto.k1316')}</span>
@@ -231,7 +232,7 @@ export function TestDesignConflictOperationsPanel(props: {
                 </span>
                 <div className="test-design-conflict-controls">
                   <PublishResultBadge value={item.resolved ? 'RESOLVED' : record.result} />
-                  <select
+                  <NativeSelect
                     value={targetCaseId}
                     onChange={(event) => {
                       const nextCaseId = event.target.value;
@@ -254,7 +255,7 @@ export function TestDesignConflictOperationsPanel(props: {
                         {testCase.title || shortIdentifier(testCase.id)}
                       </option>
                     ))}
-                  </select>
+                  </NativeSelect>
                   <button
                     className="btn btn-secondary btn-xs"
                     type="button"

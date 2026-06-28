@@ -78,6 +78,7 @@ import {
 } from '../permissions';
 import { dictionaryLabel } from '../platform/dictionaries';
 import { translate } from '../platform/i18n';
+import { NativeSelect } from './ui';
 
 function optionalBoolean(value: string | undefined): boolean | undefined {
   if (value === 'true') return true;
@@ -808,7 +809,7 @@ function ResourceLifecyclePanel<T extends object>(props: ResourceLifecyclePanelP
         </div>
 
         <div className="field management-select-field">
-          <select
+          <NativeSelect
             value={selectedKey}
             onChange={(e) => setSelectedKey(e.target.value)}
             disabled={!props.signedIn}
@@ -817,7 +818,7 @@ function ResourceLifecyclePanel<T extends object>(props: ResourceLifecyclePanelP
             {props.resources.map((r) => (
               <option key={r} value={r}>{r}</option>
             ))}
-          </select>
+          </NativeSelect>
         </div>
 
         {loading && <div className="skeleton skeleton-text" />}
@@ -843,14 +844,14 @@ function ResourceLifecyclePanel<T extends object>(props: ResourceLifecyclePanelP
                     <div className="field" key={field.key}>
                       <label className="field-label">{field.label}</label>
                       {field.kind === 'select' || field.kind === 'public-model' ? (
-                        <select
+                        <NativeSelect
                           value={editDraft[field.key] ?? ''}
                           onChange={(e) => setEditDraft((d) => d ? { ...d, [field.key]: e.target.value } : d)}
                         >
                           {(field.options ?? []).map((opt) => (
                             <option key={opt.value} value={opt.value}>{opt.label}</option>
                           ))}
-                        </select>
+                        </NativeSelect>
                       ) : (
                         <input
                           type="text"
@@ -907,14 +908,14 @@ function RoleBindingControls(props: {
     <div className="role-binding-controls">
       {props.canAssign && (
         <>
-          <select
+          <NativeSelect
             value={selectedRole}
             onChange={(e) => setSelectedRole(e.target.value)}
             disabled={!props.signedIn}
           >
             <option value="">{translate('auto.k0247')}</option>
             {props.roles.map((r) => <option key={r.code} value={r.code}>{r.name}</option>)}
-          </select>
+          </NativeSelect>
           <button
             className="btn btn-xs btn-secondary"
             disabled={!props.signedIn || props.loading || !selectedRole}
@@ -1015,7 +1016,7 @@ function ScopedRolePanel(props: {
         </div>
 
         <div className="field management-select-field">
-          <select
+          <NativeSelect
             value={selectedKey}
             onChange={(e) => setSelectedKey(e.target.value)}
             disabled={!props.signedIn}
@@ -1023,7 +1024,7 @@ function ScopedRolePanel(props: {
           >
             <option value="">{translate('auto.k0334')}{props.resourceLabel}...</option>
             {props.resources.map((r) => <option key={r} value={r}>{r}</option>)}
-          </select>
+          </NativeSelect>
         </div>
 
         {error && <div className="notice error management-notice-sm">{error}</div>}
@@ -1061,13 +1062,13 @@ function ScopedRolePanel(props: {
                   onChange={(e) => setUsername(e.target.value)}
                   className="management-compact-control"
                 />
-                <select
+                <NativeSelect
                   value={roleCode}
                   onChange={(e) => setRoleCode(e.target.value)}
                   className="management-compact-control"
                 >
                   {props.roles.map((role) => <option key={role} value={role}>{role}</option>)}
-                </select>
+                </NativeSelect>
                 <button className="btn btn-primary btn-sm" onClick={add} disabled={loading || !username.trim()}>{translate('auto.k0344')}</button>
               </div>
             )}
@@ -1117,7 +1118,7 @@ function EnvironmentConnectivityPanel(props: {
         </div>
 
         <div className="field management-select-field">
-          <select
+          <NativeSelect
             value={selectedKey}
             onChange={(e) => setSelectedKey(e.target.value)}
             disabled={!props.signedIn}
@@ -1125,7 +1126,7 @@ function EnvironmentConnectivityPanel(props: {
           >
             <option value="">{translate('auto.k0348')}</option>
             {props.resources.map((r) => <option key={r} value={r}>{r}</option>)}
-          </select>
+          </NativeSelect>
         </div>
 
         {props.canRun && selectedKey && (
@@ -1183,7 +1184,7 @@ function RoleDefinitionPanel(props: {
         </div>
 
         <div className="field management-select-field">
-          <select
+          <NativeSelect
             value={selectedCode}
             onChange={(e) => setSelectedCode(e.target.value)}
             disabled={!props.signedIn}
@@ -1191,7 +1192,7 @@ function RoleDefinitionPanel(props: {
           >
             <option value="">{translate('auto.k0352')}</option>
             {props.roles.map((r) => <option key={r.code} value={r.code}>{r.name} ({r.code})</option>)}
-          </select>
+          </NativeSelect>
         </div>
 
         {loading && <div className="skeleton skeleton-text" />}
@@ -1331,7 +1332,7 @@ function AuditOutboxPanel(props: ManagementPageProps) {
         </div>
 
         <div className="management-outbox-filter-grid">
-          <select
+          <NativeSelect
             value={props.auditOutboxFilters.status}
             onChange={(e) => props.onAuditOutboxFiltersChange({ ...props.auditOutboxFilters, status: e.target.value })}
             className="management-compact-control"
@@ -1340,7 +1341,7 @@ function AuditOutboxPanel(props: ManagementPageProps) {
             <option value="PENDING">{translate('auto.k0366')}</option>
             <option value="SUCCESS">{translate('auto.k0368')}</option>
             <option value="FAILED">{translate('auto.k0369')}</option>
-          </select>
+          </NativeSelect>
           <input
             type="text" placeholder="Trace ID"
             value={props.auditOutboxFilters.traceId}

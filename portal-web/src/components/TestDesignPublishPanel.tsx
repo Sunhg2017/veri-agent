@@ -43,6 +43,7 @@ import {
 } from './TestDesignWorkbenchShared';
 import { dictionaryLabel } from '../platform/dictionaries';
 import { translate } from '../platform/i18n';
+import { NativeSelect } from './ui';
 
 export function TestDesignPublishPanel(props: {
   canRead: boolean;
@@ -165,7 +166,7 @@ export function TestDesignPublishPanel(props: {
           <form className="test-design-release-readiness-form" onSubmit={props.onRequestReleaseReadinessApproval}>
             <label className="field">
               <span className="field-label">{translate('auto.k1558')}</span>
-              <select
+              <NativeSelect
                 value={releaseDraft.exceptionReasonCode}
                 onChange={(event) => props.onReleaseReadinessDraftChange((current) => ({ ...current, exceptionReasonCode: event.target.value }))}
                 disabled={!props.canPublish || props.releaseReadinessState.loading}
@@ -173,7 +174,7 @@ export function TestDesignPublishPanel(props: {
                 {props.releaseReadinessReasonCodes.map((code) => (
                   <option key={code} value={code}>{dictionaryLabel(code)}</option>
                 ))}
-              </select>
+              </NativeSelect>
             </label>
             <label className="field">
               <span className="field-label">{translate('auto.k1398')}</span>
@@ -243,7 +244,7 @@ export function TestDesignPublishPanel(props: {
           <div className="test-design-release-readiness-review-grid">
             <label className="field">
               <span className="field-label">{translate('auto.k1409')}</span>
-              <select
+              <NativeSelect
                 value={releaseDraft.approvalReasonCode}
                 onChange={(event) => props.onReleaseReadinessDraftChange((current) => ({ ...current, approvalReasonCode: event.target.value }))}
                 disabled={!props.canPublish || props.releaseReadinessState.loading || !props.selectedPendingReleaseReadinessApproval}
@@ -251,11 +252,11 @@ export function TestDesignPublishPanel(props: {
                 {props.releaseReadinessReasonCodes.map((code) => (
                   <option key={code} value={code}>{dictionaryLabel(code)}</option>
                 ))}
-              </select>
+              </NativeSelect>
             </label>
             <label className="field">
               <span className="field-label">{translate('auto.k1410')}</span>
-              <select
+              <NativeSelect
                 value={releaseDraft.workOrderStatus}
                 onChange={(event) => props.onReleaseReadinessDraftChange((current) => ({ ...current, workOrderStatus: event.target.value }))}
                 disabled={!props.canPublish || props.releaseReadinessState.loading || !props.selectedPendingReleaseReadinessApproval}
@@ -264,7 +265,7 @@ export function TestDesignPublishPanel(props: {
                 {props.releaseReadinessWorkOrderStatuses.map((status) => (
                   <option key={status} value={status}>{dictionaryLabel(status)}</option>
                 ))}
-              </select>
+              </NativeSelect>
             </label>
             <label className="field test-design-release-readiness-wide">
               <span className="field-label">{translate('auto.k1412')}</span>
@@ -325,14 +326,14 @@ export function TestDesignPublishPanel(props: {
           <div className="test-design-release-readiness-note-form">
             <label className="field">
               <span className="field-label">{translate('auto.k1413')}</span>
-              <select
+              <NativeSelect
                 value={releaseDraft.noteType}
                 onChange={(event) => props.onReleaseReadinessDraftChange((current) => ({ ...current, noteType: event.target.value === 'WORK_ORDER' ? 'WORK_ORDER' : 'COMMENT' }))}
                 disabled={!props.canPublish || props.releaseReadinessState.loading || !props.selectedReleaseReadinessApprovalId}
               >
                 <option value="COMMENT">{dictionaryLabel('COMMENT')}</option>
                 <option value="WORK_ORDER">{dictionaryLabel('WORK_ORDER')}</option>
-              </select>
+              </NativeSelect>
             </label>
             <label className="field test-design-release-readiness-wide">
               <span className="field-label">{translate('auto.k1414')}</span>
@@ -542,7 +543,7 @@ function ReportArchivePanel(props: {
       <form className="test-design-release-readiness-form" onSubmit={props.onRequestApproval}>
         <label className="field">
           <span className="field-label">{translate('auto.k1576')}</span>
-          <select
+          <NativeSelect
             value={props.draft.approvalType}
             onChange={(event) => props.onDraftChange((current) => ({ ...current, approvalType: event.target.value === 'EXTERNAL_SHARE' ? 'EXTERNAL_SHARE' : 'ARCHIVE' }))}
             disabled={!props.canExport || props.state.loading || !props.selectedArchiveId}
@@ -550,11 +551,11 @@ function ReportArchivePanel(props: {
             {props.approvalTypes.map((type) => (
               <option key={type} value={type}>{dictionaryLabel(type)}</option>
             ))}
-          </select>
+          </NativeSelect>
         </label>
         <label className="field">
           <span className="field-label">{translate('auto.k1577')}</span>
-          <select
+          <NativeSelect
             value={props.draft.reasonCode}
             onChange={(event) => props.onDraftChange((current) => ({ ...current, reasonCode: event.target.value }))}
             disabled={!props.canExport || props.state.loading || !props.selectedArchiveId}
@@ -562,7 +563,7 @@ function ReportArchivePanel(props: {
             {props.reasonCodes.map((code) => (
               <option key={code} value={code}>{dictionaryLabel(code)}</option>
             ))}
-          </select>
+          </NativeSelect>
         </label>
         <label className="field">
           <span className="field-label">{translate('auto.k1398')}</span>
@@ -613,7 +614,7 @@ function ReportArchivePanel(props: {
       <div className="test-design-release-readiness-review-grid">
         <label className="field">
           <span className="field-label">{translate('auto.k1409')}</span>
-          <select
+          <NativeSelect
             value={props.draft.approvalReasonCode}
             onChange={(event) => props.onDraftChange((current) => ({ ...current, approvalReasonCode: event.target.value }))}
             disabled={!props.canExport || props.state.loading || !props.selectedPendingApproval}
@@ -621,11 +622,11 @@ function ReportArchivePanel(props: {
             {props.reasonCodes.map((code) => (
               <option key={code} value={code}>{dictionaryLabel(code)}</option>
             ))}
-          </select>
+          </NativeSelect>
         </label>
         <label className="field">
           <span className="field-label">{translate('auto.k1410')}</span>
-          <select
+          <NativeSelect
             value={props.draft.workOrderStatus}
             onChange={(event) => props.onDraftChange((current) => ({ ...current, workOrderStatus: event.target.value }))}
             disabled={!props.canExport || props.state.loading || !props.selectedPendingApproval}
@@ -634,7 +635,7 @@ function ReportArchivePanel(props: {
             {props.workOrderStatuses.map((status) => (
               <option key={status} value={status}>{dictionaryLabel(status)}</option>
             ))}
-          </select>
+          </NativeSelect>
         </label>
         <label className="field test-design-release-readiness-wide">
           <span className="field-label">{translate('auto.k1412')}</span>
@@ -693,14 +694,14 @@ function ReportArchivePanel(props: {
       <div className="test-design-release-readiness-note-form">
         <label className="field">
           <span className="field-label">{translate('auto.k1413')}</span>
-          <select
+          <NativeSelect
             value={props.draft.noteType}
             onChange={(event) => props.onDraftChange((current) => ({ ...current, noteType: event.target.value === 'WORK_ORDER' ? 'WORK_ORDER' : 'COMMENT' }))}
             disabled={!props.canExport || props.state.loading || !props.selectedApprovalId}
           >
             <option value="COMMENT">{dictionaryLabel('COMMENT')}</option>
             <option value="WORK_ORDER">{dictionaryLabel('WORK_ORDER')}</option>
-          </select>
+          </NativeSelect>
         </label>
         <label className="field test-design-release-readiness-wide">
           <span className="field-label">{translate('auto.k1414')}</span>
@@ -831,7 +832,7 @@ function PublishConflictPanel(props: {
                 {!candidate && <small>{translate('auto.k1586')}</small>}
               </span>
               <div className="test-design-conflict-controls">
-                <select
+                <NativeSelect
                   value={targetCaseId}
                   onChange={(event) => {
                     const nextCaseId = event.target.value;
@@ -854,7 +855,7 @@ function PublishConflictPanel(props: {
                       {testCase.title || shortIdentifier(testCase.id)}
                     </option>
                   ))}
-                </select>
+                </NativeSelect>
                 <button
                   className="btn btn-secondary btn-xs"
                   type="button"

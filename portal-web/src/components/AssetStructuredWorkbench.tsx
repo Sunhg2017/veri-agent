@@ -49,6 +49,7 @@ import { AssetImportExportPanel } from './AssetImportExportPanel';
 import { AssetVersionHistoryPanel } from './AssetVersionHistoryPanel';
 import { dictionaryLabel, fieldLabel } from '../platform/dictionaries';
 import { translate } from '../platform/i18n';
+import { NativeSelect } from './ui';
 
 export type AssetNavigationKey = 'requirements' | 'apis' | 'pages' | 'flows' | 'cases' | 'trace';
 
@@ -559,7 +560,7 @@ export function AssetStructuredWorkbench(props: {
             </label>
             <label className="field" htmlFor={`asset-${props.activeTab}-filter-status`}>
               <span>{fieldLabel('status')}</span>
-              <select
+              <NativeSelect
                 id={`asset-${props.activeTab}-filter-status`}
                 value={filters.status}
                 disabled={disabled}
@@ -569,12 +570,12 @@ export function AssetStructuredWorkbench(props: {
                 {meta.statuses.map((status) => (
                   <option key={status} value={status}>{dictionaryLabel(status)}</option>
                 ))}
-              </select>
+              </NativeSelect>
             </label>
             {props.activeTab === 'pages' && (
               <label className="field" htmlFor="asset-page-filter-source">
                 <span>{fieldLabel('source')}</span>
-                <select
+                <NativeSelect
                   id="asset-page-filter-source"
                   value={filters.source}
                   disabled={disabled}
@@ -584,7 +585,7 @@ export function AssetStructuredWorkbench(props: {
                   {ASSET_PAGE_SOURCES.map((source) => (
                     <option key={source} value={source}>{dictionaryLabel(source)}</option>
                   ))}
-                </select>
+                </NativeSelect>
               </label>
             )}
             <label className="field" htmlFor={`asset-${props.activeTab}-filter-keyword`}>
@@ -761,7 +762,7 @@ export function AssetStructuredWorkbench(props: {
                 </label>
                 <label className="field" htmlFor="asset-prototype-source">
                   <span>{fieldLabel('source')}</span>
-                  <select
+                  <NativeSelect
                     id="asset-prototype-source"
                     value={prototypeSyncDraft.source}
                     disabled={prototypeSyncState.loading}
@@ -770,7 +771,7 @@ export function AssetStructuredWorkbench(props: {
                     <option value="FIGMA">{dictionaryLabel('FIGMA')}</option>
                     <option value="LANHU">{dictionaryLabel('LANHU')}</option>
                     <option value="AXURE">{dictionaryLabel('AXURE')}</option>
-                  </select>
+                  </NativeSelect>
                 </label>
                 <label className="field" htmlFor="asset-prototype-version">
                   <span>{fieldLabel('sourceVersion')}</span>
@@ -1014,7 +1015,7 @@ function StructuredAssetForm(props: {
             </label>
             <label className="field" htmlFor={`asset-${props.activeTab}-source`}>
               <span>{fieldLabel('source')}</span>
-              <select
+              <NativeSelect
                 id={`asset-${props.activeTab}-source`}
                 value={props.draft.source}
                 disabled={props.disabled}
@@ -1023,7 +1024,7 @@ function StructuredAssetForm(props: {
                 {ASSET_PAGE_SOURCES.map((source) => (
                   <option key={source} value={source}>{dictionaryLabel(source)}</option>
                 ))}
-              </select>
+              </NativeSelect>
             </label>
             <label className="field" htmlFor={`asset-${props.activeTab}-source-ref`}>
               <span>{fieldLabel('sourceRef')}</span>
@@ -1060,7 +1061,7 @@ function StructuredAssetForm(props: {
           <>
             <label className="field" htmlFor={`asset-${props.activeTab}-priority`}>
               <span>{fieldLabel('priority')}</span>
-              <select
+              <NativeSelect
                 id={`asset-${props.activeTab}-priority`}
                 value={props.draft.priority}
                 disabled={props.disabled}
@@ -1069,13 +1070,13 @@ function StructuredAssetForm(props: {
                 {ASSET_REQUIREMENT_PRIORITIES.map((priority) => (
                   <option key={priority} value={priority}>{dictionaryLabel(priority)}</option>
                 ))}
-              </select>
+              </NativeSelect>
             </label>
           </>
         )}
         <label className="field" htmlFor={`asset-${props.activeTab}-status`}>
           <span>{fieldLabel('status')}</span>
-          <select
+          <NativeSelect
             id={`asset-${props.activeTab}-status`}
             value={props.draft.status}
             disabled={props.disabled}
@@ -1084,7 +1085,7 @@ function StructuredAssetForm(props: {
             {statusOptions.map((status) => (
               <option key={status} value={status}>{dictionaryLabel(status)}</option>
             ))}
-          </select>
+          </NativeSelect>
         </label>
       </div>
       {props.activeTab === 'flows' && (

@@ -6,6 +6,7 @@ import { StateLine, type WorkState } from './TestDesignOverviewPanels';
 import { emptyRequirementText } from './TestDesignWorkbenchShared';
 import { dictionaryLabel } from '../platform/dictionaries';
 import { translate } from '../platform/i18n';
+import { NativeSelect } from './ui';
 
 export function TestDesignRequirementSelectionPanel(props: {
   signedIn: boolean;
@@ -54,7 +55,7 @@ export function TestDesignRequirementSelectionPanel(props: {
           </label>
           <label className="field">
             <span className="field-label">{translate('auto.k0182')}</span>
-            <select
+            <NativeSelect
               value={props.filters.status}
               onChange={(event) => props.onFiltersChange((current) => ({ ...current, status: event.target.value }))}
               disabled={props.disabled}
@@ -63,7 +64,7 @@ export function TestDesignRequirementSelectionPanel(props: {
               <option value="APPROVED">{dictionaryLabel('APPROVED')}</option>
               <option value="REVIEWING">{dictionaryLabel('REVIEWING')}</option>
               <option value="DRAFT">{dictionaryLabel('DRAFT')}</option>
-            </select>
+            </NativeSelect>
           </label>
           <label className="field">
             <span className="field-label">{translate('auto.k1316')}</span>

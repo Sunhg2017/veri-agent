@@ -77,6 +77,7 @@ import {
 import { canUseButton, hasPermission } from '../permissions';
 import { dictionaryLabel, dictionaryListLabel } from '../platform/dictionaries';
 import { translate } from '../platform/i18n';
+import { NativeSelect } from './ui';
 
 type WorkState = {
   loading: boolean;
@@ -1119,9 +1120,9 @@ function ProviderTab(props: {
           </label>
           <label className="field">
             <span>{translate('auto.k0286')}<b>*</b></span>
-            <select value={props.draft.providerType} disabled={!props.canManage || Boolean(props.editingProviderId)} onChange={(event) => props.onChangeDraft('providerType', event.target.value)}>
+            <NativeSelect value={props.draft.providerType} disabled={!props.canManage || Boolean(props.editingProviderId)} onChange={(event) => props.onChangeDraft('providerType', event.target.value)}>
               {MODEL_PROVIDER_TYPES.map((type) => <option key={type} value={type}>{dictionaryLabel(type)}</option>)}
-            </select>
+            </NativeSelect>
           </label>
           <label className="field">
             <span>{translate('auto.k0972')}</span>
@@ -1270,9 +1271,9 @@ function PolicyTab(props: {
           <div className="document-form-grid model-access-policy-form-grid">
             <label className="field">
               <span>{translate('auto.k0263')}<b>*</b></span>
-              <select value={props.draft.scopeType} disabled={!props.canManage} onChange={(event) => props.onChangeDraft('scopeType', event.target.value)}>
+              <NativeSelect value={props.draft.scopeType} disabled={!props.canManage} onChange={(event) => props.onChangeDraft('scopeType', event.target.value)}>
                 {MODEL_POLICY_SCOPE_TYPES.map((type) => <option key={type} value={type}>{dictionaryLabel(type)}</option>)}
-              </select>
+              </NativeSelect>
             </label>
             <label className="field">
               <span>{translate('auto.k2619')}<b>*</b></span>
@@ -1284,19 +1285,19 @@ function PolicyTab(props: {
             </label>
             <label className="field">
               <span>{translate('auto.k0991')}</span>
-              <select value={props.draft.modelInvocationEnabled} disabled={!props.canManage} onChange={(event) => props.onChangeDraft('modelInvocationEnabled', event.target.value)}>
+              <NativeSelect value={props.draft.modelInvocationEnabled} disabled={!props.canManage} onChange={(event) => props.onChangeDraft('modelInvocationEnabled', event.target.value)}>
                 <option value="INHERIT">{dictionaryLabel('INHERIT')}</option>
                 <option value="ENABLED">{dictionaryLabel('ENABLED')}</option>
                 <option value="DISABLED">{dictionaryLabel('DISABLED')}</option>
-              </select>
+              </NativeSelect>
             </label>
             <label className="field">
               <span>{translate('auto.k0995')}</span>
-              <select value={props.draft.publicModelAllowed} disabled={!props.canManage} onChange={(event) => props.onChangeDraft('publicModelAllowed', event.target.value)}>
+              <NativeSelect value={props.draft.publicModelAllowed} disabled={!props.canManage} onChange={(event) => props.onChangeDraft('publicModelAllowed', event.target.value)}>
                 <option value="INHERIT">{dictionaryLabel('INHERIT')}</option>
                 <option value="ENABLED">{dictionaryLabel('ENABLED')}</option>
                 <option value="DISABLED">{dictionaryLabel('DISABLED')}</option>
-              </select>
+              </NativeSelect>
             </label>
             <label className="field">
               <span>{translate('auto.k0997')}</span>
@@ -1308,11 +1309,11 @@ function PolicyTab(props: {
             </label>
             <label className="field">
               <span>{translate('auto.k0999')}</span>
-              <select value={props.draft.budgetOverrunAction} disabled={!props.canManage} onChange={(event) => props.onChangeDraft('budgetOverrunAction', event.target.value)}>
+              <NativeSelect value={props.draft.budgetOverrunAction} disabled={!props.canManage} onChange={(event) => props.onChangeDraft('budgetOverrunAction', event.target.value)}>
                 <option value="">{dictionaryLabel('INHERIT')}</option>
                 <option value="BLOCK">{dictionaryLabel('BLOCK')}</option>
                 <option value="FALLBACK">{dictionaryLabel('FALLBACK')}</option>
-              </select>
+              </NativeSelect>
             </label>
             <label className="field">
               <span>{translate('auto.k0972')}</span>
@@ -1474,14 +1475,14 @@ function PromptTab(props: {
             <FileDiff size={16} />
           </div>
           <div className="model-access-diff-selectors">
-            <select value={props.leftPromptId} onChange={(event) => props.onLeftPromptChange(event.target.value)}>
+            <NativeSelect value={props.leftPromptId} onChange={(event) => props.onLeftPromptChange(event.target.value)}>
               <option value="">{translate('auto.k1017')}</option>
               {props.selectedPromptVersions.map((prompt) => <option key={prompt.id} value={prompt.id}>{prompt.promptKey} v{prompt.version}</option>)}
-            </select>
-            <select value={props.rightPromptId} onChange={(event) => props.onRightPromptChange(event.target.value)}>
+            </NativeSelect>
+            <NativeSelect value={props.rightPromptId} onChange={(event) => props.onRightPromptChange(event.target.value)}>
               <option value="">{translate('auto.k1018')}</option>
               {props.selectedPromptVersions.map((prompt) => <option key={prompt.id} value={prompt.id}>{prompt.promptKey} v{prompt.version}</option>)}
-            </select>
+            </NativeSelect>
           </div>
           <div className="model-access-diff-meta">
             <span>{props.diffPrompts.left ? `v${props.diffPrompts.left.version}` : '-'}</span>
@@ -1612,10 +1613,10 @@ function PlaygroundTab(props: {
             </label>
             <label className="field">
               <span>{translate('auto.k0905')}</span>
-              <select value={props.draft.providerId} disabled={!props.canManage} onChange={(event) => props.onChangeDraft('providerId', event.target.value)}>
+              <NativeSelect value={props.draft.providerId} disabled={!props.canManage} onChange={(event) => props.onChangeDraft('providerId', event.target.value)}>
                 <option value="">{translate('auto.k1024')}</option>
                 {props.providers.map((provider) => <option key={provider.id} value={provider.id}>{provider.name}</option>)}
-              </select>
+              </NativeSelect>
             </label>
             <label className="field">
               <span>{translate('auto.k2624')}</span>
@@ -1623,12 +1624,12 @@ function PlaygroundTab(props: {
             </label>
             <label className="field">
               <span>{translate('auto.k0276')}</span>
-              <select value={props.draft.sensitivityLevel} disabled={!props.canManage} onChange={(event) => props.onChangeDraft('sensitivityLevel', event.target.value)}>
+              <NativeSelect value={props.draft.sensitivityLevel} disabled={!props.canManage} onChange={(event) => props.onChangeDraft('sensitivityLevel', event.target.value)}>
                 <option value="PUBLIC">{dictionaryLabel('PUBLIC')}</option>
                 <option value="INTERNAL">{dictionaryLabel('INTERNAL')}</option>
                 <option value="CONFIDENTIAL">{dictionaryLabel('CONFIDENTIAL')}</option>
                 <option value="RESTRICTED">{dictionaryLabel('RESTRICTED')}</option>
-              </select>
+              </NativeSelect>
             </label>
             <label className="field">
               <span>{translate('auto.k0973')}</span>
@@ -1654,11 +1655,11 @@ function PlaygroundTab(props: {
               <div className="model-access-message-row" key={message.id}>
                 <label className="field">
                   <span>{translate('auto.k0247')}{index + 1}</span>
-                  <select value={message.role} disabled={!props.canManage} onChange={(event) => props.onChangeMessage(message.id, 'role', event.target.value)}>
+                  <NativeSelect value={message.role} disabled={!props.canManage} onChange={(event) => props.onChangeMessage(message.id, 'role', event.target.value)}>
                     <option value="system">{dictionaryLabel('system')}</option>
                     <option value="user">{dictionaryLabel('user')}</option>
                     <option value="assistant">{dictionaryLabel('assistant')}</option>
-                  </select>
+                  </NativeSelect>
                 </label>
                 <label className="field document-content-field">
                   <span>{translate('auto.k1013')}</span>
@@ -1777,9 +1778,9 @@ function QualityTab(props: {
       }}>
         <label className="field">
           <span>{translate('auto.k1037')}</span>
-          <select value={props.selectedTaskType} onChange={(event) => props.onChangeTaskType(event.target.value as (typeof qualityTaskTypeOptions)[number])}>
+          <NativeSelect value={props.selectedTaskType} onChange={(event) => props.onChangeTaskType(event.target.value as (typeof qualityTaskTypeOptions)[number])}>
             {qualityTaskTypeOptions.map((item) => <option key={item} value={item}>{dictionaryLabel(item)}</option>)}
-          </select>
+          </NativeSelect>
         </label>
         <div className="asset-filter-actions">
           <button className="secondary-button" type="submit"><RefreshCw size={15} /> {translate('auto.k0170')}</button>
@@ -1884,27 +1885,27 @@ function LogsTab(props: {
         <label className="field"><span>{translate('auto.k2621')}</span><input value={props.filters.environmentId} onChange={(event) => props.onChangeFilter('environmentId', event.target.value)} /></label>
         <label className="field">
           <span>{translate('auto.k0276')}</span>
-          <select value={props.filters.sensitivityLevel} onChange={(event) => props.onChangeFilter('sensitivityLevel', event.target.value)}>
+          <NativeSelect value={props.filters.sensitivityLevel} onChange={(event) => props.onChangeFilter('sensitivityLevel', event.target.value)}>
             <option value="">{translate('auto.k0195')}</option>
             <option value="PUBLIC">{dictionaryLabel('PUBLIC')}</option>
             <option value="INTERNAL">{dictionaryLabel('INTERNAL')}</option>
             <option value="CONFIDENTIAL">{dictionaryLabel('CONFIDENTIAL')}</option>
             <option value="RESTRICTED">{dictionaryLabel('RESTRICTED')}</option>
-          </select>
+          </NativeSelect>
         </label>
         <label className="field">
           <span>{translate('auto.k0182')}</span>
-          <select value={props.filters.status} onChange={(event) => props.onChangeFilter('status', event.target.value)}>
+          <NativeSelect value={props.filters.status} onChange={(event) => props.onChangeFilter('status', event.target.value)}>
             <option value="">{translate('auto.k0195')}</option>
             {INVOCATION_STATUSES.map((status) => <option key={status} value={status}>{dictionaryLabel(status)}</option>)}
-          </select>
+          </NativeSelect>
         </label>
         <label className="field">
           <span>{translate('auto.k0905')}</span>
-          <select value={props.filters.providerId} onChange={(event) => props.onChangeFilter('providerId', event.target.value)}>
+          <NativeSelect value={props.filters.providerId} onChange={(event) => props.onChangeFilter('providerId', event.target.value)}>
             <option value="">{translate('auto.k0195')}</option>
             {props.providers.map((provider) => <option key={provider.id} value={provider.id}>{provider.name}</option>)}
-          </select>
+          </NativeSelect>
         </label>
         <label className="field"><span>{translate('auto.k2640')}</span><input value={props.filters.actorService} onChange={(event) => props.onChangeFilter('actorService', event.target.value)} /></label>
         <label className="field"><span>{translate('auto.k2641')}</span><input value={props.filters.roleScope} onChange={(event) => props.onChangeFilter('roleScope', event.target.value)} /></label>

@@ -58,8 +58,8 @@ async function runWp7MainFlow(page: Page, assertResponsive: boolean) {
   await fieldControl(sceneForm, 'name', 'input').fill('后台管理员登录并进入首页');
   await fieldControl(sceneForm, 'applicationId', 'input').fill('app-alpha');
   await fieldControl(sceneForm, 'environmentId', 'input').fill('staging');
-  await fieldControl(sceneForm, 'status', 'select').selectOption('APPROVED');
-  await fieldControl(sceneForm, 'riskLevel', 'select').selectOption('HIGH');
+  await selectAntdOption(page, fieldControl(sceneForm, 'status', 'select'), '已批准');
+  await selectAntdOption(page, fieldControl(sceneForm, 'riskLevel', 'select'), '高');
   await fieldControl(sceneForm, 'tags', 'input').fill('login smoke');
   await fieldControl(sceneForm, 'sourceSummary', 'textarea').fill('{"pageRefs":["page-ui-1"],"flowRefs":["flow-ui-1"],"testCaseRefs":["case-ui-1"]}');
   await sceneForm.getByRole('button', { name: '创建场景' }).click();
@@ -100,7 +100,7 @@ async function runWp7MainFlow(page: Page, assertResponsive: boolean) {
   await expect(runCreationNotice).toContainText('当前环境 runner 默认关闭');
   await expect(runForm.getByRole('button', { name: '创建运行' })).toBeDisabled();
 
-  await fieldControl(runFilterForm, 'status', 'select').selectOption('BLOCKED');
+  await selectAntdOption(page, fieldControl(runFilterForm, 'status', 'select'), '已阻断');
   await runFilterForm.getByRole('button', { name: '筛选' }).click();
   const blockedRunItem = runPanel.locator('.ui-e2e-list-item').first();
   await expect(blockedRunItem).toContainText('RUNNER_DISABLED');
@@ -115,7 +115,7 @@ async function runWp7MainFlow(page: Page, assertResponsive: boolean) {
   await fieldControl(flakyForm, 'projectId', 'input').fill('project-wp7-ui-smoke');
   await fieldControl(flakyForm, 'sceneId', 'input').fill(mock.createdSceneId);
   await fieldControl(flakyForm, 'runId', 'input').fill(blockedRunId);
-  await fieldControl(flakyForm, 'status', 'select').selectOption('CONFIRMED_FLAKY');
+  await selectAntdOption(page, fieldControl(flakyForm, 'status', 'select'), '已确认 Flaky');
   await fieldControl(flakyForm, 'reasonCode', 'input').fill('locator-drift');
   await fieldControl(flakyForm, 'reasonSummary', 'input').fill('定位器偶发漂移');
   await flakyForm.getByRole('button', { name: '保存 Flaky 标记' }).click();
@@ -138,7 +138,13 @@ async function runWp7MainFlow(page: Page, assertResponsive: boolean) {
 }
 
 function fieldControl(form: Locator, label: string, controlSelector: 'input' | 'select' | 'textarea') {
-  return form.locator(`label.field:has(.field-label:text-is("${label}")) ${controlSelector}`).first();
+  const targetSelector = controlSelector === 'select' ? '.ui-native-select' : controlSelector;
+  return form.locator(`label.field:has(.field-label:text-is("${label}")) ${targetSelector}`).first();
+}
+
+async function selectAntdOption(page: Page, control: Locator, optionName: string) {
+  await control.locator('.ant-select-selector').click();
+  await page.locator('.ant-select-dropdown:not(.ant-select-dropdown-hidden) .ant-select-item-option-content', { hasText: optionName }).first().click();
 }
 
 async function assertNoSensitiveSamples(page: Page) {

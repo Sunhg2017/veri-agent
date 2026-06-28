@@ -14,6 +14,7 @@ import {
 import { StateLine, type WorkState } from './TestDesignOverviewPanels';
 import { dictionaryLabel } from '../platform/dictionaries';
 import { translate } from '../platform/i18n';
+import { NativeSelect } from './ui';
 
 export function TestDesignTemplateManagementPanel(props: {
   canRead: boolean;
@@ -51,14 +52,14 @@ export function TestDesignTemplateManagementPanel(props: {
           <div className="test-design-template-toolbar">
             <label className="field">
               <span className="field-label">{translate('auto.k1633')}</span>
-              <select value={props.selectedTemplateManageId} onChange={(event) => props.onSelectedTemplateManageIdChange(event.target.value)} disabled={props.state.loading}>
+              <NativeSelect value={props.selectedTemplateManageId} onChange={(event) => props.onSelectedTemplateManageIdChange(event.target.value)} disabled={props.state.loading}>
                 <option value="">{translate('auto.k1634')}</option>
                 {props.templates.map((template) => (
                   <option key={template.id} value={template.id}>
                     {template.enabled ? '' : translate('auto.k1635')}{template.projectId ? translate('auto.k0176') : translate('auto.k1605')} · {template.name}
                   </option>
                 ))}
-              </select>
+              </NativeSelect>
             </label>
             <button
               className="btn btn-secondary btn-icon btn-sm"
@@ -108,19 +109,19 @@ export function TestDesignTemplateManagementPanel(props: {
           <div className="test-design-template-inline-grid">
             <label className="field">
               <span className="field-label">{translate('auto.k1640')}</span>
-              <select value={draft.generationStrategy} onChange={(event) => props.onTemplateDraftChange((current) => ({ ...current, generationStrategy: event.target.value }))} disabled={!props.canPolicyManage || props.state.loading}>
+              <NativeSelect value={draft.generationStrategy} onChange={(event) => props.onTemplateDraftChange((current) => ({ ...current, generationStrategy: event.target.value }))} disabled={!props.canPolicyManage || props.state.loading}>
                 {TEST_DESIGN_GENERATION_STRATEGIES.map((strategy) => (
                   <option key={strategy} value={strategy}>{dictionaryLabel(strategy)}</option>
                 ))}
-              </select>
+              </NativeSelect>
             </label>
             <label className="field">
               <span className="field-label">{translate('auto.k1641')}</span>
-              <select value={draft.coverageStrategy} onChange={(event) => props.onTemplateDraftChange((current) => ({ ...current, coverageStrategy: event.target.value }))} disabled={!props.canPolicyManage || props.state.loading}>
+              <NativeSelect value={draft.coverageStrategy} onChange={(event) => props.onTemplateDraftChange((current) => ({ ...current, coverageStrategy: event.target.value }))} disabled={!props.canPolicyManage || props.state.loading}>
                 {TEST_DESIGN_COVERAGE_STRATEGIES.map((strategy) => (
                   <option key={strategy} value={strategy}>{dictionaryLabel(strategy)}</option>
                 ))}
-              </select>
+              </NativeSelect>
             </label>
           </div>
           <label className="field">

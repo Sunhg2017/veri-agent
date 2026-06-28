@@ -26,6 +26,7 @@ import {
 } from './TestDesignWorkbenchShared';
 import { dictionaryLabel } from '../platform/dictionaries';
 import { translate } from '../platform/i18n';
+import { NativeSelect } from './ui';
 
 export function TestDesignContextPolicyPanel(props: {
   disabled: boolean;
@@ -89,18 +90,18 @@ export function TestDesignContextPolicyPanel(props: {
           </label>
           <label className="field">
             <span className="field-label">{translate('auto.k1391')}</span>
-            <select
+            <NativeSelect
               value={draft.scopeType}
               onChange={(event) => props.onDraftChange((current) => ({ ...current, scopeType: event.target.value === 'ENVIRONMENT' ? 'ENVIRONMENT' : 'PROJECT' }))}
               disabled={!props.canPolicyManage || state.loading}
             >
               <option value="PROJECT">{dictionaryLabel('PROJECT')}</option>
               <option value="ENVIRONMENT">{dictionaryLabel('ENVIRONMENT')}</option>
-            </select>
+            </NativeSelect>
           </label>
           <label className="field">
             <span className="field-label">{translate('auto.k1392')}</span>
-            <select
+            <NativeSelect
               value={draft.changeReasonCode}
               onChange={(event) => props.onDraftChange((current) => ({ ...current, changeReasonCode: event.target.value as TestDesignContextPolicyDraft['changeReasonCode'] }))}
               disabled={!props.canPolicyManage || state.loading}
@@ -108,7 +109,7 @@ export function TestDesignContextPolicyPanel(props: {
               {TEST_DESIGN_CONTEXT_POLICY_REASON_CODES.map((code) => (
                 <option key={code} value={code}>{dictionaryLabel(code)}</option>
               ))}
-            </select>
+            </NativeSelect>
           </label>
           <label className="field">
             <span className="field-label">{translate('auto.k0431')}</span>
@@ -245,7 +246,7 @@ export function TestDesignContextPolicyPanel(props: {
         <div className="test-design-context-policy-review-grid">
           <label className="field">
             <span className="field-label">{translate('auto.k1409')}</span>
-            <select
+            <NativeSelect
               value={draft.approvalReasonCode}
               onChange={(event) => props.onDraftChange((current) => ({ ...current, approvalReasonCode: event.target.value as TestDesignContextPolicyDraft['approvalReasonCode'] }))}
               disabled={!props.canPolicyManage || state.loading}
@@ -253,11 +254,11 @@ export function TestDesignContextPolicyPanel(props: {
               {TEST_DESIGN_CONTEXT_POLICY_REASON_CODES.map((code) => (
                 <option key={code} value={code}>{dictionaryLabel(code)}</option>
               ))}
-            </select>
+            </NativeSelect>
           </label>
           <label className="field">
             <span className="field-label">{translate('auto.k1410')}</span>
-            <select
+            <NativeSelect
               value={draft.workOrderStatus}
               onChange={(event) => props.onDraftChange((current) => ({ ...current, workOrderStatus: event.target.value as TestDesignContextPolicyDraft['workOrderStatus'] }))}
               disabled={!props.canPolicyManage || state.loading}
@@ -266,7 +267,7 @@ export function TestDesignContextPolicyPanel(props: {
               {TEST_DESIGN_CONTEXT_POLICY_WORK_ORDER_STATUSES.map((status) => (
                 <option key={status} value={status}>{dictionaryLabel(status)}</option>
               ))}
-            </select>
+            </NativeSelect>
           </label>
           <label className="field test-design-context-policy-wide">
             <span className="field-label">{translate('auto.k1412')}</span>
@@ -282,14 +283,14 @@ export function TestDesignContextPolicyPanel(props: {
         <div className="test-design-context-policy-note-form">
           <label className="field">
             <span className="field-label">{translate('auto.k1413')}</span>
-            <select
+            <NativeSelect
               value={draft.noteType}
               onChange={(event) => props.onDraftChange((current) => ({ ...current, noteType: event.target.value === 'WORK_ORDER' ? 'WORK_ORDER' : 'COMMENT' }))}
               disabled={!props.canPolicyManage || state.loading || !props.selectedOverrideId}
             >
               <option value="COMMENT">{dictionaryLabel('COMMENT')}</option>
               <option value="WORK_ORDER">{dictionaryLabel('WORK_ORDER')}</option>
-            </select>
+            </NativeSelect>
           </label>
           <label className="field test-design-context-policy-wide">
             <span className="field-label">{translate('auto.k1414')}</span>

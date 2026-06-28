@@ -48,6 +48,7 @@ import {
 import { canUseButton, hasPermission } from '../permissions';
 import { dictionaryLabel, displayValueLabel, fieldLabel } from '../platform/dictionaries';
 import { translate } from '../platform/i18n';
+import { NativeSelect } from './ui';
 
 const DIFF_STATUS_OPTIONS = ['ALL', 'NEW', 'CHANGED', 'MATCHED', 'CONFLICT', 'SKIPPED', 'UNKNOWN'] as const;
 
@@ -585,14 +586,14 @@ export function ApiAutomationWorkbench(props: { signedIn: boolean; currentUser: 
         <div className="panel-body compact">
           <div className="form-grid">
             <Field label={translate('auto.k0189')}>
-              <select
+              <NativeSelect
                 value={Boolean(health?.policy?.modelGenerationReady) ? generationMode : 'FALLBACK_ONLY'}
                 onChange={(event) => setGenerationMode(event.target.value as 'MODEL_WITH_FALLBACK' | 'FALLBACK_ONLY')}
                 disabled={!canGenerate || generationState.loading || !health}
               >
                 {Boolean(health?.policy?.modelGenerationReady) && <option value="MODEL_WITH_FALLBACK">{translate('auto.k0190')}</option>}
                 <option value="FALLBACK_ONLY">{translate('auto.k0191')}</option>
-              </select>
+              </NativeSelect>
             </Field>
             <Field label={translate('auto.k0192')}>
               <input
@@ -603,7 +604,7 @@ export function ApiAutomationWorkbench(props: { signedIn: boolean; currentUser: 
               />
             </Field>
             <Field label={translate('auto.k0194')}>
-              <select
+              <NativeSelect
                 value={diffStatusFilter}
                 onChange={(event) => setDiffStatusFilter(event.target.value as (typeof DIFF_STATUS_OPTIONS)[number])}
                 disabled={!detail || detailState.loading}
@@ -611,7 +612,7 @@ export function ApiAutomationWorkbench(props: { signedIn: boolean; currentUser: 
                 {DIFF_STATUS_OPTIONS.map((status) => (
                   <option value={status} key={status}>{status === 'ALL' ? translate('auto.k0195') : dictionaryLabel(status)}</option>
                 ))}
-              </select>
+              </NativeSelect>
             </Field>
           </div>
           <GenerationScopeSummary

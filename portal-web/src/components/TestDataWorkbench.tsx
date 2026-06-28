@@ -63,6 +63,7 @@ import {
 import { canUseButton, hasPermission } from '../permissions';
 import { dictionaryLabel, displayValueLabel, fieldLabel } from '../platform/dictionaries';
 import { translate } from '../platform/i18n';
+import { NativeSelect } from './ui';
 
 type WorkState = {
   loading: boolean;
@@ -943,18 +944,18 @@ export function TestDataWorkbench(props: { signedIn: boolean; currentUser: Curre
               <Field label="applicationId"><input value={dataSetDraft.applicationId} onChange={(event) => setDataSetDraftValue('applicationId', event.target.value)} /></Field>
               <Field label="environmentId"><input value={dataSetDraft.environmentId} onChange={(event) => setDataSetDraftValue('environmentId', event.target.value)} /></Field>
               <Field label={translate('auto.k0276')}>
-                <select value={dataSetDraft.sensitivityLevel} onChange={(event) => setDataSetDraftValue('sensitivityLevel', event.target.value)}>
+                <NativeSelect value={dataSetDraft.sensitivityLevel} onChange={(event) => setDataSetDraftValue('sensitivityLevel', event.target.value)}>
                   <option value="INTERNAL">{dictionaryLabel('INTERNAL')}</option>
                   <option value="CONFIDENTIAL">{dictionaryLabel('CONFIDENTIAL')}</option>
                   <option value="RESTRICTED">{dictionaryLabel('RESTRICTED')}</option>
-                </select>
+                </NativeSelect>
               </Field>
               <Field label="sourceType">
-                <select value={dataSetDraft.sourceType} onChange={(event) => setDataSetDraftValue('sourceType', event.target.value)}>
+                <NativeSelect value={dataSetDraft.sourceType} onChange={(event) => setDataSetDraftValue('sourceType', event.target.value)}>
                   <option value="MANUAL">{dictionaryLabel('MANUAL')}</option>
                   <option value="GENERATED">{dictionaryLabel('GENERATED')}</option>
                   <option value="EXTERNAL_REF">{dictionaryLabel('EXTERNAL_REF')}</option>
-                </select>
+                </NativeSelect>
               </Field>
             </div>
             <Field label="sourceRefDigest"><input value={dataSetDraft.sourceRefDigest} onChange={(event) => setDataSetDraftValue('sourceRefDigest', event.target.value)} /></Field>
@@ -1194,11 +1195,11 @@ export function TestDataWorkbench(props: { signedIn: boolean; currentUser: Curre
             <div className="form-grid">
               <Field label={translate('auto.k1283')}><input type="number" min={1} max={86400} value={leaseDraft.renewTtlSeconds} onChange={(event) => setLeaseDraftValue('renewTtlSeconds', Number(event.target.value))} /></Field>
               <Field label={translate('auto.k1284')}>
-                <select value={leaseDraft.accountStatus} onChange={(event) => setLeaseDraftValue('accountStatus', event.target.value)}>
+                <NativeSelect value={leaseDraft.accountStatus} onChange={(event) => setLeaseDraftValue('accountStatus', event.target.value)}>
                   <option value="AVAILABLE">{dictionaryLabel('AVAILABLE')}</option>
                   <option value="LOCKED">{dictionaryLabel('LOCKED')}</option>
                   <option value="DISABLED">{dictionaryLabel('DISABLED')}</option>
-                </select>
+                </NativeSelect>
               </Field>
             </div>
             <Field label={translate('auto.k1285')}><input value={leaseDraft.releaseReason} onChange={(event) => setLeaseDraftValue('releaseReason', event.target.value)} /></Field>
@@ -1268,12 +1269,12 @@ export function TestDataWorkbench(props: { signedIn: boolean; currentUser: Curre
               <Field label="projectId"><input value={taskDraft.projectId} onChange={(event) => setTaskDraftValue('projectId', event.target.value)} /></Field>
               <Field label="dataSetId"><input value={taskDraft.dataSetId || selectedDataSetId} onChange={(event) => setTaskDraftValue('dataSetId', event.target.value)} /></Field>
               <Field label="taskType">
-                <select value={taskDraft.taskType} onChange={(event) => setTaskDraftValue('taskType', event.target.value)}>
+                <NativeSelect value={taskDraft.taskType} onChange={(event) => setTaskDraftValue('taskType', event.target.value)}>
                   <option value="PREPARE">{dictionaryLabel('PREPARE')}</option>
                   <option value="REFRESH">{dictionaryLabel('REFRESH')}</option>
                   <option value="CLEANUP">{dictionaryLabel('CLEANUP')}</option>
                   <option value="ROLLBACK">{dictionaryLabel('ROLLBACK')}</option>
-                </select>
+                </NativeSelect>
               </Field>
               <Field label="requestKey"><input value={taskDraft.requestKey} onChange={(event) => setTaskDraftValue('requestKey', event.target.value)} /></Field>
             </div>
@@ -1574,12 +1575,12 @@ export function TestDataWorkbench(props: { signedIn: boolean; currentUser: Curre
             <Field label="accountKey"><input value={accountDraft.accountKey} onChange={(event) => setAccountDraftValue('accountKey', event.target.value)} /></Field>
             <Field label="displayName"><input value={accountDraft.displayName} onChange={(event) => setAccountDraftValue('displayName', event.target.value)} /></Field>
             <Field label={translate('auto.k0182')}>
-              <select value={accountDraft.status} onChange={(event) => setAccountDraftValue('status', event.target.value)}>
+              <NativeSelect value={accountDraft.status} onChange={(event) => setAccountDraftValue('status', event.target.value)}>
                 <option value="AVAILABLE">{dictionaryLabel('AVAILABLE')}</option>
                 <option value="LEASED">{dictionaryLabel('LEASED')}</option>
                 <option value="LOCKED">{dictionaryLabel('LOCKED')}</option>
                 <option value="DISABLED">{dictionaryLabel('DISABLED')}</option>
-              </select>
+              </NativeSelect>
             </Field>
             <Field label="roleTags"><input value={accountDraft.roleTagsText} onChange={(event) => setAccountDraftValue('roleTagsText', event.target.value)} /></Field>
             <Field label="lastHealthStatus"><input value={accountDraft.lastHealthStatus} onChange={(event) => setAccountDraftValue('lastHealthStatus', event.target.value)} /></Field>
@@ -1800,12 +1801,12 @@ function StateLine(props: { state: WorkState }) {
 
 function StatusSelect(props: { value: string; onChange: (value: string) => void }) {
   return (
-    <select value={props.value} onChange={(event) => props.onChange(event.target.value)}>
+    <NativeSelect value={props.value} onChange={(event) => props.onChange(event.target.value)}>
       <option value="DRAFT">{dictionaryLabel('DRAFT')}</option>
       <option value="READY">{dictionaryLabel('READY')}</option>
       <option value="DISABLED">{dictionaryLabel('DISABLED')}</option>
       <option value="ARCHIVED">{dictionaryLabel('ARCHIVED')}</option>
-    </select>
+    </NativeSelect>
   );
 }
 

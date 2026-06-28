@@ -57,6 +57,7 @@ import { AssetTraceWorkbench } from './AssetTraceWorkbench';
 import { AssetVersionHistoryPanel } from './AssetVersionHistoryPanel';
 import { dictionaryLabel, fieldLabel } from '../platform/dictionaries';
 import { translate } from '../platform/i18n';
+import { NativeSelect } from './ui';
 
 type WorkState = {
   loading: boolean;
@@ -842,7 +843,7 @@ export function AssetWorkbench(props: { signedIn: boolean; currentUser: CurrentU
             </label>
             <label className="field" htmlFor="asset-filter-status">
               <span>{fieldLabel('status')}</span>
-              <select
+              <NativeSelect
                 id="asset-filter-status"
                 value={filters.status}
                 disabled={disabled}
@@ -852,11 +853,11 @@ export function AssetWorkbench(props: { signedIn: boolean; currentUser: CurrentU
                 {ASSET_REQUIREMENT_STATUSES.map((status) => (
                   <option key={status} value={status}>{dictionaryLabel(status)}</option>
                 ))}
-              </select>
+              </NativeSelect>
             </label>
             <label className="field" htmlFor="asset-filter-source">
               <span>{fieldLabel('source')}</span>
-              <select
+              <NativeSelect
                 id="asset-filter-source"
                 value={filters.source}
                 disabled={disabled}
@@ -866,7 +867,7 @@ export function AssetWorkbench(props: { signedIn: boolean; currentUser: CurrentU
                 {ASSET_REQUIREMENT_SOURCES.map((source) => (
                   <option key={source} value={source}>{dictionaryLabel(source)}</option>
                 ))}
-              </select>
+              </NativeSelect>
             </label>
             <label className="field" htmlFor="asset-filter-source-ref">
               <span>{fieldLabel('sourceRef')}</span>
@@ -968,7 +969,7 @@ export function AssetWorkbench(props: { signedIn: boolean; currentUser: CurrentU
                 </label>
                 <label className="field" htmlFor="asset-api-filter-status">
                   <span>{fieldLabel('status')}</span>
-                  <select
+                  <NativeSelect
                     id="asset-api-filter-status"
                     value={apiFilters.status}
                     disabled={apiDisabled}
@@ -978,11 +979,11 @@ export function AssetWorkbench(props: { signedIn: boolean; currentUser: CurrentU
                     {ASSET_API_STATUSES.map((status) => (
                       <option key={status} value={status}>{dictionaryLabel(status)}</option>
                     ))}
-                  </select>
+                  </NativeSelect>
                 </label>
                 <label className="field" htmlFor="asset-api-filter-method">
                   <span>{fieldLabel('method')}</span>
-                  <select
+                  <NativeSelect
                     id="asset-api-filter-method"
                     value={apiFilters.method}
                     disabled={apiDisabled}
@@ -994,7 +995,7 @@ export function AssetWorkbench(props: { signedIn: boolean; currentUser: CurrentU
                         {method}
                       </option>
                     ))}
-                  </select>
+                  </NativeSelect>
                 </label>
                 <label className="field" htmlFor="asset-api-filter-source">
                   <span>{fieldLabel('source')}</span>
@@ -1143,7 +1144,7 @@ export function AssetWorkbench(props: { signedIn: boolean; currentUser: CurrentU
               </label>
               <label className="field" htmlFor="asset-create-priority">
                 <span>{fieldLabel('priority')}</span>
-                <select
+                <NativeSelect
                   id="asset-create-priority"
                   value={createDraft.priority}
                   disabled={createDisabled}
@@ -1152,11 +1153,11 @@ export function AssetWorkbench(props: { signedIn: boolean; currentUser: CurrentU
                   {ASSET_REQUIREMENT_PRIORITIES.map((priority) => (
                     <option key={priority} value={priority}>{dictionaryLabel(priority)}</option>
                   ))}
-                </select>
+                </NativeSelect>
               </label>
               <label className="field" htmlFor="asset-create-source">
                 <span>{fieldLabel('source')}</span>
-                <select
+                <NativeSelect
                   id="asset-create-source"
                   value={createDraft.source}
                   disabled={createDisabled}
@@ -1165,7 +1166,7 @@ export function AssetWorkbench(props: { signedIn: boolean; currentUser: CurrentU
                   {ASSET_REQUIREMENT_SOURCES.map((source) => (
                     <option key={source} value={source}>{dictionaryLabel(source)}</option>
                   ))}
-                </select>
+                </NativeSelect>
               </label>
               <label className="field" htmlFor="asset-create-source-ref">
                 <span>{fieldLabel('sourceRef')}</span>
@@ -1294,7 +1295,7 @@ export function AssetWorkbench(props: { signedIn: boolean; currentUser: CurrentU
                   </label>
                   <label className="field" htmlFor="asset-api-create-method">
                     <span>{fieldLabel('method')}</span>
-                    <select
+                    <NativeSelect
                       id="asset-api-create-method"
                       value={apiCreateDraft.httpMethod}
                       disabled={apiCreateDisabled}
@@ -1305,7 +1306,7 @@ export function AssetWorkbench(props: { signedIn: boolean; currentUser: CurrentU
                           {method}
                         </option>
                       ))}
-                    </select>
+                    </NativeSelect>
                   </label>
                   <label className="field" htmlFor="asset-api-create-path">
                     <span>{fieldLabel('path')}<b>*</b></span>
@@ -1319,7 +1320,7 @@ export function AssetWorkbench(props: { signedIn: boolean; currentUser: CurrentU
                   </label>
                   <label className="field" htmlFor="asset-api-create-status">
                     <span>{fieldLabel('status')}</span>
-                    <select
+                    <NativeSelect
                       id="asset-api-create-status"
                       value={apiCreateDraft.status}
                       disabled={apiCreateDisabled}
@@ -1328,7 +1329,7 @@ export function AssetWorkbench(props: { signedIn: boolean; currentUser: CurrentU
                       {ASSET_API_STATUSES.map((status) => (
                         <option key={status} value={status}>{dictionaryLabel(status)}</option>
                       ))}
-                    </select>
+                    </NativeSelect>
                   </label>
                   <label className="field" htmlFor="asset-api-create-version">
                     <span>{fieldLabel('version')}</span>
@@ -1524,7 +1525,7 @@ export function AssetWorkbench(props: { signedIn: boolean; currentUser: CurrentU
                 </label>
                 <label>
                   <span>{fieldLabel('priority')}</span>
-                  <select
+                  <NativeSelect
                     value={editDraft.priority}
                     disabled={editDisabled}
                     onChange={(event) => setEditDraft((current) => ({ ...current, priority: event.target.value }))}
@@ -1532,7 +1533,7 @@ export function AssetWorkbench(props: { signedIn: boolean; currentUser: CurrentU
                     {ASSET_REQUIREMENT_PRIORITIES.map((priority) => (
                       <option key={priority} value={priority}>{dictionaryLabel(priority)}</option>
                     ))}
-                  </select>
+                  </NativeSelect>
                 </label>
                 <label>
                   <span>{translate('auto.k0443')}</span>
@@ -1727,7 +1728,7 @@ export function AssetWorkbench(props: { signedIn: boolean; currentUser: CurrentU
                     </label>
                     <label>
                       <span>{fieldLabel('method')}</span>
-                      <select
+                      <NativeSelect
                         value={apiEditDraft.httpMethod}
                         disabled={apiEditDisabled}
                         onChange={(event) => setApiEditDraft((current) => ({ ...current, httpMethod: event.target.value }))}
@@ -1737,7 +1738,7 @@ export function AssetWorkbench(props: { signedIn: boolean; currentUser: CurrentU
                             {method}
                           </option>
                         ))}
-                      </select>
+                      </NativeSelect>
                     </label>
                     <label>
                       <span>{fieldLabel('path')}</span>
@@ -1749,7 +1750,7 @@ export function AssetWorkbench(props: { signedIn: boolean; currentUser: CurrentU
                     </label>
                     <label>
                       <span>{fieldLabel('status')}</span>
-                      <select
+                      <NativeSelect
                         value={apiEditDraft.status}
                         disabled={apiEditDisabled}
                         onChange={(event) => setApiEditDraft((current) => ({ ...current, status: event.target.value }))}
@@ -1757,7 +1758,7 @@ export function AssetWorkbench(props: { signedIn: boolean; currentUser: CurrentU
                         {apiStatusOptions(selectedApi.status).map((status) => (
                           <option key={status} value={status}>{dictionaryLabel(status)}</option>
                         ))}
-                      </select>
+                      </NativeSelect>
                     </label>
                     <label>
                       <span>{fieldLabel('version')}</span>

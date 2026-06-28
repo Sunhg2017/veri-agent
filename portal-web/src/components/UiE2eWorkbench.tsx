@@ -121,6 +121,7 @@ import {
   type UiE2eSceneStepDraft
 } from '../uiE2eWorkbenchState';
 import { translate } from '../platform/i18n';
+import { NativeSelect } from './ui';
 
 type WorkState = {
   loading: boolean;
@@ -942,14 +943,14 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
                 <input value={sceneFilters.projectId} onChange={(event) => setSceneFilters((current) => ({ ...current, projectId: event.target.value }))} placeholder="project-alpha" />
               </Field>
               <Field label="status">
-                <select value={sceneFilters.status} onChange={(event) => setSceneFilters((current) => ({ ...current, status: event.target.value }))}>
+                <NativeSelect value={sceneFilters.status} onChange={(event) => setSceneFilters((current) => ({ ...current, status: event.target.value }))}>
                   <option value="">{translate('auto.k0195')}</option>
                   <option value="DRAFT">{dictionaryLabel('DRAFT')}</option>
                   <option value="REVIEWING">{dictionaryLabel('REVIEWING')}</option>
                   <option value="APPROVED">{dictionaryLabel('APPROVED')}</option>
                   <option value="DISABLED">{dictionaryLabel('DISABLED')}</option>
                   <option value="ARCHIVED">{dictionaryLabel('ARCHIVED')}</option>
-                </select>
+                </NativeSelect>
               </Field>
               <Field label="applicationId">
                 <input
@@ -966,13 +967,13 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
                 />
               </Field>
               <Field label="riskLevel">
-                <select value={sceneFilters.riskLevel} onChange={(event) => setSceneFilters((current) => ({ ...current, riskLevel: event.target.value }))}>
+                <NativeSelect value={sceneFilters.riskLevel} onChange={(event) => setSceneFilters((current) => ({ ...current, riskLevel: event.target.value }))}>
                   <option value="">{translate('auto.k0195')}</option>
                   <option value="LOW">{dictionaryLabel('LOW')}</option>
                   <option value="MEDIUM">{dictionaryLabel('MEDIUM')}</option>
                   <option value="HIGH">{dictionaryLabel('HIGH')}</option>
                   <option value="CRITICAL">{dictionaryLabel('CRITICAL')}</option>
-                </select>
+                </NativeSelect>
               </Field>
               <Field label="tag">
                 <input value={sceneFilters.tag} onChange={(event) => setSceneFilters((current) => ({ ...current, tag: event.target.value }))} placeholder="smoke" />
@@ -1048,20 +1049,20 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
                   <input value={sceneDraft.name} onChange={(event) => setSceneDraftValue('name', event.target.value)} placeholder={translate('auto.k1895')} disabled={!canManage || sceneActionState.loading} />
                 </Field>
                 <Field label="status">
-                  <select value={sceneDraft.status} onChange={(event) => setSceneDraftValue('status', event.target.value)} disabled={!canManage || sceneActionState.loading}>
+                  <NativeSelect value={sceneDraft.status} onChange={(event) => setSceneDraftValue('status', event.target.value)} disabled={!canManage || sceneActionState.loading}>
                     <option value="DRAFT">{dictionaryLabel('DRAFT')}</option>
                     <option value="REVIEWING">{dictionaryLabel('REVIEWING')}</option>
                     <option value="APPROVED">{dictionaryLabel('APPROVED')}</option>
                     <option value="DISABLED">{dictionaryLabel('DISABLED')}</option>
-                  </select>
+                  </NativeSelect>
                 </Field>
                 <Field label="riskLevel">
-                  <select value={sceneDraft.riskLevel} onChange={(event) => setSceneDraftValue('riskLevel', event.target.value)} disabled={!canManage || sceneActionState.loading}>
+                  <NativeSelect value={sceneDraft.riskLevel} onChange={(event) => setSceneDraftValue('riskLevel', event.target.value)} disabled={!canManage || sceneActionState.loading}>
                     <option value="LOW">{dictionaryLabel('LOW')}</option>
                     <option value="MEDIUM">{dictionaryLabel('MEDIUM')}</option>
                     <option value="HIGH">{dictionaryLabel('HIGH')}</option>
                     <option value="CRITICAL">{dictionaryLabel('CRITICAL')}</option>
-                  </select>
+                  </NativeSelect>
                 </Field>
                 <Field label="tags">
                   <input value={sceneDraft.tagsText} onChange={(event) => setSceneDraftValue('tagsText', event.target.value)} placeholder="login smoke admin" disabled={!canManage || sceneActionState.loading} />
@@ -1078,14 +1079,14 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
                   </div>
                   <div className="form-grid">
                     <Field label="sourceType">
-                      <select
+                      <NativeSelect
                         value={sceneImportDraft.sourceType}
                         onChange={(event) => setSceneImportDraft((current) => ({ ...current, sourceType: event.target.value as UiE2eSceneImportSourceType }))}
                         disabled={!canManage || sceneActionState.loading}
                       >
                         <option value="PLAYWRIGHT_CODEGEN">{dictionaryLabel('PLAYWRIGHT_CODEGEN')}</option>
                         <option value="SELENIUM_IDE">{dictionaryLabel('SELENIUM_IDE')}</option>
-                      </select>
+                      </NativeSelect>
                     </Field>
                     <Field label="codeHint">
                       <input
@@ -1286,14 +1287,14 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
                 <input value={bundleFilters.projectId} onChange={(event) => setBundleFilters((current) => ({ ...current, projectId: event.target.value }))} placeholder="project-alpha" />
               </Field>
               <Field label="status">
-                <select value={bundleFilters.status} onChange={(event) => setBundleFilters((current) => ({ ...current, status: event.target.value }))}>
+                <NativeSelect value={bundleFilters.status} onChange={(event) => setBundleFilters((current) => ({ ...current, status: event.target.value }))}>
                   <option value="">{translate('auto.k0195')}</option>
                   <option value="DRAFT">{dictionaryLabel('DRAFT')}</option>
                   <option value="REVIEWING">{dictionaryLabel('REVIEWING')}</option>
                   <option value="APPROVED">{dictionaryLabel('APPROVED')}</option>
                   <option value="REJECTED">{dictionaryLabel('REJECTED')}</option>
                   <option value="ARCHIVED">{dictionaryLabel('ARCHIVED')}</option>
-                </select>
+                </NativeSelect>
               </Field>
               <Field label="keyword">
                 <input value={bundleFilters.keyword} onChange={(event) => setBundleFilters((current) => ({ ...current, keyword: event.target.value }))} placeholder="scene / digest" />
@@ -1649,7 +1650,7 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
                 <input value={runFilters.projectId} onChange={(event) => setRunFilters((current) => ({ ...current, projectId: event.target.value }))} placeholder="project-alpha" />
               </Field>
               <Field label="status">
-                <select value={runFilters.status} onChange={(event) => setRunFilters((current) => ({ ...current, status: event.target.value }))}>
+                <NativeSelect value={runFilters.status} onChange={(event) => setRunFilters((current) => ({ ...current, status: event.target.value }))}>
                   <option value="">{translate('auto.k0195')}</option>
                   <option value="QUEUED">{dictionaryLabel('QUEUED')}</option>
                   <option value="RUNNING">{dictionaryLabel('RUNNING')}</option>
@@ -1658,7 +1659,7 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
                   <option value="TIMEOUT">{dictionaryLabel('TIMEOUT')}</option>
                   <option value="CANCELED">{dictionaryLabel('CANCELED')}</option>
                   <option value="BLOCKED">{dictionaryLabel('BLOCKED')}</option>
-                </select>
+                </NativeSelect>
               </Field>
               <Field label="keyword">
                 <input value={runFilters.keyword} onChange={(event) => setRunFilters((current) => ({ ...current, keyword: event.target.value }))} placeholder="requestKey / scene" />
@@ -1755,12 +1756,12 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
                   <input value={flakyDraft.runId} onChange={(event) => setFlakyDraftValue('runId', event.target.value)} placeholder={translate('auto.k1941')} disabled={!canFlaky || flakyActionState.loading} />
                 </Field>
                 <Field label="status">
-                  <select value={flakyDraft.status} onChange={(event) => setFlakyDraftValue('status', event.target.value)} disabled={!canFlaky || flakyActionState.loading}>
+                  <NativeSelect value={flakyDraft.status} onChange={(event) => setFlakyDraftValue('status', event.target.value)} disabled={!canFlaky || flakyActionState.loading}>
                     <option value="NONE">{dictionaryLabel('NONE')}</option>
                     <option value="FLAKY_CANDIDATE">{dictionaryLabel('FLAKY_CANDIDATE')}</option>
                     <option value="CONFIRMED_FLAKY">{dictionaryLabel('CONFIRMED_FLAKY')}</option>
                     <option value="WAIVED">{dictionaryLabel('WAIVED')}</option>
-                  </select>
+                  </NativeSelect>
                 </Field>
                 <Field label="reasonCode">
                   <input value={flakyDraft.reasonCode} onChange={(event) => setFlakyDraftValue('reasonCode', event.target.value)} placeholder="locator-drift" disabled={!canFlaky || flakyActionState.loading} />
@@ -1784,13 +1785,13 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
                 <input value={flakyFilters.projectId} onChange={(event) => setFlakyFilters((current) => ({ ...current, projectId: event.target.value }))} placeholder="project-alpha" />
               </Field>
               <Field label="status">
-                <select value={flakyFilters.status} onChange={(event) => setFlakyFilters((current) => ({ ...current, status: event.target.value }))}>
+                <NativeSelect value={flakyFilters.status} onChange={(event) => setFlakyFilters((current) => ({ ...current, status: event.target.value }))}>
                   <option value="">{translate('auto.k0195')}</option>
                   <option value="NONE">{dictionaryLabel('NONE')}</option>
                   <option value="FLAKY_CANDIDATE">{dictionaryLabel('FLAKY_CANDIDATE')}</option>
                   <option value="CONFIRMED_FLAKY">{dictionaryLabel('CONFIRMED_FLAKY')}</option>
                   <option value="WAIVED">{dictionaryLabel('WAIVED')}</option>
-                </select>
+                </NativeSelect>
               </Field>
               <Field label="keyword">
                 <input value={flakyFilters.keyword} onChange={(event) => setFlakyFilters((current) => ({ ...current, keyword: event.target.value }))} placeholder="reason / scene / run" />

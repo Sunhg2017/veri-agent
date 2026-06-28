@@ -12,6 +12,7 @@ import type { CurrentUser } from '../api/auth';
 import { hasPermission } from '../permissions';
 import { dictionaryLabel, fieldLabel } from '../platform/dictionaries';
 import { translate } from '../platform/i18n';
+import { NativeSelect } from './ui';
 
 type WorkState = {
   loading: boolean;
@@ -152,7 +153,7 @@ export function AssetImportExportPanel(props: {
         <div className="asset-form-grid">
           <label className="field" htmlFor="asset-io-type">
             <span>{fieldLabel('assetType')}</span>
-            <select
+            <NativeSelect
               id="asset-io-type"
               value={draft.assetType}
               disabled={state.loading}
@@ -161,11 +162,11 @@ export function AssetImportExportPanel(props: {
               {assetTypeOptions.map((assetType) => (
                 <option key={assetType} value={assetType}>{dictionaryLabel(assetType)}</option>
               ))}
-            </select>
+            </NativeSelect>
           </label>
           <label className="field" htmlFor="asset-io-format">
             <span>{fieldLabel('format')}</span>
-            <select
+            <NativeSelect
               id="asset-io-format"
               value={draft.format}
               disabled={state.loading}
@@ -174,7 +175,7 @@ export function AssetImportExportPanel(props: {
               {formatOptions.map((format) => (
                 <option key={format} value={format}>{dictionaryLabel(format)}</option>
               ))}
-            </select>
+            </NativeSelect>
           </label>
           <label className="field" htmlFor="asset-io-project">
             <span>{fieldLabel('projectId')}</span>

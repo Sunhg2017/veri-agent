@@ -19,6 +19,7 @@ import type {
 import { StateLine, type WorkState } from './TestDesignOverviewPanels';
 import { dictionaryLabel } from '../platform/dictionaries';
 import { translate } from '../platform/i18n';
+import { NativeSelect } from './ui';
 
 export type CrossWpOperationsFilters = {
   projectId: string;
@@ -248,7 +249,7 @@ export function CrossWpOperationsPanel(props: {
                   </label>
                   <label className="field">
                     <span className="field-label">{translate('auto.k0182')}</span>
-                    <select
+                    <NativeSelect
                       value={props.requeueDraft.status}
                       onChange={(event) => props.onRequeueDraftChange((current) => ({ ...current, status: event.target.value }))}
                       disabled={!props.canPolicyManage}
@@ -256,7 +257,7 @@ export function CrossWpOperationsPanel(props: {
                       {auditOutboxReplayStatuses.map((status) => (
                         <option key={status} value={status}>{dictionaryLabel(status)}</option>
                       ))}
-                    </select>
+                    </NativeSelect>
                   </label>
                   <label className="field">
                     <span className="field-label">{translate('auto.k1450')}</span>
@@ -319,7 +320,7 @@ export function CrossWpOperationsPanel(props: {
                   </label>
                   <label className="field">
                     <span className="field-label">{translate('auto.k0286')}</span>
-                    <select
+                    <NativeSelect
                       value={props.queueAlertSubscriptionDraft.alertType}
                       onChange={(event) => props.onQueueAlertSubscriptionDraftChange((current) => ({ ...current, alertType: event.target.value }))}
                       disabled={!props.canPolicyManage}
@@ -327,11 +328,11 @@ export function CrossWpOperationsPanel(props: {
                       {queueAlertTypes.map((type) => (
                         <option key={type} value={type}>{dictionaryLabel(type)}</option>
                       ))}
-                    </select>
+                    </NativeSelect>
                   </label>
                   <label className="field">
                     <span className="field-label">{translate('auto.k1454')}</span>
-                    <select
+                    <NativeSelect
                       value={props.queueAlertSubscriptionDraft.channel}
                       onChange={(event) => props.onQueueAlertSubscriptionDraftChange((current) => ({ ...current, channel: event.target.value }))}
                       disabled={!props.canPolicyManage}
@@ -339,7 +340,7 @@ export function CrossWpOperationsPanel(props: {
                       {queueAlertChannels.map((channel) => (
                         <option key={channel} value={channel}>{dictionaryLabel(channel)}</option>
                       ))}
-                    </select>
+                    </NativeSelect>
                   </label>
                   <label className="field">
                     <span className="field-label">{translate('auto.k1455')}</span>
@@ -409,7 +410,7 @@ export function CrossWpOperationsPanel(props: {
                   </label>
                   <label className="field">
                     <span className="field-label">{translate('auto.k0286')}</span>
-                    <select
+                    <NativeSelect
                       value={props.queuedEventReplayDraft.replayType}
                       onChange={(event) => props.onQueuedEventReplayDraftChange((current) => ({ ...current, replayType: event.target.value }))}
                       disabled={!props.canPolicyManage}
@@ -417,7 +418,7 @@ export function CrossWpOperationsPanel(props: {
                       {queuedEventReplayTypes.map((type) => (
                         <option key={type} value={type}>{dictionaryLabel(type)}</option>
                       ))}
-                    </select>
+                    </NativeSelect>
                   </label>
                   <label className="field">
                     <span className="field-label">{translate('auto.k1450')}</span>

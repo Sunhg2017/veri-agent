@@ -22,16 +22,19 @@ test('WP4 document input browser smoke covers upload, candidate review, publish 
   await expect(page.getByRole('heading', { name: '文本 / Word / PDF / OCR 导入' })).toBeVisible();
   await expect(page.getByText('WP4 smoke source')).toBeVisible();
 
-  await page.locator('#import-project-id').fill('project-wp4-ui-smoke');
-  await page.locator('#import-title').fill('WP4 UI smoke upload');
-  await page.locator('#import-source-type').selectOption('WORD');
-  await page.locator('#import-source-ref').fill('UI-SMOKE-DOC-1');
-  await page.locator('#import-file').setInputFiles({
+  await page.getByRole('button', { name: '发起导入' }).click();
+  const importDrawer = page.getByRole('dialog', { name: '文本 / Word / PDF / OCR 导入' });
+  await expect(importDrawer).toBeVisible();
+  await importDrawer.locator('#import-project-id').fill('project-wp4-ui-smoke');
+  await importDrawer.locator('#import-title').fill('WP4 UI smoke upload');
+  await selectAntdFieldOption(page, importDrawer, '来源类型', 'Word');
+  await importDrawer.locator('#import-source-ref').fill('UI-SMOKE-DOC-1');
+  await importDrawer.locator('#import-file').setInputFiles({
     name: 'wp4-smoke-upload.docx',
     mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
     buffer: Buffer.from('wp4 document input browser smoke')
   });
-  await page.getByRole('button', { name: '发起导入' }).click();
+  await importDrawer.getByRole('button', { name: '发起导入' }).click();
 
   await expect(page.getByText('导入任务已提交')).toBeVisible();
   await expect(page.getByText('wp4-smoke-upload.docx')).toBeVisible();
@@ -45,7 +48,7 @@ test('WP4 document input browser smoke covers upload, candidate review, publish 
   await candidateCard.locator('#candidate-priority-cand-ui-1').fill('HIGH');
   await candidateCard.locator('#candidate-acceptance-cand-ui-1').fill('Given 用户上传文档 When 解析完成 Then 候选可审核');
   await candidateCard.locator('#candidate-tags-cand-ui-1').fill('wp4, ui-smoke');
-  await candidateCard.getByRole('button', { name: '保存' }).click();
+  await candidateCard.getByRole('button', { name: '保存候选需求' }).click();
 
   await expect(page.getByText('候选需求已保存')).toBeVisible();
   await expect(candidateCard.locator('#candidate-title-cand-ui-1')).toHaveValue('上传文件候选 - 已编辑');
@@ -60,9 +63,9 @@ test('WP4 document input browser smoke covers upload, candidate review, publish 
   await expect(page.getByText('候选需求已确认')).toBeVisible();
   await page.locator('#candidate-select-cand-ui-1').check();
 
-  await page.getByRole('button', { name: 'Dry Run' }).click();
+  await page.getByRole('button', { name: '试运行' }).click();
   await expect(page.getByText('发布预检', { exact: true })).toBeVisible();
-  await expect(page.getByText('已按 1 个候选项过滤')).toBeVisible();
+  await expect(page.getByText(/已按\s*1 个候选项过滤/)).toBeVisible();
   await expect(page.getByText('CREATE · cand-ui-1')).toBeVisible();
   expect(mock.publishDryRunSeen).toBe(true);
 
@@ -75,6 +78,11 @@ test('WP4 document input browser smoke covers upload, candidate review, publish 
   await expect(page.getByText('ui-smoke-replay')).toBeVisible();
   expect(mock.replaySeen).toBe(true);
 });
+
+async function selectAntdFieldOption(page: Page, panel: ReturnType<Page['getByRole']>, fieldLabel: string, optionName: string) {
+  await panel.getByRole('combobox', { name: new RegExp(fieldLabel) }).click();
+  await page.locator('.ant-select-dropdown:not(.ant-select-dropdown-hidden) .ant-select-item-option-content', { hasText: optionName }).first().click();
+}
 
 class Wp4DocumentInputMock {
   multipartUploadSeen = false;

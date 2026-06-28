@@ -66,6 +66,7 @@ import {
 import { canUseButton, hasPermission } from '../permissions';
 import { dictionaryLabel, displayValueLabel, fieldLabel } from '../platform/dictionaries';
 import { translate } from '../platform/i18n';
+import { NativeSelect } from './ui';
 
 type WorkState = {
   loading: boolean;
@@ -733,11 +734,11 @@ export function ExecutionWorkbench(props: { signedIn: boolean; currentUser: Curr
                 <input value={planDraft.environmentKey} onChange={(event) => setPlanDraftValue('environmentKey', event.target.value)} />
               </Field>
               <Field label={translate('auto.k0182')}>
-                <select value={planDraft.status} onChange={(event) => setPlanDraftValue('status', event.target.value as ExecutionPlanDraft['status'])}>
+                <NativeSelect value={planDraft.status} onChange={(event) => setPlanDraftValue('status', event.target.value as ExecutionPlanDraft['status'])}>
                   <option value="DRAFT">{dictionaryLabel('DRAFT')}</option>
                   <option value="READY">{dictionaryLabel('READY')}</option>
                   <option value="DISABLED">{dictionaryLabel('DISABLED')}</option>
-                </select>
+                </NativeSelect>
               </Field>
             </div>
             <Field label={translate('auto.k0443')}>
@@ -763,10 +764,10 @@ export function ExecutionWorkbench(props: { signedIn: boolean; currentUser: Curr
                       <input value={node.key} onChange={(event) => setPlanNodeDraftValue(index, 'key', event.target.value)} />
                     </Field>
                     <Field label={translate('auto.k0865')}>
-                      <select value={node.type} onChange={(event) => setPlanNodeDraftValue(index, 'type', event.target.value as ExecutionDagNodeDraft['type'])}>
+                      <NativeSelect value={node.type} onChange={(event) => setPlanNodeDraftValue(index, 'type', event.target.value as ExecutionDagNodeDraft['type'])}>
                         <option value="API_TEST">{dictionaryLabel('API_TEST')}</option>
                         <option value="REPORT_HANDOFF">{dictionaryLabel('REPORT_HANDOFF')}</option>
-                      </select>
+                      </NativeSelect>
                     </Field>
                     <Field label={translate('auto.k0866')}>
                       <input value={node.dependenciesText} onChange={(event) => setPlanNodeDraftValue(index, 'dependenciesText', event.target.value)} />
@@ -809,11 +810,11 @@ export function ExecutionWorkbench(props: { signedIn: boolean; currentUser: Curr
                       <input type="number" min={1} max={86400} value={node.timeoutSeconds} onChange={(event) => setPlanNodeDraftValue(index, 'timeoutSeconds', Number(event.target.value))} />
                     </Field>
                     <Field label={translate('auto.k0868')}>
-                      <select value={node.failurePolicy} onChange={(event) => setPlanNodeDraftValue(index, 'failurePolicy', event.target.value as ExecutionDagNodeDraft['failurePolicy'])}>
+                      <NativeSelect value={node.failurePolicy} onChange={(event) => setPlanNodeDraftValue(index, 'failurePolicy', event.target.value as ExecutionDagNodeDraft['failurePolicy'])}>
                         <option value="FAIL_FAST">{dictionaryLabel('FAIL_FAST')}</option>
                         <option value="CONTINUE">{dictionaryLabel('CONTINUE')}</option>
                         <option value="BLOCK_DOWNSTREAM">{dictionaryLabel('BLOCK_DOWNSTREAM')}</option>
-                      </select>
+                      </NativeSelect>
                     </Field>
                     <Field label={translate('auto.k0869')}>
                       <input type="number" min={0} max={5} value={node.maxAttempts} onChange={(event) => setPlanNodeDraftValue(index, 'maxAttempts', Number(event.target.value))} />
@@ -1132,17 +1133,17 @@ export function ExecutionWorkbench(props: { signedIn: boolean; currentUser: Curr
             >
             <form className="execution-trigger-form document-drawer-form" onSubmit={onCreateTrigger}>
               <Field label={translate('auto.k0286')}>
-                <select value={triggerDraft.triggerType} onChange={(event) => setTriggerDraftValue('triggerType', event.target.value as TriggerDraft['triggerType'])}>
+                <NativeSelect value={triggerDraft.triggerType} onChange={(event) => setTriggerDraftValue('triggerType', event.target.value as TriggerDraft['triggerType'])}>
                   <option value="WEBHOOK">{dictionaryLabel('WEBHOOK')}</option>
                   <option value="CRON">{dictionaryLabel('CRON')}</option>
-                </select>
+                </NativeSelect>
               </Field>
               <Field label={translate('auto.k0182')}>
-                <select value={triggerDraft.status} onChange={(event) => setTriggerDraftValue('status', event.target.value as TriggerDraft['status'])}>
+                <NativeSelect value={triggerDraft.status} onChange={(event) => setTriggerDraftValue('status', event.target.value as TriggerDraft['status'])}>
                   <option value="DISABLED">{dictionaryLabel('DISABLED')}</option>
                   <option value="ENABLED">{dictionaryLabel('ENABLED')}</option>
                   <option value="PAUSED">{dictionaryLabel('PAUSED')}</option>
-                </select>
+                </NativeSelect>
               </Field>
               <Field label={triggerDraft.triggerType === 'WEBHOOK' ? 'source' : 'cron'}>
                 <input

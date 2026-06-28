@@ -25,6 +25,7 @@ import {
 } from './TestDesignWorkbenchShared';
 import { dictionaryLabel } from '../platform/dictionaries';
 import { translate } from '../platform/i18n';
+import { NativeSelect } from './ui';
 
 export type EvaluationSampleFilters = {
   projectId: string;
@@ -171,7 +172,7 @@ export function EvaluationCorpusOperationsPanel(props: {
           </label>
           <label className="field">
             <span className="field-label">{translate('auto.k0182')}</span>
-            <select
+            <NativeSelect
               value={props.filters.status}
               onChange={(event) => props.onFiltersChange((current) => ({ ...current, status: event.target.value }))}
             >
@@ -179,11 +180,11 @@ export function EvaluationCorpusOperationsPanel(props: {
               {evaluationSampleStatuses.map((status) => (
                 <option key={status} value={status}>{dictionaryLabel(status)}</option>
               ))}
-            </select>
+            </NativeSelect>
           </label>
           <label className="field">
             <span className="field-label">{translate('auto.k1315')}</span>
-            <select
+            <NativeSelect
               value={props.filters.coverageType}
               onChange={(event) => props.onFiltersChange((current) => ({ ...current, coverageType: event.target.value }))}
             >
@@ -191,7 +192,7 @@ export function EvaluationCorpusOperationsPanel(props: {
               {TEST_DESIGN_COVERAGE_TYPES.map((coverageType) => (
                 <option key={coverageType} value={coverageType}>{dictionaryLabel(coverageType)}</option>
               ))}
-            </select>
+            </NativeSelect>
           </label>
           <label className="field">
             <span className="field-label">{translate('auto.k1506')}</span>
@@ -239,7 +240,7 @@ export function EvaluationCorpusOperationsPanel(props: {
               </label>
               <label className="field">
                 <span className="field-label">{translate('auto.k0179')}</span>
-                <select
+                <NativeSelect
                   value={props.sampleDraft.sourceType}
                   onChange={(event) => props.onSampleDraftChange((current) => ({ ...current, sourceType: event.target.value }))}
                   disabled={!props.canPolicyManage}
@@ -247,11 +248,11 @@ export function EvaluationCorpusOperationsPanel(props: {
                   {evaluationSampleSourceTypes.map((sourceType) => (
                     <option key={sourceType} value={sourceType}>{dictionaryLabel(sourceType)}</option>
                   ))}
-                </select>
+                </NativeSelect>
               </label>
               <label className="field">
                 <span className="field-label">{translate('auto.k1315')}</span>
-                <select
+                <NativeSelect
                   value={props.sampleDraft.coverageType}
                   onChange={(event) => props.onSampleDraftChange((current) => ({ ...current, coverageType: event.target.value }))}
                   disabled={!props.canPolicyManage}
@@ -259,11 +260,11 @@ export function EvaluationCorpusOperationsPanel(props: {
                   {TEST_DESIGN_COVERAGE_TYPES.map((coverageType) => (
                     <option key={coverageType} value={coverageType}>{dictionaryLabel(coverageType)}</option>
                   ))}
-                </select>
+                </NativeSelect>
               </label>
               <label className="field">
                 <span className="field-label">{translate('auto.k0419')}</span>
-                <select
+                <NativeSelect
                   value={props.sampleDraft.priority}
                   onChange={(event) => props.onSampleDraftChange((current) => ({ ...current, priority: event.target.value }))}
                   disabled={!props.canPolicyManage}
@@ -271,11 +272,11 @@ export function EvaluationCorpusOperationsPanel(props: {
                   <option value="HIGH">{dictionaryLabel('HIGH')}</option>
                   <option value="MEDIUM">{dictionaryLabel('MEDIUM')}</option>
                   <option value="LOW">{dictionaryLabel('LOW')}</option>
-                </select>
+                </NativeSelect>
               </label>
               <label className="field">
                 <span className="field-label">{translate('auto.k0182')}</span>
-                <select
+                <NativeSelect
                   value={props.sampleDraft.status}
                   onChange={(event) => props.onSampleDraftChange((current) => ({ ...current, status: event.target.value }))}
                   disabled={!props.canPolicyManage}
@@ -283,7 +284,7 @@ export function EvaluationCorpusOperationsPanel(props: {
                   {evaluationSampleStatuses.map((status) => (
                     <option key={status} value={status}>{dictionaryLabel(status)}</option>
                   ))}
-                </select>
+                </NativeSelect>
               </label>
               <label className="field">
                 <span className="field-label">Prompt</span>
@@ -448,7 +449,7 @@ export function EvaluationCorpusOperationsPanel(props: {
               </label>
               <label className="field">
                 <span className="field-label">{translate('auto.k1526')}</span>
-                <select
+                <NativeSelect
                   value={props.calibrationDraft.runMode}
                   onChange={(event) => props.onCalibrationDraftChange((current) => ({ ...current, runMode: event.target.value }))}
                   disabled={!props.canPolicyManage}
@@ -456,7 +457,7 @@ export function EvaluationCorpusOperationsPanel(props: {
                   {calibrationRunModes.map((mode) => (
                     <option key={mode} value={mode}>{dictionaryLabel(mode)}</option>
                   ))}
-                </select>
+                </NativeSelect>
               </label>
             </div>
             <label className="field">

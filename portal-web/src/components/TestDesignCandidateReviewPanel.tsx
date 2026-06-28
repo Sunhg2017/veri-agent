@@ -55,6 +55,7 @@ import {
 } from './TestDesignWorkbenchShared';
 import { dictionaryLabel } from '../platform/dictionaries';
 import { translate } from '../platform/i18n';
+import { NativeSelect } from './ui';
 
 export function TestDesignCandidateReviewPanel(props: {
   canExport: boolean;
@@ -137,17 +138,17 @@ export function TestDesignCandidateReviewPanel(props: {
         <div className="asset-filter-bar test-design-candidate-filter">
           <label className="field">
             <span className="field-label">{translate('auto.k1314')}</span>
-            <select value={props.candidateFilters.status} onChange={(event) => props.onCandidateFiltersChange((current) => ({ ...current, status: event.target.value }))} disabled={props.taskState.loading || !props.selectedTaskId}>
+            <NativeSelect value={props.candidateFilters.status} onChange={(event) => props.onCandidateFiltersChange((current) => ({ ...current, status: event.target.value }))} disabled={props.taskState.loading || !props.selectedTaskId}>
               <option value="">{translate('auto.k0195')}</option>
               {TEST_DESIGN_CANDIDATE_STATUSES.map((status) => <option key={status} value={status}>{dictionaryLabel(status)}</option>)}
-            </select>
+            </NativeSelect>
           </label>
           <label className="field">
             <span className="field-label">{translate('auto.k1315')}</span>
-            <select value={props.candidateFilters.coverageType} onChange={(event) => props.onCandidateFiltersChange((current) => ({ ...current, coverageType: event.target.value }))} disabled={props.taskState.loading || !props.selectedTaskId}>
+            <NativeSelect value={props.candidateFilters.coverageType} onChange={(event) => props.onCandidateFiltersChange((current) => ({ ...current, coverageType: event.target.value }))} disabled={props.taskState.loading || !props.selectedTaskId}>
               <option value="">{translate('auto.k0195')}</option>
               {TEST_DESIGN_COVERAGE_TYPES.map((type) => <option key={type} value={type}>{dictionaryLabel(type)}</option>)}
-            </select>
+            </NativeSelect>
           </label>
           <label className="field">
             <span className="field-label">{translate('auto.k1316')}</span>
@@ -180,9 +181,9 @@ export function TestDesignCandidateReviewPanel(props: {
             </span>
             <label>
               <span>{translate('auto.k1323')}</span>
-              <select value={props.candidatePageSize} onChange={(event) => props.onCandidatePageSizeChange(Number(event.target.value))} disabled={props.taskState.loading}>
+              <NativeSelect value={props.candidatePageSize} onChange={(event) => props.onCandidatePageSizeChange(Number(event.target.value))} disabled={props.taskState.loading}>
                 {TEST_DESIGN_CANDIDATE_PAGE_SIZES.map((size) => <option key={size} value={size}>{size}</option>)}
-              </select>
+              </NativeSelect>
             </label>
             <div className="toolbar-actions">
               <button
@@ -239,27 +240,27 @@ export function TestDesignCandidateReviewPanel(props: {
             <div className="test-design-batch-editor-grid">
               <label className="field">
                 <span className="field-label">{translate('auto.k1315')}</span>
-                <select value={props.batchEditDraft.coverageType} onChange={(event) => props.onBatchEditDraftChange((current) => ({ ...current, coverageType: event.target.value }))} disabled={!props.canReview || props.mutationState.loading}>
+                <NativeSelect value={props.batchEditDraft.coverageType} onChange={(event) => props.onBatchEditDraftChange((current) => ({ ...current, coverageType: event.target.value }))} disabled={!props.canReview || props.mutationState.loading}>
                   <option value="">{translate('auto.k1333')}</option>
                   {TEST_DESIGN_COVERAGE_TYPES.map((type) => <option key={type} value={type}>{dictionaryLabel(type)}</option>)}
-                </select>
+                </NativeSelect>
               </label>
               <label className="field">
                 <span className="field-label">{translate('auto.k0419')}</span>
-                <select value={props.batchEditDraft.priority} onChange={(event) => props.onBatchEditDraftChange((current) => ({ ...current, priority: event.target.value }))} disabled={!props.canReview || props.mutationState.loading}>
+                <NativeSelect value={props.batchEditDraft.priority} onChange={(event) => props.onBatchEditDraftChange((current) => ({ ...current, priority: event.target.value }))} disabled={!props.canReview || props.mutationState.loading}>
                   <option value="">{translate('auto.k1333')}</option>
                   <option value="CRITICAL">{dictionaryLabel('CRITICAL')}</option>
                   <option value="HIGH">{dictionaryLabel('HIGH')}</option>
                   <option value="MEDIUM">{dictionaryLabel('MEDIUM')}</option>
                   <option value="LOW">{dictionaryLabel('LOW')}</option>
-                </select>
+                </NativeSelect>
               </label>
               <label className="field">
                 <span className="field-label">{translate('auto.k1334')}</span>
-                <select value={props.batchEditDraft.tagMode} onChange={(event) => props.onBatchEditDraftChange((current) => ({ ...current, tagMode: event.target.value === 'replace' ? 'replace' : 'append' }))} disabled={!props.canReview || props.mutationState.loading}>
+                <NativeSelect value={props.batchEditDraft.tagMode} onChange={(event) => props.onBatchEditDraftChange((current) => ({ ...current, tagMode: event.target.value === 'replace' ? 'replace' : 'append' }))} disabled={!props.canReview || props.mutationState.loading}>
                   <option value="append">{translate('auto.k1335')}</option>
                   <option value="replace">{translate('auto.k1336')}</option>
-                </select>
+                </NativeSelect>
               </label>
               <label className="field">
                 <span className="field-label">{translate('auto.k0803')}</span>
@@ -355,19 +356,19 @@ export function TestDesignCandidateReviewPanel(props: {
               </label>
               <label className="field">
                 <span className="field-label">{translate('auto.k1315')}</span>
-                <select value={candidateDraft.coverageType} onChange={(event) => props.onCandidateDraftChange({ ...candidateDraft, coverageType: event.target.value })} disabled={!props.canReview || props.mutationState.loading}>
+                <NativeSelect value={candidateDraft.coverageType} onChange={(event) => props.onCandidateDraftChange({ ...candidateDraft, coverageType: event.target.value })} disabled={!props.canReview || props.mutationState.loading}>
                   {TEST_DESIGN_COVERAGE_TYPES.map((type) => <option key={type} value={type}>{dictionaryLabel(type)}</option>)}
-                </select>
+                </NativeSelect>
                 <QualityFieldMessages field="coverageType" issues={props.candidateQualityIssues} />
               </label>
               <label className="field">
                 <span className="field-label">{translate('auto.k0419')}</span>
-                <select value={candidateDraft.priority} onChange={(event) => props.onCandidateDraftChange({ ...candidateDraft, priority: event.target.value })} disabled={!props.canReview || props.mutationState.loading}>
+                <NativeSelect value={candidateDraft.priority} onChange={(event) => props.onCandidateDraftChange({ ...candidateDraft, priority: event.target.value })} disabled={!props.canReview || props.mutationState.loading}>
                   <option value="CRITICAL">{dictionaryLabel('CRITICAL')}</option>
                   <option value="HIGH">{dictionaryLabel('HIGH')}</option>
                   <option value="MEDIUM">{dictionaryLabel('MEDIUM')}</option>
                   <option value="LOW">{dictionaryLabel('LOW')}</option>
-                </select>
+                </NativeSelect>
                 <QualityFieldMessages field="priority" issues={props.candidateQualityIssues} />
               </label>
             </div>
