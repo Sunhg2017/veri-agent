@@ -22,137 +22,69 @@ import {
   UserOutlined
 } from '@ant-design/icons';
 import {
-  Alert,
+  App as AntApp,
   Avatar,
   Badge,
   Button,
   Card,
-  Descriptions,
-  Drawer,
   Dropdown,
-  Empty,
-  Flex,
+  Form,
   Input,
   Layout,
   List,
   Menu,
-  Segmented,
+  Modal,
   Space,
-  Statistic,
-  Table,
-  Tabs,
-  Tag,
   Typography,
-  type MenuProps,
-  type TableColumnsType
+  type MenuProps
 } from 'antd';
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useLocation, useNavigate } from 'react-router-dom';
 import type { CurrentUser } from '../api/auth';
 import { fetchHealth } from '../api/health';
 import {
+  assignUserRole,
+  createManagementItem,
+  disableUser,
+  enableUser,
+  exportAuditLogsCsv,
+  fetchAuditOutbox,
   fetchManagementData,
-  type AuditLogView,
-  type AuditOutboxView,
+  lockUser,
+  resetUserPassword,
+  unassignUserRole,
+  unlockUser,
+  type AuditOutboxFilters,
+  type CreatableManagementResource,
   type ManagementData
 } from '../api/management';
-import {
-  fetchDocumentImports,
-  fetchDocumentInputHealth,
-  fetchDocumentSources,
-  fetchWebhookEvents
-} from '../api/documentInput';
-import {
-  fetchAssetApis,
-  fetchAssetBusinessFlows,
-  fetchAssetHealth,
-  fetchAssetPages,
-  fetchAssetRequirements,
-  fetchAssetTestCases,
-  fetchAssetTraceLinks
-} from '../api/assets';
-import {
-  fetchTestDesignHealth,
-  fetchTestDesignTasks,
-  fetchTestDesignTemplates
-} from '../api/testDesign';
-import {
-  fetchApiAutomationGenerationTasks,
-  fetchApiAutomationHealth,
-  fetchApiAutomationSpecs
-} from '../api/apiAutomation';
-import {
-  fetchUiE2eBundles,
-  fetchUiE2eFlakyMarks,
-  fetchUiE2eHealth,
-  fetchUiE2eRuns,
-  fetchUiE2eScenes
-} from '../api/uiE2e';
-import {
-  fetchExecutionHealth,
-  fetchExecutionPlans,
-  fetchExecutionRuns
-} from '../api/execution';
-import {
-  fetchTestAccountLeases,
-  fetchTestAccountPools,
-  fetchTestDataHealth,
-  fetchTestDataSets,
-  fetchTestDataTasks
-} from '../api/testData';
-import {
-  fetchReportingHealth,
-  fetchReports
-} from '../api/reports';
-import {
-  fetchCostAlerts,
-  fetchCostReport,
-  fetchInvocationSummary,
-  fetchInvocations,
-  fetchModelAccessHealth,
-  fetchModelAccessPolicies,
-  fetchModelProviders,
-  fetchPrompts
-} from '../api/modelAccess';
 import {
   fetchNotifications,
   fetchUnreadNotificationCount,
   type UserNotification
 } from '../api/notifications';
-import { canAccessPage, type PageKey } from '../permissions';
-import { dictionaryLabel, dictionaryListLabel } from '../platform/dictionaries';
+import { canAccessPage, type PageKey, type UserLifecycleAction } from '../permissions';
 import { translate } from '../platform/i18n';
+import { ApiAutomationWorkbench } from './ApiAutomationWorkbench';
+import { AssetWorkbench } from './AssetWorkbench';
+import { DocumentInputConsole } from './DocumentInputConsole';
+import { ExecutionWorkbench } from './ExecutionWorkbench';
+import { ManagementPage } from './AppManagementPage';
+import { ModelAccessConsole } from './ModelAccessConsole';
+import { OverviewPage } from './AppOverviewPage';
+import { ReportsWorkbench } from './ReportsWorkbench';
+import { TestDataWorkbench } from './TestDataWorkbench';
+import { TestDesignWorkbench } from './TestDesignWorkbench';
+import { UiE2eWorkbench } from './UiE2eWorkbench';
 
 const { Header, Sider, Content } = Layout;
 const { Text, Title } = Typography;
 
-type FieldConfig = {
-  key: string;
-  title: string;
-  copyable?: boolean;
-  ellipsis?: boolean;
-  kind?: 'date' | 'dictionary' | 'dictionary-list' | 'money' | 'number' | 'percent' | 'status';
-  width?: number;
-};
-
-type WorkspaceSection = {
-  emptyText?: string;
-  fields: FieldConfig[];
-  key: string;
-  rows: Array<Record<string, unknown>>;
-  title: string;
-};
-
-type WorkspaceMetric = {
-  label: string;
-  tone?: 'danger' | 'success' | 'warning';
-  value: ReactNode;
-};
-
-type WorkspaceData = {
-  metrics: WorkspaceMetric[];
-  sections: WorkspaceSection[];
+type ResetPasswordForm = {
+  confirmPassword: string;
+  newPassword: string;
+  username: string;
 };
 
 type PageDefinition = {
@@ -218,26 +150,31 @@ export function EnterpriseConsole(props: {
   onToggleTheme: () => void;
   themeMode: 'dark' | 'light';
 }) {
+  const { message } = AntApp.useApp();
   const location = useLocation();
   const navigate = useNavigate();
   const activePage = activePageFromPath(location.pathname);
-  const [selectedRow, setSelectedRow] = useState<Record<string, unknown> | null>(null);
-  const [search, setSearch] = useState('');
-  const [sectionKey, setSectionKey] = useState<string>();
+  const [managementData, setManagementData] = useState<ManagementData>(emptyManagementData);
+  const [managementLoad, setManagementLoad] = useState<{ loading: boolean; error?: string }>({ loading: false });
+  const [auditExportState, setAuditExportState] = useState<{ loading: boolean; error?: string }>({ loading: false });
+  const [auditOutboxFilters, setAuditOutboxFilters] = useState<AuditOutboxFilters>({ status: '', traceId: '', search: '' });
+  const [auditOutboxLoad, setAuditOutboxLoad] = useState<{ loading: boolean; error?: string }>({ loading: false });
+  const [resetPasswordOpen, setResetPasswordOpen] = useState(false);
+  const [resetPasswordSubmitting, setResetPasswordSubmitting] = useState(false);
+  const [resetPasswordForm] = Form.useForm<ResetPasswordForm>();
 
   const visiblePages = useMemo(
     () => pageDefinitions.filter((page) => canAccessPage(props.currentUser, page.key)),
     [props.currentUser]
   );
   const activeDefinition = visiblePages.find((page) => page.key === activePage) ?? visiblePages[0] ?? pageDefinitions[0];
-  const managementQuery = useQuery({
-    enabled: managementPageKeys.includes(activeDefinition.key) || activeDefinition.key === 'overview',
-    queryFn: () => fetchManagementData(props.currentUser.permissions ?? []),
-    queryKey: ['enterprise-management', props.currentUser.user_id, props.currentUser.permissions]
-  });
-  const workspaceQuery = useQuery({
-    queryFn: () => loadWorkspaceData(activeDefinition.key, managementQuery.data?.data ?? emptyManagementData),
-    queryKey: ['enterprise-workspace', activeDefinition.key, managementQuery.dataUpdatedAt],
+  const permissionKey = useMemo(() => (props.currentUser.permissions ?? []).join('|'), [props.currentUser.permissions]);
+  const healthQuery = useQuery({
+    queryFn: async () => {
+      const response = await fetchHealth();
+      return response.data;
+    },
+    queryKey: ['platform-health'],
     retry: 0
   });
   const notificationsQuery = useQuery({
@@ -251,27 +188,210 @@ export function EnterpriseConsole(props: {
     queryKey: ['enterprise-notifications', props.currentUser.user_id],
     retry: 0
   });
-
-  const workspace = workspaceQuery.data;
-  const activeSectionKey = sectionKey && workspace?.sections.some((section) => section.key === sectionKey)
-    ? sectionKey
-    : workspace?.sections[0]?.key;
-  const activeSection = workspace?.sections.find((section) => section.key === activeSectionKey);
-  const filteredRows = useMemo(() => filterRows(activeSection?.rows ?? [], search), [activeSection?.rows, search]);
   const menuItems = useMemo(() => buildMenuItems(visiblePages), [visiblePages]);
   const selectedMenuKey = activeDefinition.key;
+  const health = useMemo(
+    () => ({
+      data: healthQuery.data,
+      error: healthQuery.error instanceof Error ? healthQuery.error.message : undefined,
+      loading: healthQuery.isLoading
+    }),
+    [healthQuery.data, healthQuery.error, healthQuery.isLoading]
+  );
+
+  const refreshManagementData = useCallback(async () => {
+    setManagementLoad({ loading: true });
+    try {
+      const response = await fetchManagementData(props.currentUser.permissions ?? []);
+      setManagementData(response.data);
+      setManagementLoad({ loading: false });
+    } catch (error: unknown) {
+      setManagementLoad({
+        loading: false,
+        error: error instanceof Error ? error.message : translate('auto.k0049')
+      });
+    }
+  }, [permissionKey, props.currentUser.permissions]);
+
+  const refreshAuditOutbox = useCallback(async (filters: AuditOutboxFilters = auditOutboxFilters) => {
+    setAuditOutboxLoad({ loading: true });
+    try {
+      const response = await fetchAuditOutbox(filters);
+      setManagementData((current) => ({ ...current, auditOutbox: response.data.items }));
+      setAuditOutboxLoad({ loading: false });
+    } catch (error: unknown) {
+      setAuditOutboxLoad({
+        loading: false,
+        error: error instanceof Error ? error.message : translate('auto.k0049')
+      });
+    }
+  }, [auditOutboxFilters]);
 
   useEffect(() => {
-    setSearch('');
-    setSelectedRow(null);
-    setSectionKey(undefined);
-  }, [activeDefinition.key]);
+    void refreshManagementData();
+  }, [props.currentUser.user_id, refreshManagementData]);
 
   useEffect(() => {
     if (location.pathname === '/' || location.pathname === '') {
       navigate('/overview', { replace: true });
     }
   }, [location.pathname, navigate]);
+
+  async function onCreateManagementItem(resource: CreatableManagementResource, label: string, rawName: string) {
+    const name = rawName.trim();
+    if (!name) {
+      return;
+    }
+    setManagementLoad({ loading: true });
+    try {
+      await createManagementItem(resource, name);
+      void message.success(translate('auto.k0058', { value0: label, value1: name }));
+      await refreshManagementData();
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : translate('auto.k0059');
+      setManagementLoad({ loading: false, error: errorMessage });
+      void message.error(errorMessage);
+    }
+  }
+
+  async function onAuditExport() {
+    setAuditExportState({ loading: true });
+    try {
+      const response = await exportAuditLogsCsv();
+      const blob = new Blob([response.text], { type: response.contentType || 'text/csv;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement('a');
+      anchor.href = url;
+      anchor.download = response.filename ?? translate('auto.k0060');
+      anchor.click();
+      URL.revokeObjectURL(url);
+      setAuditExportState({ loading: false });
+      void message.success(translate('auto.k0061'));
+      await refreshManagementData();
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : translate('auto.k0062');
+      setAuditExportState({ loading: false, error: errorMessage });
+      void message.error(errorMessage);
+    }
+  }
+
+  async function onUserLifecycleAction(username: string, action: UserLifecycleAction, roleCodeInput = '') {
+    if ((action === 'disable' || action === 'lock') && username === props.currentUser.username) {
+      void message.error(action === 'disable' ? translate('auto.k0063') : translate('auto.k0064'));
+      return;
+    }
+
+    if (action === 'reset-password') {
+      openResetPasswordDialog(username);
+      return;
+    }
+
+    let roleCode = '';
+    if (action === 'assign-role' || action === 'unassign-role') {
+      roleCode = roleCodeInput.trim();
+      if (!roleCode) {
+        return;
+      }
+    }
+
+    setManagementLoad({ loading: true });
+    try {
+      const operations: Record<string, () => Promise<unknown>> = {
+        enable: () => enableUser(username),
+        unlock: () => unlockUser(username),
+        disable: () => disableUser(username),
+        lock: () => lockUser(username),
+        'assign-role': () => assignUserRole(username, roleCode),
+        'unassign-role': () => unassignUserRole(username, roleCode)
+      };
+      await operations[action]();
+      const actionLabels: Record<string, string> = {
+        enable: translate('auto.k0065'),
+        unlock: translate('auto.k0066'),
+        disable: translate('auto.k0067'),
+        lock: translate('auto.k0068'),
+        'reset-password': translate('auto.k0069'),
+        'assign-role': translate('auto.k0070'),
+        'unassign-role': translate('auto.k0071')
+      };
+      void message.success(translate('auto.k0072', { value0: username, value1: actionLabels[action] ?? translate('auto.k2600') }));
+      await refreshManagementData();
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : translate('auto.k0073');
+      setManagementLoad({ loading: false, error: errorMessage });
+      void message.error(errorMessage);
+    }
+  }
+
+  function openResetPasswordDialog(username: string) {
+    resetPasswordForm.setFieldsValue({ username, newPassword: '', confirmPassword: '' });
+    setResetPasswordOpen(true);
+  }
+
+  async function onResetPassword(values: ResetPasswordForm) {
+    if (values.newPassword !== values.confirmPassword) {
+      resetPasswordForm.setFields([{ name: 'confirmPassword', errors: [translate('validation.passwordNewMismatch')] }]);
+      return;
+    }
+    setResetPasswordSubmitting(true);
+    try {
+      await resetUserPassword(values.username, values.newPassword);
+      setResetPasswordOpen(false);
+      resetPasswordForm.resetFields();
+      void message.success(translate('auto.k0074', { value0: values.username }));
+      await refreshManagementData();
+    } catch (error: unknown) {
+      void message.error(error instanceof Error ? error.message : translate('auto.k0075'));
+    } finally {
+      setResetPasswordSubmitting(false);
+    }
+  }
+
+  function renderWorkspacePage() {
+    const signedIn = true;
+    switch (activeDefinition.key) {
+      case 'overview':
+        return <OverviewPage health={health} managementData={managementData} />;
+      case 'document-input':
+        return <DocumentInputConsole signedIn={signedIn} currentUser={props.currentUser} />;
+      case 'asset-library':
+        return <AssetWorkbench signedIn={signedIn} currentUser={props.currentUser} />;
+      case 'test-design':
+        return <TestDesignWorkbench signedIn={signedIn} currentUser={props.currentUser} />;
+      case 'api-automation':
+        return <ApiAutomationWorkbench signedIn={signedIn} currentUser={props.currentUser} />;
+      case 'ui-e2e':
+        return <UiE2eWorkbench signedIn={signedIn} currentUser={props.currentUser} />;
+      case 'execution':
+        return <ExecutionWorkbench signedIn={signedIn} currentUser={props.currentUser} />;
+      case 'test-data':
+        return <TestDataWorkbench signedIn={signedIn} currentUser={props.currentUser} />;
+      case 'reports':
+        return <ReportsWorkbench signedIn={signedIn} currentUser={props.currentUser} />;
+      case 'model-access':
+        return <ModelAccessConsole signedIn={signedIn} currentUser={props.currentUser} />;
+      default:
+        return (
+          <ManagementPage
+            page={activeDefinition.key}
+            data={managementData}
+            loadState={managementLoad}
+            signedIn={signedIn}
+            currentUser={props.currentUser}
+            onCreate={onCreateManagementItem}
+            onUserLifecycleAction={onUserLifecycleAction}
+            onResetPassword={openResetPasswordDialog}
+            auditExportState={auditExportState}
+            onAuditExport={onAuditExport}
+            auditOutboxFilters={auditOutboxFilters}
+            auditOutboxLoad={auditOutboxLoad}
+            onAuditOutboxFiltersChange={setAuditOutboxFilters}
+            onAuditOutboxRefresh={refreshAuditOutbox}
+            onRefresh={() => void refreshManagementData()}
+          />
+        );
+    }
+  }
 
   return (
     <Layout className="va-console">
@@ -328,84 +448,74 @@ export function EnterpriseConsole(props: {
             <div>
               <Title level={2}>{activeDefinition.label}</Title>
             </div>
-            <Button icon={<ReloadOutlined />} loading={workspaceQuery.isFetching || managementQuery.isFetching} onClick={() => {
-              void managementQuery.refetch();
-              void workspaceQuery.refetch();
-            }}>
-              {translate('auto.k2833')}
-            </Button>
+            {(activeDefinition.key === 'overview' || managementPageKeys.includes(activeDefinition.key)) ? (
+              <Button icon={<ReloadOutlined />} loading={managementLoad.loading || healthQuery.isFetching} onClick={() => {
+                void refreshManagementData();
+                if (activeDefinition.key === 'overview') {
+                  void healthQuery.refetch();
+                }
+              }}>
+                {translate('auto.k2833')}
+              </Button>
+            ) : null}
           </section>
 
-          {workspaceQuery.error ? (
-            <Alert
-              className="va-console-alert"
-              message={translate('auto.k2834')}
-              description={workspaceQuery.error instanceof Error ? workspaceQuery.error.message : translate('auto.k2835')}
-              type="error"
-              showIcon
-            />
-          ) : null}
-
-          <div className="va-console-metrics">
-            {(workspace?.metrics ?? skeletonMetrics).map((metric, index) => (
-              <Card key={`${metric.label}-${index}`} loading={workspaceQuery.isLoading}>
-                <Statistic
-                  title={metric.label}
-                  value={typeof metric.value === 'number' || typeof metric.value === 'string' ? metric.value : undefined}
-                  valueStyle={metric.tone ? { color: metricColor(metric.tone) } : undefined}
-                  formatter={typeof metric.value === 'number' || typeof metric.value === 'string' ? undefined : () => metric.value}
-                />
-              </Card>
-            ))}
+          <div className="va-console-function-workspace">
+            {renderWorkspacePage()}
           </div>
-
-          <Card className="va-console-workspace" loading={workspaceQuery.isLoading}>
-            <Flex className="va-console-toolbar" gap={12} justify="space-between" wrap="wrap">
-              <Segmented
-                value={activeSectionKey}
-                options={(workspace?.sections ?? []).map((section) => ({ label: section.title, value: section.key }))}
-                onChange={(value) => setSectionKey(String(value))}
-              />
-              <Input.Search
-                allowClear
-                className="va-console-search"
-                placeholder={translate('auto.k2836')}
-                value={search}
-                onChange={(event) => setSearch(event.target.value)}
-              />
-            </Flex>
-            {activeSection ? (
-              <Tabs
-                activeKey={activeSection.key}
-                items={[{
-                  key: activeSection.key,
-                  label: activeSection.title,
-                  children: (
-                    <>
-                      <Table
-                        columns={columnsFor(activeSection)}
-                        dataSource={filteredRows}
-                        locale={{ emptyText: <Empty description={activeSection.emptyText ?? translate('auto.k2837')} /> }}
-                        pagination={{ showSizeChanger: true, showTotal: (total) => translate('auto.k2838', { value0: total }) }}
-                        rowKey={(row, index) => rowKey(row, index)}
-                        scroll={{ x: 'max-content' }}
-                        size="middle"
-                        onRow={(row) => ({
-                          onClick: () => setSelectedRow(row)
-                        })}
-                      />
-                    </>
-                  )
-                }]}
-              />
-            ) : (
-              <Empty description={translate('auto.k2839')} />
-            )}
-          </Card>
         </Content>
       </Layout>
-      <DetailDrawer row={selectedRow} onClose={() => setSelectedRow(null)} />
+      <ResetPasswordModal
+        form={resetPasswordForm}
+        open={resetPasswordOpen}
+        submitting={resetPasswordSubmitting}
+        onCancel={() => setResetPasswordOpen(false)}
+        onSubmit={(values) => void onResetPassword(values)}
+      />
     </Layout>
+  );
+}
+
+function ResetPasswordModal(props: {
+  form: ReturnType<typeof Form.useForm<ResetPasswordForm>>[0];
+  open: boolean;
+  submitting: boolean;
+  onCancel: () => void;
+  onSubmit: (values: ResetPasswordForm) => void;
+}) {
+  return (
+    <Modal
+      centered
+      footer={null}
+      mask={{ closable: !props.submitting }}
+      open={props.open}
+      title={translate('auth.passwordResetTitle')}
+      onCancel={props.onCancel}
+    >
+      <Form form={props.form} layout="vertical" requiredMark={false} onFinish={props.onSubmit}>
+        <Form.Item name="username" label={translate('auth.account')}>
+          <Input disabled />
+        </Form.Item>
+        <Form.Item
+          name="newPassword"
+          label={translate('auto.k0087')}
+          rules={[{ min: 10, message: translate('validation.passwordNewMin') }, { required: true, message: translate('auto.k0087') }]}
+        >
+          <Input.Password autoComplete="new-password" />
+        </Form.Item>
+        <Form.Item
+          name="confirmPassword"
+          label={translate('auth.passwordConfirm')}
+          rules={[{ required: true, message: translate('validation.passwordConfirmRequired') }]}
+        >
+          <Input.Password autoComplete="new-password" />
+        </Form.Item>
+        <div className="va-modal-actions">
+          <Button disabled={props.submitting} onClick={props.onCancel}>{translate('actions.cancel')}</Button>
+          <Button htmlType="submit" loading={props.submitting} type="primary">{translate('auth.resetSubmit')}</Button>
+        </div>
+      </Form>
+    </Modal>
   );
 }
 
@@ -438,610 +548,6 @@ function NotificationDropdown(props: { items: UserNotification[]; loading: boole
   );
 }
 
-function DetailDrawer(props: { row: Record<string, unknown> | null; onClose: () => void }) {
-  const row = props.row;
-  return (
-    <Drawer destroyOnHidden open={Boolean(row)} size="large" title={translate('auto.k2842')} onClose={props.onClose}>
-      {row ? (
-        <Descriptions bordered column={1} size="small">
-          {Object.entries(row).map(([key, value]) => (
-            <Descriptions.Item key={key} label={fieldTitle(key)}>
-              {detailValue(value)}
-            </Descriptions.Item>
-          ))}
-        </Descriptions>
-      ) : null}
-    </Drawer>
-  );
-}
-
-async function loadWorkspaceData(page: PageKey, managementData: ManagementData): Promise<WorkspaceData> {
-  if (managementPageKeys.includes(page)) {
-    return managementWorkspace(page, managementData);
-  }
-  switch (page) {
-    case 'overview':
-      return overviewWorkspace(managementData);
-    case 'document-input':
-      return documentInputWorkspace();
-    case 'asset-library':
-      return assetWorkspace();
-    case 'test-design':
-      return testDesignWorkspace();
-    case 'api-automation':
-      return apiAutomationWorkspace();
-    case 'ui-e2e':
-      return uiE2eWorkspace();
-    case 'execution':
-      return executionWorkspace();
-    case 'test-data':
-      return testDataWorkspace();
-    case 'reports':
-      return reportsWorkspace();
-    case 'model-access':
-      return modelAccessWorkspace();
-    default:
-      return overviewWorkspace(managementData);
-  }
-}
-
-async function overviewWorkspace(managementData: ManagementData): Promise<WorkspaceData> {
-  const health = await safe(() => fetchHealth());
-  return {
-    metrics: [
-      { label: translate('auto.k2844'), tone: health?.data.status === 'UP' ? 'success' : 'danger', value: dictionaryLabel(health?.data.status ?? 'UNKNOWN') },
-      { label: translate('auto.k2821'), value: managementData.users.length },
-      { label: translate('auto.k2845'), value: managementData.projects.length },
-      { label: translate('auto.k2846'), value: managementData.applications.length }
-    ],
-    sections: [
-      section('projects', translate('auto.k2845'), managementData.projects, [
-        field('name', translate('auto.k2845')),
-        field('department', translate('auto.k2927')),
-        field('owner', translate('auto.k2929')),
-        field('apps', translate('auto.k2846'), 'number'),
-        field('status', translate('auto.k2852'), 'status')
-      ]),
-      section('audit', translate('auto.k2962'), managementData.auditLogs, auditLogFields())
-    ]
-  };
-}
-
-async function documentInputWorkspace(): Promise<WorkspaceData> {
-  const [health, sources, imports, webhooks] = await Promise.all([
-    safe(() => fetchDocumentInputHealth()),
-    safe(() => fetchDocumentSources()),
-    safe(() => fetchDocumentImports()),
-    safe(() => fetchWebhookEvents({ size: 50 }))
-  ]);
-  const sourceRows = sources?.data ?? [];
-  const importRows = imports?.data.items ?? [];
-  const webhookRows = webhooks?.data.items ?? [];
-  return {
-    metrics: [
-      { label: translate('auto.k2847'), tone: health?.data.status === 'UP' ? 'success' : 'danger', value: dictionaryLabel(health?.data.status ?? 'UNKNOWN') },
-      { label: translate('auto.k2848'), value: sourceRows.length },
-      { label: translate('auto.k2849'), value: importRows.length },
-      { label: 'Webhook', value: webhookRows.length }
-    ],
-    sections: [
-      section('sources', translate('auto.k2848'), sourceRows, [
-        field('name', translate('auto.k2850')),
-        field('sourceType', translate('auto.k2851'), 'dictionary'),
-        field('status', translate('auto.k2852'), 'status'),
-        field('retentionDays', translate('auto.k2853'), 'number'),
-        field('updatedAt', translate('auto.k2854'), 'date')
-      ]),
-      section('imports', translate('auto.k2849'), importRows, [
-        field('id', translate('auto.k2855'), undefined, 240),
-        field('sourceCode', translate('auto.k2856')),
-        field('status', translate('auto.k2852'), 'status'),
-        field('parsedCount', translate('auto.k2857'), 'number'),
-        field('createdAt', translate('auto.k2858'), 'date')
-      ]),
-      section('webhooks', translate('auto.k2859'), webhookRows, [
-        field('eventId', translate('auto.k2860'), undefined, 220),
-        field('sourceCode', translate('auto.k2856')),
-        field('status', translate('auto.k2852'), 'status'),
-        field('retryCount', translate('auto.k2861'), 'number'),
-        field('createdAt', translate('auto.k2858'), 'date')
-      ])
-    ]
-  };
-}
-
-async function assetWorkspace(): Promise<WorkspaceData> {
-  const [health, requirements, apis, pages, flows, cases, traces] = await Promise.all([
-    safe(() => fetchAssetHealth()),
-    safe(() => fetchAssetRequirements({ size: 50 })),
-    safe(() => fetchAssetApis({ size: 50 })),
-    safe(() => fetchAssetPages({ size: 50 })),
-    safe(() => fetchAssetBusinessFlows({ size: 50 })),
-    safe(() => fetchAssetTestCases({ size: 50 })),
-    safe(() => fetchAssetTraceLinks({ size: 50 }))
-  ]);
-  return {
-    metrics: [
-      { label: translate('auto.k2847'), tone: statusTone(health?.data.status), value: dictionaryLabel(health?.data.status ?? 'UNKNOWN') },
-      { label: translate('auto.k2862'), value: listRows(requirements?.data).length },
-      { label: translate('auto.k2863'), value: listRows(apis?.data).length },
-      { label: translate('auto.k2864'), value: listRows(cases?.data).length }
-    ],
-    sections: [
-      section('requirements', translate('auto.k2862'), listRows(requirements?.data), commonAssetFields(translate('auto.k2862'))),
-      section('apis', translate('auto.k2863'), listRows(apis?.data), commonAssetFields(translate('auto.k2863'))),
-      section('pages', translate('auto.k2865'), listRows(pages?.data), commonAssetFields(translate('auto.k2865'))),
-      section('flows', translate('auto.k2866'), listRows(flows?.data), commonAssetFields(translate('auto.k2866'))),
-      section('cases', translate('auto.k2867'), listRows(cases?.data), commonAssetFields(translate('auto.k2864'))),
-      section('traces', translate('auto.k2868'), listRows(traces?.data), [
-        field('sourceType', translate('auto.k2869'), 'dictionary'),
-        field('sourceId', translate('auto.k2870')),
-        field('targetType', translate('auto.k2871'), 'dictionary'),
-        field('targetId', translate('auto.k2872')),
-        field('status', translate('auto.k2852'), 'status')
-      ])
-    ]
-  };
-}
-
-async function testDesignWorkspace(): Promise<WorkspaceData> {
-  const [health, tasks, templates] = await Promise.all([
-    safe(() => fetchTestDesignHealth()),
-    safe(() => fetchTestDesignTasks({ size: 50 })),
-    safe(() => fetchTestDesignTemplates({ size: 50 }))
-  ]);
-  const taskRows = listRows(tasks?.data);
-  const templateRows = listRows(templates?.data);
-  return {
-    metrics: [
-      { label: translate('auto.k2847'), tone: statusTone(health?.data.status), value: dictionaryLabel(health?.data.status ?? 'UNKNOWN') },
-      { label: translate('auto.k2873'), value: taskRows.length },
-      { label: translate('auto.k2874'), value: templateRows.length },
-      { label: translate('auto.k2875'), value: taskRows.filter((row) => String(row.status) === 'RUNNING').length }
-    ],
-    sections: [
-      section('tasks', translate('auto.k2873'), taskRows, [
-        field('id', translate('auto.k2876'), undefined, 220),
-        field('name', translate('auto.k2850')),
-        field('status', translate('auto.k2852'), 'status'),
-        field('createdBy', translate('auto.k2877')),
-        field('createdAt', translate('auto.k2858'), 'date')
-      ]),
-      section('templates', translate('auto.k2874'), templateRows, [
-        field('id', translate('auto.k2878'), undefined, 220),
-        field('name', translate('auto.k2850')),
-        field('generationStrategy', translate('auto.k2879'), 'dictionary'),
-        field('coverageStrategy', translate('auto.k2880'), 'dictionary'),
-        field('status', translate('auto.k2852'), 'status')
-      ])
-    ]
-  };
-}
-
-async function apiAutomationWorkspace(): Promise<WorkspaceData> {
-  const [health, specs, tasks] = await Promise.all([
-    safe(() => fetchApiAutomationHealth()),
-    safe(() => fetchApiAutomationSpecs({ size: 50 })),
-    safe(() => fetchApiAutomationGenerationTasks({ size: 50 }))
-  ]);
-  const specRows = listRows(specs?.data);
-  const taskRows = listRows(tasks?.data);
-  return {
-    metrics: [
-      { label: translate('auto.k2847'), tone: statusTone(health?.data.status), value: dictionaryLabel(health?.data.status ?? 'UNKNOWN') },
-      { label: translate('auto.k2881'), value: specRows.length },
-      { label: translate('auto.k2873'), value: taskRows.length },
-      { label: translate('auto.k2882'), tone: 'danger', value: taskRows.filter((row) => String(row.status).includes('FAILED')).length }
-    ],
-    sections: [
-      section('specs', translate('auto.k2883'), specRows, [
-        field('id', translate('auto.k2884'), undefined, 220),
-        field('name', translate('auto.k2850')),
-        field('sourceType', translate('auto.k2856'), 'dictionary'),
-        field('status', translate('auto.k2852'), 'status'),
-        field('updatedAt', translate('auto.k2854'), 'date')
-      ]),
-      section('tasks', translate('auto.k2873'), taskRows, [
-        field('id', translate('auto.k2876'), undefined, 220),
-        field('specId', translate('auto.k2884')),
-        field('status', translate('auto.k2852'), 'status'),
-        field('createdAt', translate('auto.k2858'), 'date')
-      ])
-    ]
-  };
-}
-
-async function uiE2eWorkspace(): Promise<WorkspaceData> {
-  const [health, scenes, bundles, runs, flaky] = await Promise.all([
-    safe(() => fetchUiE2eHealth()),
-    safe(() => fetchUiE2eScenes({ size: 50 })),
-    safe(() => fetchUiE2eBundles({ size: 50 })),
-    safe(() => fetchUiE2eRuns({ size: 50 })),
-    safe(() => fetchUiE2eFlakyMarks({ size: 50 }))
-  ]);
-  return {
-    metrics: [
-      { label: translate('auto.k2847'), tone: statusTone(health?.data.status), value: dictionaryLabel(health?.data.status ?? 'UNKNOWN') },
-      { label: translate('auto.k2885'), value: listRows(scenes?.data).length },
-      { label: translate('auto.k2886'), value: listRows(bundles?.data).length },
-      { label: translate('auto.k2887'), value: listRows(runs?.data).length }
-    ],
-    sections: [
-      section('scenes', translate('auto.k2885'), listRows(scenes?.data), uiFields(translate('auto.k2885'))),
-      section('bundles', translate('auto.k2886'), listRows(bundles?.data), uiFields(translate('auto.k2886'))),
-      section('runs', translate('auto.k2887'), listRows(runs?.data), [
-        field('id', translate('auto.k2889'), undefined, 220),
-        field('status', translate('auto.k2852'), 'status'),
-        field('passedSteps', translate('auto.k2890'), 'number'),
-        field('failedSteps', translate('auto.k2891'), 'number'),
-        field('createdAt', translate('auto.k2858'), 'date')
-      ]),
-      section('flaky', translate('auto.k2888'), listRows(flaky?.data), [
-        field('id', translate('auto.k2892'), undefined, 220),
-        field('status', translate('auto.k2852'), 'status'),
-        field('reason', translate('auto.k2893')),
-        field('updatedAt', translate('auto.k2854'), 'date')
-      ])
-    ]
-  };
-}
-
-async function executionWorkspace(): Promise<WorkspaceData> {
-  const [health, plans, runs] = await Promise.all([
-    safe(() => fetchExecutionHealth()),
-    safe(() => fetchExecutionPlans({ size: 50 })),
-    safe(() => fetchExecutionRuns({ size: 50 }))
-  ]);
-  const planRows = listRows(plans?.data);
-  const runRows = listRows(runs?.data);
-  return {
-    metrics: [
-      { label: translate('auto.k2847'), tone: statusTone(health?.data.status), value: dictionaryLabel(health?.data.status ?? 'UNKNOWN') },
-      { label: translate('auto.k2894'), value: planRows.length },
-      { label: translate('auto.k2887'), value: runRows.length },
-      { label: translate('auto.k2895'), tone: 'danger', value: runRows.filter((row) => String(row.status).includes('FAILED')).length }
-    ],
-    sections: [
-      section('plans', translate('auto.k2896'), planRows, executionFields(translate('auto.k2894'))),
-      section('runs', translate('auto.k2897'), runRows, executionFields(translate('auto.k2887')))
-    ]
-  };
-}
-
-async function testDataWorkspace(): Promise<WorkspaceData> {
-  const [health, dataSets, pools, leases, tasks] = await Promise.all([
-    safe(() => fetchTestDataHealth()),
-    safe(() => fetchTestDataSets({ size: 50 })),
-    safe(() => fetchTestAccountPools({ size: 50 })),
-    safe(() => fetchTestAccountLeases({ size: 50 })),
-    safe(() => fetchTestDataTasks({ size: 50 }))
-  ]);
-  return {
-    metrics: [
-      { label: translate('auto.k2847'), tone: statusTone(health?.data.status), value: dictionaryLabel(health?.data.status ?? 'UNKNOWN') },
-      { label: translate('auto.k2898'), value: listRows(dataSets?.data).length },
-      { label: translate('auto.k2899'), value: listRows(pools?.data).length },
-      { label: translate('auto.k2900'), value: listRows(leases?.data).length }
-    ],
-    sections: [
-      section('datasets', translate('auto.k2898'), listRows(dataSets?.data), dataFields(translate('auto.k2898'))),
-      section('pools', translate('auto.k2899'), listRows(pools?.data), dataFields(translate('auto.k2899'))),
-      section('leases', translate('auto.k2900'), listRows(leases?.data), dataFields(translate('auto.k2900'))),
-      section('tasks', translate('auto.k2901'), listRows(tasks?.data), dataFields(translate('auto.k2901')))
-    ]
-  };
-}
-
-async function reportsWorkspace(): Promise<WorkspaceData> {
-  const [health, reports] = await Promise.all([
-    safe(() => fetchReportingHealth()),
-    safe(() => fetchReports({ size: 50 }))
-  ]);
-  const reportRows = listRows(reports?.data);
-  return {
-    metrics: [
-      { label: translate('auto.k2847'), tone: statusTone(health?.data.status), value: dictionaryLabel(health?.data.status ?? 'UNKNOWN') },
-      { label: translate('auto.k2902'), value: reportRows.length },
-      { label: translate('auto.k2790'), value: reportRows.filter((row) => String(row.status) === 'GENERATED').length },
-      { label: translate('auto.k2903'), tone: 'danger', value: reportRows.filter((row) => String(row.status).includes('FAILED')).length }
-    ],
-    sections: [
-      section('reports', translate('auto.k2902'), reportRows, [
-        field('id', translate('auto.k2904'), undefined, 220),
-        field('projectId', translate('auto.k2845')),
-        field('executionRunId', translate('auto.k2889')),
-        field('status', translate('auto.k2852'), 'status'),
-        field('generatedAt', translate('auto.k2905'), 'date')
-      ])
-    ]
-  };
-}
-
-async function modelAccessWorkspace(): Promise<WorkspaceData> {
-  const [health, providers, prompts, policies, invocations, summary, costReport, alerts] = await Promise.all([
-    safe(() => fetchModelAccessHealth()),
-    safe(() => fetchModelProviders()),
-    safe(() => fetchPrompts()),
-    safe(() => fetchModelAccessPolicies()),
-    safe(() => fetchInvocations({ size: 50 })),
-    safe(() => fetchInvocationSummary({})),
-    safe(() => fetchCostReport({})),
-    safe(() => fetchCostAlerts({}))
-  ]);
-  const providerRows = providers?.data ?? [];
-  const promptRows = prompts?.data ?? [];
-  const invocationRows = invocations?.data.items ?? [];
-  return {
-    metrics: [
-      { label: translate('auto.k2847'), tone: statusTone(health?.data.status), value: dictionaryLabel(health?.data.status ?? 'UNKNOWN') },
-      { label: translate('auto.k2906'), value: providerRows.length },
-      { label: translate('auto.k2907'), value: promptRows.length },
-      { label: translate('auto.k2908'), value: summary?.data.total ?? invocationRows.length }
-    ],
-    sections: [
-      section('providers', translate('auto.k2906'), providerRows, [
-        field('name', translate('auto.k2906')),
-        field('providerType', translate('auto.k2851'), 'dictionary'),
-        field('capabilities', translate('auto.k2909'), 'dictionary-list'),
-        field('status', translate('auto.k2852'), 'status'),
-        field('priority', translate('auto.k2910'), 'number')
-      ]),
-      section('prompts', translate('auto.k2907'), promptRows, [
-        field('promptKey', 'Key'),
-        field('name', translate('auto.k2850')),
-        field('version', translate('auto.k2911'), 'number'),
-        field('status', translate('auto.k2852'), 'status'),
-        field('approvalStatus', translate('auto.k2912'), 'status')
-      ]),
-      section('policies', translate('auto.k2913'), policies?.data ?? [], [
-        field('scopeType', translate('auto.k2914'), 'dictionary'),
-        field('scopeKey', 'Key'),
-        field('enabled', translate('auto.k2915')),
-        field('budgetOverrunAction', translate('auto.k2916'), 'dictionary'),
-        field('updatedAt', translate('auto.k2854'), 'date')
-      ]),
-      section('invocations', translate('auto.k2917'), invocationRows, [
-        field('id', translate('auto.k2918'), undefined, 220),
-        field('providerName', translate('auto.k2906')),
-        field('status', translate('auto.k2852'), 'status'),
-        field('modelCapability', translate('auto.k2909'), 'dictionary'),
-        field('totalCost', translate('auto.k2919'), 'money'),
-        field('createdAt', translate('auto.k2858'), 'date')
-      ]),
-      section('cost', translate('auto.k2920'), costReport?.data.rows ?? [], [
-        field('date', translate('auto.k2921')),
-        field('projectId', translate('auto.k2845')),
-        field('total', translate('auto.k2908'), 'number'),
-        field('totalCost', translate('auto.k2919'), 'money')
-      ]),
-      section('alerts', translate('auto.k2922'), alerts?.data ?? [], [
-        field('level', translate('auto.k2923'), 'status'),
-        field('projectId', translate('auto.k2845')),
-        field('actorService', translate('auto.k2924')),
-        field('usageRatio', translate('auto.k2925'), 'percent'),
-        field('message', translate('auto.k2926'))
-      ])
-    ]
-  };
-}
-
-function managementWorkspace(page: PageKey, data: ManagementData): WorkspaceData {
-  const configs: Record<string, WorkspaceSection[]> = {
-    organizations: [
-      section('departments', translate('auto.k2927'), data.departments, [
-        field('name', translate('auto.k2927')),
-        field('parent', translate('auto.k2928')),
-        field('lead', translate('auto.k2929')),
-        field('members', translate('auto.k2930'), 'number'),
-        field('status', translate('auto.k2852'), 'status')
-      ])
-    ],
-    users: [
-      section('users', translate('auto.k2821'), data.users, [
-        field('username', translate('auto.k2931')),
-        field('display_name', translate('auto.k2932')),
-        field('email', translate('auto.k2933')),
-        field('role', translate('auto.k2934')),
-        field('status', translate('auto.k2852'), 'status'),
-        field('last_seen', translate('auto.k2935'), 'date')
-      ])
-    ],
-    roles: [
-      section('roles', translate('auto.k2934'), data.roles, [
-        field('code', translate('auto.k2936')),
-        field('name', translate('auto.k2850')),
-        field('scopeType', translate('auto.k2914'), 'dictionary'),
-        field('status', translate('auto.k2852'), 'status')
-      ]),
-      section('permissions', translate('auto.k2937'), data.permissions, [
-        field('code', translate('auto.k2938')),
-        field('resourceType', translate('auto.k2939'), 'dictionary'),
-        field('action', translate('auto.k2940')),
-        field('status', translate('auto.k2852'), 'status')
-      ])
-    ],
-    projects: [
-      section('projects', translate('auto.k2845'), data.projects, [
-        field('name', translate('auto.k2845')),
-        field('department', translate('auto.k2927')),
-        field('owner', translate('auto.k2929')),
-        field('apps', translate('auto.k2846'), 'number'),
-        field('status', translate('auto.k2852'), 'status')
-      ])
-    ],
-    applications: [
-      section('applications', translate('auto.k2846'), data.applications, [
-        field('name', translate('auto.k2846')),
-        field('type', translate('auto.k2851'), 'dictionary'),
-        field('owner', translate('auto.k2929')),
-        field('version', translate('auto.k2911')),
-        field('status', translate('auto.k2852'), 'status')
-      ])
-    ],
-    environments: [
-      section('environments', translate('auto.k2941'), data.environments, [
-        field('name', translate('auto.k2941')),
-        field('cluster', translate('auto.k2942')),
-        field('endpoint', translate('auto.k2943')),
-        field('status', translate('auto.k2852'), 'status')
-      ])
-    ],
-    integrations: [
-      section('integrations', translate('auto.k2944'), data.integrations, [
-        field('key', 'Key'),
-        field('name', translate('auto.k2850')),
-        field('category', translate('auto.k2945'), 'dictionary'),
-        field('scope', translate('auto.k2914'), 'dictionary'),
-        field('status', translate('auto.k2852'), 'status')
-      ])
-    ],
-    audit: [
-      section('auditLogs', translate('auto.k0035'), data.auditLogs as AuditLogView[], auditLogFields()),
-      section('auditOutbox', translate('auto.k2946'), data.auditOutbox as AuditOutboxView[], [
-        field('id', 'ID', undefined, 220),
-        field('traceId', 'Trace ID', undefined, 220),
-        field('status', translate('auto.k2852'), 'status'),
-        field('retryCount', translate('auto.k2861'), 'number'),
-        field('eventAction', translate('auto.k2940')),
-        field('createdAt', translate('auto.k2858'), 'date')
-      ])
-    ],
-    settings: [
-      section('settings', translate('auto.k0037'), data.settings, [
-        field('key', 'Key'),
-        field('name', translate('auto.k2850')),
-        field('scope', translate('auto.k2914'), 'dictionary'),
-        field('status', translate('auto.k2852'), 'status')
-      ]),
-      section('secrets', translate('auto.k2948'), data.secrets, [
-        field('secretRef', 'SecretRef'),
-        field('providerCode', 'Provider'),
-        field('purpose', translate('auto.k2949'), 'dictionary'),
-        field('scopeType', translate('auto.k2914'), 'dictionary'),
-        field('status', translate('auto.k2852'), 'status')
-      ])
-    ]
-  };
-  const sections = configs[page] ?? configs.projects;
-  return {
-    metrics: [
-      { label: translate('auto.k2950'), value: sections.length },
-      { label: translate('auto.k2951'), value: sections.reduce((sum, item) => sum + item.rows.length, 0) },
-      { label: translate('auto.k2952'), tone: 'danger', value: sections.flatMap((sectionItem) => sectionItem.rows).filter((row) => String(row.status).includes('FAILED')).length },
-      { label: translate('auto.k2915'), tone: 'success', value: sections.flatMap((sectionItem) => sectionItem.rows).filter((row) => ['ACTIVE', 'ENABLED', 'UP'].includes(String(row.status))).length }
-    ],
-    sections
-  };
-}
-
-function section(key: string, title: string, rows: unknown, fields: FieldConfig[]): WorkspaceSection {
-  return {
-    fields,
-    key,
-    rows: listRows(rows),
-    title
-  };
-}
-
-function field(key: string, title: string, kind?: FieldConfig['kind'], width?: number): FieldConfig {
-  return { key, kind, title, width, ellipsis: true };
-}
-
-function columnsFor(sectionConfig: WorkspaceSection): TableColumnsType<Record<string, unknown>> {
-  return sectionConfig.fields.map((fieldConfig) => ({
-    dataIndex: fieldConfig.key,
-    ellipsis: fieldConfig.ellipsis ?? true,
-    key: fieldConfig.key,
-    render: (value: unknown) => cellValue(value, fieldConfig),
-    title: fieldConfig.title,
-    width: fieldConfig.width
-  }));
-}
-
-function cellValue(value: unknown, fieldConfig: FieldConfig) {
-  if (value === undefined || value === null || value === '') {
-    return <Text type="secondary">-</Text>;
-  }
-  if (fieldConfig.kind === 'status') {
-    return <Tag color={tagColor(String(value))}>{dictionaryLabel(value)}</Tag>;
-  }
-  if (fieldConfig.kind === 'dictionary') {
-    return dictionaryLabel(value);
-  }
-  if (fieldConfig.kind === 'dictionary-list') {
-    return dictionaryListLabel(value);
-  }
-  if (fieldConfig.kind === 'date') {
-    return formatDate(value);
-  }
-  if (fieldConfig.kind === 'money') {
-    return Number(value || 0).toLocaleString('zh-CN', { maximumFractionDigits: 4, minimumFractionDigits: 4 });
-  }
-  if (fieldConfig.kind === 'percent') {
-    return `${(Number(value || 0) * 100).toFixed(1)}%`;
-  }
-  if (typeof value === 'boolean') {
-    return value ? translate('auto.k2953') : translate('auto.k2954');
-  }
-  if (typeof value === 'object') {
-    return <Text code>{JSON.stringify(value).slice(0, 120)}</Text>;
-  }
-  return String(value);
-}
-
-function detailValue(value: unknown) {
-  if (value === undefined || value === null || value === '') {
-    return '-';
-  }
-  if (typeof value === 'object') {
-    return <pre className="va-detail-json">{JSON.stringify(value, null, 2)}</pre>;
-  }
-  return String(value);
-}
-
-function filterRows(rows: Array<Record<string, unknown>>, keyword: string) {
-  const normalized = keyword.trim().toLowerCase();
-  if (!normalized) {
-    return rows;
-  }
-  return rows.filter((row) => JSON.stringify(row).toLowerCase().includes(normalized));
-}
-
-function listRows(input: unknown): Array<Record<string, unknown>> {
-  if (!input) {
-    return [];
-  }
-  if (Array.isArray(input)) {
-    return input.map(recordRow);
-  }
-  if (typeof input === 'object') {
-    const value = input as Record<string, unknown>;
-    if (Array.isArray(value.items)) {
-      return value.items.map(recordRow);
-    }
-    if (Array.isArray(value.rows)) {
-      return value.rows.map(recordRow);
-    }
-  }
-  return [];
-}
-
-function recordRow(input: unknown): Record<string, unknown> {
-  return input && typeof input === 'object' && !Array.isArray(input) ? input as Record<string, unknown> : { value: input };
-}
-
-function rowKey(row: Record<string, unknown>, index?: number) {
-  return String(row.id ?? row.key ?? row.code ?? row.name ?? row.username ?? row.eventId ?? row.traceId ?? index ?? Math.random());
-}
-
-async function safe<T>(loader: () => Promise<T>): Promise<T | undefined> {
-  try {
-    return await loader();
-  } catch {
-    return undefined;
-  }
-}
-
 function buildMenuItems(pages: PageDefinition[]): MenuProps['items'] {
   const groups = Array.from(new Set(pages.map((page) => page.group)));
   return groups.map((group) => ({
@@ -1063,106 +569,6 @@ function activePageFromPath(pathname: string): PageKey {
   return pageDefinitions.some((page) => page.key === pageKey) ? pageKey as PageKey : 'overview';
 }
 
-function tagColor(value: string) {
-  const normalized = value.toUpperCase();
-  if (['UP', 'OK', 'ACTIVE', 'ENABLED', 'SUCCEEDED', 'SUCCESS', 'PASSED', 'APPROVED', 'READY'].includes(normalized)) return 'success';
-  if (['FAILED', 'ERROR', 'DOWN', 'DISABLED', 'REJECTED', 'CRITICAL'].includes(normalized)) return 'error';
-  if (['RUNNING', 'PROCESSING', 'PENDING', 'QUEUED', 'DRAFT', 'REVIEWING'].includes(normalized)) return 'processing';
-  if (['WARN', 'WARNING', 'BLOCKED', 'OPEN'].includes(normalized)) return 'warning';
-  return 'default';
-}
-
-function statusTone(value?: string) {
-  if (['UP', 'OK', 'ACTIVE', 'ENABLED', 'SUCCEEDED'].includes(String(value))) return 'success';
-  if (['DOWN', 'FAILED', 'ERROR', 'CRITICAL'].includes(String(value))) return 'danger';
-  return undefined;
-}
-
-function metricColor(tone: NonNullable<WorkspaceMetric['tone']>) {
-  if (tone === 'success') return '#16a34a';
-  if (tone === 'danger') return '#dc2626';
-  return '#d97706';
-}
-
-function formatDate(value: unknown) {
-  const date = new Date(String(value));
-  if (Number.isNaN(date.getTime())) {
-    return String(value);
-  }
-  return date.toLocaleString('zh-CN', {
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-    month: '2-digit',
-    year: 'numeric'
-  });
-}
-
-function fieldTitle(key: string) {
-  return key
-    .replace(/([a-z])([A-Z])/g, '$1 $2')
-    .replace(/_/g, ' ')
-    .replace(/\b\w/g, (letter) => letter.toUpperCase());
-}
-
-function auditLogFields(): FieldConfig[] {
-  return [
-    field('time', translate('auto.k2955'), 'date'),
-    field('actor', translate('auto.k2956')),
-    field('action', translate('auto.k2940')),
-    field('target', translate('auto.k2957')),
-    field('result', translate('auto.k2958'), 'status')
-  ];
-}
-
-function commonAssetFields(name: string): FieldConfig[] {
-  return [
-    field('id', `${name} ID`, undefined, 220),
-    field('title', translate('auto.k2959')),
-    field('name', translate('auto.k2850')),
-    field('status', translate('auto.k2852'), 'status'),
-    field('priority', translate('auto.k2910'), 'dictionary'),
-    field('updatedAt', translate('auto.k2854'), 'date')
-  ];
-}
-
-function uiFields(name: string): FieldConfig[] {
-  return [
-    field('id', `${name} ID`, undefined, 220),
-    field('name', translate('auto.k2850')),
-    field('status', translate('auto.k2852'), 'status'),
-    field('riskLevel', translate('auto.k2960'), 'dictionary'),
-    field('updatedAt', translate('auto.k2854'), 'date')
-  ];
-}
-
-function executionFields(name: string): FieldConfig[] {
-  return [
-    field('id', `${name} ID`, undefined, 220),
-    field('name', translate('auto.k2850')),
-    field('status', translate('auto.k2852'), 'status'),
-    field('createdBy', translate('auto.k2877')),
-    field('createdAt', translate('auto.k2858'), 'date')
-  ];
-}
-
-function dataFields(name: string): FieldConfig[] {
-  return [
-    field('id', `${name} ID`, undefined, 220),
-    field('name', translate('auto.k2850')),
-    field('status', translate('auto.k2852'), 'status'),
-    field('sourceType', translate('auto.k2856'), 'dictionary'),
-    field('updatedAt', translate('auto.k2854'), 'date')
-  ];
-}
-
 function avatarText(user: CurrentUser) {
   return (user.display_name || user.username || 'U').slice(0, 2).toUpperCase();
 }
-
-const skeletonMetrics: WorkspaceMetric[] = [
-  { label: translate('auto.k2961'), value: '-' },
-  { label: translate('auto.k2961'), value: '-' },
-  { label: translate('auto.k2961'), value: '-' },
-  { label: translate('auto.k2961'), value: '-' }
-];
