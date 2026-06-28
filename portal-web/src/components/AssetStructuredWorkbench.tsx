@@ -47,7 +47,7 @@ import {
 import { hasPermission } from '../permissions';
 import { AssetImportExportPanel } from './AssetImportExportPanel';
 import { AssetVersionHistoryPanel } from './AssetVersionHistoryPanel';
-import { dictionaryLabel } from '../platform/dictionaries';
+import { dictionaryLabel, fieldLabel } from '../platform/dictionaries';
 import { translate } from '../platform/i18n';
 
 export type AssetNavigationKey = 'requirements' | 'apis' | 'pages' | 'flows' | 'cases' | 'trace';
@@ -518,7 +518,7 @@ export function AssetStructuredWorkbench(props: {
                 <Archive size={20} />
               </div>
               <div>
-                <span className="eyebrow">Asset Library</span>
+                <span className="eyebrow">{translate('auto.k0039')}</span>
                 <h2>{translate('auto.k0005')}</h2>
               </div>
             </div>
@@ -548,7 +548,7 @@ export function AssetStructuredWorkbench(props: {
 
           <form className="asset-filter-bar" onSubmit={(event) => event.preventDefault()}>
             <label className="field" htmlFor={`asset-${props.activeTab}-filter-project`}>
-              <span>projectId</span>
+              <span>{fieldLabel('projectId')}</span>
               <input
                 id={`asset-${props.activeTab}-filter-project`}
                 value={filters.projectId}
@@ -558,7 +558,7 @@ export function AssetStructuredWorkbench(props: {
               />
             </label>
             <label className="field" htmlFor={`asset-${props.activeTab}-filter-status`}>
-              <span>status</span>
+              <span>{fieldLabel('status')}</span>
               <select
                 id={`asset-${props.activeTab}-filter-status`}
                 value={filters.status}
@@ -573,7 +573,7 @@ export function AssetStructuredWorkbench(props: {
             </label>
             {props.activeTab === 'pages' && (
               <label className="field" htmlFor="asset-page-filter-source">
-                <span>source</span>
+                <span>{fieldLabel('source')}</span>
                 <select
                   id="asset-page-filter-source"
                   value={filters.source}
@@ -588,7 +588,7 @@ export function AssetStructuredWorkbench(props: {
               </label>
             )}
             <label className="field" htmlFor={`asset-${props.activeTab}-filter-keyword`}>
-              <span>keyword</span>
+              <span>{fieldLabel('keyword')}</span>
               <input
                 id={`asset-${props.activeTab}-filter-keyword`}
                 value={filters.keyword}
@@ -669,7 +669,7 @@ export function AssetStructuredWorkbench(props: {
                 <FilePlus2 size={20} />
               </div>
               <div>
-                <span className="eyebrow">Create</span>
+                <span className="eyebrow">{translate('auto.k0174')}</span>
                 <h2>{translate('auto.k0489')}{meta.name}</h2>
               </div>
             </div>
@@ -750,7 +750,7 @@ export function AssetStructuredWorkbench(props: {
             <form className="asset-form document-drawer-form" onSubmit={submitPrototypeSync}>
               <div className="asset-form-grid">
                 <label className="field" htmlFor="asset-prototype-project">
-                  <span>projectId</span>
+                  <span>{fieldLabel('projectId')}</span>
                   <input
                     id="asset-prototype-project"
                     value={prototypeSyncDraft.projectId}
@@ -760,7 +760,7 @@ export function AssetStructuredWorkbench(props: {
                   />
                 </label>
                 <label className="field" htmlFor="asset-prototype-source">
-                  <span>source</span>
+                  <span>{fieldLabel('source')}</span>
                   <select
                     id="asset-prototype-source"
                     value={prototypeSyncDraft.source}
@@ -773,7 +773,7 @@ export function AssetStructuredWorkbench(props: {
                   </select>
                 </label>
                 <label className="field" htmlFor="asset-prototype-version">
-                  <span>sourceVersion</span>
+                  <span>{fieldLabel('sourceVersion')}</span>
                   <input
                     id="asset-prototype-version"
                     value={prototypeSyncDraft.sourceVersion}
@@ -790,11 +790,11 @@ export function AssetStructuredWorkbench(props: {
                     disabled={prototypeSyncState.loading}
                     onChange={(event) => setPrototypeSyncDraft((current) => ({ ...current, dryRun: event.target.checked }))}
                   />
-                  <span>dryRun</span>
+                  <span>{fieldLabel('dryRun')}</span>
                 </label>
               </div>
               <label className="field" htmlFor="asset-prototype-pages">
-                <span>pages</span>
+                <span>{fieldLabel('pages')}</span>
                 <textarea
                   id="asset-prototype-pages"
                   className="compact-textarea schema-textarea"
@@ -843,15 +843,15 @@ export function AssetStructuredWorkbench(props: {
               <div className="resource-summary">
                 <strong>{selected.name}</strong>
                 <div>
-                  <span>projectId</span>
+                  <span>{fieldLabel('projectId')}</span>
                   <em>{selected.projectId ?? '-'}</em>
                 </div>
                 <div>
-                  <span>code</span>
+                  <span>{fieldLabel('code')}</span>
                   <em>{selected.code ?? '-'}</em>
                 </div>
                 <div>
-                  <span>id</span>
+                  <span>{fieldLabel('id')}</span>
                   <em>{selected.id}</em>
                 </div>
                 <div>
@@ -859,7 +859,7 @@ export function AssetStructuredWorkbench(props: {
                   <em>{props.activeTab === 'pages' ? selected.urlPattern ?? '-' : selected.priority ?? '-'}</em>
                 </div>
                 <div>
-                  <span>createdAt</span>
+                  <span>{fieldLabel('createdAt')}</span>
                   <em>{formatDate(selected.createdAt)}</em>
                 </div>
               </div>
@@ -869,19 +869,19 @@ export function AssetStructuredWorkbench(props: {
                 {props.activeTab === 'pages' ? (
                   <>
                     <div>
-                      <span>source</span>
+                      <span>{fieldLabel('source')}</span>
                       <em>{selected.source ?? '-'}</em>
                     </div>
                     <div>
-                      <span>sourceRef</span>
+                      <span>{fieldLabel('sourceRef')}</span>
                       <em>{selected.sourceRef ?? '-'}</em>
                     </div>
                     <div>
-                      <span>sourceVersion</span>
+                      <span>{fieldLabel('sourceVersion')}</span>
                       <em>{selected.sourceVersion ?? '-'}</em>
                     </div>
                     <div>
-                      <span>screenshotUrl</span>
+                      <span>{fieldLabel('screenshotUrl')}</span>
                       {selected.screenshotUrl ? (
                         <a href={selected.screenshotUrl} target="_blank" rel="noreferrer">
                           {selected.screenshotUrl}
@@ -893,7 +893,7 @@ export function AssetStructuredWorkbench(props: {
                   </>
                 ) : (
                   <div>
-                    <span>description</span>
+                    <span>{fieldLabel('description')}</span>
                     <em>{selected.description ?? '-'}</em>
                   </div>
                 )}
@@ -980,7 +980,7 @@ function StructuredAssetForm(props: {
       <div className="asset-form-grid">
         {!props.compact && (
           <label className="field" htmlFor={`asset-${props.activeTab}-project`}>
-            <span>projectId<b>*</b></span>
+            <span>{fieldLabel('projectId')}<b>*</b></span>
             <input
               id={`asset-${props.activeTab}-project`}
               value={props.draft.projectId}
@@ -1003,7 +1003,7 @@ function StructuredAssetForm(props: {
         {props.activeTab === 'pages' ? (
           <>
             <label className="field" htmlFor={`asset-${props.activeTab}-url`}>
-              <span>urlPattern</span>
+              <span>{fieldLabel('urlPattern')}</span>
               <input
                 id={`asset-${props.activeTab}-url`}
                 value={props.draft.urlPattern}
@@ -1013,7 +1013,7 @@ function StructuredAssetForm(props: {
               />
             </label>
             <label className="field" htmlFor={`asset-${props.activeTab}-source`}>
-              <span>source</span>
+              <span>{fieldLabel('source')}</span>
               <select
                 id={`asset-${props.activeTab}-source`}
                 value={props.draft.source}
@@ -1026,7 +1026,7 @@ function StructuredAssetForm(props: {
               </select>
             </label>
             <label className="field" htmlFor={`asset-${props.activeTab}-source-ref`}>
-              <span>sourceRef</span>
+              <span>{fieldLabel('sourceRef')}</span>
               <input
                 id={`asset-${props.activeTab}-source-ref`}
                 value={props.draft.sourceRef}
@@ -1036,7 +1036,7 @@ function StructuredAssetForm(props: {
               />
             </label>
             <label className="field" htmlFor={`asset-${props.activeTab}-source-version`}>
-              <span>sourceVersion</span>
+              <span>{fieldLabel('sourceVersion')}</span>
               <input
                 id={`asset-${props.activeTab}-source-version`}
                 value={props.draft.sourceVersion}
@@ -1046,7 +1046,7 @@ function StructuredAssetForm(props: {
               />
             </label>
             <label className="field" htmlFor={`asset-${props.activeTab}-screenshot`}>
-              <span>screenshotUrl</span>
+              <span>{fieldLabel('screenshotUrl')}</span>
               <input
                 id={`asset-${props.activeTab}-screenshot`}
                 value={props.draft.screenshotUrl}
@@ -1059,7 +1059,7 @@ function StructuredAssetForm(props: {
         ) : (
           <>
             <label className="field" htmlFor={`asset-${props.activeTab}-priority`}>
-              <span>priority</span>
+              <span>{fieldLabel('priority')}</span>
               <select
                 id={`asset-${props.activeTab}-priority`}
                 value={props.draft.priority}
@@ -1074,7 +1074,7 @@ function StructuredAssetForm(props: {
           </>
         )}
         <label className="field" htmlFor={`asset-${props.activeTab}-status`}>
-          <span>status</span>
+          <span>{fieldLabel('status')}</span>
           <select
             id={`asset-${props.activeTab}-status`}
             value={props.draft.status}
@@ -1409,7 +1409,7 @@ function StateLine(props: { state: WorkState }) {
 function StatusMetric(props: { label: string; value: string; pill?: boolean }) {
   return (
     <div className="status-item">
-      <span>{props.label}</span>
+      <span>{fieldLabel(props.label)}</span>
       {props.pill ? <AssetStatusPill value={props.value} /> : <strong>{props.value}</strong>}
     </div>
   );

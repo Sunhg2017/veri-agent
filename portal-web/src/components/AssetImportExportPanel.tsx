@@ -10,7 +10,7 @@ import {
 } from '../api/assets';
 import type { CurrentUser } from '../api/auth';
 import { hasPermission } from '../permissions';
-import { dictionaryLabel } from '../platform/dictionaries';
+import { dictionaryLabel, fieldLabel } from '../platform/dictionaries';
 import { translate } from '../platform/i18n';
 
 type WorkState = {
@@ -151,7 +151,7 @@ export function AssetImportExportPanel(props: {
       <form className="asset-form document-drawer-form" onSubmit={submitImport}>
         <div className="asset-form-grid">
           <label className="field" htmlFor="asset-io-type">
-            <span>assetType</span>
+            <span>{fieldLabel('assetType')}</span>
             <select
               id="asset-io-type"
               value={draft.assetType}
@@ -164,7 +164,7 @@ export function AssetImportExportPanel(props: {
             </select>
           </label>
           <label className="field" htmlFor="asset-io-format">
-            <span>format</span>
+            <span>{fieldLabel('format')}</span>
             <select
               id="asset-io-format"
               value={draft.format}
@@ -177,7 +177,7 @@ export function AssetImportExportPanel(props: {
             </select>
           </label>
           <label className="field" htmlFor="asset-io-project">
-            <span>projectId</span>
+            <span>{fieldLabel('projectId')}</span>
             <input
               id="asset-io-project"
               value={draft.projectId}
@@ -194,11 +194,11 @@ export function AssetImportExportPanel(props: {
               disabled={state.loading}
               onChange={(event) => setDraft((current) => ({ ...current, dryRun: event.target.checked }))}
             />
-            <span>dryRun</span>
+            <span>{fieldLabel('dryRun')}</span>
           </label>
         </div>
         <label className="field" htmlFor="asset-io-content">
-          <span>content</span>
+          <span>{fieldLabel('content')}</span>
           <textarea
             id="asset-io-content"
             className="compact-textarea schema-textarea"

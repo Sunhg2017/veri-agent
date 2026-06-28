@@ -46,7 +46,7 @@ import {
   type ApiAutomationSyncResponse
 } from '../api/apiAutomation';
 import { canUseButton, hasPermission } from '../permissions';
-import { dictionaryLabel } from '../platform/dictionaries';
+import { dictionaryLabel, displayValueLabel, fieldLabel } from '../platform/dictionaries';
 import { translate } from '../platform/i18n';
 
 const DIFF_STATUS_OPTIONS = ['ALL', 'NEW', 'CHANGED', 'MATCHED', 'CONFLICT', 'SKIPPED', 'UNKNOWN'] as const;
@@ -532,7 +532,7 @@ export function ApiAutomationWorkbench(props: { signedIn: boolean; currentUser: 
                     <th>{translate('auto.k0177')}</th>
                     <th>{translate('auto.k0176')}</th>
                     <th>{translate('auto.k0182')}</th>
-                    <th>Endpoint</th>
+                    <th>{fieldLabel('endpoint')}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -563,13 +563,13 @@ export function ApiAutomationWorkbench(props: { signedIn: boolean; currentUser: 
       <section className="panel">
         <div className="panel-header">
           <div>
-            <div className="panel-title">Endpoint Snapshot</div>
+            <div className="panel-title">端点快照</div>
             <div className="panel-desc">{detail ? translate('auto.k0184', { value0: detail.spec.name, value1: detail.endpoints.length }) : translate('auto.k0185')}</div>
           </div>
           <div className="api-automation-panel-actions">
             <button className="btn btn-ghost btn-sm" type="button" onClick={() => void onRefreshDiff()} disabled={!selectedSpecId || diffState.loading}>
               <RefreshCw size={15} />
-              Diff
+              差异
             </button>
             <button className="btn btn-secondary btn-sm" type="button" onClick={() => void onSync()} disabled={!selectedSpecId || !canImport || syncState.loading}>
               <Upload size={15} />
@@ -724,12 +724,12 @@ function EndpointTable(props: {
           <tr>
             <th>{translate('auto.k0196')}</th>
             <th>{translate('auto.k0197')}</th>
-            <th>Path</th>
-            <th>Operation</th>
-            <th>Asset</th>
+            <th>{fieldLabel('path')}</th>
+            <th>操作</th>
+            <th>资产</th>
             <th>{translate('auto.k0198')}</th>
             <th>{translate('auto.k0199')}</th>
-            <th>Diff</th>
+            <th>差异</th>
           </tr>
         </thead>
         <tbody>
@@ -1066,9 +1066,9 @@ function RunSummary(props: {
       {props.runExport && (
         <div className="api-automation-export-summary">
           <span>{props.runExport.schemaVersion}</span>
-          <span>exported {props.runExport.exportedAt ? formatDateTime(props.runExport.exportedAt) : '-'}</span>
-          <span>raw URL {props.runExport.redactionPolicy.rawBaseUrlExported ? 'on' : 'off'}</span>
-          <span>request/response {props.runExport.redactionPolicy.rawRequestResponseExported ? 'on' : 'off'}</span>
+          <span>{fieldLabel('exported')} {props.runExport.exportedAt ? formatDateTime(props.runExport.exportedAt) : '-'}</span>
+          <span>{fieldLabel('rawUrl')} {displayValueLabel(props.runExport.redactionPolicy.rawBaseUrlExported ? 'ON' : 'OFF')}</span>
+          <span>{fieldLabel('requestResponse')} {displayValueLabel(props.runExport.redactionPolicy.rawRequestResponseExported ? 'ON' : 'OFF')}</span>
         </div>
       )}
     </div>
@@ -1081,7 +1081,7 @@ function MetricCard(props: { label: string; value: string; icon: ReactNode }) {
       <div className="metric-icon">{props.icon}</div>
       <div className="metric-body">
         <span className="metric-value">{props.value}</span>
-        <span className="metric-label">{props.label}</span>
+        <span className="metric-label">{fieldLabel(props.label)}</span>
       </div>
     </div>
   );
@@ -1090,8 +1090,8 @@ function MetricCard(props: { label: string; value: string; icon: ReactNode }) {
 function PolicyItem(props: { label: string; value: string }) {
   return (
     <div className="api-automation-policy-item">
-      <span>{props.label}</span>
-      <strong>{props.value}</strong>
+      <span>{fieldLabel(props.label)}</span>
+      <strong>{displayValueLabel(props.value)}</strong>
     </div>
   );
 }
@@ -1099,7 +1099,7 @@ function PolicyItem(props: { label: string; value: string }) {
 function Field(props: { label: string; children: ReactNode }) {
   return (
     <label className="field">
-      <span className="field-label">{props.label}</span>
+      <span className="field-label">{fieldLabel(props.label)}</span>
       {props.children}
     </label>
   );

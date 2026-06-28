@@ -61,7 +61,7 @@ import {
   type TestPooledAccount
 } from '../api/testData';
 import { canUseButton, hasPermission } from '../permissions';
-import { dictionaryLabel } from '../platform/dictionaries';
+import { dictionaryLabel, displayValueLabel, fieldLabel } from '../platform/dictionaries';
 import { translate } from '../platform/i18n';
 
 type WorkState = {
@@ -1537,7 +1537,7 @@ export function TestDataWorkbench(props: { signedIn: boolean; currentUser: Curre
             <div className="test-data-summary">
               <SummaryChip label="scopeKeys" value={leaseExport.account.scopeSummaryKeys.join(', ') || '-'} />
               <SummaryChip label="leasePolicyKeys" value={leaseExport.pool.leasePolicyKeys.join(', ') || '-'} />
-              <SummaryChip label="healthSummary" value={leaseExport.account.lastHealthSummaryPresent ? 'digest only' : '-'} />
+              <SummaryChip label="healthSummary" value={leaseExport.account.lastHealthSummaryPresent ? 'SET' : '-'} />
             </div>
             <div className="test-data-summary">
               {Object.entries(leaseExport.redactionPolicy).map(([key, value]) => (
@@ -1761,7 +1761,7 @@ function MetricCard(props: { label: string; value: string; icon: ReactNode }) {
       <div className="metric-icon">{props.icon}</div>
       <div className="metric-body">
         <span className="metric-value">{props.value}</span>
-        <span className="metric-label">{props.label}</span>
+        <span className="metric-label">{fieldLabel(props.label)}</span>
       </div>
     </div>
   );
@@ -1770,8 +1770,8 @@ function MetricCard(props: { label: string; value: string; icon: ReactNode }) {
 function PolicyItem(props: { label: string; value: string }) {
   return (
     <div className="test-data-policy-item">
-      <span>{props.label}</span>
-      <strong>{props.value}</strong>
+      <span>{fieldLabel(props.label)}</span>
+      <strong>{displayValueLabel(props.value)}</strong>
     </div>
   );
 }
@@ -1779,7 +1779,7 @@ function PolicyItem(props: { label: string; value: string }) {
 function Field(props: { label: string; children: ReactNode }) {
   return (
     <label className="field">
-      <span className="field-label">{props.label}</span>
+      <span className="field-label">{fieldLabel(props.label)}</span>
       {props.children}
     </label>
   );
@@ -1828,7 +1828,7 @@ function PrimaryText(props: { title: string; subtitle?: string }) {
 }
 
 function SummaryChip(props: { label: string; value: string }) {
-  return <span><strong>{props.label}</strong>{props.value}</span>;
+  return <span><strong>{fieldLabel(props.label)}</strong>{displayValueLabel(props.value)}</span>;
 }
 
 function dataSetDraftFromDetail(detail: TestDataSetDetail): DataSetDraft {
@@ -1908,8 +1908,8 @@ function jsonText(value: Record<string, unknown>) {
 
 function summaryText(value: Record<string, unknown>) {
   const entries = Object.entries(value).slice(0, 4);
-  if (!entries.length) return 'summary empty';
-  return entries.map(([key, item]) => `${key}=${String(item)}`).join(' · ');
+  if (!entries.length) return fieldLabel('summary');
+  return entries.map(([key, item]) => `${fieldLabel(key)}=${displayValueLabel(item)}`).join(' · ');
 }
 
 function shortId(value?: string) {

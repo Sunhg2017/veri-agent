@@ -55,7 +55,7 @@ import { AssetImportExportPanel } from './AssetImportExportPanel';
 import { AssetStructuredWorkbench, type AssetNavigationKey } from './AssetStructuredWorkbench';
 import { AssetTraceWorkbench } from './AssetTraceWorkbench';
 import { AssetVersionHistoryPanel } from './AssetVersionHistoryPanel';
-import { dictionaryLabel } from '../platform/dictionaries';
+import { dictionaryLabel, fieldLabel } from '../platform/dictionaries';
 import { translate } from '../platform/i18n';
 
 type WorkState = {
@@ -794,7 +794,7 @@ export function AssetWorkbench(props: { signedIn: boolean; currentUser: CurrentU
                 <Archive size={20} />
               </div>
               <div>
-                <span className="eyebrow">Asset Library</span>
+                <span className="eyebrow">{translate('auto.k0039')}</span>
                 <h2>{translate('auto.k0005')}</h2>
               </div>
             </div>
@@ -831,7 +831,7 @@ export function AssetWorkbench(props: { signedIn: boolean; currentUser: CurrentU
             <>
           <form className="asset-filter-bar" onSubmit={(event) => event.preventDefault()}>
             <label className="field" htmlFor="asset-filter-project">
-              <span>projectId</span>
+              <span>{fieldLabel('projectId')}</span>
               <input
                 id="asset-filter-project"
                 value={filters.projectId}
@@ -841,7 +841,7 @@ export function AssetWorkbench(props: { signedIn: boolean; currentUser: CurrentU
               />
             </label>
             <label className="field" htmlFor="asset-filter-status">
-              <span>status</span>
+              <span>{fieldLabel('status')}</span>
               <select
                 id="asset-filter-status"
                 value={filters.status}
@@ -855,7 +855,7 @@ export function AssetWorkbench(props: { signedIn: boolean; currentUser: CurrentU
               </select>
             </label>
             <label className="field" htmlFor="asset-filter-source">
-              <span>source</span>
+              <span>{fieldLabel('source')}</span>
               <select
                 id="asset-filter-source"
                 value={filters.source}
@@ -869,7 +869,7 @@ export function AssetWorkbench(props: { signedIn: boolean; currentUser: CurrentU
               </select>
             </label>
             <label className="field" htmlFor="asset-filter-source-ref">
-              <span>sourceRef</span>
+              <span>{fieldLabel('sourceRef')}</span>
               <input
                 id="asset-filter-source-ref"
                 value={filters.sourceRef}
@@ -879,7 +879,7 @@ export function AssetWorkbench(props: { signedIn: boolean; currentUser: CurrentU
               />
             </label>
             <label className="field" htmlFor="asset-filter-keyword">
-              <span>keyword</span>
+              <span>{fieldLabel('keyword')}</span>
               <input
                 id="asset-filter-keyword"
                 value={filters.keyword}
@@ -957,7 +957,7 @@ export function AssetWorkbench(props: { signedIn: boolean; currentUser: CurrentU
             <>
               <form className="asset-filter-bar api-filter-bar" onSubmit={(event) => event.preventDefault()}>
                 <label className="field" htmlFor="asset-api-filter-project">
-                  <span>projectId</span>
+                  <span>{fieldLabel('projectId')}</span>
                   <input
                     id="asset-api-filter-project"
                     value={apiFilters.projectId}
@@ -967,7 +967,7 @@ export function AssetWorkbench(props: { signedIn: boolean; currentUser: CurrentU
                   />
                 </label>
                 <label className="field" htmlFor="asset-api-filter-status">
-                  <span>status</span>
+                  <span>{fieldLabel('status')}</span>
                   <select
                     id="asset-api-filter-status"
                     value={apiFilters.status}
@@ -981,7 +981,7 @@ export function AssetWorkbench(props: { signedIn: boolean; currentUser: CurrentU
                   </select>
                 </label>
                 <label className="field" htmlFor="asset-api-filter-method">
-                  <span>method</span>
+                  <span>{fieldLabel('method')}</span>
                   <select
                     id="asset-api-filter-method"
                     value={apiFilters.method}
@@ -997,7 +997,7 @@ export function AssetWorkbench(props: { signedIn: boolean; currentUser: CurrentU
                   </select>
                 </label>
                 <label className="field" htmlFor="asset-api-filter-source">
-                  <span>source</span>
+                  <span>{fieldLabel('source')}</span>
                   <input
                     id="asset-api-filter-source"
                     value={apiFilters.source}
@@ -1007,7 +1007,7 @@ export function AssetWorkbench(props: { signedIn: boolean; currentUser: CurrentU
                   />
                 </label>
                 <label className="field" htmlFor="asset-api-filter-keyword">
-                  <span>keyword</span>
+                  <span>{fieldLabel('keyword')}</span>
                   <input
                     id="asset-api-filter-keyword"
                     value={apiFilters.keyword}
@@ -1095,7 +1095,7 @@ export function AssetWorkbench(props: { signedIn: boolean; currentUser: CurrentU
                 <FilePlus2 size={20} />
               </div>
               <div>
-                <span className="eyebrow">Create</span>
+                <span className="eyebrow">{translate('auto.k0174')}</span>
                 <h2>{translate('auto.k0648')}</h2>
               </div>
             </div>
@@ -1122,7 +1122,7 @@ export function AssetWorkbench(props: { signedIn: boolean; currentUser: CurrentU
           <form className="asset-form document-drawer-form" onSubmit={submitCreate}>
             <div className="asset-form-grid">
               <label className="field" htmlFor="asset-create-project">
-                <span>projectId<b>*</b></span>
+                <span>{fieldLabel('projectId')}<b>*</b></span>
                 <input
                   id="asset-create-project"
                   value={createDraft.projectId}
@@ -1142,7 +1142,7 @@ export function AssetWorkbench(props: { signedIn: boolean; currentUser: CurrentU
                 />
               </label>
               <label className="field" htmlFor="asset-create-priority">
-                <span>priority</span>
+                <span>{fieldLabel('priority')}</span>
                 <select
                   id="asset-create-priority"
                   value={createDraft.priority}
@@ -1155,7 +1155,7 @@ export function AssetWorkbench(props: { signedIn: boolean; currentUser: CurrentU
                 </select>
               </label>
               <label className="field" htmlFor="asset-create-source">
-                <span>source</span>
+                <span>{fieldLabel('source')}</span>
                 <select
                   id="asset-create-source"
                   value={createDraft.source}
@@ -1168,7 +1168,7 @@ export function AssetWorkbench(props: { signedIn: boolean; currentUser: CurrentU
                 </select>
               </label>
               <label className="field" htmlFor="asset-create-source-ref">
-                <span>sourceRef</span>
+                <span>{fieldLabel('sourceRef')}</span>
                 <input
                   id="asset-create-source-ref"
                   value={createDraft.sourceRef}
@@ -1178,7 +1178,7 @@ export function AssetWorkbench(props: { signedIn: boolean; currentUser: CurrentU
                 />
               </label>
               <label className="field" htmlFor="asset-create-source-url">
-                <span>sourceUrl</span>
+                <span>{fieldLabel('sourceUrl')}</span>
                 <input
                   id="asset-create-source-url"
                   value={createDraft.sourceUrl}
@@ -1209,7 +1209,7 @@ export function AssetWorkbench(props: { signedIn: boolean; currentUser: CurrentU
               />
             </label>
             <label className="field" htmlFor="asset-create-tags">
-              <span>tags</span>
+              <span>{fieldLabel('tags')}</span>
               <input
                 id="asset-create-tags"
                 value={createDraft.tags}
@@ -1241,7 +1241,7 @@ export function AssetWorkbench(props: { signedIn: boolean; currentUser: CurrentU
                     <FilePlus2 size={20} />
                   </div>
                   <div>
-                    <span className="eyebrow">Create</span>
+                    <span className="eyebrow">{translate('auto.k0174')}</span>
                     <h2>{translate('auto.k0652')}</h2>
                   </div>
                 </div>
@@ -1273,7 +1273,7 @@ export function AssetWorkbench(props: { signedIn: boolean; currentUser: CurrentU
               <form className="asset-form document-drawer-form" onSubmit={submitCreateApi}>
                 <div className="asset-form-grid">
                   <label className="field" htmlFor="asset-api-create-project">
-                    <span>projectId<b>*</b></span>
+                    <span>{fieldLabel('projectId')}<b>*</b></span>
                     <input
                       id="asset-api-create-project"
                       value={apiCreateDraft.projectId}
@@ -1293,7 +1293,7 @@ export function AssetWorkbench(props: { signedIn: boolean; currentUser: CurrentU
                     />
                   </label>
                   <label className="field" htmlFor="asset-api-create-method">
-                    <span>method</span>
+                    <span>{fieldLabel('method')}</span>
                     <select
                       id="asset-api-create-method"
                       value={apiCreateDraft.httpMethod}
@@ -1308,7 +1308,7 @@ export function AssetWorkbench(props: { signedIn: boolean; currentUser: CurrentU
                     </select>
                   </label>
                   <label className="field" htmlFor="asset-api-create-path">
-                    <span>path<b>*</b></span>
+                    <span>{fieldLabel('path')}<b>*</b></span>
                     <input
                       id="asset-api-create-path"
                       value={apiCreateDraft.path}
@@ -1318,7 +1318,7 @@ export function AssetWorkbench(props: { signedIn: boolean; currentUser: CurrentU
                     />
                   </label>
                   <label className="field" htmlFor="asset-api-create-status">
-                    <span>status</span>
+                    <span>{fieldLabel('status')}</span>
                     <select
                       id="asset-api-create-status"
                       value={apiCreateDraft.status}
@@ -1331,7 +1331,7 @@ export function AssetWorkbench(props: { signedIn: boolean; currentUser: CurrentU
                     </select>
                   </label>
                   <label className="field" htmlFor="asset-api-create-version">
-                    <span>version</span>
+                    <span>{fieldLabel('version')}</span>
                     <input
                       id="asset-api-create-version"
                       value={apiCreateDraft.version}
@@ -1353,7 +1353,7 @@ export function AssetWorkbench(props: { signedIn: boolean; currentUser: CurrentU
                 </label>
                 <div className="asset-schema-grid">
                   <label className="field" htmlFor="asset-api-create-request-schema">
-                    <span>requestSchema</span>
+                    <span>{fieldLabel('requestSchema')}</span>
                     <textarea
                       id="asset-api-create-request-schema"
                       className="compact-textarea schema-textarea"
@@ -1363,7 +1363,7 @@ export function AssetWorkbench(props: { signedIn: boolean; currentUser: CurrentU
                     />
                   </label>
                   <label className="field" htmlFor="asset-api-create-response-schema">
-                    <span>responseSchema</span>
+                    <span>{fieldLabel('responseSchema')}</span>
                     <textarea
                       id="asset-api-create-response-schema"
                       className="compact-textarea schema-textarea"
@@ -1447,23 +1447,23 @@ export function AssetWorkbench(props: { signedIn: boolean; currentUser: CurrentU
               <div className="resource-summary">
                 <strong>{selectedRequirement.title}</strong>
                 <div>
-                  <span>projectId</span>
+                  <span>{fieldLabel('projectId')}</span>
                   <em>{selectedRequirement.projectId ?? '-'}</em>
                 </div>
                 <div>
-                  <span>priority</span>
+                  <span>{fieldLabel('priority')}</span>
                   <em>{selectedRequirement.priority}</em>
                 </div>
                 <div>
-                  <span>version</span>
+                  <span>{fieldLabel('version')}</span>
                   <em>v{selectedRequirement.version || '-'}</em>
                 </div>
                 <div>
-                  <span>id</span>
+                  <span>{fieldLabel('id')}</span>
                   <em>{selectedRequirement.id}</em>
                 </div>
                 <div>
-                  <span>createdAt</span>
+                  <span>{fieldLabel('createdAt')}</span>
                   <em>{formatDate(selectedRequirement.createdAt)}</em>
                 </div>
               </div>
@@ -1471,15 +1471,15 @@ export function AssetWorkbench(props: { signedIn: boolean; currentUser: CurrentU
               <div className="asset-source-trace">
                 <strong>{translate('auto.k0660')}</strong>
                 <div>
-                  <span>source</span>
+                  <span>{fieldLabel('source')}</span>
                   <em>{selectedRequirement.source}</em>
                 </div>
                 <div>
-                  <span>sourceRef</span>
+                  <span>{fieldLabel('sourceRef')}</span>
                   <em>{selectedRequirement.sourceRef ?? '-'}</em>
                 </div>
                 <div>
-                  <span>sourceUrl</span>
+                  <span>{fieldLabel('sourceUrl')}</span>
                   {selectedRequirement.sourceUrl ? (
                     <a href={selectedRequirement.sourceUrl} target="_blank" rel="noreferrer">
                       {selectedRequirement.sourceUrl}
@@ -1489,7 +1489,7 @@ export function AssetWorkbench(props: { signedIn: boolean; currentUser: CurrentU
                   )}
                 </div>
                 <div>
-                  <span>acceptanceCriteria</span>
+                  <span>{fieldLabel('acceptanceCriteria')}</span>
                   <em>{selectedRequirement.acceptanceCriteria ?? '-'}</em>
                 </div>
               </div>
@@ -1523,7 +1523,7 @@ export function AssetWorkbench(props: { signedIn: boolean; currentUser: CurrentU
                   />
                 </label>
                 <label>
-                  <span>priority</span>
+                  <span>{fieldLabel('priority')}</span>
                   <select
                     value={editDraft.priority}
                     disabled={editDisabled}
@@ -1544,7 +1544,7 @@ export function AssetWorkbench(props: { signedIn: boolean; currentUser: CurrentU
                   />
                 </label>
                 <label>
-                  <span>tags</span>
+                  <span>{fieldLabel('tags')}</span>
                   <input
                     value={editDraft.tags}
                     disabled={editDisabled}
@@ -1639,27 +1639,27 @@ export function AssetWorkbench(props: { signedIn: boolean; currentUser: CurrentU
                   <div className="resource-summary">
                     <strong>{selectedApi.summary}</strong>
                     <div>
-                      <span>projectId</span>
+                      <span>{fieldLabel('projectId')}</span>
                       <em>{selectedApi.projectId ?? '-'}</em>
                     </div>
                     <div>
-                      <span>method</span>
+                      <span>{fieldLabel('method')}</span>
                       <em>{selectedApi.httpMethod}</em>
                     </div>
                     <div>
-                      <span>path</span>
+                      <span>{fieldLabel('path')}</span>
                       <em>{selectedApi.path}</em>
                     </div>
                     <div>
-                      <span>code</span>
+                      <span>{fieldLabel('code')}</span>
                       <em>{selectedApi.code ?? '-'}</em>
                     </div>
                     <div>
-                      <span>id</span>
+                      <span>{fieldLabel('id')}</span>
                       <em>{selectedApi.id}</em>
                     </div>
                     <div>
-                      <span>createdAt</span>
+                      <span>{fieldLabel('createdAt')}</span>
                       <em>{formatDate(selectedApi.createdAt)}</em>
                     </div>
                   </div>
@@ -1667,33 +1667,33 @@ export function AssetWorkbench(props: { signedIn: boolean; currentUser: CurrentU
                   <div className="asset-source-trace">
                     <strong>{translate('auto.k0660')}</strong>
                     <div>
-                      <span>source</span>
+                      <span>{fieldLabel('source')}</span>
                       <em>{selectedApi.source ?? '-'}</em>
                     </div>
                     <div>
-                      <span>sourceRef</span>
+                      <span>{fieldLabel('sourceRef')}</span>
                       <em>{selectedApi.sourceRef ?? '-'}</em>
                     </div>
                     <div>
-                      <span>version</span>
+                      <span>{fieldLabel('version')}</span>
                       <em>{selectedApi.version ?? '-'}</em>
                     </div>
                     <div>
-                      <span>updatedAt</span>
+                      <span>{fieldLabel('updatedAt')}</span>
                       <em>{formatDate(selectedApi.updatedAt)}</em>
                     </div>
                     <div>
-                      <span>description</span>
+                      <span>{fieldLabel('description')}</span>
                       <em>{selectedApi.description ?? '-'}</em>
                     </div>
                   </div>
 
                   <div className="asset-schema-preview">
-                    <strong>requestSchema</strong>
+                    <strong>{fieldLabel('requestSchema')}</strong>
                     <pre>{formatSchema(selectedApi.requestSchema)}</pre>
                   </div>
                   <div className="asset-schema-preview">
-                    <strong>responseSchema</strong>
+                    <strong>{fieldLabel('responseSchema')}</strong>
                     <pre>{formatSchema(selectedApi.responseSchema)}</pre>
                   </div>
 
@@ -1726,7 +1726,7 @@ export function AssetWorkbench(props: { signedIn: boolean; currentUser: CurrentU
                       />
                     </label>
                     <label>
-                      <span>method</span>
+                      <span>{fieldLabel('method')}</span>
                       <select
                         value={apiEditDraft.httpMethod}
                         disabled={apiEditDisabled}
@@ -1740,7 +1740,7 @@ export function AssetWorkbench(props: { signedIn: boolean; currentUser: CurrentU
                       </select>
                     </label>
                     <label>
-                      <span>path</span>
+                      <span>{fieldLabel('path')}</span>
                       <input
                         value={apiEditDraft.path}
                         disabled={apiEditDisabled}
@@ -1748,7 +1748,7 @@ export function AssetWorkbench(props: { signedIn: boolean; currentUser: CurrentU
                       />
                     </label>
                     <label>
-                      <span>status</span>
+                      <span>{fieldLabel('status')}</span>
                       <select
                         value={apiEditDraft.status}
                         disabled={apiEditDisabled}
@@ -1760,7 +1760,7 @@ export function AssetWorkbench(props: { signedIn: boolean; currentUser: CurrentU
                       </select>
                     </label>
                     <label>
-                      <span>version</span>
+                      <span>{fieldLabel('version')}</span>
                       <input
                         value={apiEditDraft.version}
                         disabled={apiEditDisabled}
@@ -1777,7 +1777,7 @@ export function AssetWorkbench(props: { signedIn: boolean; currentUser: CurrentU
                       />
                     </label>
                     <label>
-                      <span>requestSchema</span>
+                      <span>{fieldLabel('requestSchema')}</span>
                       <textarea
                         className="compact-textarea schema-textarea"
                         value={apiEditDraft.requestSchema}
@@ -1786,7 +1786,7 @@ export function AssetWorkbench(props: { signedIn: boolean; currentUser: CurrentU
                       />
                     </label>
                     <label>
-                      <span>responseSchema</span>
+                      <span>{fieldLabel('responseSchema')}</span>
                       <textarea
                         className="compact-textarea schema-textarea"
                         value={apiEditDraft.responseSchema}
@@ -2112,7 +2112,7 @@ function StateLine(props: { state: WorkState }) {
 function StatusMetric(props: { label: string; value: string; pill?: boolean }) {
   return (
     <div className="status-item">
-      <span>{props.label}</span>
+      <span>{fieldLabel(props.label)}</span>
       {props.pill ? <AssetStatusPill value={props.value} /> : <strong>{props.value}</strong>}
     </div>
   );

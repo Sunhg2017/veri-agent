@@ -61,7 +61,7 @@ import {
   type WebhookEventView
 } from '../api/documentInput';
 import { hasPermission } from '../permissions';
-import { dictionaryLabel } from '../platform/dictionaries';
+import { dictionaryLabel, fieldLabel } from '../platform/dictionaries';
 import { translate } from '../platform/i18n';
 
 type WorkState = {
@@ -915,7 +915,7 @@ export function DocumentInputConsole(props: { signedIn: boolean; currentUser: Cu
                 <Webhook size={20} />
               </div>
               <div>
-                <span className="eyebrow">Sources</span>
+                <span className="eyebrow">{translate('auto.k0729')}</span>
                 <h2>{translate('auto.k0729')}</h2>
               </div>
             </div>
@@ -952,7 +952,7 @@ export function DocumentInputConsole(props: { signedIn: boolean; currentUser: Cu
           <form className="document-form document-drawer-form" onSubmit={submitSource}>
             <div className="document-form-grid">
               <label className="field" htmlFor="source-project-id">
-                <span>defaultProjectId</span>
+                <span>{fieldLabel('defaultProjectId')}</span>
                 <input
                   id="source-project-id"
                   value={sourceDraft.defaultProjectId}
@@ -972,7 +972,7 @@ export function DocumentInputConsole(props: { signedIn: boolean; currentUser: Cu
                 />
               </label>
               <label className="field" htmlFor="source-type">
-                <span>sourceType</span>
+                <span>{fieldLabel('sourceType')}</span>
                 <select
                   id="source-type"
                   value={sourceDraft.sourceType}
@@ -988,7 +988,7 @@ export function DocumentInputConsole(props: { signedIn: boolean; currentUser: Cu
                 <small>{sourceTypeReserved ? translate('auto.k0732') : translate('auto.k0733')}</small>
               </label>
               <label className="field" htmlFor="source-status">
-                <span>status</span>
+                <span>{fieldLabel('status')}</span>
                 <select
                   id="source-status"
                   value={sourceDraft.status}
@@ -1002,7 +1002,7 @@ export function DocumentInputConsole(props: { signedIn: boolean; currentUser: Cu
                 </select>
               </label>
               <label className="field" htmlFor="source-code">
-                <span>sourceCode<b>*</b></span>
+                <span>{fieldLabel('sourceCode')}<b>*</b></span>
                 <input
                   id="source-code"
                   value={sourceDraft.sourceCode}
@@ -1012,7 +1012,7 @@ export function DocumentInputConsole(props: { signedIn: boolean; currentUser: Cu
                 />
               </label>
               <label className="field" htmlFor="source-mapping-id">
-                <span>mappingId</span>
+                <span>{fieldLabel('mappingId')}</span>
                 <input
                   id="source-mapping-id"
                   value={sourceDraft.mappingId}
@@ -1022,7 +1022,7 @@ export function DocumentInputConsole(props: { signedIn: boolean; currentUser: Cu
                 />
               </label>
               <label className="field" htmlFor="source-secret-ref">
-                <span>secretRef</span>
+                <span>{fieldLabel('secretRef')}</span>
                 <input
                   id="source-secret-ref"
                   value={sourceDraft.secretRef}
@@ -1032,7 +1032,7 @@ export function DocumentInputConsole(props: { signedIn: boolean; currentUser: Cu
                 />
               </label>
               <label className="field" htmlFor="source-event-version">
-                <span>eventVersion</span>
+                <span>{fieldLabel('eventVersion')}</span>
                 <select
                   id="source-event-version"
                   value={sourceDraft.eventVersion}
@@ -1043,7 +1043,7 @@ export function DocumentInputConsole(props: { signedIn: boolean; currentUser: Cu
                 </select>
               </label>
               <label className="field" htmlFor="source-mapping-version">
-                <span>mappingVersion</span>
+                <span>{fieldLabel('mappingVersion')}</span>
                 <input
                   id="source-mapping-version"
                   value={sourceDraft.mappingVersion}
@@ -1053,7 +1053,7 @@ export function DocumentInputConsole(props: { signedIn: boolean; currentUser: Cu
                 />
               </label>
               <label className="field" htmlFor="source-url">
-                <span>endpointUrl</span>
+                <span>{fieldLabel('endpointUrl')}</span>
                 <input
                   id="source-url"
                   value={sourceDraft.endpointUrl}
@@ -1063,7 +1063,7 @@ export function DocumentInputConsole(props: { signedIn: boolean; currentUser: Cu
                 />
               </label>
               <label className="field" htmlFor="source-description">
-                <span>description</span>
+                <span>{fieldLabel('description')}</span>
                 <input
                   id="source-description"
                   value={sourceDraft.description}
@@ -1097,8 +1097,8 @@ export function DocumentInputConsole(props: { signedIn: boolean; currentUser: Cu
                   <th>{translate('auto.k0440')}</th>
                   <th>{translate('auto.k0740')}</th>
                   <th>{translate('auto.k0286')}</th>
-                  <th>Endpoint</th>
-                  <th>Webhook</th>
+                  <th>{fieldLabel('endpoint')}</th>
+                  <th>{fieldLabel('webhook')}</th>
                   <th>{translate('auto.k0182')}</th>
                   <th>{translate('auto.k0741')}</th>
                   <th>{translate('auto.k0249')}</th>
@@ -1186,7 +1186,7 @@ export function DocumentInputConsole(props: { signedIn: boolean; currentUser: Cu
                 <Upload size={20} />
               </div>
               <div>
-                <span className="eyebrow">Import</span>
+                <span className="eyebrow">{translate('auto.k0748')}</span>
                 <h2>{translate('auto.k0748')}</h2>
               </div>
             </div>
@@ -1215,7 +1215,7 @@ export function DocumentInputConsole(props: { signedIn: boolean; currentUser: Cu
           <form className="document-form document-drawer-form" onSubmit={submitImport}>
             <div className="document-form-grid">
               <label className="field" htmlFor="import-project-id">
-                <span>projectId<b>*</b></span>
+                <span>{fieldLabel('projectId')}<b>*</b></span>
                 <input
                   id="import-project-id"
                   value={importDraft.projectId}
@@ -1235,7 +1235,7 @@ export function DocumentInputConsole(props: { signedIn: boolean; currentUser: Cu
                 />
               </label>
               <label className="field" htmlFor="import-source-type">
-                <span>sourceType</span>
+                <span>{fieldLabel('sourceType')}</span>
                 <select
                   id="import-source-type"
                   value={importDraft.sourceType}
@@ -1251,7 +1251,7 @@ export function DocumentInputConsole(props: { signedIn: boolean; currentUser: Cu
                 <small>{importTypeReserved ? translate('auto.k0750') : translate('auto.k0751')}</small>
               </label>
               <label className="field" htmlFor="import-source-ref">
-                <span>sourceRef</span>
+                <span>{fieldLabel('sourceRef')}</span>
                 <input
                   id="import-source-ref"
                   value={importDraft.sourceRef}
@@ -1261,7 +1261,7 @@ export function DocumentInputConsole(props: { signedIn: boolean; currentUser: Cu
                 />
               </label>
               <label className="field" htmlFor="import-source-url">
-                <span>sourceUrl</span>
+                <span>{fieldLabel('sourceUrl')}</span>
                 <input
                   id="import-source-url"
                   value={importDraft.sourceUrl}
@@ -1271,7 +1271,7 @@ export function DocumentInputConsole(props: { signedIn: boolean; currentUser: Cu
                 />
               </label>
               <label className="field" htmlFor="import-source-id">
-                <span>sourceId</span>
+                <span>{fieldLabel('sourceId')}</span>
                 <input
                   id="import-source-id"
                   value={importDraft.sourceId}
@@ -1281,7 +1281,7 @@ export function DocumentInputConsole(props: { signedIn: boolean; currentUser: Cu
                 />
               </label>
               <label className="field" htmlFor="import-mapping-id">
-                <span>mappingId</span>
+                <span>{fieldLabel('mappingId')}</span>
                 <input
                   id="import-mapping-id"
                   value={importDraft.mappingId}
@@ -1292,7 +1292,7 @@ export function DocumentInputConsole(props: { signedIn: boolean; currentUser: Cu
               </label>
             </div>
             <label className="field document-content-field" htmlFor="import-content">
-              <span>content</span>
+              <span>{fieldLabel('content')}</span>
               <textarea
                 id="import-content"
                 value={importDraft.content}
@@ -1347,8 +1347,8 @@ export function DocumentInputConsole(props: { signedIn: boolean; currentUser: Cu
           {lastImportResult && (
             <div className="document-result-strip">
               <DocumentStatusPill value={lastImportResult.status} />
-              <span>createdRequirements：{lastImportResult.createdRequirements}</span>
-              <span>requirementCount：{lastImportResult.requirementCount}</span>
+              <span>{fieldLabel('createdRequirements')}：{lastImportResult.createdRequirements}</span>
+              <span>{fieldLabel('requirementCount')}：{lastImportResult.requirementCount}</span>
               {lastImportResult.errorMessage && <FailureHint message={lastImportResult.errorMessage} />}
             </div>
           )}
@@ -1360,13 +1360,13 @@ export function DocumentInputConsole(props: { signedIn: boolean; currentUser: Cu
               <Settings size={20} />
             </div>
             <div>
-              <span className="eyebrow">Field Mapping</span>
+              <span className="eyebrow">{translate('auto.k0757')}</span>
               <h2>{translate('auto.k0757')}</h2>
             </div>
           </div>
           <form className="document-form" onSubmit={submitMapping}>
             <label className="field document-content-field" htmlFor="field-mapping">
-              <span>mapping JSON</span>
+              <span>{fieldLabel('mapping JSON')}</span>
               <textarea
                 id="field-mapping"
                 value={mappingText}
@@ -1397,20 +1397,20 @@ export function DocumentInputConsole(props: { signedIn: boolean; currentUser: Cu
             <StatusMetric label={translate('auto.k0760')} value={String(sourceSummary.enabled)} />
             <StatusMetric label={translate('auto.k0761')} value={String(sourceSummary.reserved)} />
             <StatusMetric label={translate('auto.k0762')} value={health?.inputEnabled === false ? 'OFF' : 'ON'} pill />
-            <StatusMetric label="Webhook" value={health?.webhookEnabled === false ? 'OFF' : 'ON'} pill />
+            <StatusMetric label={fieldLabel('webhook')} value={health?.webhookEnabled === false ? 'OFF' : 'ON'} pill />
             <StatusMetric label={translate('auto.k0763')} value={health?.modelParseEnabled ? 'ON' : 'OFF'} pill />
-            <StatusMetric label="Payload" value={formatBytes(health?.webhookMaxPayloadBytes)} />
+            <StatusMetric label={fieldLabel('payload')} value={formatBytes(health?.webhookMaxPayloadBytes)} />
             <StatusMetric label={translate('auto.k0764')} value={formatBytes(health?.importMaxContentBytes)} />
             <StatusMetric label={translate('auto.k0765')} value={formatBytes(health?.documentBinaryMaxBytes)} />
             <StatusMetric label="OCR" value={health?.ocrConfigured ? 'READY' : 'OFF'} pill />
             <StatusMetric label="OCR Worker" value={health?.ocrWorkerMode ?? '-'} pill />
-            <StatusMetric label="OCR worker endpoint" value={health?.ocrRemoteWorkerConfigured ? 'ON' : 'OFF'} pill />
-            <StatusMetric label="OCR worker token" value={health?.ocrWorkerTokenConfigured ? 'SET' : 'OFF'} pill />
+            <StatusMetric label="OCR Worker 端点" value={health?.ocrRemoteWorkerConfigured ? 'ON' : 'OFF'} pill />
+            <StatusMetric label="OCR Worker Token" value={health?.ocrWorkerTokenConfigured ? 'SET' : 'OFF'} pill />
             <StatusMetric label={translate('auto.k0766')} value={health?.ocrLocalCommandExecutionAllowed ? 'ON' : 'OFF'} pill />
-            <StatusMetric label="OCR fallback" value={health?.ocrLocalCommandFallbackEnabled ? 'ON' : 'OFF'} pill />
+            <StatusMetric label="OCR 兜底" value={health?.ocrLocalCommandFallbackEnabled ? 'ON' : 'OFF'} pill />
             <StatusMetric label={translate('auto.k0767')} value={`${health?.ocrAvailablePermits ?? '-'} / ${health?.ocrMaxConcurrentProcesses ?? '-'}`} />
             <StatusMetric label={translate('auto.k0768')} value={health?.ocrTimeoutSeconds ? `${health.ocrTimeoutSeconds}s` : '-'} />
-            <StatusMetric label="SecretProvider" value={health?.externalSecretProvider?.status ?? '-'} pill />
+            <StatusMetric label={fieldLabel('secretProvider')} value={health?.externalSecretProvider?.status ?? '-'} pill />
             <StatusMetric label={translate('auto.k0769')} value={health?.webhookSecretCacheEnabled ? 'ON' : 'OFF'} pill />
             <StatusMetric label={translate('auto.k0770')} value={secondsLabel(health?.webhookSecretCacheTtlSeconds)} />
             <StatusMetric label={translate('auto.k0771')} value={secondsLabel(health?.webhookSecretRotationOverlapSeconds)} />
@@ -1469,7 +1469,7 @@ export function DocumentInputConsole(props: { signedIn: boolean; currentUser: Cu
             <div className="panel-title-actions">
               <button className="mini-button" type="button" disabled={!props.signedIn || !canPublishCandidates || !selectedImportId || publishingState.loading} onClick={() => publishImport(true)}>
                 <Eye size={14} />
-                Dry Run
+                {fieldLabel('dryRun')}
               </button>
               <button className="mini-button" type="button" disabled={!props.signedIn || !canPublishCandidates || !selectedImportId || publishingState.loading} onClick={() => publishImport(false)}>
                 <Send size={14} />
@@ -1485,11 +1485,11 @@ export function DocumentInputConsole(props: { signedIn: boolean; currentUser: Cu
                 <DocumentStatusPill value={importDetail.status} />
               </div>
               <div>
-                <span>createdRequirements</span>
+                <span>{fieldLabel('createdRequirements')}</span>
                 <em>{importDetail.createdRequirements}</em>
               </div>
               <div>
-                <span>requirementCount</span>
+                <span>{fieldLabel('requirementCount')}</span>
                 <em>{importDetail.requirementCount}</em>
               </div>
               <div>
@@ -1583,7 +1583,7 @@ export function DocumentInputConsole(props: { signedIn: boolean; currentUser: Cu
                 value={candidateFilters.sourceRef}
                 disabled={candidateState.loading}
                 onChange={(event) => setCandidateFilters((current) => ({ ...current, sourceRef: event.target.value }))}
-                placeholder="sourceRef"
+                placeholder={fieldLabel('sourceRef')}
               />
               <input
                 type="text"
@@ -1729,17 +1729,17 @@ export function DocumentInputConsole(props: { signedIn: boolean; currentUser: Cu
                       typeof candidate.version === 'number' ||
                       candidate.errorMessage) && (
                       <div className="document-candidate-meta">
-                        {candidate.sourceRef && <span>sourceRef：{candidate.sourceRef}</span>}
-                        {candidate.parseSource && <span>parseSource：{candidate.parseSource}</span>}
-                        {candidate.modelInvocationId && <span>modelInvocationId：{candidate.modelInvocationId}</span>}
-                        {candidate.modelProviderName && <span>modelProviderName：{candidate.modelProviderName}</span>}
-                        {candidate.modelName && <span>modelName：{candidate.modelName}</span>}
-                        {candidate.externalRequirementId && <span>externalRequirementId：{candidate.externalRequirementId}</span>}
-                        {candidate.assetRequirementId && <span>assetRequirementId：{candidate.assetRequirementId}</span>}
-                        {typeof candidate.version === 'number' && <span>version：{candidate.version}</span>}
-                        {candidate.confirmedBy && <span>confirmedBy：{candidate.confirmedBy}</span>}
-                        {candidate.confirmedAt && <span>confirmedAt：{candidate.confirmedAt}</span>}
-                        {candidate.ignoredReason && <span>ignoredReason：{candidate.ignoredReason}</span>}
+                        {candidate.sourceRef && <span>{fieldLabel('sourceRef')}：{candidate.sourceRef}</span>}
+                        {candidate.parseSource && <span>{fieldLabel('parseSource')}：{candidate.parseSource}</span>}
+                        {candidate.modelInvocationId && <span>{fieldLabel('modelInvocationId')}：{candidate.modelInvocationId}</span>}
+                        {candidate.modelProviderName && <span>{fieldLabel('modelProviderName')}：{candidate.modelProviderName}</span>}
+                        {candidate.modelName && <span>{fieldLabel('modelName')}：{candidate.modelName}</span>}
+                        {candidate.externalRequirementId && <span>{fieldLabel('externalRequirementId')}：{candidate.externalRequirementId}</span>}
+                        {candidate.assetRequirementId && <span>{fieldLabel('assetRequirementId')}：{candidate.assetRequirementId}</span>}
+                        {typeof candidate.version === 'number' && <span>{fieldLabel('version')}：{candidate.version}</span>}
+                        {candidate.confirmedBy && <span>{fieldLabel('confirmedBy')}：{candidate.confirmedBy}</span>}
+                        {candidate.confirmedAt && <span>{fieldLabel('confirmedAt')}：{candidate.confirmedAt}</span>}
+                        {candidate.ignoredReason && <span>{fieldLabel('ignoredReason')}：{candidate.ignoredReason}</span>}
                         {candidate.sourceFragment && <span>{candidate.sourceFragment}</span>}
                         {candidate.errorMessage && <FailureHint message={candidate.errorMessage} />}
                       </div>
@@ -1790,7 +1790,7 @@ export function DocumentInputConsole(props: { signedIn: boolean; currentUser: Cu
           </div>
           <div className="webhook-filter-grid">
             <label className="field" htmlFor="webhook-source-id-filter">
-              <span>sourceId</span>
+              <span>{fieldLabel('sourceId')}</span>
               <input
                 id="webhook-source-id-filter"
                 value={eventFilters.sourceId}
@@ -1800,7 +1800,7 @@ export function DocumentInputConsole(props: { signedIn: boolean; currentUser: Cu
               />
             </label>
             <label className="field" htmlFor="webhook-source-filter">
-              <span>sourceCode</span>
+              <span>{fieldLabel('sourceCode')}</span>
               <input
                 id="webhook-source-filter"
                 value={eventFilters.sourceCode}
@@ -1810,7 +1810,7 @@ export function DocumentInputConsole(props: { signedIn: boolean; currentUser: Cu
               />
             </label>
             <label className="field" htmlFor="webhook-event-type-filter">
-              <span>eventType</span>
+              <span>{fieldLabel('eventType')}</span>
               <input
                 id="webhook-event-type-filter"
                 value={eventFilters.eventType}
@@ -1820,7 +1820,7 @@ export function DocumentInputConsole(props: { signedIn: boolean; currentUser: Cu
               />
             </label>
             <label className="field" htmlFor="webhook-status-filter">
-              <span>status</span>
+              <span>{fieldLabel('status')}</span>
               <select
                 id="webhook-status-filter"
                 value={eventFilters.status}
@@ -1850,7 +1850,7 @@ export function DocumentInputConsole(props: { signedIn: boolean; currentUser: Cu
                 >
                   <span>
                     <strong>{event.eventType ?? event.eventId ?? event.id}</strong>
-                    <em>{event.sourceCode ?? '-'} · retry {event.retryCount}</em>
+                    <em>{event.sourceCode ?? '-'} · {fieldLabel('retryCount')} {event.retryCount}</em>
                   </span>
                   <DocumentStatusPill value={event.status} />
                 </button>
@@ -1868,48 +1868,48 @@ export function DocumentInputConsole(props: { signedIn: boolean; currentUser: Cu
           {selectedEvent && (
             <div className="webhook-event-detail">
               <div>
-                <span>eventId</span>
+                <span>{fieldLabel('eventId')}</span>
                 <em>{selectedEvent.eventId ?? selectedEvent.id}</em>
               </div>
               <div>
-                <span>sourceId</span>
+                <span>{fieldLabel('sourceId')}</span>
                 <em>{selectedEvent.sourceId ?? '-'}</em>
               </div>
               <div>
-                <span>importId</span>
+                <span>{fieldLabel('importId')}</span>
                 <em>{selectedEvent.importId ?? '-'}</em>
               </div>
               <div>
-                <span>idempotencyKey</span>
+                <span>{fieldLabel('idempotencyKey')}</span>
                 <em>{selectedEvent.idempotencyKey ?? '-'}</em>
               </div>
               <div>
-                <span>signatureStatus</span>
+                <span>{fieldLabel('signatureStatus')}</span>
                 <DocumentStatusPill value={selectedEvent.signatureStatus ?? 'UNKNOWN'} />
               </div>
               <div>
-                <span>receivedAt</span>
+                <span>{fieldLabel('receivedAt')}</span>
                 <em>{selectedEvent.receivedAt ?? '-'}</em>
               </div>
               <div>
-                <span>processedAt</span>
+                <span>{fieldLabel('processedAt')}</span>
                 <em>{selectedEvent.processedAt ?? '-'}</em>
               </div>
               <div>
-                <span>replayBy</span>
+                <span>{fieldLabel('replayBy')}</span>
                 <em>{selectedEvent.replayBy ?? '-'}</em>
               </div>
               <div>
-                <span>replayAt</span>
+                <span>{fieldLabel('replayAt')}</span>
                 <em>{selectedEvent.replayAt ?? '-'}</em>
               </div>
               <div>
-                <span>replayTraceId</span>
+                <span>{fieldLabel('replayTraceId')}</span>
                 <em>{selectedEvent.replayTraceId ?? '-'}</em>
               </div>
               {selectedEvent.payloadDigest && (
                 <div>
-                  <span>payloadDigest</span>
+                  <span>{fieldLabel('payloadDigest')}</span>
                   <em>{selectedEvent.payloadDigest}</em>
                 </div>
               )}
@@ -2107,7 +2107,7 @@ function DocumentStatusPill(props: { value: string }) {
 function StatusMetric(props: { label: string; value: string; pill?: boolean }) {
   return (
     <div className="status-item">
-      <span>{props.label}</span>
+      <span>{fieldLabel(props.label)}</span>
       {props.pill ? <DocumentStatusPill value={props.value} /> : <strong>{props.value}</strong>}
     </div>
   );

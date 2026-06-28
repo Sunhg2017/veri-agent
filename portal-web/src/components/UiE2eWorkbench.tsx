@@ -58,7 +58,7 @@ import {
   type UiE2eSceneSummary
 } from '../api/uiE2e';
 import { canUseButton, hasPermission } from '../permissions';
-import { dictionaryLabel } from '../platform/dictionaries';
+import { dictionaryLabel, displayValueLabel, fieldLabel } from '../platform/dictionaries';
 import {
   blankUiE2eSceneDraft,
   buildUiE2eBundleListSummary,
@@ -873,11 +873,11 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
     <div className="ui-e2e-workbench" data-testid="ui-e2e-workbench">
       <section className="metrics-grid">
         <Metric icon={<CheckCircle2 size={20} />} label={translate('auto.k1882')} value={String(overview.approvedScenes)} desc={health?.runnerMode || translate('auto.k1118')} tone="success" />
-        <Metric icon={<FileText size={20} />} label={translate('auto.k1883')} value={String(overview.reviewingBundles)} desc={health?.artifactPolicy ? 'artifact policy ready' : translate('auto.k1118')} tone="info" />
+        <Metric icon={<FileText size={20} />} label={translate('auto.k1883')} value={String(overview.reviewingBundles)} desc={health?.artifactPolicy ? '产物策略已就绪' : translate('auto.k1118')} tone="info" />
         <Metric icon={<Play size={20} />} label={translate('auto.k1884')} value={String(overview.activeRuns)} desc={overview.runnerLabel} tone={overview.runnerTone} />
         <Metric icon={<AlertTriangle size={20} />} label={translate('auto.k1885')} value={String(overview.recentFailures)} desc={overview.blockedRuns ? `blocked=${overview.blockedRuns}` : translate('auto.k1886')} tone={overview.recentFailures ? 'danger' : overview.blockedRuns ? 'warning' : 'success'} />
-        <Metric icon={<ShieldCheck size={20} />} label="allowlist" value={overview.allowlistLabel} desc={health ? `${health.allowlistHostCount} hosts` : translate('auto.k1118')} tone={overview.allowlistTone} />
-        <Metric icon={<Bug size={20} />} label="CONFIRMED_FLAKY" value={String(overview.confirmedFlaky)} desc={health?.exportEnabled ? 'export ON' : 'export OFF'} tone={overview.confirmedFlaky ? 'warning' : 'info'} />
+        <Metric icon={<ShieldCheck size={20} />} label={fieldLabel('allowlist')} value={overview.allowlistLabel} desc={health ? `${fieldLabel('allowlist')} ${health.allowlistHostCount}` : translate('auto.k1118')} tone={overview.allowlistTone} />
+        <Metric icon={<Bug size={20} />} label={dictionaryLabel('CONFIRMED_FLAKY')} value={String(overview.confirmedFlaky)} desc={`${fieldLabel('export')} ${displayValueLabel(health?.exportEnabled ? 'ON' : 'OFF')}`} tone={overview.confirmedFlaky ? 'warning' : 'info'} />
       </section>
 
       <div className="ui-e2e-layout">
@@ -1074,7 +1074,7 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
                 <div className="report-mini-card report-mini-card-muted">
                   <div className="report-card-heading">
                     <strong>{translate('auto.k1896')}</strong>
-                    <span className="badge badge-neutral">draft only</span>
+                    <span className="badge badge-neutral">仅草稿</span>
                   </div>
                   <div className="form-grid">
                     <Field label="sourceType">
@@ -2644,7 +2644,7 @@ function Metric(props: { icon: ReactNode; label: string; value: string; desc: st
 function Field(props: { label: string; children: ReactNode }) {
   return (
     <label className="field">
-      <span className="field-label">{props.label}</span>
+      <span className="field-label">{fieldLabel(props.label)}</span>
       {props.children}
     </label>
   );
@@ -2653,8 +2653,8 @@ function Field(props: { label: string; children: ReactNode }) {
 function SummaryTile(props: { label: string; value: string; tone?: string }) {
   return (
     <div className="report-summary-tile">
-      <span>{props.label}</span>
-      <strong className={props.tone ? `tone-${props.tone}` : undefined}>{props.value}</strong>
+      <span>{fieldLabel(props.label)}</span>
+      <strong className={props.tone ? `tone-${props.tone}` : undefined}>{displayValueLabel(props.value)}</strong>
     </div>
   );
 }
@@ -2662,8 +2662,8 @@ function SummaryTile(props: { label: string; value: string; tone?: string }) {
 function InfoBlock(props: { title: string; value: string }) {
   return (
     <div className="report-info-block">
-      <span>{props.title}</span>
-      <strong>{props.value}</strong>
+      <span>{fieldLabel(props.title)}</span>
+      <strong>{displayValueLabel(props.value)}</strong>
     </div>
   );
 }
@@ -2675,7 +2675,7 @@ function PolicySummary(props: { policy: Record<string, unknown> }) {
     <div className="report-policy-list">
       <div className="report-policy-title"><ShieldCheck size={15} />{translate('auto.k1993')}</div>
       {entries.map(([key, value]) => (
-        <span key={key}>{key}={formatRecord(value)}</span>
+        <span key={key}>{fieldLabel(key)}={formatRecord(value)}</span>
       ))}
     </div>
   );
@@ -2815,12 +2815,13 @@ function shortId(value?: string) {
 
 function formatRecord(input: unknown): string {
   if (input == null || input === '') return '-';
+  if (typeof input === 'boolean') return displayValueLabel(input ? 'YES' : 'NO');
   if (Array.isArray(input)) return input.map((item) => formatRecord(item)).join(', ');
   if (typeof input === 'object') {
     const text = prettyJson(input);
     return text.length > 180 ? `${text.slice(0, 177)}...` : text;
   }
-  return String(input);
+  return displayValueLabel(input);
 }
 
 function recordText(value: unknown) {

@@ -19,6 +19,22 @@ export const resources = {
         submit: '提交',
         theme: '主题'
       },
+      field: {
+        captured: '已采集',
+        changed: '已变更',
+        created: '已创建',
+        new: '新增',
+        no: '否',
+        notReady: '未就绪',
+        off: '关闭',
+        on: '开启',
+        optional: '可选',
+        required: '必需',
+        set: '已设置',
+        unknown: '未知',
+        updated: '已更新',
+        yes: '是'
+      },
       auth: {
         account: '账号',
         currentPassword: '当前密码',
@@ -67,6 +83,22 @@ export const resources = {
         retry: 'Retry',
         submit: 'Submit',
         theme: 'Theme'
+      },
+      field: {
+        captured: 'Captured',
+        changed: 'Changed',
+        created: 'Created',
+        new: 'New',
+        no: 'No',
+        notReady: 'Not ready',
+        off: 'Off',
+        on: 'On',
+        optional: 'Optional',
+        required: 'Required',
+        set: 'Set',
+        unknown: 'Unknown',
+        updated: 'Updated',
+        yes: 'Yes'
       },
       auth: {
         account: 'Account',

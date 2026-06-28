@@ -401,7 +401,7 @@ export function EnterpriseConsole(props: {
           <div className="va-console-brand-mark">VA</div>
           <div>
             <strong>Veri Agent</strong>
-            <span>Enterprise Test Platform</span>
+            <span>{translate('app.subtitle')}</span>
           </div>
         </div>
         <nav aria-label={translate('auto.k0082')}>

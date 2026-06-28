@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { dictionaryLabel, dictionaryOption, dictionaryOptions, humanizeDictionaryValue } from './dictionaries';
+import { dictionaryLabel, dictionaryOption, dictionaryOptions, fieldLabel, humanizeDictionaryValue } from './dictionaries';
 
 describe('frontend dictionaries', () => {
   it('keeps submitted enum values while exposing localized labels', () => {
@@ -21,5 +21,13 @@ describe('frontend dictionaries', () => {
   it('formats unknown server enum values without leaking raw underscores', () => {
     expect(humanizeDictionaryValue('NEW_BACKEND_STATUS')).toBe('NEW Backend Status');
     expect(dictionaryLabel('NEW_BACKEND_STATUS')).toBe('NEW Backend Status');
+  });
+
+  it('maps backend field keys to user-facing Chinese labels', () => {
+    expect(fieldLabel('defaultProjectId')).toBe('默认项目 ID');
+    expect(fieldLabel('sourceType')).toBe('来源类型');
+    expect(fieldLabel('mapping JSON')).toBe('字段映射 JSON');
+    expect(fieldLabel('retry requestKey')).toBe('重试请求键');
+    expect(fieldLabel('traceId')).toBe('Trace ID');
   });
 });

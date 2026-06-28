@@ -1,4 +1,5 @@
 import { ApiError, requestJson, requestMultipart, type ApiResponse } from './client';
+import { dictionaryLabel } from '../platform/dictionaries';
 import { translate } from '../platform/i18n';
 
 export const DOCUMENT_SOURCE_TYPES = [
@@ -21,13 +22,13 @@ export const documentSourceTypeOptions: Array<{
   label: string;
   reserved: boolean;
 }> = [
-  { value: 'TEXT', label: 'Text', reserved: false },
-  { value: 'MARKDOWN', label: 'Markdown', reserved: false },
-  { value: 'CUSTOM_API', label: 'Custom API', reserved: false },
-  { value: 'WORD', label: 'Word', reserved: false },
-  { value: 'PDF', label: 'PDF', reserved: false },
-  { value: 'OCR', label: 'OCR', reserved: false },
-  { value: 'CONFLUENCE', label: 'Confluence', reserved: true },
+  { value: 'TEXT', label: dictionaryLabel('TEXT'), reserved: false },
+  { value: 'MARKDOWN', label: dictionaryLabel('MARKDOWN'), reserved: false },
+  { value: 'CUSTOM_API', label: dictionaryLabel('CUSTOM_API'), reserved: false },
+  { value: 'WORD', label: dictionaryLabel('WORD'), reserved: false },
+  { value: 'PDF', label: dictionaryLabel('PDF'), reserved: false },
+  { value: 'OCR', label: dictionaryLabel('OCR'), reserved: false },
+  { value: 'CONFLUENCE', label: dictionaryLabel('CONFLUENCE'), reserved: true },
   { value: 'FEISHU', label: translate('auto.k0102'), reserved: true },
   { value: 'DINGTALK', label: translate('auto.k0103'), reserved: true },
   { value: 'YUQUE', label: translate('auto.k0104'), reserved: true }

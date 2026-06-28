@@ -49,7 +49,7 @@ import { AssetImportExportPanel } from './AssetImportExportPanel';
 import type { AssetNavigationKey } from './AssetStructuredWorkbench';
 import { AssetVersionHistoryPanel } from './AssetVersionHistoryPanel';
 import { StepRichTextField } from './StepRichTextField';
-import { dictionaryLabel } from '../platform/dictionaries';
+import { dictionaryLabel, fieldLabel } from '../platform/dictionaries';
 import { translate } from '../platform/i18n';
 
 type AssetNavigationTab = {
@@ -474,7 +474,7 @@ export function AssetCaseWorkbench(props: {
                 <Archive size={20} />
               </div>
               <div>
-                <span className="eyebrow">Asset Library</span>
+                <span className="eyebrow">{translate('auto.k0039')}</span>
                 <h2>{translate('auto.k0005')}</h2>
               </div>
             </div>
@@ -504,7 +504,7 @@ export function AssetCaseWorkbench(props: {
 
           <form className="asset-filter-bar" onSubmit={(event) => event.preventDefault()}>
             <label className="field" htmlFor="asset-cases-filter-project">
-              <span>projectId</span>
+              <span>{fieldLabel('projectId')}</span>
               <input
                 id="asset-cases-filter-project"
                 value={filters.projectId}
@@ -514,7 +514,7 @@ export function AssetCaseWorkbench(props: {
               />
             </label>
             <label className="field" htmlFor="asset-cases-filter-status">
-              <span>status</span>
+              <span>{fieldLabel('status')}</span>
               <select
                 id="asset-cases-filter-status"
                 value={filters.status}
@@ -528,7 +528,7 @@ export function AssetCaseWorkbench(props: {
               </select>
             </label>
             <label className="field" htmlFor="asset-cases-filter-source">
-              <span>source</span>
+              <span>{fieldLabel('source')}</span>
               <select
                 id="asset-cases-filter-source"
                 value={filters.source}
@@ -542,7 +542,7 @@ export function AssetCaseWorkbench(props: {
               </select>
             </label>
             <label className="field" htmlFor="asset-cases-filter-keyword">
-              <span>keyword</span>
+              <span>{fieldLabel('keyword')}</span>
               <input
                 id="asset-cases-filter-keyword"
                 value={filters.keyword}
@@ -624,7 +624,7 @@ export function AssetCaseWorkbench(props: {
                 <FilePlus2 size={20} />
               </div>
               <div>
-                <span className="eyebrow">Create</span>
+                <span className="eyebrow">{translate('auto.k0174')}</span>
                 <h2>{translate('auto.k0423')}</h2>
               </div>
             </div>
@@ -706,27 +706,27 @@ export function AssetCaseWorkbench(props: {
               <div className="resource-summary">
                 <strong>{selected.title}</strong>
                 <div>
-                  <span>projectId</span>
+                  <span>{fieldLabel('projectId')}</span>
                   <em>{selected.projectId ?? '-'}</em>
                 </div>
                 <div>
-                  <span>code</span>
+                  <span>{fieldLabel('code')}</span>
                   <em>{selected.code ?? '-'}</em>
                 </div>
                 <div>
-                  <span>id</span>
+                  <span>{fieldLabel('id')}</span>
                   <em>{selected.id}</em>
                 </div>
                 <div>
-                  <span>priority</span>
+                  <span>{fieldLabel('priority')}</span>
                   <em>{selected.priority}</em>
                 </div>
                 <div>
-                  <span>version</span>
+                  <span>{fieldLabel('version')}</span>
                   <em>v{selected.version || '-'}</em>
                 </div>
                 <div>
-                  <span>createdAt</span>
+                  <span>{fieldLabel('createdAt')}</span>
                   <em>{formatDate(selected.createdAt)}</em>
                 </div>
               </div>
@@ -734,7 +734,7 @@ export function AssetCaseWorkbench(props: {
               <div className="asset-source-trace">
                 <strong>{translate('auto.k0431')}</strong>
                 <div>
-                  <span>requirementId</span>
+                  <span>{fieldLabel('requirementId')}</span>
                   {selected.requirementId ? (
                     <button className="mini-button" type="button" onClick={() => openLinkedAsset('requirements', selected.requirementId)}>
                       <Link2 size={13} />
@@ -745,7 +745,7 @@ export function AssetCaseWorkbench(props: {
                   )}
                 </div>
                 <div>
-                  <span>apiId</span>
+                  <span>{fieldLabel('apiId')}</span>
                   {selected.apiId ? (
                     <button className="mini-button" type="button" onClick={() => openLinkedAsset('apis', selected.apiId)}>
                       <Link2 size={13} />
@@ -756,11 +756,11 @@ export function AssetCaseWorkbench(props: {
                   )}
                 </div>
                 <div>
-                  <span>source</span>
+                  <span>{fieldLabel('source')}</span>
                   <em>{selected.source ?? '-'}</em>
                 </div>
                 <div>
-                  <span>sourceRef</span>
+                  <span>{fieldLabel('sourceRef')}</span>
                   <em>{selected.sourceRef ?? '-'}</em>
                 </div>
               </div>
@@ -896,7 +896,7 @@ function CaseForm(props: {
       <div className="asset-form-grid">
         {!props.compact && (
           <label className="field" htmlFor="asset-case-project">
-            <span>projectId<b>*</b></span>
+            <span>{fieldLabel('projectId')}<b>*</b></span>
             <input
               id="asset-case-project"
               value={props.draft.projectId}
@@ -917,7 +917,7 @@ function CaseForm(props: {
           />
         </label>
         <label className="field" htmlFor={`asset-case-${props.compact ? 'edit-' : ''}requirement`}>
-          <span>requirementId</span>
+          <span>{fieldLabel('requirementId')}</span>
           <input
             id={`asset-case-${props.compact ? 'edit-' : ''}requirement`}
             value={props.draft.requirementId}
@@ -927,7 +927,7 @@ function CaseForm(props: {
           />
         </label>
         <label className="field" htmlFor={`asset-case-${props.compact ? 'edit-' : ''}api`}>
-          <span>apiId</span>
+          <span>{fieldLabel('apiId')}</span>
           <input
             id={`asset-case-${props.compact ? 'edit-' : ''}api`}
             value={props.draft.apiId}
@@ -937,7 +937,7 @@ function CaseForm(props: {
           />
         </label>
         <label className="field" htmlFor={`asset-case-${props.compact ? 'edit-' : ''}priority`}>
-          <span>priority</span>
+          <span>{fieldLabel('priority')}</span>
           <select
             id={`asset-case-${props.compact ? 'edit-' : ''}priority`}
             value={props.draft.priority}
@@ -950,7 +950,7 @@ function CaseForm(props: {
           </select>
         </label>
         <label className="field" htmlFor={`asset-case-${props.compact ? 'edit-' : ''}status`}>
-          <span>status</span>
+          <span>{fieldLabel('status')}</span>
           <select
             id={`asset-case-${props.compact ? 'edit-' : ''}status`}
             value={props.draft.status}
@@ -963,7 +963,7 @@ function CaseForm(props: {
           </select>
         </label>
         <label className="field" htmlFor={`asset-case-${props.compact ? 'edit-' : ''}tags`}>
-          <span>tags</span>
+          <span>{fieldLabel('tags')}</span>
           <input
             id={`asset-case-${props.compact ? 'edit-' : ''}tags`}
             value={props.draft.tags}
@@ -1317,7 +1317,7 @@ function StateLine(props: { state: WorkState }) {
 function StatusMetric(props: { label: string; pill?: boolean; value: string }) {
   return (
     <div>
-      <span>{props.label}</span>
+      <span>{fieldLabel(props.label)}</span>
       {props.pill ? <AssetStatusPill value={props.value} /> : <strong>{props.value}</strong>}
     </div>
   );

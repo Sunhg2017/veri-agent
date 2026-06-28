@@ -64,7 +64,7 @@ import {
   type ExecutionPlanDraft
 } from '../executionDagEditor';
 import { canUseButton, hasPermission } from '../permissions';
-import { dictionaryLabel } from '../platform/dictionaries';
+import { dictionaryLabel, displayValueLabel, fieldLabel } from '../platform/dictionaries';
 import { translate } from '../platform/i18n';
 
 type WorkState = {
@@ -657,8 +657,8 @@ export function ExecutionWorkbench(props: { signedIn: boolean; currentUser: Curr
             <PolicyItem label="Scheduler" value={health?.schedulerEnabled ? 'ENABLED' : 'DISABLED'} />
             <PolicyItem label="Webhook" value={health?.webhookEnabled ? 'ENABLED' : 'DISABLED'} />
             <PolicyItem label="Cron" value={health?.cronEnabled ? 'ENABLED' : 'DISABLED'} />
-            <PolicyItem label="Cron scanner" value={health?.policy?.cronScannerReady ? 'READY' : 'NOT READY'} />
-            <PolicyItem label="WP6 dispatch" value={health?.policy?.wp6DispatchReady ? 'READY' : 'NOT READY'} />
+            <PolicyItem label="Cron scanner" value={health?.policy?.cronScannerReady ? 'READY' : 'NOT_READY'} />
+            <PolicyItem label="WP6 dispatch" value={health?.policy?.wp6DispatchReady ? 'READY' : 'NOT_READY'} />
             <PolicyItem label="Recovery" value={`${health?.recoveryBatchSize ?? 0}`} />
           </div>
         </div>
@@ -971,14 +971,14 @@ export function ExecutionWorkbench(props: { signedIn: boolean; currentUser: Curr
               <span>{runDetail?.id ? shortId(runDetail.id) : '-'}</span>
               <span>{runDetail?.traceId ?? '-'}</span>
               <span>{runDetail?.sourceEventId ?? runDetail?.requestKey ?? '-'}</span>
-              <span>export {canExport ? 'allowed' : 'blocked'}</span>
+              <span>{fieldLabel('export')} {displayValueLabel(canExport ? 'ALLOWED' : 'BLOCKED')}</span>
             </div>
             {lastRunExport && (
               <div className="execution-sync-summary">
                 <span>{lastRunExport.schemaVersion}</span>
                 <span>{lastRunExport.exportedAt ? formatDateTime(lastRunExport.exportedAt) : '-'}</span>
                 <span>{summaryText(lastRunExport.nodeStatusCounts)}</span>
-                <span>secret {lastRunExport.redactionPolicy.secretRefsExported ? 'exported' : 'blocked'}</span>
+                <span>{fieldLabel('secretRefs')} {displayValueLabel(lastRunExport.redactionPolicy.secretRefsExported ? 'YES' : 'BLOCKED')}</span>
               </div>
             )}
             {runDetail?.errorCode && (
@@ -1178,9 +1178,9 @@ export function ExecutionWorkbench(props: { signedIn: boolean; currentUser: Curr
             {triggerActionState.success && <div className="document-state-line success">{triggerActionState.success}</div>}
             {lastTriggerDryRun && (
               <div className="execution-sync-summary">
-                <span>{lastTriggerDryRun.valid ? 'VALID' : 'INVALID'}</span>
-                <span>{lastTriggerDryRun.globalEnabled ? 'global on' : 'global off'}</span>
-                <span>runCreated {lastTriggerDryRun.runCreated ? 'yes' : 'no'}</span>
+                <span>{displayValueLabel(lastTriggerDryRun.valid ? 'VALID' : 'INVALID')}</span>
+                <span>{fieldLabel('globalEnabled')} {displayValueLabel(lastTriggerDryRun.globalEnabled ? 'ON' : 'OFF')}</span>
+                <span>{fieldLabel('runCreated')} {displayValueLabel(lastTriggerDryRun.runCreated ? 'YES' : 'NO')}</span>
               </div>
             )}
             <div className="execution-trigger-list">
@@ -1188,7 +1188,7 @@ export function ExecutionWorkbench(props: { signedIn: boolean; currentUser: Curr
                 <div className="execution-trigger-item" key={trigger.id}>
                   <div>
                     <strong>{trigger.triggerType}</strong>
-                    <span>{trigger.status} · secret {trigger.secretRefConfigured ? 'configured' : 'missing'}</span>
+                    <span>{dictionaryLabel(trigger.status)} · {fieldLabel('secretRef')} {displayValueLabel(trigger.secretRefConfigured ? 'SET' : 'OFF')}</span>
                     <small className="mono">{shortId(trigger.secretRefDigest ?? trigger.configDigest)}</small>
                   </div>
                   <div className="execution-panel-actions">
@@ -1322,7 +1322,7 @@ function MetricCard(props: { label: string; value: string; icon: ReactNode }) {
       <div className="metric-icon">{props.icon}</div>
       <div className="metric-body">
         <span className="metric-value">{props.value}</span>
-        <span className="metric-label">{props.label}</span>
+        <span className="metric-label">{fieldLabel(props.label)}</span>
       </div>
     </div>
   );
@@ -1331,8 +1331,8 @@ function MetricCard(props: { label: string; value: string; icon: ReactNode }) {
 function PolicyItem(props: { label: string; value: string }) {
   return (
     <div className="execution-policy-item">
-      <span>{props.label}</span>
-      <strong>{props.value}</strong>
+      <span>{fieldLabel(props.label)}</span>
+      <strong>{displayValueLabel(props.value)}</strong>
     </div>
   );
 }
@@ -1340,7 +1340,7 @@ function PolicyItem(props: { label: string; value: string }) {
 function Field(props: { label: string; children: ReactNode }) {
   return (
     <label className="field">
-      <span className="field-label">{props.label}</span>
+      <span className="field-label">{fieldLabel(props.label)}</span>
       {props.children}
     </label>
   );
@@ -1423,6 +1423,6 @@ function optionalText(value: string) {
 
 function summaryText(value: Record<string, unknown>) {
   const entries = Object.entries(value).slice(0, 4);
-  if (!entries.length) return 'input summary empty';
-  return entries.map(([key, entryValue]) => `${key}=${String(entryValue)}`).join(' · ');
+  if (!entries.length) return fieldLabel('summary');
+  return entries.map(([key, entryValue]) => `${fieldLabel(key)}=${displayValueLabel(entryValue)}`).join(' · ');
 }

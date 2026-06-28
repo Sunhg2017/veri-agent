@@ -41,7 +41,7 @@ import {
   type ReportSummary
 } from '../api/reports';
 import { canUseButton, hasPermission } from '../permissions';
-import { dictionaryLabel } from '../platform/dictionaries';
+import { dictionaryLabel, displayValueLabel, fieldLabel } from '../platform/dictionaries';
 import { translate } from '../platform/i18n';
 
 type WorkState = {
@@ -726,7 +726,7 @@ function DiagnosisPanel(props: {
           <SummaryTile label="status" value={props.diagnosis.status} tone={statusTone(props.diagnosis.status)} />
           <SummaryTile label="primaryCategory" value={stringFrom(classification.primaryCategory, 'UNKNOWN')} />
           <SummaryTile label="confidence" value={formatPercent(props.diagnosis.confidence)} />
-          <SummaryTile label="manualReview" value={props.diagnosis.manualReviewRequired ? 'required' : 'optional'} tone="warning" />
+          <SummaryTile label="manualReview" value={props.diagnosis.manualReviewRequired ? 'REQUIRED' : 'OPTIONAL'} tone="warning" />
         </div>
       ) : (
         <div className="notice info">{translate('auto.k1159')}</div>
@@ -968,11 +968,11 @@ function ExportPanel(props: {
           <InfoBlock title="status" value={props.latestExport.status} />
           <InfoBlock title="fieldSetVersion" value={props.latestExport.fieldSetVersion || '-'} />
           <InfoBlock title="contentDigest" value={props.latestExport.contentDigest || '-'} />
-          <InfoBlock title="aggregateOnly" value={props.latestExport.aggregateOnly ? 'true' : 'false'} />
-          <InfoBlock title="downloadReady" value={props.latestExport.downloadReady ? 'true' : 'false'} />
+          <InfoBlock title="aggregateOnly" value={props.latestExport.aggregateOnly ? 'YES' : 'NO'} />
+          <InfoBlock title="downloadReady" value={props.latestExport.downloadReady ? 'YES' : 'NO'} />
           <InfoBlock title="fileName" value={props.latestExport.downloadFileName || '-'} />
           <InfoBlock title="manifest" value={formatRecord(props.latestExport.manifest)} />
-          <InfoBlock title="DOM scan" value={domClean ? 'clean' : 'blocked term detected'} />
+          <InfoBlock title="DOM scan" value={domClean ? '通过' : '命中禁止术语'} />
         </div>
       ) : (
         <div className="notice info">{translate('auto.k1187')}</div>
@@ -1010,7 +1010,7 @@ function PolicySummary(props: { policy: Record<string, unknown> }) {
     <div className="report-policy-list">
       <div className="report-policy-title"><ShieldCheck size={15} />{translate('auto.k1189')}</div>
       {entries.map(([key, value]) => (
-        <span key={key}>{key}={formatRecord(value)}</span>
+        <span key={key}>{fieldLabel(key)}={formatRecord(value)}</span>
       ))}
     </div>
   );
@@ -1049,7 +1049,7 @@ function Metric(props: { icon: ReactNode; label: string; value: string; desc: st
 function Field(props: { label: string; children: ReactNode }) {
   return (
     <label className="field">
-      <span className="field-label">{props.label}</span>
+      <span className="field-label">{fieldLabel(props.label)}</span>
       {props.children}
     </label>
   );
@@ -1058,8 +1058,8 @@ function Field(props: { label: string; children: ReactNode }) {
 function SummaryTile(props: { label: string; value: string; tone?: string }) {
   return (
     <div className="report-summary-tile">
-      <span>{props.label}</span>
-      <strong className={props.tone ? `tone-${props.tone}` : undefined}>{props.value}</strong>
+      <span>{fieldLabel(props.label)}</span>
+      <strong className={props.tone ? `tone-${props.tone}` : undefined}>{displayValueLabel(props.value)}</strong>
     </div>
   );
 }
@@ -1067,8 +1067,8 @@ function SummaryTile(props: { label: string; value: string; tone?: string }) {
 function InfoBlock(props: { title: string; value: string }) {
   return (
     <div className="report-info-block">
-      <span>{props.title}</span>
-      <strong>{props.value}</strong>
+      <span>{fieldLabel(props.title)}</span>
+      <strong>{displayValueLabel(props.value)}</strong>
     </div>
   );
 }
@@ -1179,13 +1179,14 @@ function recordValue(input: unknown, key: string) {
 
 function formatRecord(input: unknown): string {
   if (input == null || input === '') return '-';
+  if (typeof input === 'boolean') return displayValueLabel(input ? 'YES' : 'NO');
   if (Array.isArray(input)) return input.map((item) => formatRecord(item)).join(', ');
   if (typeof input === 'object') {
     const entries = Object.entries(input as Record<string, unknown>);
     if (!entries.length) return '-';
-    return entries.slice(0, 8).map(([key, value]) => `${key}:${formatRecord(value)}`).join(' · ');
+    return entries.slice(0, 8).map(([key, value]) => `${fieldLabel(key)}:${formatRecord(value)}`).join(' · ');
   }
-  return String(input);
+  return displayValueLabel(input);
 }
 
 function safePreview(input: Record<string, unknown>) {
