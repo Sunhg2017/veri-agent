@@ -1,4 +1,4 @@
-import { expect, test, type Page, type Route } from '@playwright/test';
+import { expect, test, type Locator, type Page, type Route } from '@playwright/test';
 
 const wp6Permissions = [
   'apiAutomation:read',
@@ -55,14 +55,17 @@ async function runWp6MainFlow(page: Page, assertResponsive: boolean) {
   await page.goto('/#api-automation');
 
   await expect(page.getByRole('heading', { name: '接口自动化' })).toBeVisible();
-  await expect(page.locator('.api-automation-policy-item').filter({ hasText: 'Runner' }).getByText('ENABLED')).toBeVisible();
+  await expect(page.locator('.api-automation-policy-item').filter({ hasText: '运行器' }).getByText('已启用')).toBeVisible();
 
-  await page.getByLabel('项目').fill('project-wp6-ui-smoke');
-  await page.getByLabel('名称').fill('WP6 UI smoke spec');
-  await page.getByLabel('版本').fill('2026.06');
-  await page.getByLabel('来源').fill('ui-smoke-openapi.yaml');
-  await page.getByLabel('OpenAPI').fill(openApiDocument);
   await page.getByRole('button', { name: '导入' }).click();
+  const importDialog = page.getByRole('dialog', { name: '导入规格' });
+  await expect(importDialog).toBeVisible();
+  await importDialog.getByLabel('项目').fill('project-wp6-ui-smoke');
+  await importDialog.getByLabel('名称').fill('WP6 UI smoke spec');
+  await importDialog.getByLabel('版本').fill('2026.06');
+  await importDialog.getByLabel('来源').fill('ui-smoke-openapi.yaml');
+  await importDialog.getByLabel('OpenAPI').fill(openApiDocument);
+  await importDialog.getByRole('button', { name: '导入' }).click();
 
   await expect(page.getByText('OpenAPI 规格已导入')).toBeVisible();
   await expect(page.getByText('WP6 UI smoke spec', { exact: true }).first()).toBeVisible();
@@ -76,27 +79,25 @@ async function runWp6MainFlow(page: Page, assertResponsive: boolean) {
   });
   expect(String(mock.importPayload?.content)).toContain('/v1/orders/{id}');
 
-  await page.getByRole('button', { name: 'Diff' }).click();
-  await expect(page.getByText('Diff：NEW 1 · CHANGED 1 · MATCHED 0')).toBeVisible();
-  await expect(page.getByText('SCHEMA_DIGEST_CHANGED')).toBeVisible();
-  await selectAntdOption(page, page.getByLabel('Diff 筛选'), '变更');
-  await expect(page.getByText('SCHEMA_DIGEST_CHANGED')).toBeVisible();
-  await expect(page.getByText('NO_MATCHING_WP3_API')).toHaveCount(0);
-  await selectAntdOption(page, page.getByLabel('Diff 筛选'), '全部');
+  await page.getByRole('button', { name: '差异' }).click();
+  await expect(page.getByText('差异：新增 1 · 已变更 1 · 已匹配 0')).toBeVisible();
+  await expect(page.getByText('Schema 摘要变更')).toBeVisible();
+  await selectAntdOption(page, page.getByRole('combobox', { name: /差异筛选/ }), '变更');
+  await expect(page.getByText('Schema 摘要变更')).toBeVisible();
+  await expect(page.getByText('无匹配 WP3 API')).toHaveCount(0);
+  await selectAntdOption(page, page.getByRole('combobox', { name: /差异筛选/ }), '全部');
 
   await page.getByRole('button', { name: '同步' }).click();
-  await expect(page.getByText('同步：CREATED 1 · UPDATED 1 · FAILED 0').first()).toBeVisible();
+  await expect(page.getByText('同步：已创建 1 · 已更新 1 · 失败 0').first()).toBeVisible();
   await expect(page.getByText('2 条同步明细')).toBeVisible();
 
   await page.getByLabel('选择 GET /v1/orders/{id}').check();
-  await expect(page.getByText('API 范围 1/2')).toBeVisible();
-  await selectAntdOption(page, page.getByLabel('生成模式'), '仅兜底');
   await page.getByLabel('WP3 用例 ID').fill('asset-case-smoke-1, asset-case-smoke-2');
   await page.getByRole('button', { name: '生成用例' }).click();
-  await expect(page.getByText('生成：COMPLETED · API 2 · CASE 4').first()).toBeVisible();
+  await expect(page.getByText('生成：已完成 · API 2 · 用例 4').first()).toBeVisible();
   await expect(page.getByText('4 条草稿')).toBeVisible();
   await expect(page.getByText('2 条最近记录')).toBeVisible();
-  await expect(page.getByText('MODEL_WITH_FALLBACK · API 1 · CASE 2')).toBeVisible();
+  await expect(page.getByText('模型带兜底 · API 1 · 用例 2')).toBeVisible();
   expect(mock.generationPayload).toMatchObject({
     projectId: 'project-wp6-ui-smoke',
     specId: 'spec-ui-1',
@@ -107,8 +108,8 @@ async function runWp6MainFlow(page: Page, assertResponsive: boolean) {
     caseCountPerApi: 2
   });
 
-  await page.getByRole('button', { name: /MODEL_WITH_FALLBACK · API 1 · CASE 2/ }).click();
-  await expect(page.getByText('生成：COMPLETED · API 1 · CASE 2').first()).toBeVisible();
+  await page.getByRole('button', { name: /模型带兜底 · API 1 · 用例 2/ }).click();
+  await expect(page.getByText('生成：已完成 · API 1 · 用例 2').first()).toBeVisible();
   await expect(page.getByText('2 条草稿')).toBeVisible();
 
   await page.getByRole('button', { name: '生成脚本包' }).click();
@@ -120,16 +121,16 @@ async function runWp6MainFlow(page: Page, assertResponsive: boolean) {
   await expect(page.getByText('脚本包已提交评审')).toBeVisible();
   await page.getByRole('button', { name: '审批' }).click();
   await expect(page.getByText('脚本包已审批通过')).toBeVisible();
-  await expect(page.getByText('Runner ENABLED')).toBeVisible();
+  await expect(page.getByText('运行器 已启用')).toBeVisible();
   expect(mock.reviewNotes).toEqual(['ready for wp6 ui smoke', 'ready for wp6 ui smoke']);
 
-  await page.getByLabel('baseUrl').fill('https://api.wp6-smoke.example.test/service?token=should-not-render');
+  await page.getByLabel('基础 URL').fill('https://api.wp6-smoke.example.test/service?token=should-not-render');
   await page.getByLabel('环境').fill('staging');
-  await page.getByLabel('Case IDs').fill('case-ui-1');
-  await page.getByLabel('secretRefs').fill('secret://wp6/ui-smoke-token');
+  await page.getByRole('textbox', { name: '用例 ID', exact: true }).fill('case-ui-1');
+  await page.getByLabel('密钥引用').fill('secret://wp6/ui-smoke-token');
   await page.getByRole('button', { name: '运行' }).click();
 
-  await expect(page.getByText('运行：RUNNING · CASE 1 · OK').first()).toBeVisible();
+  await expect(page.getByText('运行：运行中 · 用例 1 · 正常').first()).toBeVisible();
   await expect(page.getByText('api.wp6-smoke.example.test')).toBeVisible();
   expect(await page.locator('body').innerText()).not.toContain('should-not-render');
   expect(mock.runPayload).toMatchObject({
@@ -141,14 +142,14 @@ async function runWp6MainFlow(page: Page, assertResponsive: boolean) {
   });
 
   await page.getByRole('button', { name: '取消' }).click();
-  await expect(page.getByText('运行：CANCELED · CASE 1 · RUNNER_CANCELED').first()).toBeVisible();
-  await expect(page.getByText('RUNNER_CANCELED · canceled by ui smoke')).toBeVisible();
+  await expect(page.getByText('运行：已取消 · 用例 1 · 运行器已取消').first()).toBeVisible();
+  await expect(page.getByText('运行器已取消 · canceled by ui smoke')).toBeVisible();
   expect(mock.cancelSeen).toBe(true);
 
   await page.getByRole('button', { name: '导出摘要' }).click();
   await expect(page.getByText('导出 wp6-run-export-v1 · 1 条结果')).toBeVisible();
-  await expect(page.getByText('raw URL off')).toBeVisible();
-  await expect(page.getByText('request/response off')).toBeVisible();
+  await expect(page.getByText('原始 URL 关闭')).toBeVisible();
+  await expect(page.getByText('请求/响应 关闭')).toBeVisible();
   expect(mock.exportSeen).toBe(true);
 
   if (assertResponsive) {
@@ -167,8 +168,13 @@ async function expectNoHorizontalOverflow(page: Page, selector: string) {
   expect(overflow).toBe(false);
 }
 
-async function selectAntdOption(page: Page, control: ReturnType<Page['getByLabel']>, optionName: string) {
-  await control.locator('xpath=./ancestor-or-self::*[contains(concat(" ", normalize-space(@class), " "), " ant-select ")][1]').locator('.ant-select-selector').click();
+async function selectAntdOption(page: Page, control: Locator, optionName: string) {
+  const selector = control.locator('.ant-select-selector');
+  if (await selector.count()) {
+    await selector.first().click();
+  } else {
+    await control.click();
+  }
   await page.locator('.ant-select-dropdown:not(.ant-select-dropdown-hidden) .ant-select-item-option-content', { hasText: optionName }).first().click();
 }
 

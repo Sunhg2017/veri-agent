@@ -1,14 +1,14 @@
 import { Select } from 'antd';
 import { Children, Fragment, isValidElement, type ChangeEvent, type ReactElement, type ReactNode } from 'react';
 
-type NativeSelectOption = {
+export type SelectControlOption = {
   disabled?: boolean;
   label: ReactNode;
-  searchLabel: string;
+  searchLabel?: string;
   value: string;
 };
 
-export type NativeSelectProps = {
+export type SelectControlProps = {
   'aria-describedby'?: string;
   'aria-invalid'?: boolean | 'false' | 'true';
   'aria-label'?: string;
@@ -17,22 +17,26 @@ export type NativeSelectProps = {
   disabled?: boolean;
   defaultValue?: number | string;
   id?: string;
+  mode?: 'multiple';
   name?: string;
   onChange?: (event: ChangeEvent<HTMLSelectElement>) => void;
+  options?: SelectControlOption[];
   placeholder?: string;
   required?: boolean;
   title?: string;
-  value?: number | string;
+  value?: number | string | readonly string[];
 };
 
-export function NativeSelect({
+export function SelectControl({
   children,
   className,
   defaultValue,
   disabled,
   id,
+  mode,
   name,
   onChange,
+  options: explicitOptions,
   placeholder,
   required,
   title,
@@ -40,9 +44,9 @@ export function NativeSelect({
   'aria-describedby': ariaDescribedBy,
   'aria-invalid': ariaInvalid,
   'aria-label': ariaLabel
-}: NativeSelectProps) {
-  const options = optionsFromChildren(children);
-  const selectValue = value === undefined ? normalizeValue(defaultValue) : normalizeValue(value);
+}: SelectControlProps) {
+  const options = explicitOptions ?? optionsFromChildren(children);
+  const selectValue = value === undefined ? normalizeValue(defaultValue, mode) : normalizeValue(value, mode);
 
   return (
     <Select
@@ -50,7 +54,7 @@ export function NativeSelect({
       aria-invalid={ariaInvalid}
       aria-label={ariaLabel}
       aria-required={required || undefined}
-      className={['ui-native-select', className].filter(Boolean).join(' ')}
+      className={['ui-select-control', className].filter(Boolean).join(' ')}
       defaultValue={value === undefined ? selectValue : undefined}
       disabled={disabled}
       filterOption={(input, option) => {
@@ -59,22 +63,35 @@ export function NativeSelect({
       }}
       getPopupContainer={selectPopupContainer}
       id={id}
+      mode={mode}
       optionFilterProp="searchLabel"
       options={options}
       placeholder={placeholder}
-      classNames={{ popup: { root: 'ui-native-select-dropdown' } }}
+      classNames={{ popup: { root: 'ui-select-control-dropdown' } }}
       popupMatchSelectWidth
       showSearch
       title={title}
       value={value === undefined ? undefined : selectValue}
       onChange={(nextValue) => {
-        onChange?.(createSelectChangeEvent(String(nextValue ?? ''), id, name));
+        onChange?.(createSelectChangeEvent(Array.isArray(nextValue) ? nextValue.join(',') : String(nextValue ?? ''), id, name));
       }}
     />
   );
 }
 
-function normalizeValue(value: number | string | readonly string[] | undefined) {
+function normalizeValue(value: number | string | readonly string[] | undefined, mode?: 'multiple') {
+  if (mode === 'multiple') {
+    if (Array.isArray(value)) {
+      return value.map(String);
+    }
+    if (value === undefined || value === '') {
+      return [];
+    }
+    return String(value)
+      .split(/[\s,，;；]+/)
+      .map((item) => item.trim())
+      .filter(Boolean);
+  }
   if (Array.isArray(value)) {
     return value[0] === undefined ? '' : String(value[0]);
   }
@@ -82,7 +99,7 @@ function normalizeValue(value: number | string | readonly string[] | undefined) 
 }
 
 function optionsFromChildren(children: ReactNode) {
-  const options: NativeSelectOption[] = [];
+  const options: SelectControlOption[] = [];
 
   function visit(nodes: ReactNode) {
     Children.forEach(nodes, (child) => {

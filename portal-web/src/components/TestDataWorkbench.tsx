@@ -63,7 +63,7 @@ import {
 import { canUseButton, hasPermission } from '../permissions';
 import { dictionaryLabel, displayValueLabel, fieldLabel } from '../platform/dictionaries';
 import { translate } from '../platform/i18n';
-import { NativeSelect } from './ui';
+import { InputControl, NumberControl, SelectControl, TextAreaControl } from './ui';
 
 type WorkState = {
   loading: boolean;
@@ -898,29 +898,6 @@ export function TestDataWorkbench(props: { signedIn: boolean; currentUser: Curre
   function renderDataSets() {
     return (
       <section className="test-data-layout">
-        <section className="panel">
-          <div className="panel-header">
-            <div>
-              <div className="panel-title">{translate('auto.k1264')}</div>
-              <div className="panel-desc">{translate('auto.k1265')}</div>
-            </div>
-            <div className="test-data-panel-actions">
-              <button className="btn btn-primary btn-sm" type="button" onClick={openCreateDataSetDrawer} disabled={!canManage || dataSetState.loading}>
-                <DatabaseZap size={15} />
-                {translate('auto.k1264')}</button>
-              <button className="btn btn-secondary btn-sm" type="button" onClick={openEditDataSetDrawer} disabled={!selectedDataSetId || !canManage || dataSetState.loading}>
-                <ShieldCheck size={15} />
-                {translate('auto.k0746')}{translate('auto.k1202')}</button>
-              <button className="btn btn-ghost btn-sm" type="button" onClick={() => void onArchiveDataSet()} disabled={!selectedDataSetId || !canManage || dataSetDetail?.status === 'ARCHIVED'}>
-                <Archive size={15} />
-                {translate('auto.k0871')}</button>
-            </div>
-          </div>
-          <div className="panel-body compact">
-            <StateLine state={dataSetState} />
-          </div>
-        </section>
-
         <Drawer
           className="test-data-drawer"
           destroyOnHidden
@@ -937,31 +914,31 @@ export function TestDataWorkbench(props: { signedIn: boolean; currentUser: Curre
         >
           <form className="document-form document-drawer-form" onSubmit={dataSetDraftMode === 'edit' ? submitUpdateDataSet : onCreateDataSet}>
             <div className="form-grid">
-              <Field label="projectId"><input value={dataSetDraft.projectId} onChange={(event) => setDataSetDraftValue('projectId', event.target.value)} /></Field>
-              <Field label="code"><input value={dataSetDraft.code} onChange={(event) => setDataSetDraftValue('code', event.target.value)} /></Field>
-              <Field label={translate('auto.k0177')}><input value={dataSetDraft.name} onChange={(event) => setDataSetDraftValue('name', event.target.value)} /></Field>
+              <Field label={fieldLabel('projectId')}><InputControl value={dataSetDraft.projectId} onChange={(event) => setDataSetDraftValue('projectId', event.target.value)} /></Field>
+              <Field label={fieldLabel('code')}><InputControl value={dataSetDraft.code} onChange={(event) => setDataSetDraftValue('code', event.target.value)} /></Field>
+              <Field label={translate('auto.k0177')}><InputControl value={dataSetDraft.name} onChange={(event) => setDataSetDraftValue('name', event.target.value)} /></Field>
               <Field label={translate('auto.k0182')}><StatusSelect value={dataSetDraft.status} onChange={(value) => setDataSetDraftValue('status', value)} /></Field>
-              <Field label="applicationId"><input value={dataSetDraft.applicationId} onChange={(event) => setDataSetDraftValue('applicationId', event.target.value)} /></Field>
-              <Field label="environmentId"><input value={dataSetDraft.environmentId} onChange={(event) => setDataSetDraftValue('environmentId', event.target.value)} /></Field>
+              <Field label={fieldLabel('applicationId')}><InputControl value={dataSetDraft.applicationId} onChange={(event) => setDataSetDraftValue('applicationId', event.target.value)} /></Field>
+              <Field label={fieldLabel('environmentId')}><InputControl value={dataSetDraft.environmentId} onChange={(event) => setDataSetDraftValue('environmentId', event.target.value)} /></Field>
               <Field label={translate('auto.k0276')}>
-                <NativeSelect value={dataSetDraft.sensitivityLevel} onChange={(event) => setDataSetDraftValue('sensitivityLevel', event.target.value)}>
+                <SelectControl value={dataSetDraft.sensitivityLevel} onChange={(event) => setDataSetDraftValue('sensitivityLevel', event.target.value)}>
                   <option value="INTERNAL">{dictionaryLabel('INTERNAL')}</option>
                   <option value="CONFIDENTIAL">{dictionaryLabel('CONFIDENTIAL')}</option>
                   <option value="RESTRICTED">{dictionaryLabel('RESTRICTED')}</option>
-                </NativeSelect>
+                </SelectControl>
               </Field>
-              <Field label="sourceType">
-                <NativeSelect value={dataSetDraft.sourceType} onChange={(event) => setDataSetDraftValue('sourceType', event.target.value)}>
+              <Field label={fieldLabel('sourceType')}>
+                <SelectControl value={dataSetDraft.sourceType} onChange={(event) => setDataSetDraftValue('sourceType', event.target.value)}>
                   <option value="MANUAL">{dictionaryLabel('MANUAL')}</option>
                   <option value="GENERATED">{dictionaryLabel('GENERATED')}</option>
                   <option value="EXTERNAL_REF">{dictionaryLabel('EXTERNAL_REF')}</option>
-                </NativeSelect>
+                </SelectControl>
               </Field>
             </div>
-            <Field label="sourceRefDigest"><input value={dataSetDraft.sourceRefDigest} onChange={(event) => setDataSetDraftValue('sourceRefDigest', event.target.value)} /></Field>
+            <Field label={fieldLabel('sourceRefDigest')}><InputControl value={dataSetDraft.sourceRefDigest} onChange={(event) => setDataSetDraftValue('sourceRefDigest', event.target.value)} /></Field>
             <div className="form-grid">
-              <Field label="schema JSON"><textarea value={dataSetDraft.schemaText} onChange={(event) => setDataSetDraftValue('schemaText', event.target.value)} /></Field>
-              <Field label="cleanupPolicy JSON"><textarea value={dataSetDraft.cleanupPolicyText} onChange={(event) => setDataSetDraftValue('cleanupPolicyText', event.target.value)} /></Field>
+              <Field label={fieldLabel('schema JSON')}><TextAreaControl value={dataSetDraft.schemaText} autoSize={{ minRows: 4, maxRows: 10 }} onChange={(event) => setDataSetDraftValue('schemaText', event.target.value)} /></Field>
+              <Field label={fieldLabel('cleanupPolicy JSON')}><TextAreaControl value={dataSetDraft.cleanupPolicyText} autoSize={{ minRows: 4, maxRows: 10 }} onChange={(event) => setDataSetDraftValue('cleanupPolicyText', event.target.value)} /></Field>
             </div>
             <div className="document-actions">
               <button className="btn btn-primary" type="submit" disabled={!canManage || dataSetState.loading}>
@@ -983,15 +960,25 @@ export function TestDataWorkbench(props: { signedIn: boolean; currentUser: Curre
               <div className="panel-desc">{dataSets.length} {translate('auto.k1267')}</div>
             </div>
             <div className="test-data-panel-actions">
+              <button className="btn btn-primary btn-sm" type="button" onClick={openCreateDataSetDrawer} disabled={!canManage || dataSetState.loading}>
+                <DatabaseZap size={15} />
+                {translate('auto.k1264')}</button>
+              <button className="btn btn-secondary btn-sm" type="button" onClick={openEditDataSetDrawer} disabled={!selectedDataSetId || !canManage || dataSetState.loading}>
+                <ShieldCheck size={15} />
+                {translate('auto.k0746')}{translate('auto.k1202')}</button>
               <button className="btn btn-secondary btn-sm" type="button" onClick={openImportRecordDrawer} disabled={!selectedDataSetId || !canManage || dataSetState.loading}>
                 <Upload size={15} />
                 {translate('auto.k1293')}</button>
               <button className="btn btn-secondary btn-sm" type="button" onClick={openGenerateRecordsDrawer} disabled={!selectedDataSetId || dataSetDetail?.sourceType !== 'GENERATED' || !canManage || dataSetState.loading}>
                 <Sparkles size={15} />
                 {translate('auto.k1294')}</button>
+              <button className="btn btn-ghost btn-sm" type="button" onClick={() => void onArchiveDataSet()} disabled={!selectedDataSetId || !canManage || dataSetDetail?.status === 'ARCHIVED'}>
+                <Archive size={15} />
+                {translate('auto.k0871')}</button>
             </div>
           </div>
           <div className="panel-body compact">
+            <StateLine state={dataSetState} />
             <div className="table-wrap test-data-table-wrap">
               <table>
                 <thead><tr><th>{translate('auto.k1202')}</th><th>{translate('auto.k0176')}</th><th>{translate('auto.k0182')}</th><th>{translate('auto.k1268')}</th></tr></thead>
@@ -1022,32 +1009,6 @@ export function TestDataWorkbench(props: { signedIn: boolean; currentUser: Curre
   function renderAccountPools() {
     return (
       <section className="test-data-layout">
-        <section className="panel">
-          <div className="panel-header">
-            <div>
-              <div className="panel-title">{translate('auto.k1270')}</div>
-              <div className="panel-desc">{translate('auto.k1271')}</div>
-            </div>
-            <div className="test-data-panel-actions">
-              <button className="btn btn-primary btn-sm" type="button" onClick={openCreatePoolDrawer} disabled={!canManage || poolState.loading}>
-                <KeyRound size={15} />
-                {translate('auto.k0490', { value0: translate('auto.k1203') })}</button>
-              <button className="btn btn-secondary btn-sm" type="button" onClick={openEditPoolDrawer} disabled={!selectedPoolId || !canManage || poolState.loading}>
-                <ShieldCheck size={15} />
-                {translate('auto.k0746')}{translate('auto.k1203')}</button>
-              <button className="btn btn-secondary btn-sm" type="button" onClick={() => void onDisablePool()} disabled={!selectedPoolId || !canManage || poolDetail?.status === 'DISABLED'}>
-                <Trash2 size={15} />
-                {translate('auto.k1272')}</button>
-              <button className="btn btn-ghost btn-sm" type="button" onClick={() => void onArchivePool()} disabled={!selectedPoolId || !canManage || poolDetail?.status === 'ARCHIVED'}>
-                <Archive size={15} />
-                {translate('auto.k0871')}</button>
-            </div>
-          </div>
-          <div className="panel-body compact">
-            <StateLine state={poolState} />
-          </div>
-        </section>
-
         <Drawer
           className="test-data-drawer"
           destroyOnHidden
@@ -1064,15 +1025,17 @@ export function TestDataWorkbench(props: { signedIn: boolean; currentUser: Curre
         >
           <form className="document-form document-drawer-form" onSubmit={poolDraftMode === 'edit' ? submitUpdatePool : onCreatePool}>
             <div className="form-grid">
-              <Field label="projectId"><input value={poolDraft.projectId} onChange={(event) => setPoolDraftValue('projectId', event.target.value)} /></Field>
-              <Field label="code"><input value={poolDraft.code} onChange={(event) => setPoolDraftValue('code', event.target.value)} /></Field>
-              <Field label={translate('auto.k0177')}><input value={poolDraft.name} onChange={(event) => setPoolDraftValue('name', event.target.value)} /></Field>
+              <Field label="projectId"><InputControl value={poolDraft.projectId} onChange={(event) => setPoolDraftValue('projectId', event.target.value)} /></Field>
+              <Field label="code"><InputControl value={poolDraft.code} onChange={(event) => setPoolDraftValue('code', event.target.value)} /></Field>
+              <Field label={translate('auto.k0177')}><InputControl value={poolDraft.name} onChange={(event) => setPoolDraftValue('name', event.target.value)} /></Field>
               <Field label={translate('auto.k0182')}><StatusSelect value={poolDraft.status} onChange={(value) => setPoolDraftValue('status', value)} /></Field>
-              <Field label="applicationId"><input value={poolDraft.applicationId} onChange={(event) => setPoolDraftValue('applicationId', event.target.value)} /></Field>
-              <Field label="environmentId"><input value={poolDraft.environmentId} onChange={(event) => setPoolDraftValue('environmentId', event.target.value)} /></Field>
-              <Field label={translate('auto.k1260')}><input type="number" min={1} max={86400} value={poolDraft.defaultTtlSeconds} onChange={(event) => setPoolDraftValue('defaultTtlSeconds', Number(event.target.value))} /></Field>
+              <Field label="applicationId"><InputControl value={poolDraft.applicationId} onChange={(event) => setPoolDraftValue('applicationId', event.target.value)} /></Field>
+              <Field label="environmentId"><InputControl value={poolDraft.environmentId} onChange={(event) => setPoolDraftValue('environmentId', event.target.value)} /></Field>
+              <Field label={translate('auto.k1260')}>
+                <NumberControl min={1} max={86400} value={poolDraft.defaultTtlSeconds} onChange={(event) => setPoolDraftValue('defaultTtlSeconds', Number(event.target.value || 1))} />
+              </Field>
             </div>
-            <Field label="leasePolicy JSON"><textarea value={poolDraft.leasePolicyText} onChange={(event) => setPoolDraftValue('leasePolicyText', event.target.value)} /></Field>
+            <Field label="leasePolicyJson"><TextAreaControl value={poolDraft.leasePolicyText} autoSize={{ minRows: 4, maxRows: 10 }} onChange={(event) => setPoolDraftValue('leasePolicyText', event.target.value)} /></Field>
             <div className="document-actions">
               <button className="btn btn-primary" type="submit" disabled={!canManage || poolState.loading}>
                 <KeyRound size={16} />
@@ -1093,15 +1056,28 @@ export function TestDataWorkbench(props: { signedIn: boolean; currentUser: Curre
               <div className="panel-desc">{accountPools.length} {translate('auto.k1274')}{shortId(selectedPoolId)}</div>
             </div>
             <div className="test-data-panel-actions">
+              <button className="btn btn-primary btn-sm" type="button" onClick={openCreatePoolDrawer} disabled={!canManage || poolState.loading}>
+                <KeyRound size={15} />
+                {translate('auto.k0490', { value0: translate('auto.k1203') })}</button>
+              <button className="btn btn-secondary btn-sm" type="button" onClick={openEditPoolDrawer} disabled={!selectedPoolId || !canManage || poolState.loading}>
+                <ShieldCheck size={15} />
+                {translate('auto.k0746')}{translate('auto.k1203')}</button>
               <button className="btn btn-secondary btn-sm" type="button" onClick={openCreateAccountDrawer} disabled={!selectedPoolId || !canManage || poolState.loading}>
                 <KeyRound size={15} />
                 {translate('auto.k1306')}</button>
               <button className="btn btn-ghost btn-sm" type="button" onClick={openEditAccountDrawer} disabled={!selectedAccountId || !canManage || poolState.loading}>
                 <ShieldCheck size={15} />
                 {translate('auto.k1305')}</button>
+              <button className="btn btn-secondary btn-sm" type="button" onClick={() => void onDisablePool()} disabled={!selectedPoolId || !canManage || poolDetail?.status === 'DISABLED'}>
+                <Trash2 size={15} />
+                {translate('auto.k1272')}</button>
+              <button className="btn btn-ghost btn-sm" type="button" onClick={() => void onArchivePool()} disabled={!selectedPoolId || !canManage || poolDetail?.status === 'ARCHIVED'}>
+                <Archive size={15} />
+                {translate('auto.k0871')}</button>
             </div>
           </div>
           <div className="panel-body compact">
+            <StateLine state={poolState} />
             <div className="test-data-list">
               {accountPools.length ? accountPools.map((pool) => (
                 <button key={pool.id} className={selectedPoolId === pool.id ? 'test-data-list-item active' : 'test-data-list-item'} type="button" onClick={() => {
@@ -1124,21 +1100,6 @@ export function TestDataWorkbench(props: { signedIn: boolean; currentUser: Curre
   function renderLeases() {
     return (
       <section className="test-data-layout">
-        <section className="panel">
-          <div className="panel-header">
-            <div>
-              <div className="panel-title">{translate('auto.k1276')}</div>
-              <div className="panel-desc">{translate('auto.k1277')}</div>
-            </div>
-            <button className="btn btn-primary btn-sm" type="button" onClick={openAcquireLeaseDrawer} disabled={!canLease || leaseState.loading}>
-              <Play size={15} />
-              {translate('auto.k1276')}</button>
-          </div>
-          <div className="panel-body compact">
-            <StateLine state={leaseState} />
-          </div>
-        </section>
-
         <Drawer
           className="test-data-drawer"
           destroyOnHidden
@@ -1155,16 +1116,18 @@ export function TestDataWorkbench(props: { signedIn: boolean; currentUser: Curre
         >
           <form className="document-form document-drawer-form" onSubmit={onAcquireLease}>
             <div className="form-grid">
-              <Field label="projectId"><input value={leaseDraft.projectId} onChange={(event) => setLeaseDraftValue('projectId', event.target.value)} /></Field>
-              <Field label="poolId"><input value={leaseDraft.poolId || selectedPoolId} onChange={(event) => setLeaseDraftValue('poolId', event.target.value)} /></Field>
-              <Field label="holderType"><input value={leaseDraft.holderType} onChange={(event) => setLeaseDraftValue('holderType', event.target.value)} /></Field>
-              <Field label="holderRef"><input value={leaseDraft.holderRef} onChange={(event) => setLeaseDraftValue('holderRef', event.target.value)} /></Field>
-              <Field label="requestKey"><input value={leaseDraft.requestKey} onChange={(event) => setLeaseDraftValue('requestKey', event.target.value)} /></Field>
-              <Field label="ttlSeconds"><input type="number" min={1} max={86400} value={leaseDraft.ttlSeconds} onChange={(event) => setLeaseDraftValue('ttlSeconds', Number(event.target.value))} /></Field>
-              <Field label="applicationId"><input value={leaseDraft.applicationId} onChange={(event) => setLeaseDraftValue('applicationId', event.target.value)} /></Field>
-              <Field label="environmentId"><input value={leaseDraft.environmentId} onChange={(event) => setLeaseDraftValue('environmentId', event.target.value)} /></Field>
+              <Field label="projectId"><InputControl value={leaseDraft.projectId} onChange={(event) => setLeaseDraftValue('projectId', event.target.value)} /></Field>
+              <Field label="poolId"><InputControl value={leaseDraft.poolId || selectedPoolId} onChange={(event) => setLeaseDraftValue('poolId', event.target.value)} /></Field>
+              <Field label="holderType"><InputControl value={leaseDraft.holderType} onChange={(event) => setLeaseDraftValue('holderType', event.target.value)} /></Field>
+              <Field label="holderRef"><InputControl value={leaseDraft.holderRef} onChange={(event) => setLeaseDraftValue('holderRef', event.target.value)} /></Field>
+              <Field label="requestKey"><InputControl value={leaseDraft.requestKey} onChange={(event) => setLeaseDraftValue('requestKey', event.target.value)} /></Field>
+              <Field label="ttlSeconds">
+                <NumberControl min={1} max={86400} value={leaseDraft.ttlSeconds} onChange={(event) => setLeaseDraftValue('ttlSeconds', Number(event.target.value || 1))} />
+              </Field>
+              <Field label="applicationId"><InputControl value={leaseDraft.applicationId} onChange={(event) => setLeaseDraftValue('applicationId', event.target.value)} /></Field>
+              <Field label="environmentId"><InputControl value={leaseDraft.environmentId} onChange={(event) => setLeaseDraftValue('environmentId', event.target.value)} /></Field>
             </div>
-            <Field label="roleTags"><input value={leaseDraft.roleTagsText} onChange={(event) => setLeaseDraftValue('roleTagsText', event.target.value)} /></Field>
+            <Field label="roleTags"><InputControl value={leaseDraft.roleTagsText} onChange={(event) => setLeaseDraftValue('roleTagsText', event.target.value)} /></Field>
             <div className="document-actions">
               <button className="btn btn-primary" type="submit" disabled={!canLease || leaseState.loading}>
                 <Play size={16} />
@@ -1183,6 +1146,9 @@ export function TestDataWorkbench(props: { signedIn: boolean; currentUser: Curre
               <div className="panel-desc">{leases.length} {translate('auto.k1280')}</div>
             </div>
             <div className="test-data-panel-actions">
+              <button className="btn btn-primary btn-sm" type="button" onClick={openAcquireLeaseDrawer} disabled={!canLease || leaseState.loading}>
+                <Play size={15} />
+                {translate('auto.k1276')}</button>
               <button className="btn btn-secondary btn-sm" type="button" onClick={() => void onRenewLease()} disabled={!selectedLeaseId || !canLease || leaseState.loading}>
                 <RotateCcw size={15} />
                 {translate('auto.k1281')}</button>
@@ -1192,17 +1158,20 @@ export function TestDataWorkbench(props: { signedIn: boolean; currentUser: Curre
             </div>
           </div>
           <div className="panel-body compact">
+            <StateLine state={leaseState} />
             <div className="form-grid">
-              <Field label={translate('auto.k1283')}><input type="number" min={1} max={86400} value={leaseDraft.renewTtlSeconds} onChange={(event) => setLeaseDraftValue('renewTtlSeconds', Number(event.target.value))} /></Field>
+              <Field label={translate('auto.k1283')}>
+                <NumberControl min={1} max={86400} value={leaseDraft.renewTtlSeconds} onChange={(event) => setLeaseDraftValue('renewTtlSeconds', Number(event.target.value || 1))} />
+              </Field>
               <Field label={translate('auto.k1284')}>
-                <NativeSelect value={leaseDraft.accountStatus} onChange={(event) => setLeaseDraftValue('accountStatus', event.target.value)}>
+                <SelectControl value={leaseDraft.accountStatus} onChange={(event) => setLeaseDraftValue('accountStatus', event.target.value)}>
                   <option value="AVAILABLE">{dictionaryLabel('AVAILABLE')}</option>
                   <option value="LOCKED">{dictionaryLabel('LOCKED')}</option>
                   <option value="DISABLED">{dictionaryLabel('DISABLED')}</option>
-                </NativeSelect>
+                </SelectControl>
               </Field>
             </div>
-            <Field label={translate('auto.k1285')}><input value={leaseDraft.releaseReason} onChange={(event) => setLeaseDraftValue('releaseReason', event.target.value)} /></Field>
+            <Field label={translate('auto.k1285')}><InputControl value={leaseDraft.releaseReason} onChange={(event) => setLeaseDraftValue('releaseReason', event.target.value)} /></Field>
             <div className="test-data-list">
               {leases.length ? leases.map((lease) => (
                 <button key={lease.id} className={selectedLeaseId === lease.id ? 'test-data-list-item active' : 'test-data-list-item'} type="button" onClick={() => setSelectedLeaseId(lease.id)}>
@@ -1213,10 +1182,10 @@ export function TestDataWorkbench(props: { signedIn: boolean; currentUser: Curre
             </div>
             {leaseDetail && (
               <div className="test-data-summary">
-                <SummaryChip label="leaseTokenDigest" value={shortId(leaseDetail.leaseTokenDigest)} />
-                <SummaryChip label="account" value={leaseDetail.account?.accountKey ?? shortId(leaseDetail.accountId)} />
-                <SummaryChip label="secretDigest" value={shortId(leaseDetail.account?.secretRefDigest)} />
-                <SummaryChip label="released" value={formatDateTime(leaseDetail.releasedAt)} />
+                <SummaryChip label={fieldLabel('leaseTokenDigest')} value={shortId(leaseDetail.leaseTokenDigest)} />
+                <SummaryChip label={fieldLabel('account')} value={leaseDetail.account?.accountKey ?? shortId(leaseDetail.accountId)} />
+                <SummaryChip label={fieldLabel('secretDigest')} value={shortId(leaseDetail.account?.secretRefDigest)} />
+                <SummaryChip label={fieldLabel('released')} value={formatDateTime(leaseDetail.releasedAt)} />
               </div>
             )}
             <LeaseExportPanel />
@@ -1229,24 +1198,6 @@ export function TestDataWorkbench(props: { signedIn: boolean; currentUser: Curre
   function renderTasks() {
     return (
       <section className="test-data-layout">
-        <section className="panel">
-          <div className="panel-header">
-            <div>
-              <div className="panel-title">{translate('auto.k1205')}</div>
-              <div className="panel-desc">{health?.cleanupEnabled ? translate('auto.k1287') : translate('auto.k1288')}</div>
-            </div>
-            <button className="btn btn-primary btn-sm" type="button" onClick={openCreateTaskDrawer} disabled={!canCleanup || taskState.loading}>
-              <ListChecks size={15} />
-              {translate('auto.k0490', { value0: translate('auto.k1205') })}</button>
-          </div>
-          <div className="panel-body compact">
-            {!health?.cleanupEnabled && (
-              <div className="notice warning">{translate('auto.k1289')}</div>
-            )}
-            <StateLine state={taskState} />
-          </div>
-        </section>
-
         <Drawer
           className="test-data-drawer"
           destroyOnHidden
@@ -1266,20 +1217,20 @@ export function TestDataWorkbench(props: { signedIn: boolean; currentUser: Curre
               <div className="notice warning">{translate('auto.k1289')}</div>
             )}
             <div className="form-grid">
-              <Field label="projectId"><input value={taskDraft.projectId} onChange={(event) => setTaskDraftValue('projectId', event.target.value)} /></Field>
-              <Field label="dataSetId"><input value={taskDraft.dataSetId || selectedDataSetId} onChange={(event) => setTaskDraftValue('dataSetId', event.target.value)} /></Field>
+              <Field label="projectId"><InputControl value={taskDraft.projectId} onChange={(event) => setTaskDraftValue('projectId', event.target.value)} /></Field>
+              <Field label="dataSetId"><InputControl value={taskDraft.dataSetId || selectedDataSetId} onChange={(event) => setTaskDraftValue('dataSetId', event.target.value)} /></Field>
               <Field label="taskType">
-                <NativeSelect value={taskDraft.taskType} onChange={(event) => setTaskDraftValue('taskType', event.target.value)}>
+                <SelectControl value={taskDraft.taskType} onChange={(event) => setTaskDraftValue('taskType', event.target.value)}>
                   <option value="PREPARE">{dictionaryLabel('PREPARE')}</option>
                   <option value="REFRESH">{dictionaryLabel('REFRESH')}</option>
                   <option value="CLEANUP">{dictionaryLabel('CLEANUP')}</option>
                   <option value="ROLLBACK">{dictionaryLabel('ROLLBACK')}</option>
-                </NativeSelect>
+                </SelectControl>
               </Field>
-              <Field label="requestKey"><input value={taskDraft.requestKey} onChange={(event) => setTaskDraftValue('requestKey', event.target.value)} /></Field>
+              <Field label="requestKey"><InputControl value={taskDraft.requestKey} onChange={(event) => setTaskDraftValue('requestKey', event.target.value)} /></Field>
             </div>
-            <Field label="targetRef"><input value={taskDraft.targetRef} onChange={(event) => setTaskDraftValue('targetRef', event.target.value)} /></Field>
-            <Field label="resultSummary JSON"><textarea value={taskDraft.resultSummaryText} onChange={(event) => setTaskDraftValue('resultSummaryText', event.target.value)} /></Field>
+            <Field label="targetRef"><InputControl value={taskDraft.targetRef} onChange={(event) => setTaskDraftValue('targetRef', event.target.value)} /></Field>
+            <Field label="resultSummaryJson"><TextAreaControl value={taskDraft.resultSummaryText} autoSize={{ minRows: 4, maxRows: 10 }} onChange={(event) => setTaskDraftValue('resultSummaryText', event.target.value)} /></Field>
             <div className="document-actions">
               <button className="btn btn-primary" type="submit" disabled={!canCleanup || taskState.loading}>
                 <ListChecks size={16} />
@@ -1297,26 +1248,35 @@ export function TestDataWorkbench(props: { signedIn: boolean; currentUser: Curre
               <div className="panel-title">{translate('auto.k1290')}</div>
               <div className="panel-desc">{tasks.length} {translate('auto.k1291')}</div>
             </div>
-            <button className="btn btn-secondary btn-sm" type="button" onClick={() => void onRetryTask()} disabled={!selectedTaskId || !canCleanup || taskState.loading}>
-              <RotateCcw size={15} />
-              {translate('auto.k0227')}</button>
+            <div className="test-data-panel-actions">
+              <button className="btn btn-primary btn-sm" type="button" onClick={openCreateTaskDrawer} disabled={!canCleanup || taskState.loading}>
+                <ListChecks size={15} />
+                {translate('auto.k0490', { value0: translate('auto.k1205') })}</button>
+              <button className="btn btn-secondary btn-sm" type="button" onClick={() => void onRetryTask()} disabled={!selectedTaskId || !canCleanup || taskState.loading}>
+                <RotateCcw size={15} />
+                {translate('auto.k0227')}</button>
+            </div>
           </div>
           <div className="panel-body compact">
-            <Field label="retry requestKey"><input value={taskDraft.retryRequestKey} onChange={(event) => setTaskDraftValue('retryRequestKey', event.target.value)} /></Field>
+            {!health?.cleanupEnabled && (
+              <div className="notice warning">{translate('auto.k1289')}</div>
+            )}
+            <StateLine state={taskState} />
+            <Field label="retryRequestKey"><InputControl value={taskDraft.retryRequestKey} onChange={(event) => setTaskDraftValue('retryRequestKey', event.target.value)} /></Field>
             <div className="test-data-list">
               {tasks.length ? tasks.map((task) => (
                 <button key={task.id} className={selectedTaskId === task.id ? 'test-data-list-item active' : 'test-data-list-item'} type="button" onClick={() => setSelectedTaskId(task.id)}>
-                  <span><strong>{task.taskType}</strong><small>{task.projectId} · {task.requestKey} · trace {task.traceId ?? '-'}</small></span>
+                  <span><strong>{dictionaryLabel(task.taskType)}</strong><small>{task.projectId} · {task.requestKey} · {fieldLabel('traceId')}：{task.traceId ?? '-'}</small></span>
                   <StatusBadge status={task.status} />
                 </button>
               )) : <div className="table-empty">{translate('auto.k1292')}</div>}
             </div>
             {taskDetail && (
               <div className="test-data-summary">
-                <SummaryChip label="attempt" value={String(taskDetail.attempt)} />
-                <SummaryChip label="error" value={taskDetail.errorCode ?? '-'} />
-                <SummaryChip label="traceId" value={taskDetail.traceId ?? '-'} />
-                <SummaryChip label="finished" value={formatDateTime(taskDetail.finishedAt)} />
+                <SummaryChip label={fieldLabel('attempt')} value={String(taskDetail.attempt)} />
+                <SummaryChip label={fieldLabel('error')} value={taskDetail.errorCode ? displayValueLabel(taskDetail.errorCode) : '-'} />
+                <SummaryChip label={fieldLabel('traceId')} value={taskDetail.traceId ?? '-'} />
+                <SummaryChip label={fieldLabel('finished')} value={formatDateTime(taskDetail.finishedAt)} />
               </div>
             )}
             {taskDetail?.errorSummary && <div className="document-state-line error">{taskDetail.errorSummary}</div>}
@@ -1344,12 +1304,12 @@ export function TestDataWorkbench(props: { signedIn: boolean; currentUser: Curre
       >
         <form className="document-form document-drawer-form" onSubmit={onImportRecord}>
           <div className="form-grid">
-            <Field label="recordKey"><input value={recordDraft.recordKey} onChange={(event) => setRecordDraftValue('recordKey', event.target.value)} /></Field>
-            <Field label="recordDigest"><input value={recordDraft.recordDigest} onChange={(event) => setRecordDraftValue('recordDigest', event.target.value)} /></Field>
-            <Field label="externalRefDigest"><input value={recordDraft.externalRefDigest} onChange={(event) => setRecordDraftValue('externalRefDigest', event.target.value)} /></Field>
-            <Field label="tags"><input value={recordDraft.tagsText} onChange={(event) => setRecordDraftValue('tagsText', event.target.value)} /></Field>
+            <Field label={fieldLabel('recordKey')}><InputControl value={recordDraft.recordKey} onChange={(event) => setRecordDraftValue('recordKey', event.target.value)} /></Field>
+            <Field label={fieldLabel('recordDigest')}><InputControl value={recordDraft.recordDigest} onChange={(event) => setRecordDraftValue('recordDigest', event.target.value)} /></Field>
+            <Field label={fieldLabel('externalRefDigest')}><InputControl value={recordDraft.externalRefDigest} onChange={(event) => setRecordDraftValue('externalRefDigest', event.target.value)} /></Field>
+            <Field label={fieldLabel('tags')}><InputControl value={recordDraft.tagsText} onChange={(event) => setRecordDraftValue('tagsText', event.target.value)} /></Field>
           </div>
-          <Field label="maskedSummary JSON"><textarea value={recordDraft.maskedSummaryText} onChange={(event) => setRecordDraftValue('maskedSummaryText', event.target.value)} /></Field>
+          <Field label={fieldLabel('maskedSummary JSON')}><TextAreaControl value={recordDraft.maskedSummaryText} autoSize={{ minRows: 4, maxRows: 10 }} onChange={(event) => setRecordDraftValue('maskedSummaryText', event.target.value)} /></Field>
           <div className="document-actions">
             <button className="btn btn-primary" type="submit" disabled={!selectedDataSetId || !canManage || dataSetState.loading}>
             <Upload size={15} />
@@ -1385,24 +1345,18 @@ export function TestDataWorkbench(props: { signedIn: boolean; currentUser: Curre
             <div className="table-empty">{translate('auto.k1296')}</div>
           )}
           <div className="form-grid">
-            <Field label="count">
-              <input
-                type="number"
-                min={1}
-                max={200}
-                value={generateDraft.count}
-                onChange={(event) => setGenerateDraftValue('count', Number(event.target.value))}
-              />
+            <Field label={fieldLabel('count')}>
+              <NumberControl min={1} max={200} value={generateDraft.count} onChange={(event) => setGenerateDraftValue('count', Number(event.target.value || 1))} />
             </Field>
-            <Field label="recordKeyPrefix">
-              <input
+            <Field label={fieldLabel('recordKeyPrefix')}>
+              <InputControl
                 value={generateDraft.recordKeyPrefix}
                 onChange={(event) => setGenerateDraftValue('recordKeyPrefix', event.target.value)}
                 placeholder={dataSetDetail ? `${dataSetDetail.code}:gen` : 'dataset:gen'}
               />
             </Field>
-            <Field label="tags">
-              <input value={generateDraft.tagsText} onChange={(event) => setGenerateDraftValue('tagsText', event.target.value)} />
+            <Field label={fieldLabel('tags')}>
+              <InputControl value={generateDraft.tagsText} onChange={(event) => setGenerateDraftValue('tagsText', event.target.value)} />
             </Field>
           </div>
           <div className="document-actions">
@@ -1466,15 +1420,15 @@ export function TestDataWorkbench(props: { signedIn: boolean; currentUser: Curre
         {dataSetExport ? (
           <>
             <div className="test-data-summary">
-              <SummaryChip label="schema" value={dataSetExport.schemaVersion} />
-              <SummaryChip label="records" value={String(dataSetExport.recordCount)} />
-              <SummaryChip label="fields" value={String(dataSetExport.schemaFieldCount)} />
-              <SummaryChip label="sensitive" value={String(dataSetExport.sensitiveFieldCount)} />
-              <SummaryChip label="exported" value={formatDateTime(dataSetExport.exportedAt)} />
+              <SummaryChip label={fieldLabel('schema')} value={dataSetExport.schemaVersion} />
+              <SummaryChip label={fieldLabel('records')} value={String(dataSetExport.recordCount)} />
+              <SummaryChip label={fieldLabel('fields')} value={String(dataSetExport.schemaFieldCount)} />
+              <SummaryChip label={fieldLabel('sensitive')} value={String(dataSetExport.sensitiveFieldCount)} />
+              <SummaryChip label={fieldLabel('exported')} value={formatDateTime(dataSetExport.exportedAt)} />
             </div>
             <div className="test-data-summary">
               {Object.entries(dataSetExport.redactionPolicy).map(([key, value]) => (
-                <SummaryChip key={key} label={key} value={String(value)} />
+                <SummaryChip key={key} label={fieldLabel(key)} value={String(value)} />
               ))}
             </div>
             <div className="test-data-record-grid test-data-export-grid">
@@ -1482,8 +1436,8 @@ export function TestDataWorkbench(props: { signedIn: boolean; currentUser: Curre
                 <div className="test-data-record-card" key={`${record.recordKey}-${record.recordDigest}`}>
                   <strong>{record.recordKey}</strong>
                   <span className="mono">{shortId(record.recordDigest)}</span>
-                  <small>keys {record.maskedSummaryKeys.join(', ') || '-'}</small>
-                  <small>tags {record.tags.join(', ') || '-'}</small>
+                  <small>{fieldLabel('keys')}{record.maskedSummaryKeys.join(', ') || '-'}</small>
+                  <small>{fieldLabel('tags')}{record.tags.join(', ') || '-'}</small>
                 </div>
               )) : <div className="table-empty">{translate('auto.k1300')}</div>}
             </div>
@@ -1523,26 +1477,26 @@ export function TestDataWorkbench(props: { signedIn: boolean; currentUser: Curre
         {leaseExport ? (
           <>
             <div className="test-data-summary">
-              <SummaryChip label="schema" value={leaseExport.schemaVersion} />
-              <SummaryChip label="status" value={leaseExport.lease.status} />
-              <SummaryChip label="holder" value={leaseExport.lease.holderRef} />
-              <SummaryChip label="account" value={leaseExport.account.accountKey} />
-              <SummaryChip label="exported" value={formatDateTime(leaseExport.exportedAt)} />
+              <SummaryChip label={fieldLabel('schema')} value={leaseExport.schemaVersion} />
+              <SummaryChip label={fieldLabel('status')} value={dictionaryLabel(leaseExport.lease.status)} />
+              <SummaryChip label={fieldLabel('holder')} value={leaseExport.lease.holderRef} />
+              <SummaryChip label={fieldLabel('account')} value={leaseExport.account.accountKey} />
+              <SummaryChip label={fieldLabel('exported')} value={formatDateTime(leaseExport.exportedAt)} />
             </div>
             <div className="test-data-summary">
-              <SummaryChip label="leaseTokenDigest" value={shortId(leaseExport.lease.leaseTokenDigest)} />
-              <SummaryChip label="requestDigest" value={shortId(leaseExport.lease.requestDigest)} />
-              <SummaryChip label="secretDigest" value={shortId(leaseExport.account.secretRefDigest)} />
-              <SummaryChip label="releaseReasonDigest" value={shortId(leaseExport.lease.releaseReasonDigest)} />
+              <SummaryChip label={fieldLabel('leaseTokenDigest')} value={shortId(leaseExport.lease.leaseTokenDigest)} />
+              <SummaryChip label={fieldLabel('requestDigest')} value={shortId(leaseExport.lease.requestDigest)} />
+              <SummaryChip label={fieldLabel('secretDigest')} value={shortId(leaseExport.account.secretRefDigest)} />
+              <SummaryChip label={fieldLabel('releaseReasonDigest')} value={shortId(leaseExport.lease.releaseReasonDigest)} />
             </div>
             <div className="test-data-summary">
-              <SummaryChip label="scopeKeys" value={leaseExport.account.scopeSummaryKeys.join(', ') || '-'} />
-              <SummaryChip label="leasePolicyKeys" value={leaseExport.pool.leasePolicyKeys.join(', ') || '-'} />
-              <SummaryChip label="healthSummary" value={leaseExport.account.lastHealthSummaryPresent ? 'SET' : '-'} />
+              <SummaryChip label={fieldLabel('scopeKeys')} value={leaseExport.account.scopeSummaryKeys.join(', ') || '-'} />
+              <SummaryChip label={fieldLabel('leasePolicyKeys')} value={leaseExport.pool.leasePolicyKeys.join(', ') || '-'} />
+              <SummaryChip label={fieldLabel('healthSummary')} value={leaseExport.account.lastHealthSummaryPresent ? displayValueLabel('SET') : '-'} />
             </div>
             <div className="test-data-summary">
               {Object.entries(leaseExport.redactionPolicy).map(([key, value]) => (
-                <SummaryChip key={key} label={key} value={String(value)} />
+                <SummaryChip key={key} label={fieldLabel(key)} value={String(value)} />
               ))}
             </div>
           </>
@@ -1572,20 +1526,20 @@ export function TestDataWorkbench(props: { signedIn: boolean; currentUser: Curre
       >
         <form className="document-form document-drawer-form" onSubmit={onSaveAccount}>
           <div className="form-grid">
-            <Field label="accountKey"><input value={accountDraft.accountKey} onChange={(event) => setAccountDraftValue('accountKey', event.target.value)} /></Field>
-            <Field label="displayName"><input value={accountDraft.displayName} onChange={(event) => setAccountDraftValue('displayName', event.target.value)} /></Field>
+            <Field label="accountKey"><InputControl value={accountDraft.accountKey} onChange={(event) => setAccountDraftValue('accountKey', event.target.value)} /></Field>
+            <Field label="displayName"><InputControl value={accountDraft.displayName} onChange={(event) => setAccountDraftValue('displayName', event.target.value)} /></Field>
             <Field label={translate('auto.k0182')}>
-              <NativeSelect value={accountDraft.status} onChange={(event) => setAccountDraftValue('status', event.target.value)}>
+              <SelectControl value={accountDraft.status} onChange={(event) => setAccountDraftValue('status', event.target.value)}>
                 <option value="AVAILABLE">{dictionaryLabel('AVAILABLE')}</option>
                 <option value="LEASED">{dictionaryLabel('LEASED')}</option>
                 <option value="LOCKED">{dictionaryLabel('LOCKED')}</option>
                 <option value="DISABLED">{dictionaryLabel('DISABLED')}</option>
-              </NativeSelect>
+              </SelectControl>
             </Field>
-            <Field label="roleTags"><input value={accountDraft.roleTagsText} onChange={(event) => setAccountDraftValue('roleTagsText', event.target.value)} /></Field>
-            <Field label="lastHealthStatus"><input value={accountDraft.lastHealthStatus} onChange={(event) => setAccountDraftValue('lastHealthStatus', event.target.value)} /></Field>
+            <Field label="roleTags"><InputControl value={accountDraft.roleTagsText} onChange={(event) => setAccountDraftValue('roleTagsText', event.target.value)} /></Field>
+            <Field label="lastHealthStatus"><InputControl value={accountDraft.lastHealthStatus} onChange={(event) => setAccountDraftValue('lastHealthStatus', event.target.value)} /></Field>
             <Field label="secretRef">
-              <input
+              <InputControl
                 type="password"
                 autoComplete="off"
                 value={accountDraft.secretRef}
@@ -1594,8 +1548,8 @@ export function TestDataWorkbench(props: { signedIn: boolean; currentUser: Curre
               />
             </Field>
           </div>
-          <Field label="lastHealthSummary"><input value={accountDraft.lastHealthSummary} onChange={(event) => setAccountDraftValue('lastHealthSummary', event.target.value)} /></Field>
-          <Field label="scopeSummary JSON"><textarea value={accountDraft.scopeSummaryText} onChange={(event) => setAccountDraftValue('scopeSummaryText', event.target.value)} /></Field>
+          <Field label="lastHealthSummary"><InputControl value={accountDraft.lastHealthSummary} onChange={(event) => setAccountDraftValue('lastHealthSummary', event.target.value)} /></Field>
+          <Field label="scopeSummaryJson"><TextAreaControl value={accountDraft.scopeSummaryText} autoSize={{ minRows: 4, maxRows: 10 }} onChange={(event) => setAccountDraftValue('scopeSummaryText', event.target.value)} /></Field>
           <div className="document-actions">
             <button className="btn btn-primary" type="submit" disabled={!selectedPoolId || !canManage || poolState.loading}>
               <ShieldCheck size={16} />
@@ -1794,19 +1748,19 @@ function StateLine(props: { state: WorkState }) {
     return <span className="document-state-line success">{props.state.success}{props.state.traceId ? ` · ${props.state.traceId}` : ''}</span>;
   }
   if (props.state.traceId) {
-    return <span className="document-state-line">Trace ID：{props.state.traceId}</span>;
+    return <span className="document-state-line">{fieldLabel('traceId')}：{props.state.traceId}</span>;
   }
   return null;
 }
 
 function StatusSelect(props: { value: string; onChange: (value: string) => void }) {
   return (
-    <NativeSelect value={props.value} onChange={(event) => props.onChange(event.target.value)}>
+    <SelectControl value={props.value} onChange={(event) => props.onChange(event.target.value)}>
       <option value="DRAFT">{dictionaryLabel('DRAFT')}</option>
       <option value="READY">{dictionaryLabel('READY')}</option>
       <option value="DISABLED">{dictionaryLabel('DISABLED')}</option>
       <option value="ARCHIVED">{dictionaryLabel('ARCHIVED')}</option>
-    </NativeSelect>
+    </SelectControl>
   );
 }
 

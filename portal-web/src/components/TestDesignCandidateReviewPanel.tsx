@@ -55,7 +55,7 @@ import {
 } from './TestDesignWorkbenchShared';
 import { dictionaryLabel } from '../platform/dictionaries';
 import { translate } from '../platform/i18n';
-import { NativeSelect } from './ui';
+import { CheckboxControl, InputControl, SelectControl, TextAreaControl } from './ui';
 
 export function TestDesignCandidateReviewPanel(props: {
   canExport: boolean;
@@ -138,21 +138,21 @@ export function TestDesignCandidateReviewPanel(props: {
         <div className="asset-filter-bar test-design-candidate-filter">
           <label className="field">
             <span className="field-label">{translate('auto.k1314')}</span>
-            <NativeSelect value={props.candidateFilters.status} onChange={(event) => props.onCandidateFiltersChange((current) => ({ ...current, status: event.target.value }))} disabled={props.taskState.loading || !props.selectedTaskId}>
+            <SelectControl value={props.candidateFilters.status} onChange={(event) => props.onCandidateFiltersChange((current) => ({ ...current, status: event.target.value }))} disabled={props.taskState.loading || !props.selectedTaskId}>
               <option value="">{translate('auto.k0195')}</option>
               {TEST_DESIGN_CANDIDATE_STATUSES.map((status) => <option key={status} value={status}>{dictionaryLabel(status)}</option>)}
-            </NativeSelect>
+            </SelectControl>
           </label>
           <label className="field">
             <span className="field-label">{translate('auto.k1315')}</span>
-            <NativeSelect value={props.candidateFilters.coverageType} onChange={(event) => props.onCandidateFiltersChange((current) => ({ ...current, coverageType: event.target.value }))} disabled={props.taskState.loading || !props.selectedTaskId}>
+            <SelectControl value={props.candidateFilters.coverageType} onChange={(event) => props.onCandidateFiltersChange((current) => ({ ...current, coverageType: event.target.value }))} disabled={props.taskState.loading || !props.selectedTaskId}>
               <option value="">{translate('auto.k0195')}</option>
               {TEST_DESIGN_COVERAGE_TYPES.map((type) => <option key={type} value={type}>{dictionaryLabel(type)}</option>)}
-            </NativeSelect>
+            </SelectControl>
           </label>
           <label className="field">
             <span className="field-label">{translate('auto.k1316')}</span>
-            <input value={props.candidateFilters.keyword} onChange={(event) => props.onCandidateFiltersChange((current) => ({ ...current, keyword: event.target.value }))} placeholder={translate('auto.k1317')} disabled={props.taskState.loading || !props.selectedTaskId} />
+            <InputControl value={props.candidateFilters.keyword} onChange={(event) => props.onCandidateFiltersChange((current) => ({ ...current, keyword: event.target.value }))} placeholder={translate('auto.k1317')} disabled={props.taskState.loading || !props.selectedTaskId} />
           </label>
           <div className="filter-actions">
             <button className="btn btn-secondary btn-sm" type="button" disabled={!props.selectedTaskId} onClick={() => props.onCandidateFiltersChange(initialCandidateFilters)}>
@@ -181,9 +181,9 @@ export function TestDesignCandidateReviewPanel(props: {
             </span>
             <label>
               <span>{translate('auto.k1323')}</span>
-              <NativeSelect value={props.candidatePageSize} onChange={(event) => props.onCandidatePageSizeChange(Number(event.target.value))} disabled={props.taskState.loading}>
+              <SelectControl value={props.candidatePageSize} onChange={(event) => props.onCandidatePageSizeChange(Number(event.target.value))} disabled={props.taskState.loading}>
                 {TEST_DESIGN_CANDIDATE_PAGE_SIZES.map((size) => <option key={size} value={size}>{size}</option>)}
-              </NativeSelect>
+              </SelectControl>
             </label>
             <div className="toolbar-actions">
               <button
@@ -240,31 +240,31 @@ export function TestDesignCandidateReviewPanel(props: {
             <div className="test-design-batch-editor-grid">
               <label className="field">
                 <span className="field-label">{translate('auto.k1315')}</span>
-                <NativeSelect value={props.batchEditDraft.coverageType} onChange={(event) => props.onBatchEditDraftChange((current) => ({ ...current, coverageType: event.target.value }))} disabled={!props.canReview || props.mutationState.loading}>
+                <SelectControl value={props.batchEditDraft.coverageType} onChange={(event) => props.onBatchEditDraftChange((current) => ({ ...current, coverageType: event.target.value }))} disabled={!props.canReview || props.mutationState.loading}>
                   <option value="">{translate('auto.k1333')}</option>
                   {TEST_DESIGN_COVERAGE_TYPES.map((type) => <option key={type} value={type}>{dictionaryLabel(type)}</option>)}
-                </NativeSelect>
+                </SelectControl>
               </label>
               <label className="field">
                 <span className="field-label">{translate('auto.k0419')}</span>
-                <NativeSelect value={props.batchEditDraft.priority} onChange={(event) => props.onBatchEditDraftChange((current) => ({ ...current, priority: event.target.value }))} disabled={!props.canReview || props.mutationState.loading}>
+                <SelectControl value={props.batchEditDraft.priority} onChange={(event) => props.onBatchEditDraftChange((current) => ({ ...current, priority: event.target.value }))} disabled={!props.canReview || props.mutationState.loading}>
                   <option value="">{translate('auto.k1333')}</option>
                   <option value="CRITICAL">{dictionaryLabel('CRITICAL')}</option>
                   <option value="HIGH">{dictionaryLabel('HIGH')}</option>
                   <option value="MEDIUM">{dictionaryLabel('MEDIUM')}</option>
                   <option value="LOW">{dictionaryLabel('LOW')}</option>
-                </NativeSelect>
+                </SelectControl>
               </label>
               <label className="field">
                 <span className="field-label">{translate('auto.k1334')}</span>
-                <NativeSelect value={props.batchEditDraft.tagMode} onChange={(event) => props.onBatchEditDraftChange((current) => ({ ...current, tagMode: event.target.value === 'replace' ? 'replace' : 'append' }))} disabled={!props.canReview || props.mutationState.loading}>
+                <SelectControl value={props.batchEditDraft.tagMode} onChange={(event) => props.onBatchEditDraftChange((current) => ({ ...current, tagMode: event.target.value === 'replace' ? 'replace' : 'append' }))} disabled={!props.canReview || props.mutationState.loading}>
                   <option value="append">{translate('auto.k1335')}</option>
                   <option value="replace">{translate('auto.k1336')}</option>
-                </NativeSelect>
+                </SelectControl>
               </label>
               <label className="field">
                 <span className="field-label">{translate('auto.k0803')}</span>
-                <input value={props.batchEditDraft.tags} onChange={(event) => props.onBatchEditDraftChange((current) => ({ ...current, tags: event.target.value }))} placeholder="regression, wp5" disabled={!props.canReview || props.mutationState.loading} />
+                <InputControl value={props.batchEditDraft.tags} onChange={(event) => props.onBatchEditDraftChange((current) => ({ ...current, tags: event.target.value }))} placeholder="regression, wp5" disabled={!props.canReview || props.mutationState.loading} />
               </label>
             </div>
             {props.batchEditIssues.length > 0 && (
@@ -298,9 +298,9 @@ export function TestDesignCandidateReviewPanel(props: {
                 props.candidatePage.items.map((candidate) => (
                   <tr className={candidate.id === props.selectedCandidateId ? 'selected-row' : ''} key={candidate.id}>
                     <td>
-                      <input
+                      <CheckboxControl
                         aria-label={translate('auto.k1338', { value0: candidate.title })}
-                        type="checkbox"
+
                         checked={props.selectedCandidateIds.includes(candidate.id)}
                         onChange={() => props.onToggleCandidateSelection(candidate.id)}
                         disabled={!canSelectTestDesignCandidate(candidate)}
@@ -351,46 +351,46 @@ export function TestDesignCandidateReviewPanel(props: {
             <div className="asset-form-grid">
               <label className="field">
                 <span className="field-label">{translate('auto.k0440')}</span>
-                <input value={candidateDraft.title} onChange={(event) => props.onCandidateDraftChange({ ...candidateDraft, title: event.target.value })} disabled={!props.canReview || props.mutationState.loading} />
+                <InputControl value={candidateDraft.title} onChange={(event) => props.onCandidateDraftChange({ ...candidateDraft, title: event.target.value })} disabled={!props.canReview || props.mutationState.loading} />
                 <QualityFieldMessages field="title" issues={props.candidateQualityIssues} />
               </label>
               <label className="field">
                 <span className="field-label">{translate('auto.k1315')}</span>
-                <NativeSelect value={candidateDraft.coverageType} onChange={(event) => props.onCandidateDraftChange({ ...candidateDraft, coverageType: event.target.value })} disabled={!props.canReview || props.mutationState.loading}>
+                <SelectControl value={candidateDraft.coverageType} onChange={(event) => props.onCandidateDraftChange({ ...candidateDraft, coverageType: event.target.value })} disabled={!props.canReview || props.mutationState.loading}>
                   {TEST_DESIGN_COVERAGE_TYPES.map((type) => <option key={type} value={type}>{dictionaryLabel(type)}</option>)}
-                </NativeSelect>
+                </SelectControl>
                 <QualityFieldMessages field="coverageType" issues={props.candidateQualityIssues} />
               </label>
               <label className="field">
                 <span className="field-label">{translate('auto.k0419')}</span>
-                <NativeSelect value={candidateDraft.priority} onChange={(event) => props.onCandidateDraftChange({ ...candidateDraft, priority: event.target.value })} disabled={!props.canReview || props.mutationState.loading}>
+                <SelectControl value={candidateDraft.priority} onChange={(event) => props.onCandidateDraftChange({ ...candidateDraft, priority: event.target.value })} disabled={!props.canReview || props.mutationState.loading}>
                   <option value="CRITICAL">{dictionaryLabel('CRITICAL')}</option>
                   <option value="HIGH">{dictionaryLabel('HIGH')}</option>
                   <option value="MEDIUM">{dictionaryLabel('MEDIUM')}</option>
                   <option value="LOW">{dictionaryLabel('LOW')}</option>
-                </NativeSelect>
+                </SelectControl>
                 <QualityFieldMessages field="priority" issues={props.candidateQualityIssues} />
               </label>
             </div>
             <div className="asset-form-grid">
               <label className="field">
                 <span className="field-label">API ID</span>
-                <input value={candidateDraft.apiId} onChange={(event) => props.onCandidateDraftChange({ ...candidateDraft, apiId: event.target.value })} disabled={!props.canReview || props.mutationState.loading} />
+                <InputControl value={candidateDraft.apiId} onChange={(event) => props.onCandidateDraftChange({ ...candidateDraft, apiId: event.target.value })} disabled={!props.canReview || props.mutationState.loading} />
               </label>
               <label className="field">
                 <span className="field-label">{translate('auto.k1345')}</span>
-                <input value={candidateDraft.preconditions} onChange={(event) => props.onCandidateDraftChange({ ...candidateDraft, preconditions: event.target.value })} disabled={!props.canReview || props.mutationState.loading} />
+                <InputControl value={candidateDraft.preconditions} onChange={(event) => props.onCandidateDraftChange({ ...candidateDraft, preconditions: event.target.value })} disabled={!props.canReview || props.mutationState.loading} />
                 <QualityFieldMessages field="preconditions" issues={props.candidateQualityIssues} />
               </label>
               <label className="field">
                 <span className="field-label">{translate('auto.k0803')}</span>
-                <input value={candidateDraft.tags} onChange={(event) => props.onCandidateDraftChange({ ...candidateDraft, tags: event.target.value })} disabled={!props.canReview || props.mutationState.loading} />
+                <InputControl value={candidateDraft.tags} onChange={(event) => props.onCandidateDraftChange({ ...candidateDraft, tags: event.target.value })} disabled={!props.canReview || props.mutationState.loading} />
                 <QualityFieldMessages field="tags" issues={props.candidateQualityIssues} />
               </label>
             </div>
             <label className="field">
               <span className="field-label">{translate('auto.k0443')}</span>
-              <textarea value={candidateDraft.description} onChange={(event) => props.onCandidateDraftChange({ ...candidateDraft, description: event.target.value })} disabled={!props.canReview || props.mutationState.loading} />
+              <TextAreaControl value={candidateDraft.description} onChange={(event) => props.onCandidateDraftChange({ ...candidateDraft, description: event.target.value })} disabled={!props.canReview || props.mutationState.loading} />
               <QualityFieldMessages field="description" issues={props.candidateQualityIssues} />
             </label>
             <div className="field test-design-steps-editor">
@@ -420,7 +420,7 @@ export function TestDesignCandidateReviewPanel(props: {
                     onDrop={() => props.onDropStepDraft(step.id)}
                   >
                     <label className="test-design-step-select" title={translate('auto.k1351')}>
-                      <input type="checkbox" checked={step.selected} onChange={(event) => props.onUpdateStepDraft(step.id, { selected: event.target.checked })} disabled={!props.canReview || props.mutationState.loading} />
+                      <CheckboxControl checked={step.selected} onChange={(event) => props.onUpdateStepDraft(step.id, { selected: event.target.checked })} disabled={!props.canReview || props.mutationState.loading} />
                     </label>
                     <button className="btn btn-ghost btn-icon btn-xs test-design-step-drag" type="button" title={translate('auto.k0445')} disabled={!props.canReview || props.mutationState.loading}>
                       <GripVertical size={14} />
@@ -464,12 +464,12 @@ export function TestDesignCandidateReviewPanel(props: {
             </div>
             <label className="field">
               <span className="field-label">{translate('auto.k0447')}</span>
-              <textarea value={candidateDraft.expectedResult} onChange={(event) => props.onCandidateDraftChange({ ...candidateDraft, expectedResult: event.target.value })} disabled={!props.canReview || props.mutationState.loading} />
+              <TextAreaControl value={candidateDraft.expectedResult} onChange={(event) => props.onCandidateDraftChange({ ...candidateDraft, expectedResult: event.target.value })} disabled={!props.canReview || props.mutationState.loading} />
               <QualityFieldMessages field="expectedResult" issues={props.candidateQualityIssues} />
             </label>
             <label className="field">
               <span className="field-label">{translate('auto.k1357')}</span>
-              <input value={props.reviewComment} onChange={(event) => props.onReviewCommentChange(event.target.value)} disabled={!props.canReview || props.mutationState.loading} />
+              <InputControl value={props.reviewComment} onChange={(event) => props.onReviewCommentChange(event.target.value)} disabled={!props.canReview || props.mutationState.loading} />
             </label>
             <div className="toolbar-actions">
               <button className="btn btn-secondary btn-sm" type="button" disabled={!props.canReview || props.mutationState.loading || !candidateDraft.title.trim() || props.candidateSaveBlocked} onClick={props.onSaveCandidate}>

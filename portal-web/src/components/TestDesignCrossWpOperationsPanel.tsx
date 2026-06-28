@@ -17,9 +17,9 @@ import type {
   TestDesignQueuedEventReplayResult
 } from '../api/testDesign';
 import { StateLine, type WorkState } from './TestDesignOverviewPanels';
-import { dictionaryLabel } from '../platform/dictionaries';
+import { dictionaryLabel, displayValueLabel, fieldLabel } from '../platform/dictionaries';
 import { translate } from '../platform/i18n';
-import { NativeSelect } from './ui';
+import { CheckboxControl, InputControl, NumberControl, SelectControl, TextAreaControl } from './ui';
 
 export type CrossWpOperationsFilters = {
   projectId: string;
@@ -137,7 +137,7 @@ export function CrossWpOperationsPanel(props: {
         <div className="form-grid test-design-cross-wp-filter">
           <label className="field">
             <span className="field-label">{translate('auto.k1389')}</span>
-            <input
+            <InputControl
               value={projectId}
               onChange={(event) => props.onFiltersChange((current) => ({ ...current, projectId: event.target.value }))}
               placeholder="project UUID"
@@ -145,7 +145,7 @@ export function CrossWpOperationsPanel(props: {
           </label>
           <label className="field">
             <span className="field-label">Prompt</span>
-            <input
+            <InputControl
               value={promptKey}
               onChange={(event) => props.onFiltersChange((current) => ({ ...current, promptKey: event.target.value }))}
               placeholder="prompt key"
@@ -205,7 +205,7 @@ export function CrossWpOperationsPanel(props: {
                 </span>
               ))}
               <span className={`test-design-quality-chip tone-${dashboard.aggregateOnly && !dashboard.detailIdentifiersExported ? 'success' : 'warning'}`}>
-                aggregate-only {dashboard.aggregateOnly && !dashboard.detailIdentifiersExported ? dictionaryLabel('ENABLED') : translate('auto.k0093')}
+                {fieldLabel('aggregateOnly')} {dashboard.aggregateOnly && !dashboard.detailIdentifiersExported ? dictionaryLabel('ENABLED') : translate('auto.k0093')}
               </span>
             </div>
 
@@ -218,12 +218,12 @@ export function CrossWpOperationsPanel(props: {
                 <div className="test-design-cross-wp-row">
                   <span>{translate('auto.k1445')}</span>
                   <strong>{auditDashboard?.wp2InvocationCount ?? 0}</strong>
-                  <small>{translate('auto.k0368')}{auditDashboard?.wp2InvocationSucceededCount ?? 0} · fallback {auditDashboard?.wp2FallbackCount ?? 0}</small>
+                  <small>{translate('auto.k0368')}{auditDashboard?.wp2InvocationSucceededCount ?? 0} · {fieldLabel('fallback')}{auditDashboard?.wp2FallbackCount ?? 0}</small>
                 </div>
                 <div className="test-design-cross-wp-row">
                   <span>{translate('auto.k1446')}</span>
                   <strong>{auditDashboard?.wp3PublishedCaseCount ?? 0}</strong>
-                  <small>trace link {auditDashboard?.wp3TraceLinkCount ?? 0}</small>
+                  <small>{fieldLabel('traceLink')}{auditDashboard?.wp3TraceLinkCount ?? 0}</small>
                 </div>
                 <div className="test-design-cross-wp-row">
                   <span>{translate('auto.k1447')}</span>
@@ -234,13 +234,13 @@ export function CrossWpOperationsPanel(props: {
 
               <form className="test-design-cross-wp-group" onSubmit={props.onRequeue}>
                 <div className="test-design-evaluation-list-heading">
-                  <strong>Audit outbox</strong>
+                  <strong>{fieldLabel('auditOutbox')}</strong>
                   <span>{translate('auto.k1449')}{auditOutbox?.totalCount ?? 0}</span>
                 </div>
                 <div className="form-grid test-design-cross-wp-requeue-grid">
                   <label className="field">
                     <span className="field-label">{translate('auto.k1389')}</span>
-                    <input
+                    <InputControl
                       value={props.requeueDraft.projectId}
                       onChange={(event) => props.onRequeueDraftChange((current) => ({ ...current, projectId: event.target.value }))}
                       placeholder="project UUID"
@@ -249,7 +249,7 @@ export function CrossWpOperationsPanel(props: {
                   </label>
                   <label className="field">
                     <span className="field-label">{translate('auto.k0182')}</span>
-                    <NativeSelect
+                    <SelectControl
                       value={props.requeueDraft.status}
                       onChange={(event) => props.onRequeueDraftChange((current) => ({ ...current, status: event.target.value }))}
                       disabled={!props.canPolicyManage}
@@ -257,23 +257,20 @@ export function CrossWpOperationsPanel(props: {
                       {auditOutboxReplayStatuses.map((status) => (
                         <option key={status} value={status}>{dictionaryLabel(status)}</option>
                       ))}
-                    </NativeSelect>
+                    </SelectControl>
                   </label>
                   <label className="field">
                     <span className="field-label">{translate('auto.k1450')}</span>
-                    <input
-                      type="number"
-                      min={1}
+                    <NumberControl min={1}
                       max={100}
                       value={props.requeueDraft.maxItems}
                       onChange={(event) => props.onRequeueDraftChange((current) => ({ ...current, maxItems: event.target.value }))}
-                      disabled={!props.canPolicyManage}
-                    />
+                      disabled={!props.canPolicyManage} />
                   </label>
                 </div>
                 <label className="field">
                   <span className="field-label">{translate('auto.k0878')}</span>
-                  <textarea
+                  <TextAreaControl
                     value={props.requeueDraft.reason}
                     onChange={(event) => props.onRequeueDraftChange((current) => ({ ...current, reason: event.target.value }))}
                     rows={2}
@@ -302,7 +299,7 @@ export function CrossWpOperationsPanel(props: {
                 <div className="form-grid test-design-cross-wp-requeue-grid">
                   <label className="field">
                     <span className="field-label">{translate('auto.k1389')}</span>
-                    <input
+                    <InputControl
                       value={props.queueAlertSubscriptionDraft.projectId}
                       onChange={(event) => props.onQueueAlertSubscriptionDraftChange((current) => ({ ...current, projectId: event.target.value }))}
                       placeholder="project UUID"
@@ -311,7 +308,7 @@ export function CrossWpOperationsPanel(props: {
                   </label>
                   <label className="field">
                     <span className="field-label">Prompt</span>
-                    <input
+                    <InputControl
                       value={props.queueAlertSubscriptionDraft.promptKey}
                       onChange={(event) => props.onQueueAlertSubscriptionDraftChange((current) => ({ ...current, promptKey: event.target.value }))}
                       placeholder={translate('auto.k1453')}
@@ -320,7 +317,7 @@ export function CrossWpOperationsPanel(props: {
                   </label>
                   <label className="field">
                     <span className="field-label">{translate('auto.k0286')}</span>
-                    <NativeSelect
+                    <SelectControl
                       value={props.queueAlertSubscriptionDraft.alertType}
                       onChange={(event) => props.onQueueAlertSubscriptionDraftChange((current) => ({ ...current, alertType: event.target.value }))}
                       disabled={!props.canPolicyManage}
@@ -328,11 +325,11 @@ export function CrossWpOperationsPanel(props: {
                       {queueAlertTypes.map((type) => (
                         <option key={type} value={type}>{dictionaryLabel(type)}</option>
                       ))}
-                    </NativeSelect>
+                    </SelectControl>
                   </label>
                   <label className="field">
                     <span className="field-label">{translate('auto.k1454')}</span>
-                    <NativeSelect
+                    <SelectControl
                       value={props.queueAlertSubscriptionDraft.channel}
                       onChange={(event) => props.onQueueAlertSubscriptionDraftChange((current) => ({ ...current, channel: event.target.value }))}
                       disabled={!props.canPolicyManage}
@@ -340,24 +337,21 @@ export function CrossWpOperationsPanel(props: {
                       {queueAlertChannels.map((channel) => (
                         <option key={channel} value={channel}>{dictionaryLabel(channel)}</option>
                       ))}
-                    </NativeSelect>
+                    </SelectControl>
                   </label>
                   <label className="field">
                     <span className="field-label">{translate('auto.k1455')}</span>
-                    <input
-                      type="number"
-                      min={0}
+                    <NumberControl min={0}
                       max={86400}
                       value={props.queueAlertSubscriptionDraft.thresholdSeconds}
                       onChange={(event) => props.onQueueAlertSubscriptionDraftChange((current) => ({ ...current, thresholdSeconds: event.target.value }))}
                       placeholder={translate('auto.k1456')}
-                      disabled={!props.canPolicyManage}
-                    />
+                      disabled={!props.canPolicyManage} />
                   </label>
                   <label className="field">
                     <span className="field-label">{translate('auto.k0251')}</span>
-                    <input
-                      type="checkbox"
+                    <CheckboxControl
+
                       checked={props.queueAlertSubscriptionDraft.enabled}
                       onChange={(event) => props.onQueueAlertSubscriptionDraftChange((current) => ({ ...current, enabled: event.target.checked }))}
                       disabled={!props.canPolicyManage}
@@ -366,7 +360,7 @@ export function CrossWpOperationsPanel(props: {
                 </div>
                 <label className="field">
                   <span className="field-label">{translate('auto.k1457')}</span>
-                  <input
+                  <InputControl
                     value={props.queueAlertSubscriptionDraft.targetRef}
                     onChange={(event) => props.onQueueAlertSubscriptionDraftChange((current) => ({ ...current, targetRef: event.target.value }))}
                     disabled={!props.canPolicyManage}
@@ -392,7 +386,7 @@ export function CrossWpOperationsPanel(props: {
                 <div className="form-grid test-design-cross-wp-requeue-grid">
                   <label className="field">
                     <span className="field-label">{translate('auto.k1389')}</span>
-                    <input
+                    <InputControl
                       value={props.queuedEventReplayDraft.projectId}
                       onChange={(event) => props.onQueuedEventReplayDraftChange((current) => ({ ...current, projectId: event.target.value }))}
                       placeholder="project UUID"
@@ -401,7 +395,7 @@ export function CrossWpOperationsPanel(props: {
                   </label>
                   <label className="field">
                     <span className="field-label">Prompt</span>
-                    <input
+                    <InputControl
                       value={props.queuedEventReplayDraft.promptKey}
                       onChange={(event) => props.onQueuedEventReplayDraftChange((current) => ({ ...current, promptKey: event.target.value }))}
                       placeholder={translate('auto.k1453')}
@@ -410,7 +404,7 @@ export function CrossWpOperationsPanel(props: {
                   </label>
                   <label className="field">
                     <span className="field-label">{translate('auto.k0286')}</span>
-                    <NativeSelect
+                    <SelectControl
                       value={props.queuedEventReplayDraft.replayType}
                       onChange={(event) => props.onQueuedEventReplayDraftChange((current) => ({ ...current, replayType: event.target.value }))}
                       disabled={!props.canPolicyManage}
@@ -418,23 +412,20 @@ export function CrossWpOperationsPanel(props: {
                       {queuedEventReplayTypes.map((type) => (
                         <option key={type} value={type}>{dictionaryLabel(type)}</option>
                       ))}
-                    </NativeSelect>
+                    </SelectControl>
                   </label>
                   <label className="field">
                     <span className="field-label">{translate('auto.k1450')}</span>
-                    <input
-                      type="number"
-                      min={1}
+                    <NumberControl min={1}
                       max={100}
                       value={props.queuedEventReplayDraft.maxItems}
                       onChange={(event) => props.onQueuedEventReplayDraftChange((current) => ({ ...current, maxItems: event.target.value }))}
-                      disabled={!props.canPolicyManage}
-                    />
+                      disabled={!props.canPolicyManage} />
                   </label>
                 </div>
                 <label className="field">
                   <span className="field-label">{translate('auto.k0878')}</span>
-                  <textarea
+                  <TextAreaControl
                     value={props.queuedEventReplayDraft.reason}
                     onChange={(event) => props.onQueuedEventReplayDraftChange((current) => ({ ...current, reason: event.target.value }))}
                     rows={2}
@@ -470,7 +461,7 @@ export function CrossWpOperationsPanel(props: {
                 <div className="form-grid test-design-cross-wp-requeue-grid">
                   <label className="field">
                     <span className="field-label">{translate('auto.k1389')}</span>
-                    <input
+                    <InputControl
                       value={props.publishCompensationRunDraft.projectId}
                       onChange={(event) => props.onPublishCompensationRunDraftChange((current) => ({ ...current, projectId: event.target.value }))}
                       placeholder="project UUID"
@@ -479,7 +470,7 @@ export function CrossWpOperationsPanel(props: {
                   </label>
                   <label className="field">
                     <span className="field-label">Prompt</span>
-                    <input
+                    <InputControl
                       value={props.publishCompensationRunDraft.promptKey}
                       onChange={(event) => props.onPublishCompensationRunDraftChange((current) => ({ ...current, promptKey: event.target.value }))}
                       placeholder={translate('auto.k1453')}
@@ -488,19 +479,16 @@ export function CrossWpOperationsPanel(props: {
                   </label>
                   <label className="field">
                     <span className="field-label">{translate('auto.k1450')}</span>
-                    <input
-                      type="number"
-                      min={1}
+                    <NumberControl min={1}
                       max={100}
                       value={props.publishCompensationRunDraft.maxItems}
                       onChange={(event) => props.onPublishCompensationRunDraftChange((current) => ({ ...current, maxItems: event.target.value }))}
-                      disabled={!props.canPolicyManage}
-                    />
+                      disabled={!props.canPolicyManage} />
                   </label>
                 </div>
                 <label className="field">
                   <span className="field-label">{translate('auto.k0878')}</span>
-                  <textarea
+                  <TextAreaControl
                     value={props.publishCompensationRunDraft.reason}
                     onChange={(event) => props.onPublishCompensationRunDraftChange((current) => ({ ...current, reason: event.target.value }))}
                     rows={2}
@@ -543,10 +531,10 @@ export function CrossWpOperationsPanel(props: {
                 </div>
                 <div className="test-design-cross-wp-readiness">
                   <span className={`test-design-quality-chip tone-${auditReport?.aggregateOnly && !auditReport?.detailRowsExported ? 'success' : 'warning'}`}>
-                    aggregate-only {auditReport?.aggregateOnly && !auditReport?.detailRowsExported ? dictionaryLabel('ENABLED') : translate('auto.k0093')}
+                    {fieldLabel('aggregateOnly')} {auditReport?.aggregateOnly && !auditReport?.detailRowsExported ? dictionaryLabel('ENABLED') : translate('auto.k0093')}
                   </span>
                   <span className={`test-design-quality-chip tone-${auditReport?.exportSupported ? 'success' : 'warning'}`}>
-                    export {auditReport?.exportSupported ? dictionaryLabel('READY') : dictionaryLabel('BLOCKED')}
+                    {fieldLabel('export')} {auditReport?.exportSupported ? dictionaryLabel('READY') : dictionaryLabel('BLOCKED')}
                   </span>
                 </div>
                 <div className="test-design-cross-wp-row">
@@ -565,13 +553,13 @@ export function CrossWpOperationsPanel(props: {
                 </div>
                 <div className="test-design-cross-wp-readiness">
                   <span className={`test-design-quality-chip tone-${auditTemplate?.aggregateOnly && !auditTemplate?.identifierValuesExported ? 'success' : 'warning'}`}>
-                    aggregate-only {auditTemplate?.aggregateOnly ? dictionaryLabel('ENABLED') : translate('auto.k0093')}
+                    {fieldLabel('aggregateOnly')} {auditTemplate?.aggregateOnly ? dictionaryLabel('ENABLED') : translate('auto.k0093')}
                   </span>
                   <span className={`test-design-quality-chip tone-${auditTemplate?.modelObservationDrilldownSupported ? 'success' : 'warning'}`}>
-                    model drilldown {auditTemplate?.modelObservationDrilldownSupported ? dictionaryLabel('READY') : dictionaryLabel('BLOCKED')}
+                    {fieldLabel('modelObservationDrilldown')} {auditTemplate?.modelObservationDrilldownSupported ? dictionaryLabel('READY') : dictionaryLabel('BLOCKED')}
                   </span>
                   <span className={`test-design-quality-chip tone-${auditTemplate?.crossWpDetailReportSupported ? 'success' : 'warning'}`}>
-                    detail report {auditTemplate?.crossWpDetailReportSupported ? dictionaryLabel('READY') : dictionaryLabel('BLOCKED')}
+                    {fieldLabel('detailReport')} {auditTemplate?.crossWpDetailReportSupported ? dictionaryLabel('READY') : dictionaryLabel('BLOCKED')}
                   </span>
                 </div>
                 <div className="test-design-cross-wp-list">
@@ -581,7 +569,7 @@ export function CrossWpOperationsPanel(props: {
                         <strong>{section.label}</strong>
                         <em>{section.description ?? '-'}</em>
                       </span>
-                      <span className="badge badge-info">{section.fields.length} fields</span>
+                      <span className="badge badge-info">{fieldLabel('fields')}{section.fields.length}</span>
                     </div>
                   ))}
                   {!auditTemplate?.sections.length && <div className="notice info">{translate('auto.k1470')}</div>}
@@ -595,19 +583,19 @@ export function CrossWpOperationsPanel(props: {
                 </div>
                 <div className="test-design-quality-metrics">
                   <div className="test-design-quality-metric tone-info">
-                    <span>token</span>
+                    <span>{fieldLabel('token')}</span>
                     <strong>{(modelDrilldown?.inputTokenTotal ?? 0) + (modelDrilldown?.outputTokenTotal ?? 0)}</strong>
                     <small>{translate('auto.k1472')}{modelDrilldown?.inputTokenTotal ?? 0} {translate('auto.k1473')}{modelDrilldown?.outputTokenTotal ?? 0}</small>
                   </div>
                   <div className="test-design-quality-metric tone-info">
-                    <span>{translate('auto.k1474')}</span>
+                    <span>{fieldLabel('averageLatency')}</span>
                     <strong>{modelDrilldown?.averageLatencyMs ?? 0}ms</strong>
-                    <small>cost {modelDrilldown?.totalCostText ?? '0'}</small>
+                    <small>{fieldLabel('cost')}{modelDrilldown?.totalCostText ?? '0'}</small>
                   </div>
                   <div className={`test-design-quality-metric tone-${(modelDrilldown?.failedCount ?? 0) + (modelDrilldown?.blockedCount ?? 0) > 0 ? 'warning' : 'success'}`}>
                     <span>{translate('auto.k1475')}</span>
                     <strong>{(modelDrilldown?.failedCount ?? 0) + (modelDrilldown?.blockedCount ?? 0)}</strong>
-                    <small>{translate('auto.k1476')}{modelDrilldown?.traceSignalCount ?? 0} · job {modelDrilldown?.jobSignalCount ?? 0}</small>
+                    <small>{translate('auto.k1476')}{modelDrilldown?.traceSignalCount ?? 0} · {fieldLabel('job')}{modelDrilldown?.jobSignalCount ?? 0}</small>
                   </div>
                 </div>
                 <div className="test-design-cross-wp-list">
@@ -616,7 +604,7 @@ export function CrossWpOperationsPanel(props: {
                       <span>
                         <strong>{bucket.dimension} · {bucket.bucketLabel}</strong>
                         <em>{translate('auto.k0368')}{bucket.succeededCount} {translate('auto.k1477')}{bucket.failedCount} {translate('auto.k1478')}{bucket.blockedCount}</em>
-                        <small>token {bucket.inputTokenTotal + bucket.outputTokenTotal} · avg {bucket.averageLatencyMs}ms</small>
+                        <small>{fieldLabel('token')}{bucket.inputTokenTotal + bucket.outputTokenTotal} · {fieldLabel('averageLatency')}{bucket.averageLatencyMs}ms</small>
                       </span>
                       <span className="badge badge-info">{bucket.invocationCount}</span>
                     </div>
@@ -633,13 +621,13 @@ export function CrossWpOperationsPanel(props: {
               </div>
               <div className="test-design-cross-wp-readiness">
                 <span className={`test-design-quality-chip tone-${detailAuditReport?.aggregateOnly && !detailAuditReport?.identifierValuesExported ? 'success' : 'warning'}`}>
-                  redacted rows {detailAuditReport?.aggregateOnly ? 'on' : 'check'}
+                  {fieldLabel('redactedRows')} {detailAuditReport?.aggregateOnly ? displayValueLabel('ON') : dictionaryLabel('CHECK')}
                 </span>
                 <span className={`test-design-quality-chip tone-${detailAuditReport?.rawAuditEventExported ? 'warning' : 'success'}`}>
-                  raw audit {detailAuditReport?.rawAuditEventExported ? 'exported' : 'off'}
+                  {fieldLabel('rawAudit')} {detailAuditReport?.rawAuditEventExported ? dictionaryLabel('EXPORTED') : displayValueLabel('OFF')}
                 </span>
                 <span className={`test-design-quality-chip tone-${detailAuditReport?.payloadExported ? 'warning' : 'success'}`}>
-                  payload {detailAuditReport?.payloadExported ? 'exported' : 'off'}
+                  {fieldLabel('payload')} {detailAuditReport?.payloadExported ? dictionaryLabel('EXPORTED') : displayValueLabel('OFF')}
                 </span>
               </div>
               <div className="test-design-cross-wp-list">

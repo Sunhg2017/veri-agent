@@ -4,24 +4,24 @@ import { ConfirmDialogProvider, useConfirmDialog } from './ConfirmDialog';
 
 function ConfirmDialogDemo({ tone }: { tone: 'danger' | 'default' }) {
   const confirm = useConfirmDialog();
-  const [result, setResult] = useState('No decision yet');
+  const [result, setResult] = useState('尚未选择');
 
   async function openDialog() {
     const confirmed = await confirm({
-      confirmLabel: tone === 'danger' ? 'Archive' : 'Continue',
+      confirmLabel: tone === 'danger' ? '归档' : '继续',
       description: tone === 'danger'
-        ? 'Archived assets are hidden from active workbench views but remain available for audit.'
-        : 'The selected operation will be queued and can be tracked from the execution panel.',
-      title: tone === 'danger' ? 'Archive selected asset?' : 'Queue this operation?',
+        ? '归档后的资产会从活跃工作台隐藏，但仍可用于审计。'
+        : '选中的操作会进入队列，可在执行面板继续跟踪。',
+      title: tone === 'danger' ? '归档选中资产？' : '将此操作加入队列？',
       tone
     });
-    setResult(confirmed ? 'Confirmed' : 'Cancelled');
+    setResult(confirmed ? '已确认' : '已取消');
   }
 
   return (
     <div className="storybook-stack">
       <button className={tone === 'danger' ? 'btn btn-danger' : 'btn btn-primary'} type="button" onClick={() => void openDialog()}>
-        Open dialog
+        打开弹窗
       </button>
       <span className="table-secondary">{result}</span>
     </div>
@@ -41,7 +41,7 @@ const meta = {
   parameters: {
     docs: {
       description: {
-        component: 'Promise-based confirmation dialog for destructive and workflow-gating actions.'
+        component: '用于危险操作和流程拦截的 Promise 确认弹窗。'
       }
     }
   },

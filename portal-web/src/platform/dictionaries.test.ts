@@ -5,7 +5,7 @@ describe('frontend dictionaries', () => {
   it('keeps submitted enum values while exposing localized labels', () => {
     expect(dictionaryLabel('PUBLISH_QUEUED')).toBe('发布排队');
     expect(dictionaryLabel('BUSINESS_FLOW')).toBe('业务流');
-    expect(dictionaryLabel('CONFIRMED_FLAKY')).toBe('确认不稳定');
+    expect(dictionaryLabel('CONFIRMED_FLAKY')).toBe('已确认不稳定');
 
     expect(dictionaryOption('FAILED')).toEqual({
       disabled: false,
@@ -28,6 +28,12 @@ describe('frontend dictionaries', () => {
     expect(fieldLabel('sourceType')).toBe('来源类型');
     expect(fieldLabel('mapping JSON')).toBe('字段映射 JSON');
     expect(fieldLabel('retry requestKey')).toBe('重试请求键');
-    expect(fieldLabel('traceId')).toBe('Trace ID');
+    expect(fieldLabel('traceId')).toBe('追踪 ID');
+    expect(fieldLabel('caseIds')).toBe('用例 ID');
+    expect(fieldLabel('reviewNote')).toBe('评审备注');
+    expect(fieldLabel('promptKey')).toBe('提示词键');
+    expect(fieldLabel('cronScanner')).toBe('Cron 扫描器');
+    expect(fieldLabel('maskedSummaryValuesExported')).toBe('脱敏摘要值导出');
+    expect(fieldLabel('leaseTokenPlaintextExported')).toBe('租约令牌明文导出');
   });
 });

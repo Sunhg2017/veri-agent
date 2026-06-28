@@ -4,6 +4,7 @@ import type { TestDesignAuditSummary } from '../testDesignAuditSummary';
 import type { TestDesignPromptTrendSummary } from '../testDesignPromptTrend';
 import type { TestDesignQualitySummary } from '../testDesignQualitySummary';
 import type { TestDesignReviewSummary } from '../testDesignReviewSummary';
+import { fieldLabel } from '../platform/dictionaries';
 import { translate } from '../platform/i18n';
 
 export type WorkState = {
@@ -342,7 +343,7 @@ export function StateLine(props: { state: WorkState }) {
     return <span className="document-state-line success">{props.state.success}{props.state.traceId ? ` · ${props.state.traceId}` : ''}</span>;
   }
   if (props.state.traceId) {
-    return <span className="document-state-line">Trace ID：{props.state.traceId}</span>;
+    return <span className="document-state-line">{fieldLabel('traceId')}：{props.state.traceId}</span>;
   }
   return null;
 }

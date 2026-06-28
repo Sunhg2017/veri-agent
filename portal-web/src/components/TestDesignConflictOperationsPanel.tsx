@@ -33,7 +33,7 @@ import {
 } from './TestDesignWorkbenchShared';
 import { dictionaryLabel } from '../platform/dictionaries';
 import { translate } from '../platform/i18n';
-import { NativeSelect } from './ui';
+import { InputControl, SelectControl } from './ui';
 
 export function TestDesignConflictOperationsPanel(props: {
   canRead: boolean;
@@ -97,7 +97,7 @@ export function TestDesignConflictOperationsPanel(props: {
         <div className="asset-filter-bar test-design-conflict-operations-filter">
           <label className="field">
             <span className="field-label">{translate('auto.k0176')}</span>
-            <input
+            <InputControl
               value={props.projectId}
               onChange={(event) => props.onFiltersChange((current) => ({ ...current, projectId: event.target.value }))}
               placeholder="project UUID"
@@ -106,7 +106,7 @@ export function TestDesignConflictOperationsPanel(props: {
           </label>
           <label className="field">
             <span className="field-label">{translate('auto.k1362')}</span>
-            <input
+            <InputControl
               value={props.filters.taskId}
               onChange={(event) => props.onFiltersChange((current) => ({ ...current, taskId: event.target.value }))}
               placeholder={props.selectedTaskId || translate('auto.k1363')}
@@ -115,7 +115,7 @@ export function TestDesignConflictOperationsPanel(props: {
           </label>
           <label className="field">
             <span className="field-label">{translate('auto.k1364')}</span>
-            <NativeSelect
+            <SelectControl
               value={props.filters.resolutionStatus}
               onChange={(event) => props.onFiltersChange((current) => ({
                 ...current,
@@ -126,11 +126,11 @@ export function TestDesignConflictOperationsPanel(props: {
               <option value="OPEN">{dictionaryLabel('OPEN')}</option>
               <option value="RESOLVED">{dictionaryLabel('RESOLVED')}</option>
               <option value="ALL">{dictionaryLabel('ALL')}</option>
-            </NativeSelect>
+            </SelectControl>
           </label>
           <label className="field">
             <span className="field-label">{translate('auto.k1314')}</span>
-            <NativeSelect
+            <SelectControl
               value={props.filters.candidateStatus}
               onChange={(event) => props.onFiltersChange((current) => ({ ...current, candidateStatus: event.target.value }))}
               disabled={!props.canRead || props.state.loading}
@@ -139,11 +139,11 @@ export function TestDesignConflictOperationsPanel(props: {
               {TEST_DESIGN_CANDIDATE_STATUSES.map((status) => (
                 <option value={status} key={status}>{dictionaryLabel(status)}</option>
               ))}
-            </NativeSelect>
+            </SelectControl>
           </label>
           <label className="field">
             <span className="field-label">{translate('auto.k1316')}</span>
-            <input
+            <InputControl
               value={props.filters.keyword}
               onChange={(event) => props.onFiltersChange((current) => ({ ...current, keyword: event.target.value }))}
               placeholder={translate('auto.k1365')}
@@ -172,7 +172,7 @@ export function TestDesignConflictOperationsPanel(props: {
         <div className="test-design-conflict-form">
           <label className="field">
             <span className="field-label">{translate('auto.k1367')}</span>
-            <input
+            <InputControl
               value={props.conflictResolutionDraft.reason}
               onChange={(event) => props.onConflictResolutionDraftChange((current) => ({ ...current, reason: event.target.value }))}
               disabled={!props.canPublish || props.publishState.loading}
@@ -180,7 +180,7 @@ export function TestDesignConflictOperationsPanel(props: {
           </label>
           <label className="field">
             <span className="field-label">{translate('auto.k1368')}</span>
-            <input
+            <InputControl
               value={props.conflictCaseKeyword}
               onChange={(event) => props.onConflictCaseKeywordChange(event.target.value)}
               placeholder={translate('auto.k1369')}
@@ -189,7 +189,7 @@ export function TestDesignConflictOperationsPanel(props: {
           </label>
           <label className="field">
             <span className="field-label">{translate('auto.k1370')}</span>
-            <input
+            <InputControl
               value={props.conflictResolutionDraft.comment}
               onChange={(event) => props.onConflictResolutionDraftChange((current) => ({ ...current, comment: event.target.value }))}
               placeholder={translate('auto.k1371')}
@@ -232,7 +232,7 @@ export function TestDesignConflictOperationsPanel(props: {
                 </span>
                 <div className="test-design-conflict-controls">
                   <PublishResultBadge value={item.resolved ? 'RESOLVED' : record.result} />
-                  <NativeSelect
+                  <SelectControl
                     value={targetCaseId}
                     onChange={(event) => {
                       const nextCaseId = event.target.value;
@@ -255,7 +255,7 @@ export function TestDesignConflictOperationsPanel(props: {
                         {testCase.title || shortIdentifier(testCase.id)}
                       </option>
                     ))}
-                  </NativeSelect>
+                  </SelectControl>
                   <button
                     className="btn btn-secondary btn-xs"
                     type="button"

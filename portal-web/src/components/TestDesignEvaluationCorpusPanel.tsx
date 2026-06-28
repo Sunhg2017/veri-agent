@@ -25,7 +25,7 @@ import {
 } from './TestDesignWorkbenchShared';
 import { dictionaryLabel } from '../platform/dictionaries';
 import { translate } from '../platform/i18n';
-import { NativeSelect } from './ui';
+import { InputControl, SelectControl, TextAreaControl } from './ui';
 
 export type EvaluationSampleFilters = {
   projectId: string;
@@ -148,7 +148,7 @@ export function EvaluationCorpusOperationsPanel(props: {
         <div className="form-grid test-design-evaluation-filter">
           <label className="field">
             <span className="field-label">{translate('auto.k1389')}</span>
-            <input
+            <InputControl
               value={props.filters.projectId}
               onChange={(event) => props.onFiltersChange((current) => ({ ...current, projectId: event.target.value }))}
               placeholder="project UUID"
@@ -156,7 +156,7 @@ export function EvaluationCorpusOperationsPanel(props: {
           </label>
           <label className="field">
             <span className="field-label">Prompt</span>
-            <input
+            <InputControl
               value={props.filters.promptKey}
               onChange={(event) => props.onFiltersChange((current) => ({ ...current, promptKey: event.target.value }))}
               placeholder="prompt key"
@@ -164,7 +164,7 @@ export function EvaluationCorpusOperationsPanel(props: {
           </label>
           <label className="field">
             <span className="field-label">{translate('auto.k0178')}</span>
-            <input
+            <InputControl
               value={props.filters.promptVersion}
               onChange={(event) => props.onFiltersChange((current) => ({ ...current, promptVersion: event.target.value }))}
               placeholder="prompt version"
@@ -172,7 +172,7 @@ export function EvaluationCorpusOperationsPanel(props: {
           </label>
           <label className="field">
             <span className="field-label">{translate('auto.k0182')}</span>
-            <NativeSelect
+            <SelectControl
               value={props.filters.status}
               onChange={(event) => props.onFiltersChange((current) => ({ ...current, status: event.target.value }))}
             >
@@ -180,11 +180,11 @@ export function EvaluationCorpusOperationsPanel(props: {
               {evaluationSampleStatuses.map((status) => (
                 <option key={status} value={status}>{dictionaryLabel(status)}</option>
               ))}
-            </NativeSelect>
+            </SelectControl>
           </label>
           <label className="field">
             <span className="field-label">{translate('auto.k1315')}</span>
-            <NativeSelect
+            <SelectControl
               value={props.filters.coverageType}
               onChange={(event) => props.onFiltersChange((current) => ({ ...current, coverageType: event.target.value }))}
             >
@@ -192,11 +192,11 @@ export function EvaluationCorpusOperationsPanel(props: {
               {TEST_DESIGN_COVERAGE_TYPES.map((coverageType) => (
                 <option key={coverageType} value={coverageType}>{dictionaryLabel(coverageType)}</option>
               ))}
-            </NativeSelect>
+            </SelectControl>
           </label>
           <label className="field">
             <span className="field-label">{translate('auto.k1506')}</span>
-            <input
+            <InputControl
               value={props.filters.baselineVersion}
               onChange={(event) => props.onFiltersChange((current) => ({ ...current, baselineVersion: event.target.value }))}
               placeholder="baseline"
@@ -204,7 +204,7 @@ export function EvaluationCorpusOperationsPanel(props: {
           </label>
           <label className="field">
             <span className="field-label">{translate('auto.k1316')}</span>
-            <input
+            <InputControl
               value={props.filters.keyword}
               onChange={(event) => props.onFiltersChange((current) => ({ ...current, keyword: event.target.value }))}
               placeholder={translate('auto.k1510')}
@@ -223,7 +223,7 @@ export function EvaluationCorpusOperationsPanel(props: {
             <div className="form-grid">
               <label className="field">
                 <span className="field-label">{translate('auto.k1512')}</span>
-                <input
+                <InputControl
                   value={props.sampleDraft.sampleKey}
                   onChange={(event) => props.onSampleDraftChange((current) => ({ ...current, sampleKey: event.target.value }))}
                   placeholder={translate('auto.k1513')}
@@ -232,7 +232,7 @@ export function EvaluationCorpusOperationsPanel(props: {
               </label>
               <label className="field">
                 <span className="field-label">{translate('auto.k0440')}</span>
-                <input
+                <InputControl
                   value={props.sampleDraft.title}
                   onChange={(event) => props.onSampleDraftChange((current) => ({ ...current, title: event.target.value }))}
                   disabled={!props.canPolicyManage}
@@ -240,7 +240,7 @@ export function EvaluationCorpusOperationsPanel(props: {
               </label>
               <label className="field">
                 <span className="field-label">{translate('auto.k0179')}</span>
-                <NativeSelect
+                <SelectControl
                   value={props.sampleDraft.sourceType}
                   onChange={(event) => props.onSampleDraftChange((current) => ({ ...current, sourceType: event.target.value }))}
                   disabled={!props.canPolicyManage}
@@ -248,11 +248,11 @@ export function EvaluationCorpusOperationsPanel(props: {
                   {evaluationSampleSourceTypes.map((sourceType) => (
                     <option key={sourceType} value={sourceType}>{dictionaryLabel(sourceType)}</option>
                   ))}
-                </NativeSelect>
+                </SelectControl>
               </label>
               <label className="field">
                 <span className="field-label">{translate('auto.k1315')}</span>
-                <NativeSelect
+                <SelectControl
                   value={props.sampleDraft.coverageType}
                   onChange={(event) => props.onSampleDraftChange((current) => ({ ...current, coverageType: event.target.value }))}
                   disabled={!props.canPolicyManage}
@@ -260,11 +260,11 @@ export function EvaluationCorpusOperationsPanel(props: {
                   {TEST_DESIGN_COVERAGE_TYPES.map((coverageType) => (
                     <option key={coverageType} value={coverageType}>{dictionaryLabel(coverageType)}</option>
                   ))}
-                </NativeSelect>
+                </SelectControl>
               </label>
               <label className="field">
                 <span className="field-label">{translate('auto.k0419')}</span>
-                <NativeSelect
+                <SelectControl
                   value={props.sampleDraft.priority}
                   onChange={(event) => props.onSampleDraftChange((current) => ({ ...current, priority: event.target.value }))}
                   disabled={!props.canPolicyManage}
@@ -272,11 +272,11 @@ export function EvaluationCorpusOperationsPanel(props: {
                   <option value="HIGH">{dictionaryLabel('HIGH')}</option>
                   <option value="MEDIUM">{dictionaryLabel('MEDIUM')}</option>
                   <option value="LOW">{dictionaryLabel('LOW')}</option>
-                </NativeSelect>
+                </SelectControl>
               </label>
               <label className="field">
                 <span className="field-label">{translate('auto.k0182')}</span>
-                <NativeSelect
+                <SelectControl
                   value={props.sampleDraft.status}
                   onChange={(event) => props.onSampleDraftChange((current) => ({ ...current, status: event.target.value }))}
                   disabled={!props.canPolicyManage}
@@ -284,11 +284,11 @@ export function EvaluationCorpusOperationsPanel(props: {
                   {evaluationSampleStatuses.map((status) => (
                     <option key={status} value={status}>{dictionaryLabel(status)}</option>
                   ))}
-                </NativeSelect>
+                </SelectControl>
               </label>
               <label className="field">
                 <span className="field-label">Prompt</span>
-                <input
+                <InputControl
                   value={props.sampleDraft.promptKey}
                   onChange={(event) => props.onSampleDraftChange((current) => ({ ...current, promptKey: event.target.value }))}
                   disabled={!props.canPolicyManage}
@@ -296,7 +296,7 @@ export function EvaluationCorpusOperationsPanel(props: {
               </label>
               <label className="field">
                 <span className="field-label">{translate('auto.k1514')}</span>
-                <input
+                <InputControl
                   value={props.sampleDraft.promptVersion}
                   onChange={(event) => props.onSampleDraftChange((current) => ({ ...current, promptVersion: event.target.value }))}
                   disabled={!props.canPolicyManage}
@@ -304,7 +304,7 @@ export function EvaluationCorpusOperationsPanel(props: {
               </label>
               <label className="field">
                 <span className="field-label">{translate('auto.k1515')}</span>
-                <input
+                <InputControl
                   value={props.sampleDraft.baselineVersion}
                   onChange={(event) => props.onSampleDraftChange((current) => ({ ...current, baselineVersion: event.target.value }))}
                   placeholder="baseline-v1"
@@ -313,7 +313,7 @@ export function EvaluationCorpusOperationsPanel(props: {
               </label>
               <label className="field">
                 <span className="field-label">{translate('auto.k0803')}</span>
-                <input
+                <InputControl
                   value={props.sampleDraft.tags}
                   onChange={(event) => props.onSampleDraftChange((current) => ({ ...current, tags: event.target.value }))}
                   placeholder={translate('auto.k1516')}
@@ -323,7 +323,7 @@ export function EvaluationCorpusOperationsPanel(props: {
             </div>
             <label className="field">
               <span className="field-label">{translate('auto.k1395')}</span>
-              <textarea
+              <TextAreaControl
                 value={props.sampleDraft.requirementSummary}
                 onChange={(event) => props.onSampleDraftChange((current) => ({ ...current, requirementSummary: event.target.value }))}
                 rows={3}
@@ -332,7 +332,7 @@ export function EvaluationCorpusOperationsPanel(props: {
             </label>
             <label className="field">
               <span className="field-label">{translate('auto.k1517')}</span>
-              <textarea
+              <TextAreaControl
                 value={props.sampleDraft.expectedCaseOutline}
                 onChange={(event) => props.onSampleDraftChange((current) => ({ ...current, expectedCaseOutline: event.target.value }))}
                 rows={4}
@@ -341,7 +341,7 @@ export function EvaluationCorpusOperationsPanel(props: {
             </label>
             <label className="field">
               <span className="field-label">{translate('auto.k1518')}</span>
-              <textarea
+              <TextAreaControl
                 value={props.sampleDraft.assertionNotes}
                 onChange={(event) => props.onSampleDraftChange((current) => ({ ...current, assertionNotes: event.target.value }))}
                 rows={2}
@@ -350,7 +350,7 @@ export function EvaluationCorpusOperationsPanel(props: {
             </label>
             <label className="field">
               <span className="field-label">{translate('auto.k1519')}</span>
-              <textarea
+              <TextAreaControl
                 value={props.sampleDraft.maintenanceNote}
                 onChange={(event) => props.onSampleDraftChange((current) => ({ ...current, maintenanceNote: event.target.value }))}
                 rows={2}
@@ -417,7 +417,7 @@ export function EvaluationCorpusOperationsPanel(props: {
             <div className="form-grid">
               <label className="field">
                 <span className="field-label">{translate('auto.k1389')}</span>
-                <input
+                <InputControl
                   value={props.calibrationDraft.projectId}
                   onChange={(event) => props.onCalibrationDraftChange((current) => ({ ...current, projectId: event.target.value }))}
                   disabled={!props.canPolicyManage}
@@ -425,7 +425,7 @@ export function EvaluationCorpusOperationsPanel(props: {
               </label>
               <label className="field">
                 <span className="field-label">Prompt</span>
-                <input
+                <InputControl
                   value={props.calibrationDraft.promptKey}
                   onChange={(event) => props.onCalibrationDraftChange((current) => ({ ...current, promptKey: event.target.value }))}
                   disabled={!props.canPolicyManage}
@@ -433,7 +433,7 @@ export function EvaluationCorpusOperationsPanel(props: {
               </label>
               <label className="field">
                 <span className="field-label">{translate('auto.k1514')}</span>
-                <input
+                <InputControl
                   value={props.calibrationDraft.promptVersion}
                   onChange={(event) => props.onCalibrationDraftChange((current) => ({ ...current, promptVersion: event.target.value }))}
                   disabled={!props.canPolicyManage}
@@ -441,7 +441,7 @@ export function EvaluationCorpusOperationsPanel(props: {
               </label>
               <label className="field">
                 <span className="field-label">{translate('auto.k1515')}</span>
-                <input
+                <InputControl
                   value={props.calibrationDraft.baselineVersion}
                   onChange={(event) => props.onCalibrationDraftChange((current) => ({ ...current, baselineVersion: event.target.value }))}
                   disabled={!props.canPolicyManage}
@@ -449,7 +449,7 @@ export function EvaluationCorpusOperationsPanel(props: {
               </label>
               <label className="field">
                 <span className="field-label">{translate('auto.k1526')}</span>
-                <NativeSelect
+                <SelectControl
                   value={props.calibrationDraft.runMode}
                   onChange={(event) => props.onCalibrationDraftChange((current) => ({ ...current, runMode: event.target.value }))}
                   disabled={!props.canPolicyManage}
@@ -457,12 +457,12 @@ export function EvaluationCorpusOperationsPanel(props: {
                   {calibrationRunModes.map((mode) => (
                     <option key={mode} value={mode}>{dictionaryLabel(mode)}</option>
                   ))}
-                </NativeSelect>
+                </SelectControl>
               </label>
             </div>
             <label className="field">
               <span className="field-label">{translate('auto.k1527')}</span>
-              <textarea
+              <TextAreaControl
                 value={props.calibrationDraft.notes}
                 onChange={(event) => props.onCalibrationDraftChange((current) => ({ ...current, notes: event.target.value }))}
                 rows={2}

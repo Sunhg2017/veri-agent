@@ -6,6 +6,7 @@ import {
   type StepRichTextStyle
 } from '../stepRichText';
 import { translate } from '../platform/i18n';
+import { TextAreaControl } from './ui';
 
 export function StepRichTextField(props: {
   disabled: boolean;
@@ -36,7 +37,7 @@ export function StepRichTextField(props: {
           </button>
         </div>
       </div>
-      <textarea
+      <TextAreaControl
         id={props.id}
         className="compact-textarea"
         value={props.value}

@@ -104,12 +104,12 @@ describe('ui e2e workbench state helpers', () => {
     });
 
     expect(result.payload).toBeUndefined();
-    expect(result.issues).toContain('请填写 scene projectId');
-    expect(result.issues).toContain('请填写 scene code');
-    expect(result.issues).toContain('请填写 scene name');
+    expect(result.issues).toContain('请填写 场景项目 ID');
+    expect(result.issues).toContain('请填写 场景编码');
+    expect(result.issues).toContain('请填写 场景名称');
     expect(result.issues).toContain('sourceSummary 不是合法 JSON');
-    expect(result.issues).toContain('步骤 1 缺少 stepType');
-    expect(result.issues).toContain('steps[0].dataBinding 必须是 JSON object');
+    expect(result.issues).toContain('步骤 1 缺少 步骤类型');
+    expect(result.issues).toContain('steps[0].dataBinding 必须是 JSON 对象');
   });
 
   it('builds scene update payloads without requiring immutable keys', () => {
@@ -187,14 +187,14 @@ describe('ui e2e workbench state helpers', () => {
       visualMismatchThreshold: '1.5'
     });
     expect(invalid.payload).toBeUndefined();
-    expect(invalid.issues).toContain('请填写 run projectId');
-    expect(invalid.issues).toContain('sceneId 需要是 UUID');
-    expect(invalid.issues).toContain('bundleId 需要是 UUID');
-    expect(invalid.issues).toContain('请填写 baseUrlRef');
-    expect(invalid.issues).toContain('accountLeaseRef 需要是 UUID');
+    expect(invalid.issues).toContain('请填写 运行项目 ID');
+    expect(invalid.issues).toContain('场景 ID 需要是 UUID');
+    expect(invalid.issues).toContain('脚本包 ID 需要是 UUID');
+    expect(invalid.issues).toContain('请填写 基础地址引用');
+    expect(invalid.issues).toContain('账号租约 需要是 UUID');
     expect(invalid.issues).toContain('浏览器仅支持 CHROMIUM / FIREFOX / WEBKIT');
-    expect(invalid.issues).toContain('baselineRunId 需要是 UUID');
-    expect(invalid.issues).toContain('visualMismatchThreshold 需要在 0 到 1 之间');
+    expect(invalid.issues).toContain('基线运行 ID 需要是 UUID');
+    expect(invalid.issues).toContain('视觉不匹配阈值 需要在 0 到 1 之间');
     expect(invalid.issues).toContain('requestKey 只能包含字母、数字、-、_、.、:，且不超过 128 字符');
   });
 
@@ -225,9 +225,9 @@ describe('ui e2e workbench state helpers', () => {
       reasonSummary: ''
     });
     expect(invalid.payload).toBeUndefined();
-    expect(invalid.issues).toContain('请填写 flaky projectId');
-    expect(invalid.issues).toContain('sceneId 和 runId 至少填写一个');
-    expect(invalid.issues).toContain('请选择 flaky status');
+    expect(invalid.issues).toContain('请填写不稳定标记项目 ID');
+    expect(invalid.issues).toContain('场景 ID 和 runId 至少填写一个');
+    expect(invalid.issues).toContain('请选择不稳定标记状态');
 
     const missingReason = buildUiE2eFlakyPayload({
       projectId: 'project-alpha',
@@ -238,7 +238,7 @@ describe('ui e2e workbench state helpers', () => {
       reasonSummary: ''
     });
     expect(missingReason.payload).toBeUndefined();
-    expect(missingReason.issues).toContain('请填写 flaky reasonSummary');
+    expect(missingReason.issues).toContain('请填写不稳定标记原因说明');
   });
 
   it('keeps tag splitting and pretty json deterministic', () => {
@@ -358,20 +358,20 @@ describe('ui e2e workbench state helpers', () => {
       recentFailures: 1,
       blockedRuns: 1,
       confirmedFlaky: 1,
-      runnerLabel: 'OFF · DISABLED',
+      runnerLabel: '关闭 · 已禁用',
       runnerTone: 'warning',
-      allowlistLabel: 'OFF',
+      allowlistLabel: '关闭',
       allowlistTone: 'warning'
     });
     expect(overview.notices.map((item) => item.message)).toEqual(expect.arrayContaining([
-      '当前 runner 默认关闭，手动创建运行会返回 BLOCKED 摘要，用于验证控制面与权限链路。',
-      'baseUrl allowlist 当前关闭，发布前应确认受控目标范围已经收口。',
+      '当前运行器默认关闭，手动创建运行会返回已阻断摘要，用于验证控制面与权限链路。',
+      '基础地址白名单当前关闭，发布前应确认受控目标范围已经收口。',
       '共享浏览器池当前已饱和，新的浏览器尝试可能进入排队。',
-      '当前 runner 队列中仍有 2 个待处理任务，批量运行可能需要等待空闲槽位。',
-      '运行摘要 backfill 当前未就绪，执行前请先确认控制面版本和健康状态。',
-      '最近列表中有 1 条 FAILED/TIMEOUT 运行，建议优先查看 failureCode 和 traceId。',
-      '最近列表中有 1 条 BLOCKED 运行，通常需要复核 runner、租借或审批状态。',
-      '当前共有 1 条 CONFIRMED_FLAKY 标记，可作为后续诊断和治理输入。'
+      '当前运行器队列中仍有 2 个待处理任务，批量运行可能需要等待空闲槽位。',
+      '运行摘要回填当前未就绪，执行前请先确认控制面版本和健康状态。',
+      '最近列表中有 1 条失败/超时运行，建议优先查看失败码和追踪 ID。',
+      '最近列表中有 1 条已阻断运行，通常需要复核运行器、租借或审批状态。',
+      '当前共有 1 条已确认不稳定标记，可作为后续诊断和治理输入。'
     ]));
   });
 
@@ -397,8 +397,8 @@ describe('ui e2e workbench state helpers', () => {
       limit: '300'
     });
     expect(invalid.payload).toBeUndefined();
-    expect(invalid.issues).toContain('请填写 backfill projectId');
-    expect(invalid.issues).toContain('limit 需要是 1 到 200 的整数');
+    expect(invalid.issues).toContain('请填写 回填项目 ID');
+    expect(invalid.issues).toContain('数量上限需要是 1 到 200 的整数');
     expect(invalid.issues).toContain('runId 需要是 UUID：bad-run-id');
 
     expect(buildUiE2eRunBackfillReadiness({
@@ -429,8 +429,8 @@ describe('ui e2e workbench state helpers', () => {
     })).toMatchObject({
       ready: false,
       tone: 'warning',
-      label: 'Backfill Pending',
-      checks: expect.arrayContaining(['backfill=PENDING', 'limit=10'])
+      label: '摘要回填待就绪',
+      checks: expect.arrayContaining(['摘要回填=待处理', '数量上限=10'])
     });
 
     expect(buildUiE2eRunBackfillReadiness({
@@ -461,8 +461,8 @@ describe('ui e2e workbench state helpers', () => {
     })).toMatchObject({
       ready: true,
       tone: 'success',
-      label: 'Backfill Ready',
-      checks: expect.arrayContaining(['backfill=READY', 'runIds=1', 'limit=10'])
+      label: '摘要回填已就绪',
+      checks: expect.arrayContaining(['摘要回填=就绪', '运行 ID=1', '数量上限=10'])
     });
 
     expect(buildUiE2eRunBackfillSummary({
@@ -501,8 +501,8 @@ describe('ui e2e workbench state helpers', () => {
       ]
     })).toMatchObject({
       tone: 'warning',
-      label: 'Backfill Partially Failed',
-      signals: expect.arrayContaining(['requested=3', 'updated=1', 'unchanged=1', 'failed=1']),
+      label: '摘要回填部分失败',
+      signals: expect.arrayContaining(['请求数=3', '更新数=1', '未变更数=1', '失败数=1']),
       failedItems: ['RUN_NOT_FOUND · run-3 · run missing from repository snapshot']
     });
   });
@@ -553,13 +553,13 @@ describe('ui e2e workbench state helpers', () => {
       visualMismatchThreshold: '2'
     });
     expect(invalid.payload).toBeUndefined();
-    expect(invalid.issues).toContain('请填写 batch projectId');
-    expect(invalid.issues).toContain('sceneId 需要是 UUID：bad-scene-id');
-    expect(invalid.issues).toContain('请填写 batch baseUrlRef');
-    expect(invalid.issues).toContain('accountLeaseRef 需要是 UUID');
+    expect(invalid.issues).toContain('请填写 批量项目 ID');
+    expect(invalid.issues).toContain('场景 ID 需要是 UUID：bad-scene-id');
+    expect(invalid.issues).toContain('请填写 批量基础地址引用');
+    expect(invalid.issues).toContain('账号租约 需要是 UUID');
     expect(invalid.issues).toContain('浏览器仅支持 CHROMIUM / FIREFOX / WEBKIT');
-    expect(invalid.issues).toContain('baselineRunId 需要是 UUID');
-    expect(invalid.issues).toContain('visualMismatchThreshold 需要在 0 到 1 之间');
+    expect(invalid.issues).toContain('基线运行 ID 需要是 UUID');
+    expect(invalid.issues).toContain('视觉不匹配阈值 需要在 0 到 1 之间');
 
     expect(buildUiE2eBatchRunReadiness({
       health: {
@@ -601,8 +601,8 @@ describe('ui e2e workbench state helpers', () => {
     })).toMatchObject({
       ready: true,
       tone: 'success',
-      label: 'Batch Ready',
-      checks: expect.arrayContaining(['runner=ON:MANAGED', 'batch=READY', 'maxScenes=2', 'sceneIds=2', 'sceneMatched=2'])
+      label: '批量运行已就绪',
+      checks: expect.arrayContaining(['运行器=开启 · 已托管', '批量运行=就绪', '单次最大场景数=2', '场景 ID=2', '已匹配场景=2'])
     });
 
     expect(buildUiE2eBatchRunSummary({
@@ -648,8 +648,8 @@ describe('ui e2e workbench state helpers', () => {
       ]
     })).toMatchObject({
       tone: 'warning',
-      label: 'Batch Partially Failed',
-      signals: expect.arrayContaining(['requested=3', 'created=1', 'replayed=1', 'failed=1']),
+      label: '批量运行部分失败',
+      signals: expect.arrayContaining(['请求数=3', '创建数=1', '回放数=1', '失败数=1']),
       failedItems: ['portal-report · BUNDLE_NOT_READY · 未找到 APPROVED 脚本包']
     });
   });
@@ -677,19 +677,19 @@ describe('ui e2e workbench state helpers', () => {
 
     expect(diagnosis).toMatchObject({
       tone: 'warning',
-      label: 'RUNNER_DISABLED',
+      label: 'UI E2E 运行器已禁用',
       blockedArtifactCount: 0,
       rawArtifactDownloadReady: false
     });
-    expect(diagnosis.summary).toContain('runner 默认关闭');
+    expect(diagnosis.summary).toContain('运行器默认关闭');
     expect(diagnosis.signals).toEqual(expect.arrayContaining([
-      'failureCode=UI_E2E_RUNNER_DISABLED',
-      'aggregateOnly=true，当前详情不包含 secretRef 明文与原始 artifact 正文',
-      'stepResultCount=0，阻断发生在实际步骤执行之前'
+      '失败码=UI E2E 运行器已禁用',
+      '仅聚合=true，当前详情不包含密钥引用明文与原始产物正文',
+      '步骤结果数=0，阻断发生在实际步骤执行之前'
     ]));
     expect(diagnosis.nextActions).toEqual(expect.arrayContaining([
-      '如需真实浏览器执行，请先切换到 runner 已启用的环境或打开对应开关。',
-      '继续核对审批、租借和 aggregate-only 导出链路是否按预期工作。'
+      '如需真实浏览器执行，请先切换到运行器已启用的环境或打开对应开关。',
+      '继续核对审批、租借和 仅聚合 导出链路是否按预期工作。'
     ]));
   });
 
@@ -711,7 +711,7 @@ describe('ui e2e workbench state helpers', () => {
       tone: 'info',
       label: '填写运行参数',
       summary: '请先补全 projectId / sceneId / bundleId / baseUrlRef / accountLeaseRef / browsers，再触发单次 UI 运行。',
-      checks: expect.arrayContaining(['health=pending', 'missing=projectId,sceneId,bundleId,baseUrlRef,accountLeaseRef,browsers'])
+      checks: expect.arrayContaining(['健康摘要=待处理', '请检查字段=项目 ID、场景 ID、场景包 ID、基础 URL 引用、账号租约、浏览器'])
     });
 
     expect(buildUiE2eRunCreationReadiness({
@@ -756,8 +756,8 @@ describe('ui e2e workbench state helpers', () => {
     })).toMatchObject({
       ready: false,
       tone: 'warning',
-      label: 'Runner Disabled',
-      checks: expect.arrayContaining(['runner=OFF:DISABLED', 'scene=APPROVED', 'bundle=APPROVED'])
+      label: '运行器已禁用',
+      checks: expect.arrayContaining(['运行器=关闭 · 已禁用', '场景状态=已批准', '场景包 ID=已批准'])
     });
 
     expect(buildUiE2eRunCreationReadiness({
@@ -802,7 +802,7 @@ describe('ui e2e workbench state helpers', () => {
     })).toMatchObject({
       ready: false,
       tone: 'warning',
-      label: 'Scene Not Ready'
+      label: '场景未就绪'
     });
 
     expect(buildUiE2eRunCreationReadiness({
@@ -847,8 +847,8 @@ describe('ui e2e workbench state helpers', () => {
     })).toMatchObject({
       ready: true,
       tone: 'success',
-      label: 'Ready To Run',
-      checks: expect.arrayContaining(['runner=ON:MANAGED', 'scene=APPROVED', 'bundle=APPROVED', 'visualBaseline=auto-latest-success'])
+      label: '已满足运行条件',
+      checks: expect.arrayContaining(['运行器=开启 · 已托管', '场景状态=已批准', '场景包 ID=已批准', '基线运行 ID=节点 key 必填'])
     });
   });
 
@@ -902,22 +902,22 @@ describe('ui e2e workbench state helpers', () => {
 
     expect(diagnosis).toMatchObject({
       tone: 'warning',
-      label: 'CONFIRMED_FLAKY',
+      label: '已确认不稳定',
       primaryFailureBucket: 'ASSERTION x1',
       blockedArtifactCount: 1,
       rawArtifactDownloadReady: false
     });
     expect(diagnosis.signals).toEqual(expect.arrayContaining([
-      'failureBucketCounts=ASSERTION x1, LOCATOR x1',
-      'artifactCaptureBlocked=1 (artifactRefIncomplete)',
-      'flakyStatus=CONFIRMED_FLAKY',
-      'rawArtifactDownloadReady=false，artifact 仅提供 manifest 摘要'
+      '失败分类=ASSERTION x1, LOCATOR x1',
+      '产物采集阻断=1 (产物引用不完整)',
+      '不稳定标记=已确认不稳定',
+      '原始产物下载未就绪，产物仅提供清单摘要'
     ]));
     expect(diagnosis.nextActions).toEqual(expect.arrayContaining([
-      '对照步骤 summary 与断言预期，判断是产品变更还是用例漂移。',
-      '核对 scene/bundle 中 locator 策略是否与当前页面结构一致。',
-      '检查 runner 回传的 artifact storageRef 与 digest 是否完整。',
-      '当前运行已标记为 CONFIRMED_FLAKY，可优先按不稳定场景治理而不是直接回归 blocker。'
+      '对照步骤摘要与断言预期，判断是产品变更还是用例漂移。',
+      '核对场景/脚本包中的定位策略是否与当前页面结构一致。',
+      '检查运行器回传的产物存储引用与摘要是否完整。',
+      '当前运行已标记为 已确认不稳定，可优先按不稳定场景治理而不是直接回归阻断项。'
     ]));
   });
 
@@ -953,21 +953,21 @@ describe('ui e2e workbench state helpers', () => {
 
     expect(diagnosis).toMatchObject({
       tone: 'error',
-      label: 'VISUAL_REGRESSION_FAILED',
+      label: 'UI E2E 视觉回归失败',
       rawArtifactDownloadReady: true
     });
     expect(diagnosis.signals).toEqual(expect.arrayContaining([
-      'failureCode=UI_E2E_VISUAL_REGRESSION_FAILED',
-      'browserTypes=CHROMIUM,FIREFOX',
-      'parallelExecutionEnabled=true（2 browsers）',
-      'visualRegressionEnabled=true（threshold=0.03）',
-      'visualBaselineRunId=baseline-run-1',
-      'visualComparison=2 compared / 1 mismatched',
-      'visualMismatchBrowsers=FIREFOX'
+      '失败码=UI E2E 视觉回归失败',
+      '浏览器=Chromium,Firefox',
+      '并发执行=开启（2 个浏览器）',
+      '视觉回归=开启（阈值=0.03）',
+      '基线运行 ID=baseline-run-1',
+      '视觉比对=2 次比对 / 1 次不匹配',
+      '视觉不匹配浏览器=Firefox'
     ]));
     expect(diagnosis.nextActions).toEqual(expect.arrayContaining([
       '优先查看 DIFF/BASELINE/ACTUAL 三类截图产物，确认是预期 UI 变更还是样式回归。',
-      '如属于预期改版，请更新基线运行；如属于噪声波动，再评估是否需要放宽 mismatch threshold。',
+      '如属于预期改版，请更新基线运行；如属于噪声波动，再评估是否需要放宽 不匹配阈值。',
       '优先复核 FIREFOX 浏览器上的布局、样式和截图基线是否仍匹配。'
     ]));
   });
@@ -992,7 +992,7 @@ describe('ui e2e workbench state helpers', () => {
       sizeBytes: 0,
       redactionFlags: { captureBlockedReason: 'artifactRefIncomplete' },
       captureStatus: 'BLOCKED'
-    }).summary).toContain('storageRef 或 digest 缺失');
+    }).summary).toContain('存储引用或摘要缺失');
 
     expect(buildUiE2eArtifactDownloadState({
       id: 'artifact-pending',
@@ -1164,40 +1164,40 @@ describe('ui e2e workbench state helpers', () => {
     expect(timeline.map((item) => item.title)).toEqual([
       '运行创建',
       '执行开始',
-      '步骤 1 · SUCCEEDED',
-      '步骤 2 · FAILED',
-      'Artifact · SCREENSHOT · BLOCKED',
-      'Flaky 标记 · FLAKY_CANDIDATE',
+      '步骤 1 · 成功',
+      '步骤 2 · 失败',
+      '产物数 · SCREENSHOT · 已阻断',
+      '不稳定标记 · 疑似不稳定',
       '运行终态 · FAILED',
       '幂等回放'
     ]);
     expect(timeline).toEqual(expect.arrayContaining([
       expect.objectContaining({
-        kindLabel: 'RUN',
+        kindLabel: '运行',
         title: '运行创建',
         detail: '控制面已接收 requestKey=wp7.run-1 的运行请求。'
       }),
       expect.objectContaining({
-        kindLabel: 'STEP',
-        title: '步骤 2 · FAILED',
-        detail: 'failureBucket=ASSERTION · errorCode=ASSERTION_MISMATCH · duration=1600ms',
+        kindLabel: '步骤',
+        title: '步骤 2 · 失败',
+        detail: '失败分类=ASSERTION · 错误码=Assertion Mismatch · 耗时=1600ms',
         tone: 'danger'
       }),
       expect.objectContaining({
-        kindLabel: 'ARTIFACT',
-        title: 'Artifact · SCREENSHOT · BLOCKED',
-        detail: expect.stringContaining('storageRef 或 digest 缺失'),
+        kindLabel: '产物',
+        title: '产物数 · SCREENSHOT · 已阻断',
+        detail: expect.stringContaining('存储引用或摘要缺失'),
         tone: 'warning'
       }),
       expect.objectContaining({
-        kindLabel: 'FLAKY',
-        title: 'Flaky 标记 · FLAKY_CANDIDATE',
-        detail: expect.stringContaining('reason=assertion-variance')
+        kindLabel: '不稳定标记',
+        title: '不稳定标记 · 疑似不稳定',
+        detail: expect.stringContaining('原因码=assertion-variance')
       }),
       expect.objectContaining({
-        kindLabel: 'RUN',
+        kindLabel: '运行',
         title: '运行终态 · FAILED',
-        detail: expect.stringContaining('traceId=trc-run-1'),
+        detail: expect.stringContaining('追踪 ID=trc-run-1'),
         tone: 'danger'
       })
     ]));
@@ -1206,8 +1206,8 @@ describe('ui e2e workbench state helpers', () => {
   it('explains failure buckets and artifact block reasons', () => {
     expect(explainUiE2eFailureBucket('LOCATOR')).toContain('定位器');
     expect(extractUiE2eArtifactCaptureBlockedReason({ captureBlockedReason: 'runnerDisabled' })).toBe('runnerDisabled');
-    expect(explainUiE2eArtifactCaptureBlockedReason('runnerDisabled')).toContain('runner 默认关闭');
-    expect(explainUiE2eArtifactCaptureBlockedReason(undefined)).toContain('artifact capture 被阻断');
+    expect(explainUiE2eArtifactCaptureBlockedReason('runnerDisabled')).toContain('运行器默认关闭');
+    expect(explainUiE2eArtifactCaptureBlockedReason(undefined)).toContain('产物采集被阻断');
   });
 
   it('builds scene queue focus counts and filters scenes by focus mode', () => {
@@ -1289,9 +1289,9 @@ describe('ui e2e workbench state helpers', () => {
       stepCount: 3,
       environmentId: 'staging'
     })).toMatchObject({
-      headline: '可生成 bundle',
-      signals: ['risk=HIGH', 'steps=3', 'env=staging', 'tags=1', 'source=WP3'],
-      detail: '场景已批准，可继续生成 bundle 或串联运行链路。'
+      headline: '可生成脚本包',
+      signals: ['风险等级=高', '步骤数=3', '环境 ID=staging', '标签=1', '来源类型=WP3'],
+      detail: '场景已批准，可继续生成脚本包 或串联运行链路。'
     });
 
     expect(buildUiE2eSceneListSummary({
@@ -1306,7 +1306,7 @@ describe('ui e2e workbench state helpers', () => {
       stepCount: 5
     })).toMatchObject({
       headline: '草稿待补全',
-      signals: ['risk=CRITICAL', 'steps=5', 'tags=2', 'source=WP5'],
+      signals: ['风险等级=严重', '步骤数=5', '标签=2', '来源类型=WP5'],
       detail: '场景仍在草稿态，可继续补全步骤模板、定位策略和断言摘要。'
     });
   });
@@ -1470,8 +1470,8 @@ describe('ui e2e workbench state helpers', () => {
       staticCheckSummary: {}
     })).toMatchObject({
       headline: '等待审批',
-      signals: ['static=PASSED', 'scene=APPROVED', 'digest-ready', 'review-pending'],
-      detail: '脚本包已送审，待 review 决定是否允许进入运行链路。'
+      signals: ['静态检查=通过', '场景状态=已批准', '摘要=就绪', '评审=待处理'],
+      detail: '脚本包已送审，待评审决定是否允许进入运行链路。'
     });
 
     expect(buildUiE2eBundleListSummary({
@@ -1484,8 +1484,8 @@ describe('ui e2e workbench state helpers', () => {
       staticCheckStatus: 'SCRIPT_STATIC_CHECK_FAILED',
       staticCheckSummary: {}
     })).toMatchObject({
-      headline: 'STATIC_CHECK_FAILED',
-      signals: ['static=STATIC_CHECK_FAILED', 'scene=DRAFT', 'digest-ready'],
+      headline: '静态检查失败',
+      signals: ['静态检查=静态检查失败', '场景状态=草稿', '摘要=就绪'],
       detail: '静态校验未通过，建议先处理摘要中的失败项后再送审。'
     });
   });
@@ -1561,9 +1561,9 @@ describe('ui e2e workbench state helpers', () => {
       failureCode: 'UI_E2E_RUNNER_DISABLED',
       accountSummary: {}
     })).toMatchObject({
-      headline: 'RUNNER_DISABLED',
-      signals: ['failure=RUNNER_DISABLED', 'aggregate-only'],
-      detail: 'runner 默认关闭，控制面返回 BLOCKED 摘要。'
+      headline: 'UI E2E 运行器已禁用',
+      signals: ['失败码=UI E2E 运行器已禁用', '聚合摘要'],
+      detail: '运行器默认关闭，控制面返回已阻断摘要。'
     });
 
     expect(buildUiE2eRunListSummary({
@@ -1576,8 +1576,8 @@ describe('ui e2e workbench state helpers', () => {
       flakyStatus: 'CONFIRMED_FLAKY',
       accountSummary: {}
     })).toMatchObject({
-      headline: 'runner=MANAGED',
-      signals: ['flaky=CONFIRMED_FLAKY', 'auto-refresh'],
+      headline: '运行模式=已托管',
+      signals: ['不稳定标记=已确认不稳定', '自动刷新'],
       detail: '运行进行中，详情面板会自动刷新最新快照。'
     });
   });

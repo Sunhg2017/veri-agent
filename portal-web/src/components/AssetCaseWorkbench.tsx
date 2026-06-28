@@ -46,12 +46,13 @@ import {
   type StepRichTextStyle
 } from '../stepRichText';
 import { AssetImportExportPanel } from './AssetImportExportPanel';
+import { AssetNavigationTabs } from './AssetNavigationTabs';
 import type { AssetNavigationKey } from './AssetStructuredWorkbench';
 import { AssetVersionHistoryPanel } from './AssetVersionHistoryPanel';
 import { StepRichTextField } from './StepRichTextField';
 import { dictionaryLabel, fieldLabel } from '../platform/dictionaries';
 import { translate } from '../platform/i18n';
-import { NativeSelect } from './ui';
+import { InputControl, SelectControl, TextAreaControl } from './ui';
 
 type AssetNavigationTab = {
   key: AssetNavigationKey;
@@ -479,34 +480,24 @@ export function AssetCaseWorkbench(props: {
                 <h2>{translate('auto.k0005')}</h2>
               </div>
             </div>
-            <button className="secondary-button" type="button" disabled={disabled} onClick={refreshCases}>
-              <RefreshCw size={16} />
-              {translate('auto.k0170')}</button>
+            <div className="panel-toolbar-actions">
+              <button className="secondary-button" type="button" disabled={disabled} onClick={refreshCases}>
+                <RefreshCw size={16} />
+                {translate('auto.k0170')}
+              </button>
+              <button className="primary-button" type="button" disabled={createDisabled} onClick={openCreateDrawer}>
+                <FilePlus2 size={16} />
+                {translate('auto.k0424')}
+              </button>
+            </div>
           </div>
 
-          <div className="asset-tab-strip" aria-label={translate('auto.k0413')}>
-            {props.tabs.map((tab) => {
-              const Icon = tab.icon;
-              return (
-                <button
-                  className={`asset-tab ${tab.key === 'cases' ? 'active' : ''}`}
-                  type="button"
-                  key={tab.key}
-                  disabled={!tab.enabled}
-                  onClick={() => props.onSelectTab(tab.key)}
-                  title={tab.label}
-                >
-                  <Icon size={15} />
-                  <span>{tab.label}</span>
-                </button>
-              );
-            })}
-          </div>
+          <AssetNavigationTabs activeKey="cases" ariaLabel={translate('auto.k0413')} tabs={props.tabs} onSelectTab={props.onSelectTab} />
 
           <form className="asset-filter-bar" onSubmit={(event) => event.preventDefault()}>
             <label className="field" htmlFor="asset-cases-filter-project">
               <span>{fieldLabel('projectId')}</span>
-              <input
+              <InputControl
                 id="asset-cases-filter-project"
                 value={filters.projectId}
                 disabled={disabled}
@@ -516,7 +507,7 @@ export function AssetCaseWorkbench(props: {
             </label>
             <label className="field" htmlFor="asset-cases-filter-status">
               <span>{fieldLabel('status')}</span>
-              <NativeSelect
+              <SelectControl
                 id="asset-cases-filter-status"
                 value={filters.status}
                 disabled={disabled}
@@ -526,11 +517,11 @@ export function AssetCaseWorkbench(props: {
                 {ASSET_TEST_CASE_STATUSES.map((status) => (
                   <option key={status} value={status}>{dictionaryLabel(status)}</option>
                 ))}
-              </NativeSelect>
+              </SelectControl>
             </label>
             <label className="field" htmlFor="asset-cases-filter-source">
               <span>{fieldLabel('source')}</span>
-              <NativeSelect
+              <SelectControl
                 id="asset-cases-filter-source"
                 value={filters.source}
                 disabled={disabled}
@@ -540,11 +531,11 @@ export function AssetCaseWorkbench(props: {
                 {caseSources.map((source) => (
                   <option key={source} value={source}>{dictionaryLabel(source)}</option>
                 ))}
-              </NativeSelect>
+              </SelectControl>
             </label>
             <label className="field" htmlFor="asset-cases-filter-keyword">
               <span>{fieldLabel('keyword')}</span>
-              <input
+              <InputControl
                 id="asset-cases-filter-keyword"
                 value={filters.keyword}
                 disabled={disabled}
@@ -590,7 +581,7 @@ export function AssetCaseWorkbench(props: {
                           <em>API {item.apiId ?? '-'}</em>
                         </div>
                       </td>
-                      <td>{item.priority}</td>
+                      <td>{dictionaryLabel(item.priority)}</td>
                       <td>
                         <div className="asset-source-cell">
                           <AssetStatusPill value={item.status} />
@@ -618,21 +609,7 @@ export function AssetCaseWorkbench(props: {
           <StateLine state={loadState} />
         </section>
 
-        <section className="panel module-panel asset-panel">
-          <div className="panel-toolbar">
-            <div className="section-heading compact">
-              <div className="section-icon">
-                <FilePlus2 size={20} />
-              </div>
-              <div>
-                <span className="eyebrow">{translate('auto.k0174')}</span>
-                <h2>{translate('auto.k0423')}</h2>
-              </div>
-            </div>
-            <button className="primary-button" type="button" disabled={createDisabled} onClick={openCreateDrawer}>
-              <FilePlus2 size={16} />
-              {translate('auto.k0424')}</button>
-          </div>
+        <div className="asset-drawer-host">
           <Drawer
             className="asset-form-drawer"
             destroyOnHidden
@@ -666,8 +643,7 @@ export function AssetCaseWorkbench(props: {
               <StateLine state={createState} />
             </CaseForm>
           </Drawer>
-          <StateLine state={createState} />
-        </section>
+        </div>
       </div>
 
       <aside className="side-stack asset-side-stack">
@@ -678,7 +654,7 @@ export function AssetCaseWorkbench(props: {
             <StatusMetric label={translate('auto.k0182')} value={health?.status ?? (props.signedIn ? translate('auto.k0428') : translate('auto.k0429'))} pill />
             <StatusMetric label={translate('auto.k0136')} value={String(items.length)} />
             {ASSET_TEST_CASE_STATUSES.map((status) => (
-              <StatusMetric key={status} label={status} value={String(statusCounts[status] ?? 0)} />
+              <StatusMetric key={status} label={dictionaryLabel(status)} value={String(statusCounts[status] ?? 0)} />
             ))}
           </div>
           {loadState.error && (
@@ -720,7 +696,7 @@ export function AssetCaseWorkbench(props: {
                 </div>
                 <div>
                   <span>{fieldLabel('priority')}</span>
-                  <em>{selected.priority}</em>
+                  <em>{dictionaryLabel(selected.priority)}</em>
                 </div>
                 <div>
                   <span>{fieldLabel('version')}</span>
@@ -758,7 +734,7 @@ export function AssetCaseWorkbench(props: {
                 </div>
                 <div>
                   <span>{fieldLabel('source')}</span>
-                  <em>{selected.source ?? '-'}</em>
+                  <em>{dictionaryLabel(selected.source)}</em>
                 </div>
                 <div>
                   <span>{fieldLabel('sourceRef')}</span>
@@ -898,7 +874,7 @@ function CaseForm(props: {
         {!props.compact && (
           <label className="field" htmlFor="asset-case-project">
             <span>{fieldLabel('projectId')}<b>*</b></span>
-            <input
+            <InputControl
               id="asset-case-project"
               value={props.draft.projectId}
               disabled={props.disabled}
@@ -909,7 +885,7 @@ function CaseForm(props: {
         )}
         <label className="field" htmlFor={`asset-case-${props.compact ? 'edit-' : ''}title`}>
           <span>{translate('auto.k0440')}<b>*</b></span>
-          <input
+          <InputControl
             id={`asset-case-${props.compact ? 'edit-' : ''}title`}
             value={props.draft.title}
             disabled={props.disabled}
@@ -919,7 +895,7 @@ function CaseForm(props: {
         </label>
         <label className="field" htmlFor={`asset-case-${props.compact ? 'edit-' : ''}requirement`}>
           <span>{fieldLabel('requirementId')}</span>
-          <input
+          <InputControl
             id={`asset-case-${props.compact ? 'edit-' : ''}requirement`}
             value={props.draft.requirementId}
             disabled={props.disabled}
@@ -929,7 +905,7 @@ function CaseForm(props: {
         </label>
         <label className="field" htmlFor={`asset-case-${props.compact ? 'edit-' : ''}api`}>
           <span>{fieldLabel('apiId')}</span>
-          <input
+          <InputControl
             id={`asset-case-${props.compact ? 'edit-' : ''}api`}
             value={props.draft.apiId}
             disabled={props.disabled}
@@ -939,7 +915,7 @@ function CaseForm(props: {
         </label>
         <label className="field" htmlFor={`asset-case-${props.compact ? 'edit-' : ''}priority`}>
           <span>{fieldLabel('priority')}</span>
-          <NativeSelect
+          <SelectControl
             id={`asset-case-${props.compact ? 'edit-' : ''}priority`}
             value={props.draft.priority}
             disabled={props.disabled}
@@ -948,11 +924,11 @@ function CaseForm(props: {
             {ASSET_REQUIREMENT_PRIORITIES.map((priority) => (
               <option key={priority} value={priority}>{dictionaryLabel(priority)}</option>
             ))}
-          </NativeSelect>
+          </SelectControl>
         </label>
         <label className="field" htmlFor={`asset-case-${props.compact ? 'edit-' : ''}status`}>
           <span>{fieldLabel('status')}</span>
-          <NativeSelect
+          <SelectControl
             id={`asset-case-${props.compact ? 'edit-' : ''}status`}
             value={props.draft.status}
             disabled={props.disabled || props.statusDisabled}
@@ -961,11 +937,11 @@ function CaseForm(props: {
             {statusOptions.map((status) => (
               <option key={status} value={status}>{dictionaryLabel(status)}</option>
             ))}
-          </NativeSelect>
+          </SelectControl>
         </label>
         <label className="field" htmlFor={`asset-case-${props.compact ? 'edit-' : ''}tags`}>
           <span>{fieldLabel('tags')}</span>
-          <input
+          <InputControl
             id={`asset-case-${props.compact ? 'edit-' : ''}tags`}
             value={props.draft.tags}
             disabled={props.disabled}
@@ -976,7 +952,7 @@ function CaseForm(props: {
       </div>
       <label className="field" htmlFor={`asset-case-${props.compact ? 'edit-' : ''}description`}>
         <span>{translate('auto.k0443')}</span>
-        <textarea
+        <TextAreaControl
           id={`asset-case-${props.compact ? 'edit-' : ''}description`}
           className="compact-textarea"
           value={props.draft.description}
@@ -1310,7 +1286,7 @@ function StateLine(props: { state: WorkState }) {
     return <span className="document-state-line success">{props.state.success}</span>;
   }
   if (props.state.traceId) {
-    return <span className="document-state-line">traceId: {props.state.traceId}</span>;
+    return <span className="document-state-line">{fieldLabel('traceId')}：{props.state.traceId}</span>;
   }
   return null;
 }

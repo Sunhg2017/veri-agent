@@ -36,20 +36,22 @@ async function runWp8MainFlow(page: Page, assertResponsive: boolean) {
 
   await expect(page.getByRole('heading', { name: '测试数据' })).toBeVisible();
   await expect(page.getByTestId('test-data-workbench')).toBeVisible();
-  await expect(page.locator('.test-data-policy-item').filter({ hasText: '脱敏导出' }).getByText('ENABLED')).toBeVisible();
+  await expect(page.locator('.test-data-policy-item').filter({ hasText: '脱敏导出' }).getByText('已启用')).toBeVisible();
   await expect(page.getByRole('tab', { name: '数据集' })).toBeVisible();
   await expect(page.getByRole('tab', { name: '账号池' })).toBeVisible();
   await expect(page.getByRole('tab', { name: '租借' })).toBeVisible();
   await expect(page.getByRole('tab', { name: '清理任务' })).toBeVisible();
   await expect(page.locator('body')).not.toContainText(rawSecretRef);
 
-  const dataSetForm = page.locator('form.panel').filter({ hasText: /新建数据集|数据集表单/ }).first();
-  await dataSetForm.getByLabel('projectId').fill('project-wp8-ui-smoke');
-  await dataSetForm.getByLabel('code').fill('login-users-ui');
-  await dataSetForm.getByLabel('名称').fill('WP8 UI smoke data set');
-  await dataSetForm.getByLabel('schema JSON').fill('{"fields":[{"name":"username","type":"string"}]}');
-  await dataSetForm.getByLabel('cleanupPolicy JSON').fill('{"mode":"MANUAL","ttlSeconds":3600}');
-  await dataSetForm.getByRole('button', { name: '创建' }).click();
+  const dataSetPanel = page.locator('section.panel').filter({ hasText: '数据集列表' }).first();
+  await dataSetPanel.getByRole('button', { name: '新建数据集' }).click();
+  const dataSetDialog = page.getByRole('dialog', { name: '新建数据集' });
+  await dataSetDialog.getByRole('textbox', { name: '项目 ID' }).fill('project-wp8-ui-smoke');
+  await dataSetDialog.getByRole('textbox', { name: '编码' }).fill('login-users-ui');
+  await dataSetDialog.getByRole('textbox', { name: '名称' }).fill('WP8 UI smoke data set');
+  await dataSetDialog.getByRole('textbox', { name: 'Schema JSON' }).fill('{"fields":[{"name":"username","type":"string"}]}');
+  await dataSetDialog.getByRole('textbox', { name: '清理策略 JSON' }).fill('{"mode":"MANUAL","ttlSeconds":3600}');
+  await dataSetDialog.getByRole('button', { name: '创建数据集' }).click();
   await expect(page.getByRole('row', { name: /WP8 UI smoke data set/ })).toBeVisible();
   expect(mock.createDataSetPayload).toMatchObject({
     projectId: 'project-wp8-ui-smoke',
@@ -58,19 +60,20 @@ async function runWp8MainFlow(page: Page, assertResponsive: boolean) {
     cleanupPolicy: { mode: 'MANUAL', ttlSeconds: 3600 }
   });
 
-  const recordForm = page.locator('form.test-data-subform').filter({ hasText: '导入记录摘要' }).first();
-  await recordForm.getByLabel('recordKey').fill('admin-record');
-  await recordForm.getByLabel('recordDigest').fill('sha256:record-ui');
-  await recordForm.getByLabel('maskedSummary JSON').fill('{"username":"admin","password":"must-not-render"}');
-  await recordForm.getByRole('button', { name: '导入' }).click();
+  await dataSetPanel.getByRole('button', { name: '导入记录摘要' }).click();
+  const recordDialog = page.getByRole('dialog', { name: '导入记录摘要' });
+  await recordDialog.getByRole('textbox', { name: '记录键' }).fill('admin-record');
+  await recordDialog.getByRole('textbox', { name: '记录摘要' }).fill('sha256:record-ui');
+  await recordDialog.getByRole('textbox', { name: '脱敏摘要 JSON' }).fill('{"username":"admin","password":"must-not-render"}');
+  await recordDialog.getByRole('button', { name: '导入' }).click();
   await expect(page.locator('.test-data-record-card').filter({ hasText: 'admin-record' }).first()).toBeVisible();
   expect(JSON.stringify(mock.importRecordsPayload)).not.toContain('must-not-render');
 
   const exportPanel = page.getByTestId('test-data-export-panel');
   await exportPanel.getByRole('button', { name: '导出摘要' }).click();
   await expect(exportPanel.getByText('wp8-data-set-export-v1')).toBeVisible();
-  await expect(exportPanel.getByText('maskedSummaryValuesExported')).toBeVisible();
-  await expect(exportPanel.getByText('keys username')).toBeVisible();
+  await expect(exportPanel.getByText('脱敏摘要值导出')).toBeVisible();
+  await expect(exportPanel.getByText('键：username')).toBeVisible();
   expect(mock.exportSeen).toBe(true);
   const dataSetDownload = page.waitForEvent('download');
   await exportPanel.getByRole('button', { name: '下载文件' }).click();
@@ -80,24 +83,26 @@ async function runWp8MainFlow(page: Page, assertResponsive: boolean) {
   await expect(page.locator('body')).not.toContainText('must-not-render');
 
   await page.getByRole('tab', { name: '账号池' }).click();
-  const poolForm = page.locator('form.panel').filter({ hasText: '账号池表单' }).first();
-  await poolForm.getByLabel('projectId').fill('project-wp8-ui-smoke');
-  await poolForm.getByLabel('code').fill('admin-pool-ui');
-  await poolForm.getByLabel('名称').fill('WP8 UI smoke account pool');
-  await poolForm.getByLabel('leasePolicy JSON').fill('{"maxConcurrentLeases":1,"sharing":"EXCLUSIVE"}');
-  await poolForm.getByRole('button', { name: '创建' }).click();
+  const poolPanel = page.locator('section.panel').filter({ hasText: '账号池与账号摘要' }).first();
+  await poolPanel.getByRole('button', { name: '创建账号池' }).click();
+  const poolDialog = page.getByRole('dialog', { name: '创建账号池' });
+  await poolDialog.getByRole('textbox', { name: '项目 ID' }).fill('project-wp8-ui-smoke');
+  await poolDialog.getByRole('textbox', { name: '编码' }).fill('admin-pool-ui');
+  await poolDialog.getByRole('textbox', { name: '名称' }).fill('WP8 UI smoke account pool');
+  await poolDialog.getByRole('textbox', { name: '租约策略 JSON' }).fill('{"maxConcurrentLeases":1,"sharing":"EXCLUSIVE"}');
+  await poolDialog.getByRole('button', { name: '创建账号池' }).click();
   await expect(page.locator('.test-data-list-item').filter({ hasText: 'WP8 UI smoke account pool' }).first()).toBeVisible();
 
-  const accountForm = page.locator('form.test-data-subform').filter({ hasText: /新增账号摘要|编辑账号摘要/ }).first();
-  await accountForm.getByLabel('accountKey').fill('admin-ui-01');
-  await accountForm.getByLabel('displayName').fill('Admin UI 01');
-  await accountForm.getByLabel('roleTags').fill('ADMIN, APPROVER');
-  await accountForm.getByLabel('secretRef').fill(rawSecretRef);
-  await accountForm.getByLabel('scopeSummary JSON').fill('{"tenant":"alpha","token":"must-not-render"}');
-  await accountForm.getByRole('button', { name: '保存账号' }).click();
+  await poolPanel.getByRole('button', { name: '新增账号摘要' }).click();
+  const accountDialog = page.getByRole('dialog', { name: '新增账号摘要' });
+  await accountDialog.getByRole('textbox', { name: '账号标识' }).fill('admin-ui-01');
+  await accountDialog.getByRole('textbox', { name: '显示名称' }).fill('Admin UI 01');
+  await accountDialog.getByRole('textbox', { name: '角色标签' }).fill('ADMIN, APPROVER');
+  await accountDialog.getByRole('textbox', { name: '密钥引用' }).fill(rawSecretRef);
+  await accountDialog.getByRole('textbox', { name: '作用域摘要 JSON' }).fill('{"tenant":"alpha","token":"must-not-render"}');
+  await accountDialog.getByRole('button', { name: '保存账号' }).click();
   await expect(page.locator('.test-data-account-card').filter({ hasText: 'Admin UI 01' }).first()).toBeVisible();
   await expect(page.getByText('secret digest sha256:sec')).toBeVisible();
-  await expect(page.getByLabel('secretRef')).toHaveValue('');
   expect(mock.accountPayload).toMatchObject({
     accountKey: 'admin-ui-01',
     secretRef: rawSecretRef,
@@ -107,16 +112,18 @@ async function runWp8MainFlow(page: Page, assertResponsive: boolean) {
   expect(await page.locator('body').innerText()).not.toContain('must-not-render');
 
   await page.getByRole('tab', { name: '租借' }).click();
-  const leaseForm = page.locator('form.panel').filter({ hasText: '申请租借' }).first();
-  await leaseForm.getByLabel('projectId').fill('project-wp8-ui-smoke');
-  await leaseForm.getByLabel('poolId').fill('pool-ui-created');
-  await leaseForm.getByLabel('holderType').fill('EXECUTION_RUN');
-  await leaseForm.getByLabel('holderRef').fill('run-ui-smoke');
-  await leaseForm.getByLabel('requestKey').fill('lease-run-ui-smoke');
-  await leaseForm.getByLabel('ttlSeconds').fill('900');
-  await leaseForm.getByRole('button', { name: '申请' }).click();
+  const leaseRecordPanel = page.locator('section.panel').filter({ hasText: '租借记录' }).first();
+  await leaseRecordPanel.getByRole('button', { name: '申请租借' }).click();
+  const leaseDialog = page.getByRole('dialog', { name: '申请租借' });
+  await leaseDialog.getByRole('textbox', { name: '项目 ID' }).fill('project-wp8-ui-smoke');
+  await leaseDialog.getByRole('textbox', { name: '账号池 ID' }).fill('pool-ui-created');
+  await leaseDialog.getByRole('textbox', { name: '持有人类型' }).fill('EXECUTION_RUN');
+  await leaseDialog.getByRole('textbox', { name: '持有人引用' }).fill('run-ui-smoke');
+  await leaseDialog.getByRole('textbox', { name: '请求键' }).fill('lease-run-ui-smoke');
+  await leaseDialog.getByRole('spinbutton', { name: '租约时长' }).fill('900');
+  await leaseDialog.getByRole('button', { name: '申请租借' }).click();
   await expect(page.locator('.test-data-list-item').filter({ hasText: 'run-ui-smoke' }).first()).toBeVisible();
-  await expect(page.getByText('secretDigest')).toBeVisible();
+  await expect(page.getByText('密钥摘要')).toBeVisible();
   expect(mock.leasePayload).toMatchObject({
     projectId: 'project-wp8-ui-smoke',
     poolId: 'pool-ui-created',
@@ -126,7 +133,6 @@ async function runWp8MainFlow(page: Page, assertResponsive: boolean) {
     ttlSeconds: 900
   });
 
-  const leaseRecordPanel = page.locator('section.panel').filter({ hasText: '租借记录' }).first();
   await leaseRecordPanel.getByLabel('续租 TTL').fill('1200');
   await leaseRecordPanel.getByRole('button', { name: '续租' }).click();
   await expect(page.locator('.test-data-list-item').filter({ hasText: '2026-06-15 01:20:00' }).first()).toBeVisible();
@@ -141,11 +147,11 @@ async function runWp8MainFlow(page: Page, assertResponsive: boolean) {
   const leaseExportPanel = page.getByTestId('test-lease-export-panel');
   await leaseExportPanel.getByRole('button', { name: '导出摘要' }).click();
   await expect(leaseExportPanel.getByText('wp8-account-lease-export-v1')).toBeVisible();
-  await expect(leaseExportPanel.getByText('leaseTokenPlaintextExported')).toBeVisible();
-  await expect(leaseExportPanel.getByText('scopeKeys')).toBeVisible();
+  await expect(leaseExportPanel.getByText('租约令牌明文导出')).toBeVisible();
+  await expect(leaseExportPanel.getByText('作用域键')).toBeVisible();
   await expect(leaseExportPanel.getByText('tenant')).toBeVisible();
-  await expect(leaseExportPanel.getByText('healthSummary')).toBeVisible();
-  await expect(leaseExportPanel.getByText('digest only')).toBeVisible();
+  await expect(leaseExportPanel.getByText('健康摘要')).toBeVisible();
+  await expect(leaseExportPanel.getByText('释放原因摘要')).toBeVisible();
   expect(mock.leaseExportSeen).toBe(true);
   const leaseDownload = page.waitForEvent('download');
   await leaseExportPanel.getByRole('button', { name: '下载文件' }).click();
@@ -156,13 +162,15 @@ async function runWp8MainFlow(page: Page, assertResponsive: boolean) {
 
   await page.getByRole('tab', { name: '清理任务' }).click();
   await expect(page.getByText('cleanupEnabled=false')).toBeVisible();
-  const taskForm = page.locator('form.panel').filter({ hasText: '清理任务' }).first();
-  await taskForm.getByLabel('projectId').fill('project-wp8-ui-smoke');
-  await taskForm.getByLabel('dataSetId').fill('ds-ui-created');
-  await taskForm.getByLabel('requestKey').fill('cleanup-ui-smoke');
-  await taskForm.getByLabel('targetRef').fill('dataset:ds-ui-created');
-  await taskForm.getByLabel('resultSummary JSON').fill('{"deleted":0,"authorization":"Bearer raw"}');
-  await taskForm.getByRole('button', { name: '创建' }).click();
+  const taskListPanel = page.locator('section.panel').filter({ hasText: '任务列表' }).first();
+  await taskListPanel.getByRole('button', { name: '创建清理任务' }).click();
+  const taskDialog = page.getByRole('dialog', { name: '创建清理任务' });
+  await taskDialog.getByRole('textbox', { name: '项目 ID' }).fill('project-wp8-ui-smoke');
+  await taskDialog.getByRole('textbox', { name: '数据集 ID' }).fill('ds-ui-created');
+  await taskDialog.getByRole('textbox', { name: '请求键' }).fill('cleanup-ui-smoke');
+  await taskDialog.getByRole('textbox', { name: '目标引用' }).fill('dataset:ds-ui-created');
+  await taskDialog.getByRole('textbox', { name: '结果摘要 JSON' }).fill('{"deleted":0,"authorization":"Bearer raw"}');
+  await taskDialog.getByRole('button', { name: '创建清理任务' }).click();
   await expect(page.locator('.test-data-list-item').filter({ hasText: 'cleanup-ui-smoke' }).first()).toBeVisible();
   await expect(page.getByText('trace-task-detail')).toBeVisible();
   expect(mock.taskPayload).toMatchObject({
@@ -173,8 +181,7 @@ async function runWp8MainFlow(page: Page, assertResponsive: boolean) {
     resultSummary: { deleted: 0 }
   });
 
-  const taskListPanel = page.locator('section.panel').filter({ hasText: '任务列表' }).first();
-  await taskListPanel.getByLabel('retry requestKey').fill('cleanup-ui-smoke-retry');
+  await taskListPanel.getByLabel('重试请求键').fill('cleanup-ui-smoke-retry');
   await taskListPanel.getByRole('button', { name: '重试' }).click();
   await expect(page.locator('.test-data-list-item').filter({ hasText: 'cleanup-ui-smoke-retry' }).first()).toBeVisible();
   expect(mock.retryPayload).toMatchObject({
@@ -198,11 +205,34 @@ async function assertNoRawSecret(page: Page) {
 }
 
 async function expectNoHorizontalOverflow(page: Page, selector: string) {
-  const overflow = await page.locator(selector).evaluate((element) => {
+  const result = await page.locator(selector).evaluate((element) => {
     const rect = element.getBoundingClientRect();
-    return rect.left < -1 || rect.right > window.innerWidth + 1 || document.documentElement.scrollWidth > window.innerWidth + 1;
+    const viewport = window.innerWidth;
+    const offenders = Array.from(document.body.querySelectorAll<HTMLElement>('*'))
+      .map((node) => {
+        const nodeRect = node.getBoundingClientRect();
+        return {
+          className: node.className ? String(node.className).slice(0, 120) : '',
+          clientWidth: node.clientWidth,
+          left: Math.round(nodeRect.left),
+          right: Math.round(nodeRect.right),
+          scrollWidth: node.scrollWidth,
+          tag: node.tagName.toLowerCase(),
+          text: (node.textContent ?? '').trim().replace(/\s+/g, ' ').slice(0, 120),
+          width: Math.round(nodeRect.width)
+        };
+      })
+      .filter((item) => item.right > viewport + 1 || item.left < -1 || item.scrollWidth > item.clientWidth + 1 || item.width > viewport + 1)
+      .sort((left, right) => (right.scrollWidth - right.clientWidth) - (left.scrollWidth - left.clientWidth) || right.right - left.right)
+      .slice(0, 8);
+    return {
+      docWidth: document.documentElement.scrollWidth,
+      offenders,
+      overflow: rect.left < -1 || rect.right > viewport + 1 || document.documentElement.scrollWidth > viewport + 1,
+      viewport
+    };
   });
-  expect(overflow).toBe(false);
+  expect(result.overflow, JSON.stringify(result, null, 2)).toBe(false);
 }
 
 class Wp8TestDataMock {

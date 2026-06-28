@@ -48,7 +48,7 @@ import {
 import { canUseButton, hasPermission } from '../permissions';
 import { dictionaryLabel, displayValueLabel, fieldLabel } from '../platform/dictionaries';
 import { translate } from '../platform/i18n';
-import { NativeSelect } from './ui';
+import { CheckboxControl, InputControl, SelectControl, TextAreaControl } from './ui';
 
 const DIFF_STATUS_OPTIONS = ['ALL', 'NEW', 'CHANGED', 'MATCHED', 'CONFLICT', 'SKIPPED', 'UNKNOWN'] as const;
 
@@ -425,7 +425,7 @@ export function ApiAutomationWorkbench(props: { signedIn: boolean; currentUser: 
       <div className="metric-grid">
         <MetricCard label={translate('auto.k0165')} value={String(specs.length)} icon={<FileText size={18} />} />
         <MetricCard label={translate('auto.k0166')} value={String(summary.parsed)} icon={<CheckCircle2 size={18} />} />
-        <MetricCard label="Endpoint" value={String(summary.endpoints)} icon={<ListChecks size={18} />} />
+        <MetricCard label={fieldLabel('endpoint')} value={String(summary.endpoints)} icon={<ListChecks size={18} />} />
         <MetricCard label={translate('auto.k0146')} value={String(summary.failed)} icon={<AlertTriangle size={18} />} />
       </div>
 
@@ -447,29 +447,14 @@ export function ApiAutomationWorkbench(props: { signedIn: boolean; currentUser: 
             <PolicyItem label="OpenAPI" value={health?.supportedOpenApiVersions.join(', ') || '-'} />
             <PolicyItem label={translate('auto.k0171')} value={health ? `${Math.round(health.specMaxBytes / 1024)} KB` : '-'} />
             <PolicyItem label={translate('auto.k0172')} value={String(health?.endpointMaxCount ?? '-')} />
-            <PolicyItem label="Runner" value={health?.runnerEnabled ? 'ENABLED' : 'DISABLED'} />
-            <PolicyItem label="Prompt" value={health?.promptKey ?? '-'} />
+            <PolicyItem label="runner" value={health?.runnerEnabled ? 'ENABLED' : 'DISABLED'} />
+            <PolicyItem label="promptKey" value={health?.promptKey ?? '-'} />
             <PolicyItem label={translate('auto.k0173')} value={health?.policy?.['urlFetchEnabled'] ? 'ENABLED' : 'DISABLED'} />
           </div>
         </div>
       </section>
 
       <section className="api-automation-layout">
-        <section className="panel">
-          <div className="panel-header">
-            <div>
-              <div className="panel-title">{translate('auto.k0174')}</div>
-              <div className="panel-desc">TEXT · JSON/YAML</div>
-            </div>
-            <button className="btn btn-primary btn-sm" type="button" disabled={!canImport || importState.loading} onClick={() => setImportDrawerOpen(true)}>
-              <Upload size={15} />
-              {translate('auto.k0175')}</button>
-          </div>
-          <div className="panel-body compact">
-            {importState.error && <div className="document-state-line error">{importState.error}</div>}
-            {importState.success && <div className="document-state-line success">{importState.success}</div>}
-          </div>
-        </section>
         <Drawer
           className="api-automation-import-drawer"
           destroyOnHidden
@@ -487,20 +472,20 @@ export function ApiAutomationWorkbench(props: { signedIn: boolean; currentUser: 
           <form className="document-form document-drawer-form" onSubmit={onImport}>
             <div className="form-grid">
               <Field label={translate('auto.k0176')}>
-                <input value={draft.projectId} onChange={(event) => setDraftValue('projectId', event.target.value)} />
+                <InputControl value={draft.projectId} onChange={(event) => setDraftValue('projectId', event.target.value)} />
               </Field>
               <Field label={translate('auto.k0177')}>
-                <input value={draft.name} onChange={(event) => setDraftValue('name', event.target.value)} />
+                <InputControl value={draft.name} onChange={(event) => setDraftValue('name', event.target.value)} />
               </Field>
               <Field label={translate('auto.k0178')}>
-                <input value={draft.versionLabel} onChange={(event) => setDraftValue('versionLabel', event.target.value)} />
+                <InputControl value={draft.versionLabel} onChange={(event) => setDraftValue('versionLabel', event.target.value)} />
               </Field>
               <Field label={translate('auto.k0179')}>
-                <input value={draft.sourceRef} onChange={(event) => setDraftValue('sourceRef', event.target.value)} />
+                <InputControl value={draft.sourceRef} onChange={(event) => setDraftValue('sourceRef', event.target.value)} />
               </Field>
             </div>
-            <Field label="OpenAPI">
-              <textarea
+            <Field label="openApi">
+              <TextAreaControl
                 className="api-automation-spec-textarea"
                 value={draft.content}
                 onChange={(event) => setDraftValue('content', event.target.value)}
@@ -524,8 +509,14 @@ export function ApiAutomationWorkbench(props: { signedIn: boolean; currentUser: 
               <div className="panel-title">{translate('auto.k0180')}</div>
               <div className="panel-desc">{specs.length} {translate('auto.k0181')}</div>
             </div>
+            <button className="btn btn-primary btn-sm" type="button" disabled={!canImport || importState.loading} onClick={() => setImportDrawerOpen(true)}>
+              <Upload size={15} />
+              {translate('auto.k0175')}
+            </button>
           </div>
           <div className="panel-body compact">
+            {importState.error && <div className="document-state-line error">{importState.error}</div>}
+            {importState.success && <div className="document-state-line success">{importState.success}</div>}
             <div className="table-wrap api-automation-table-wrap">
               <table>
                 <thead>
@@ -586,17 +577,17 @@ export function ApiAutomationWorkbench(props: { signedIn: boolean; currentUser: 
         <div className="panel-body compact">
           <div className="form-grid">
             <Field label={translate('auto.k0189')}>
-              <NativeSelect
+              <SelectControl
                 value={Boolean(health?.policy?.modelGenerationReady) ? generationMode : 'FALLBACK_ONLY'}
                 onChange={(event) => setGenerationMode(event.target.value as 'MODEL_WITH_FALLBACK' | 'FALLBACK_ONLY')}
                 disabled={!canGenerate || generationState.loading || !health}
               >
                 {Boolean(health?.policy?.modelGenerationReady) && <option value="MODEL_WITH_FALLBACK">{translate('auto.k0190')}</option>}
                 <option value="FALLBACK_ONLY">{translate('auto.k0191')}</option>
-              </NativeSelect>
+              </SelectControl>
             </Field>
             <Field label={translate('auto.k0192')}>
-              <input
+              <InputControl
                 value={generationAssetTestCaseIds}
                 onChange={(event) => setGenerationAssetTestCaseIds(event.target.value)}
                 placeholder={translate('auto.k0193')}
@@ -604,7 +595,7 @@ export function ApiAutomationWorkbench(props: { signedIn: boolean; currentUser: 
               />
             </Field>
             <Field label={translate('auto.k0194')}>
-              <NativeSelect
+              <SelectControl
                 value={diffStatusFilter}
                 onChange={(event) => setDiffStatusFilter(event.target.value as (typeof DIFF_STATUS_OPTIONS)[number])}
                 disabled={!detail || detailState.loading}
@@ -612,7 +603,7 @@ export function ApiAutomationWorkbench(props: { signedIn: boolean; currentUser: 
                 {DIFF_STATUS_OPTIONS.map((status) => (
                   <option value={status} key={status}>{status === 'ALL' ? translate('auto.k0195') : dictionaryLabel(status)}</option>
                 ))}
-              </NativeSelect>
+              </SelectControl>
             </Field>
           </div>
           <GenerationScopeSummary
@@ -737,9 +728,9 @@ function EndpointTable(props: {
           {props.endpoints.length ? props.endpoints.map((endpoint) => (
             <tr key={endpoint.id}>
               <td>
-                <input
+                <CheckboxControl
                   aria-label={translate('auto.k0200', { value0: endpoint.httpMethod, value1: endpoint.path })}
-                  type="checkbox"
+
                   checked={Boolean(endpoint.assetApiId && props.selectedAssetApiIds.includes(endpoint.assetApiId))}
                   disabled={!endpoint.assetApiId}
                   onChange={() => endpoint.assetApiId && props.onToggleAssetApiId(endpoint.assetApiId)}
@@ -820,8 +811,8 @@ function GenerationHistory(props: {
             disabled={props.loading}
           >
             <span>
-              <strong>{task.status}</strong>
-              <em>{task.generationMode} · API {task.apiCount} · CASE {task.caseCount}</em>
+              <strong>{displayValueLabel(task.status)}</strong>
+              <em>{displayValueLabel(task.generationMode)} · API {task.apiCount} · 用例 {task.caseCount}</em>
             </span>
             <small>{task.createdAt ? formatDateTime(task.createdAt) : shortId(task.id)}</small>
           </button>
@@ -867,7 +858,7 @@ function GenerationSummary(props: {
     <div className="api-automation-generation-summary">
       <div className="api-automation-sync-summary">
         <span>{generationSummaryText(props.generation)}</span>
-        <span>{props.generation.task.generationMode} · {props.generation.task.modelInvocationId ? shortId(props.generation.task.modelInvocationId) : 'no-model'}</span>
+        <span>{displayValueLabel(props.generation.task.generationMode)} · {props.generation.task.modelInvocationId ? shortId(props.generation.task.modelInvocationId) : '未调用模型'}</span>
         <span>{props.generation.cases.length} {translate('auto.k0209')}</span>
       </div>
       {bundle ? (
@@ -875,7 +866,7 @@ function GenerationSummary(props: {
           <div className="api-automation-script-bundle-head">
             <div>
               <span className="table-primary">{translate('auto.k0210')}</span>
-              <span className="table-secondary">{shortId(bundle.bundleDigest)} · {bundle.fileCount} files</span>
+              <span className="table-secondary">{shortId(bundle.bundleDigest)} · {bundle.fileCount} 个文件</span>
             </div>
             <div className="api-automation-panel-actions">
               <StatusBadge status={bundle.status} />
@@ -889,7 +880,7 @@ function GenerationSummary(props: {
           </div>
           <div className="form-grid">
             <Field label={translate('auto.k0211')}>
-              <input
+              <InputControl
                 value={props.reviewNote}
                 onChange={(event) => props.onReviewNoteChange(event.target.value)}
                 disabled={!props.canReview || props.loading}
@@ -931,13 +922,13 @@ function GenerationSummary(props: {
           {bundle.status === 'APPROVED' && (
             <div className="api-automation-run-panel">
               <div className="api-automation-sync-summary">
-                <span>Runner {runnerReady ? 'ENABLED' : 'DISABLED'}</span>
-                <span>timeout {props.health?.runnerTimeoutSeconds ?? '-'}s</span>
-                <span>max {props.health?.runnerMaxCases ?? '-'} cases</span>
+                <span>{fieldLabel('runner')} {displayValueLabel(runnerReady ? 'ENABLED' : 'DISABLED')}</span>
+                <span>{fieldLabel('timeout')} {props.health?.runnerTimeoutSeconds ?? '-'}s</span>
+                <span>{fieldLabel('limit')} {props.health?.runnerMaxCases ?? '-'}</span>
               </div>
               <div className="form-grid">
                 <Field label="baseUrl">
-                  <input
+                  <InputControl
                     value={props.runBaseUrl}
                     onChange={(event) => props.onRunBaseUrlChange(event.target.value)}
                     placeholder="https://api.example.test"
@@ -945,14 +936,14 @@ function GenerationSummary(props: {
                   />
                 </Field>
                 <Field label={translate('auto.k0215')}>
-                  <input
+                  <InputControl
                     value={props.runEnvironmentId}
                     onChange={(event) => props.onRunEnvironmentIdChange(event.target.value)}
                     disabled={!props.canExecute || props.runLoading}
                   />
                 </Field>
-                <Field label="Case IDs">
-                  <input
+                <Field label="caseIds">
+                  <InputControl
                     value={props.runCaseIds}
                     onChange={(event) => props.onRunCaseIdsChange(event.target.value)}
                     placeholder={translate('auto.k0216')}
@@ -960,7 +951,7 @@ function GenerationSummary(props: {
                   />
                 </Field>
                 <Field label="secretRefs">
-                  <input
+                  <InputControl
                     value={props.runSecretRefs}
                     onChange={(event) => props.onRunSecretRefsChange(event.target.value)}
                     placeholder="secret://wp6/token"
@@ -1035,9 +1026,9 @@ function RunSummary(props: {
       </div>
       <div className="api-automation-sync-summary">
         <span>{runSummaryText(props.run)}</span>
-        <span>BLOCKED {counts.BLOCKED ?? 0}</span>
-        <span>FAILED {counts.FAILED ?? 0}</span>
-        <span>PASSED {counts.PASSED ?? 0}</span>
+        <span>{dictionaryLabel('BLOCKED')} {counts.BLOCKED ?? 0}</span>
+        <span>{dictionaryLabel('FAILED')} {counts.FAILED ?? 0}</span>
+        <span>{dictionaryLabel('PASSED')} {counts.PASSED ?? 0}</span>
       </div>
       <div className="api-automation-panel-actions">
         {activeRunStatus(props.run.run.status) && (
@@ -1061,7 +1052,7 @@ function RunSummary(props: {
       </div>
       {props.run.run.errorCode && (
         <div className="api-automation-diff-reason error">
-          {props.run.run.errorCode}{props.run.run.errorSummary ? ` · ${props.run.run.errorSummary}` : ''}
+          {displayValueLabel(props.run.run.errorCode)}{props.run.run.errorSummary ? ` · ${props.run.run.errorSummary}` : ''}
         </div>
       )}
       {props.runExport && (
@@ -1126,23 +1117,23 @@ function scriptBundleFiles(bundle: ApiAutomationScriptBundle) {
 
 function diffReason(endpoint: ApiAutomationEndpointSnapshot) {
   const reason = endpoint.diffSummary?.reason;
-  return typeof reason === 'string' ? reason : '';
+  return typeof reason === 'string' ? displayValueLabel(reason) : '';
 }
 
 function diffSummaryText(counts: Record<string, number>) {
-  return `Diff：NEW ${counts.NEW ?? 0} · CHANGED ${counts.CHANGED ?? 0} · MATCHED ${counts.MATCHED ?? 0}`;
+  return `差异：${dictionaryLabel('NEW')} ${counts.NEW ?? 0} · ${dictionaryLabel('CHANGED')} ${counts.CHANGED ?? 0} · ${dictionaryLabel('MATCHED')} ${counts.MATCHED ?? 0}`;
 }
 
 function syncSummaryText(counts: Record<string, number>) {
-  return translate('auto.k0222', { value0: counts.CREATED ?? 0, value1: counts.UPDATED ?? 0, value2: counts.FAILED ?? 0 });
+  return `同步：${dictionaryLabel('CREATED')} ${counts.CREATED ?? 0} · ${dictionaryLabel('UPDATED')} ${counts.UPDATED ?? 0} · ${dictionaryLabel('FAILED')} ${counts.FAILED ?? 0}`;
 }
 
 function generationSummaryText(generation: ApiAutomationGenerationTaskDetail) {
-  return translate('auto.k0223', { value0: generation.task.status, value1: generation.task.apiCount, value2: generation.task.caseCount });
+  return `生成：${displayValueLabel(generation.task.status)} · API ${generation.task.apiCount} · 用例 ${generation.task.caseCount}`;
 }
 
 function runSummaryText(run: ApiAutomationRunDetail) {
-  return translate('auto.k0224', { value0: run.run.status, value1: run.run.caseCount, value2: run.run.errorCode ?? 'OK' });
+  return `运行：${displayValueLabel(run.run.status)} · 用例 ${run.run.caseCount} · ${displayValueLabel(run.run.errorCode ?? 'OK')}`;
 }
 
 function activeRunStatus(status: string) {

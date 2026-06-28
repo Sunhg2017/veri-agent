@@ -66,7 +66,7 @@ import {
 import { canUseButton, hasPermission } from '../permissions';
 import { dictionaryLabel, displayValueLabel, fieldLabel } from '../platform/dictionaries';
 import { translate } from '../platform/i18n';
-import { NativeSelect } from './ui';
+import { InputControl, NumberControl, SelectControl } from './ui';
 
 type WorkState = {
   loading: boolean;
@@ -573,7 +573,7 @@ export function ExecutionWorkbench(props: { signedIn: boolean; currentUser: Curr
     try {
       const result = await updateExecutionTrigger(trigger.id, { status: nextStatus });
       setTriggers((current) => current.map((item) => item.id === result.data.id ? result.data : item));
-      setTriggerActionState({ loading: false, success: translate('auto.k0847', { value0: result.data.status }) });
+      setTriggerActionState({ loading: false, success: translate('auto.k0847', { value0: displayValueLabel(result.data.status) }) });
     } catch (error: unknown) {
       setTriggerActionState({ loading: false, error: error instanceof Error ? error.message : translate('auto.k0848') });
     }
@@ -620,7 +620,7 @@ export function ExecutionWorkbench(props: { signedIn: boolean; currentUser: Curr
       return;
     }
     if (event.type === 'connected') {
-      setRunStreamState({ loading: false, success: translate('auto.k0853', { value0: event.status }) });
+      setRunStreamState({ loading: false, success: translate('auto.k0853', { value0: displayValueLabel(event.status) }) });
       return;
     }
     setRunStreamState((current) => ({ ...current, loading: false }));
@@ -655,44 +655,17 @@ export function ExecutionWorkbench(props: { signedIn: boolean; currentUser: Curr
         <div className="panel-body compact">
           {loadState.error && <div className="document-state-line error">{loadState.error}</div>}
           <div className="execution-policy-grid">
-            <PolicyItem label="Scheduler" value={health?.schedulerEnabled ? 'ENABLED' : 'DISABLED'} />
-            <PolicyItem label="Webhook" value={health?.webhookEnabled ? 'ENABLED' : 'DISABLED'} />
-            <PolicyItem label="Cron" value={health?.cronEnabled ? 'ENABLED' : 'DISABLED'} />
-            <PolicyItem label="Cron scanner" value={health?.policy?.cronScannerReady ? 'READY' : 'NOT_READY'} />
-            <PolicyItem label="WP6 dispatch" value={health?.policy?.wp6DispatchReady ? 'READY' : 'NOT_READY'} />
-            <PolicyItem label="Recovery" value={`${health?.recoveryBatchSize ?? 0}`} />
+            <PolicyItem label="scheduler" value={health?.schedulerEnabled ? 'ENABLED' : 'DISABLED'} />
+            <PolicyItem label="webhookEnabled" value={health?.webhookEnabled ? 'ENABLED' : 'DISABLED'} />
+            <PolicyItem label="cron" value={health?.cronEnabled ? 'ENABLED' : 'DISABLED'} />
+            <PolicyItem label="cronScanner" value={health?.policy?.cronScannerReady ? 'READY' : 'NOT_READY'} />
+            <PolicyItem label="wp6Dispatch" value={health?.policy?.wp6DispatchReady ? 'READY' : 'NOT_READY'} />
+            <PolicyItem label="recovery" value={`${health?.recoveryBatchSize ?? 0}`} />
           </div>
         </div>
       </section>
 
       <section className="execution-layout">
-        <section className="panel">
-          <div className="panel-header">
-            <div>
-              <div className="panel-title">{translate('auto.k0860')}</div>
-              <div className="panel-desc">{translate('auto.k0861')}</div>
-            </div>
-            <div className="execution-panel-actions">
-              <button className="btn btn-primary btn-sm" type="button" onClick={openCreatePlanDrawer} disabled={!canManage || planActionState.loading}>
-                <FileText size={15} />
-                {translate('auto.k0860')}
-              </button>
-              <button className="btn btn-secondary btn-sm" type="button" onClick={openEditPlanDrawer} disabled={!canManage || !planDetail || planActionState.loading}>
-                <ShieldCheck size={15} />
-                {translate('auto.k0859')}
-              </button>
-              <button className="btn btn-ghost btn-sm" type="button" onClick={() => void onArchivePlan()} disabled={!canManage || !selectedPlanId || planActionState.loading || planDetail?.status === 'ARCHIVED'}>
-                <Trash2 size={15} />
-                {translate('auto.k0871')}
-              </button>
-            </div>
-          </div>
-          <div className="panel-body compact">
-            {planActionState.error && <div className="document-state-line error">{planActionState.error}</div>}
-            {planActionState.success && <div className="document-state-line success">{planActionState.success}</div>}
-          </div>
-        </section>
-
         <Drawer
           className="execution-plan-drawer"
           destroyOnHidden
@@ -725,24 +698,24 @@ export function ExecutionWorkbench(props: { signedIn: boolean; currentUser: Curr
           <div className="panel-body">
             <div className="form-grid">
               <Field label={translate('auto.k0176')}>
-                <input value={planDraft.projectId} onChange={(event) => setPlanDraftValue('projectId', event.target.value)} />
+                <InputControl value={planDraft.projectId} onChange={(event) => setPlanDraftValue('projectId', event.target.value)} />
               </Field>
               <Field label={translate('auto.k0177')}>
-                <input value={planDraft.name} onChange={(event) => setPlanDraftValue('name', event.target.value)} />
+                <InputControl value={planDraft.name} onChange={(event) => setPlanDraftValue('name', event.target.value)} />
               </Field>
               <Field label={translate('auto.k0215')}>
-                <input value={planDraft.environmentKey} onChange={(event) => setPlanDraftValue('environmentKey', event.target.value)} />
+                <InputControl value={planDraft.environmentKey} onChange={(event) => setPlanDraftValue('environmentKey', event.target.value)} />
               </Field>
               <Field label={translate('auto.k0182')}>
-                <NativeSelect value={planDraft.status} onChange={(event) => setPlanDraftValue('status', event.target.value as ExecutionPlanDraft['status'])}>
+                <SelectControl value={planDraft.status} onChange={(event) => setPlanDraftValue('status', event.target.value as ExecutionPlanDraft['status'])}>
                   <option value="DRAFT">{dictionaryLabel('DRAFT')}</option>
                   <option value="READY">{dictionaryLabel('READY')}</option>
                   <option value="DISABLED">{dictionaryLabel('DISABLED')}</option>
-                </NativeSelect>
+                </SelectControl>
               </Field>
             </div>
             <Field label={translate('auto.k0443')}>
-              <input value={planDraft.description} onChange={(event) => setPlanDraftValue('description', event.target.value)} />
+              <InputControl value={planDraft.description} onChange={(event) => setPlanDraftValue('description', event.target.value)} />
             </Field>
             <div className="execution-dag-editor">
               <div className="execution-subheader">
@@ -760,64 +733,64 @@ export function ExecutionWorkbench(props: { signedIn: boolean; currentUser: Curr
                       {translate('auto.k0451')}</button>
                   </div>
                   <div className="form-grid">
-                    <Field label="node key">
-                      <input value={node.key} onChange={(event) => setPlanNodeDraftValue(index, 'key', event.target.value)} />
+                    <Field label="nodeKey">
+                      <InputControl value={node.key} onChange={(event) => setPlanNodeDraftValue(index, 'key', event.target.value)} />
                     </Field>
                     <Field label={translate('auto.k0865')}>
-                      <NativeSelect value={node.type} onChange={(event) => setPlanNodeDraftValue(index, 'type', event.target.value as ExecutionDagNodeDraft['type'])}>
+                      <SelectControl value={node.type} onChange={(event) => setPlanNodeDraftValue(index, 'type', event.target.value as ExecutionDagNodeDraft['type'])}>
                         <option value="API_TEST">{dictionaryLabel('API_TEST')}</option>
                         <option value="REPORT_HANDOFF">{dictionaryLabel('REPORT_HANDOFF')}</option>
-                      </NativeSelect>
+                      </SelectControl>
                     </Field>
                     <Field label={translate('auto.k0866')}>
-                      <input value={node.dependenciesText} onChange={(event) => setPlanNodeDraftValue(index, 'dependenciesText', event.target.value)} />
+                      <InputControl value={node.dependenciesText} onChange={(event) => setPlanNodeDraftValue(index, 'dependenciesText', event.target.value)} />
                     </Field>
                     <Field label="bundleId">
-                      <input value={node.apiAutomationBundleId} onChange={(event) => setPlanNodeDraftValue(index, 'apiAutomationBundleId', event.target.value)} />
+                      <InputControl value={node.apiAutomationBundleId} onChange={(event) => setPlanNodeDraftValue(index, 'apiAutomationBundleId', event.target.value)} />
                     </Field>
                     <Field label="baseUrlRef">
-                      <input value={node.baseUrlRef} onChange={(event) => setPlanNodeDraftValue(index, 'baseUrlRef', event.target.value)} />
+                      <InputControl value={node.baseUrlRef} onChange={(event) => setPlanNodeDraftValue(index, 'baseUrlRef', event.target.value)} />
                     </Field>
                     <Field label="caseIds">
-                      <input value={node.caseIdsText} onChange={(event) => setPlanNodeDraftValue(index, 'caseIdsText', event.target.value)} />
+                      <InputControl value={node.caseIdsText} onChange={(event) => setPlanNodeDraftValue(index, 'caseIdsText', event.target.value)} />
                     </Field>
                     <Field label="secretRefs">
-                      <input value={node.runtimeSecretRefsText} onChange={(event) => setPlanNodeDraftValue(index, 'runtimeSecretRefsText', event.target.value)} />
+                      <InputControl value={node.runtimeSecretRefsText} onChange={(event) => setPlanNodeDraftValue(index, 'runtimeSecretRefsText', event.target.value)} />
                     </Field>
                     {node.type === 'API_TEST' && (
                       <>
                         <Field label="accountPoolRef">
-                          <input value={node.accountPoolRef} onChange={(event) => setPlanNodeDraftValue(index, 'accountPoolRef', event.target.value)} />
+                          <InputControl value={node.accountPoolRef} onChange={(event) => setPlanNodeDraftValue(index, 'accountPoolRef', event.target.value)} />
                         </Field>
-                        <Field label="lease app">
-                          <input value={node.accountLeaseApplicationId} onChange={(event) => setPlanNodeDraftValue(index, 'accountLeaseApplicationId', event.target.value)} />
+                        <Field label="leaseApp">
+                          <InputControl value={node.accountLeaseApplicationId} onChange={(event) => setPlanNodeDraftValue(index, 'accountLeaseApplicationId', event.target.value)} />
                         </Field>
-                        <Field label="lease env">
-                          <input value={node.accountLeaseEnvironmentId} onChange={(event) => setPlanNodeDraftValue(index, 'accountLeaseEnvironmentId', event.target.value)} />
+                        <Field label="leaseEnv">
+                          <InputControl value={node.accountLeaseEnvironmentId} onChange={(event) => setPlanNodeDraftValue(index, 'accountLeaseEnvironmentId', event.target.value)} />
                         </Field>
-                        <Field label="lease roles">
-                          <input value={node.accountLeaseRoleTagsText} onChange={(event) => setPlanNodeDraftValue(index, 'accountLeaseRoleTagsText', event.target.value)} />
+                        <Field label="leaseRoles">
+                          <InputControl value={node.accountLeaseRoleTagsText} onChange={(event) => setPlanNodeDraftValue(index, 'accountLeaseRoleTagsText', event.target.value)} />
                         </Field>
-                        <Field label="lease TTL">
-                          <input type="number" min={0} max={604800} value={node.accountLeaseTtlSeconds} onChange={(event) => setPlanNodeDraftValue(index, 'accountLeaseTtlSeconds', Number(event.target.value))} />
+                        <Field label="leaseTtl">
+                          <NumberControl min={0} max={604800} value={node.accountLeaseTtlSeconds} onChange={(event) => setPlanNodeDraftValue(index, 'accountLeaseTtlSeconds', Number(event.target.value || 0))} />
                         </Field>
-                        <Field label="lease key">
-                          <input value={node.accountLeaseRequestKey} onChange={(event) => setPlanNodeDraftValue(index, 'accountLeaseRequestKey', event.target.value)} />
+                        <Field label="leaseKey">
+                          <InputControl value={node.accountLeaseRequestKey} onChange={(event) => setPlanNodeDraftValue(index, 'accountLeaseRequestKey', event.target.value)} />
                         </Field>
                       </>
                     )}
                     <Field label={translate('auto.k0867')}>
-                      <input type="number" min={1} max={86400} value={node.timeoutSeconds} onChange={(event) => setPlanNodeDraftValue(index, 'timeoutSeconds', Number(event.target.value))} />
+                      <NumberControl min={1} max={86400} value={node.timeoutSeconds} onChange={(event) => setPlanNodeDraftValue(index, 'timeoutSeconds', Number(event.target.value || 1))} />
                     </Field>
                     <Field label={translate('auto.k0868')}>
-                      <NativeSelect value={node.failurePolicy} onChange={(event) => setPlanNodeDraftValue(index, 'failurePolicy', event.target.value as ExecutionDagNodeDraft['failurePolicy'])}>
+                      <SelectControl value={node.failurePolicy} onChange={(event) => setPlanNodeDraftValue(index, 'failurePolicy', event.target.value as ExecutionDagNodeDraft['failurePolicy'])}>
                         <option value="FAIL_FAST">{dictionaryLabel('FAIL_FAST')}</option>
                         <option value="CONTINUE">{dictionaryLabel('CONTINUE')}</option>
                         <option value="BLOCK_DOWNSTREAM">{dictionaryLabel('BLOCK_DOWNSTREAM')}</option>
-                      </NativeSelect>
+                      </SelectControl>
                     </Field>
                     <Field label={translate('auto.k0869')}>
-                      <input type="number" min={0} max={5} value={node.maxAttempts} onChange={(event) => setPlanNodeDraftValue(index, 'maxAttempts', Number(event.target.value))} />
+                      <NumberControl min={0} max={5} value={node.maxAttempts} onChange={(event) => setPlanNodeDraftValue(index, 'maxAttempts', Number(event.target.value || 0))} />
                     </Field>
                   </div>
                   <div className="execution-digest-line">{summarizeDraftNode(node)}</div>
@@ -841,8 +814,24 @@ export function ExecutionWorkbench(props: { signedIn: boolean; currentUser: Curr
               <div className="panel-title">{translate('auto.k0872')}</div>
               <div className="panel-desc">{plans.length} {translate('auto.k0181')}</div>
             </div>
+            <div className="execution-panel-actions">
+              <button className="btn btn-primary btn-sm" type="button" onClick={openCreatePlanDrawer} disabled={!canManage || planActionState.loading}>
+                <FileText size={15} />
+                {translate('auto.k0860')}
+              </button>
+              <button className="btn btn-secondary btn-sm" type="button" onClick={openEditPlanDrawer} disabled={!canManage || !planDetail || planActionState.loading}>
+                <ShieldCheck size={15} />
+                {translate('auto.k0859')}
+              </button>
+              <button className="btn btn-ghost btn-sm" type="button" onClick={() => void onArchivePlan()} disabled={!canManage || !selectedPlanId || planActionState.loading || planDetail?.status === 'ARCHIVED'}>
+                <Trash2 size={15} />
+                {translate('auto.k0871')}
+              </button>
+            </div>
           </div>
           <div className="panel-body compact">
+            {planActionState.error && <div className="document-state-line error">{planActionState.error}</div>}
+            {planActionState.success && <div className="document-state-line success">{planActionState.success}</div>}
             <div className="table-wrap execution-table-wrap">
               <table>
                 <thead>
@@ -900,24 +889,24 @@ export function ExecutionWorkbench(props: { signedIn: boolean; currentUser: Curr
         <div className="panel-body compact">
           <div className="form-grid">
             <Field label="requestKey">
-              <input value={manualRequestKey} onChange={(event) => setManualRequestKey(event.target.value)} />
+              <InputControl value={manualRequestKey} onChange={(event) => setManualRequestKey(event.target.value)} />
             </Field>
             <Field label={translate('auto.k0878')}>
-              <input value={manualReason} onChange={(event) => setManualReason(event.target.value)} />
+              <InputControl value={manualReason} onChange={(event) => setManualReason(event.target.value)} />
             </Field>
           </div>
           {lastDryRun && (
             <div className="execution-sync-summary">
-              <span>{lastDryRun.valid ? 'VALID' : 'INVALID'}</span>
+              <span>{displayValueLabel(lastDryRun.valid ? 'VALID' : 'INVALID')}</span>
               <span className="mono">{shortId(lastDryRun.dagDigest)}</span>
-              <span>issues {lastDryRun.issues.length}</span>
+              <span>{fieldLabel('issues')} {lastDryRun.issues.length}</span>
             </div>
           )}
           {lastDryRun?.issues.length ? (
             <div className="execution-issue-list">
               {lastDryRun.issues.map((issue, index) => (
                 <span key={`${issue.code}-${index}`}>
-                  {issue.severity} · {issue.nodeKey ?? '-'} · {issue.code}
+                  {displayValueLabel(issue.severity)} · {issue.nodeKey ?? '-'} · {displayValueLabel(issue.code)}
                 </span>
               ))}
             </div>
@@ -930,9 +919,9 @@ export function ExecutionWorkbench(props: { signedIn: boolean; currentUser: Curr
                   <StatusBadge status={node.type} />
                 </div>
                 <div className="execution-node-meta">
-                  <span>{node.failurePolicy}</span>
+                  <span>{displayValueLabel(node.failurePolicy)}</span>
                   <span>{node.timeoutSeconds}s</span>
-                  <span>{node.dependencies.length ? node.dependencies.join(', ') : 'root'}</span>
+                  <span>{node.dependencies.length ? node.dependencies.join(', ') : fieldLabel('root')}</span>
                 </div>
                 <div className="execution-digest-line">{summaryText(node.inputSummary)}</div>
               </div>
@@ -950,7 +939,7 @@ export function ExecutionWorkbench(props: { signedIn: boolean; currentUser: Curr
           <div className="panel-header">
             <div>
               <div className="panel-title">{translate('auto.k0880')}</div>
-              <div className="panel-desc">{runDetail ? `${runDetail.status} · ${runDetail.triggerType}` : translate('auto.k0881')}</div>
+              <div className="panel-desc">{runDetail ? `${displayValueLabel(runDetail.status)} · ${displayValueLabel(runDetail.triggerType)}` : translate('auto.k0881')}</div>
             </div>
             <div className="execution-panel-actions">
               <button className="btn btn-ghost btn-sm" type="button" onClick={() => void refreshRunDetail(selectedRunId)} disabled={!selectedRunId}>
@@ -984,7 +973,7 @@ export function ExecutionWorkbench(props: { signedIn: boolean; currentUser: Curr
             )}
             {runDetail?.errorCode && (
               <div className="document-state-line error">
-                {runDetail.errorCode}{runDetail.errorSummary ? ` · ${runDetail.errorSummary}` : ''}
+                {displayValueLabel(runDetail.errorCode)}{runDetail.errorSummary ? ` · ${runDetail.errorSummary}` : ''}
               </div>
             )}
             {runStreamState.error && <div className="document-state-line error">{runStreamState.error}</div>}
@@ -999,7 +988,7 @@ export function ExecutionWorkbench(props: { signedIn: boolean; currentUser: Curr
                 >
                   <span>
                     <strong>{shortId(run.id)}</strong>
-                    <small>{run.triggerType} · {formatDateTime(run.createdAt)}</small>
+                    <small>{displayValueLabel(run.triggerType)} · {formatDateTime(run.createdAt)}</small>
                   </span>
                   <StatusBadge status={run.status} />
                 </button>
@@ -1015,11 +1004,11 @@ export function ExecutionWorkbench(props: { signedIn: boolean; currentUser: Curr
                     <StatusBadge status={node.status} />
                   </div>
                   <div className="execution-node-meta">
-                    <span>{node.runnerType}</span>
-                    <span>attempt {node.attempt}</span>
-                    <span>{node.externalRunId ? shortId(node.externalRunId) : 'internal'}</span>
+                    <span>{displayValueLabel(node.runnerType)}</span>
+                    <span>{fieldLabel('attempt')} {node.attempt}</span>
+                    <span>{node.externalRunId ? shortId(node.externalRunId) : dictionaryLabel('INTERNAL')}</span>
                   </div>
-                  {node.errorCode && <div className="execution-digest-line error">{node.errorCode} · {node.errorSummary ?? ''}</div>}
+                  {node.errorCode && <div className="execution-digest-line error">{displayValueLabel(node.errorCode)} · {node.errorSummary ?? ''}</div>}
                 </div>
               )) : null}
             </div>
@@ -1033,12 +1022,12 @@ export function ExecutionWorkbench(props: { signedIn: boolean; currentUser: Curr
                   {runDetail.artifacts.map((artifact) => (
                     <div className="execution-node-card" key={artifact.id}>
                       <div className="execution-node-card-head">
-                        <strong>{artifact.artifactType}</strong>
+                        <strong>{displayValueLabel(artifact.artifactType)}</strong>
                         <StatusBadge status={artifact.captureStatus} />
                       </div>
                       <div className="execution-node-meta">
-                        <span>{artifact.sourceType}</span>
-                        <span>{artifact.nodeKey || 'run'}</span>
+                        <span>{displayValueLabel(artifact.sourceType)}</span>
+                        <span>{artifact.nodeKey || fieldLabel('run')}</span>
                         <span>{artifact.sizeBytes} B</span>
                       </div>
                       <div className="execution-panel-actions">
@@ -1068,9 +1057,9 @@ export function ExecutionWorkbench(props: { signedIn: boolean; currentUser: Curr
                 <div className="execution-run-log-list">
                   {runLogs.map((entry) => (
                     <div className={`execution-run-log-item tone-${logTone(entry.level)}`} key={entry.key}>
-                      <strong>{entry.stage ?? entry.level}</strong>
+                      <strong>{entry.stage ?? displayValueLabel(entry.level)}</strong>
                       <span>{entry.timestamp ? formatDateTime(entry.timestamp) : '-'}</span>
-                      <em>{entry.nodeKey ?? 'run'}</em>
+                      <em>{entry.nodeKey ?? fieldLabel('run')}</em>
                       <span>{entry.message}</span>
                       {Object.keys(entry.metadata).length ? <small>{summaryText(entry.metadata)}</small> : null}
                     </div>
@@ -1133,20 +1122,20 @@ export function ExecutionWorkbench(props: { signedIn: boolean; currentUser: Curr
             >
             <form className="execution-trigger-form document-drawer-form" onSubmit={onCreateTrigger}>
               <Field label={translate('auto.k0286')}>
-                <NativeSelect value={triggerDraft.triggerType} onChange={(event) => setTriggerDraftValue('triggerType', event.target.value as TriggerDraft['triggerType'])}>
+                <SelectControl value={triggerDraft.triggerType} onChange={(event) => setTriggerDraftValue('triggerType', event.target.value as TriggerDraft['triggerType'])}>
                   <option value="WEBHOOK">{dictionaryLabel('WEBHOOK')}</option>
                   <option value="CRON">{dictionaryLabel('CRON')}</option>
-                </NativeSelect>
+                </SelectControl>
               </Field>
               <Field label={translate('auto.k0182')}>
-                <NativeSelect value={triggerDraft.status} onChange={(event) => setTriggerDraftValue('status', event.target.value as TriggerDraft['status'])}>
+                <SelectControl value={triggerDraft.status} onChange={(event) => setTriggerDraftValue('status', event.target.value as TriggerDraft['status'])}>
                   <option value="DISABLED">{dictionaryLabel('DISABLED')}</option>
                   <option value="ENABLED">{dictionaryLabel('ENABLED')}</option>
                   <option value="PAUSED">{dictionaryLabel('PAUSED')}</option>
-                </NativeSelect>
+                </SelectControl>
               </Field>
               <Field label={triggerDraft.triggerType === 'WEBHOOK' ? 'source' : 'cron'}>
-                <input
+                <InputControl
                   value={triggerDraft.triggerType === 'WEBHOOK' ? triggerDraft.source : triggerDraft.cron}
                   onChange={(event) => triggerDraft.triggerType === 'WEBHOOK'
                     ? setTriggerDraftValue('source', event.target.value)
@@ -1154,7 +1143,7 @@ export function ExecutionWorkbench(props: { signedIn: boolean; currentUser: Curr
                 />
               </Field>
               <Field label={triggerDraft.triggerType === 'WEBHOOK' ? 'eventType' : 'timezone'}>
-                <input
+                <InputControl
                   value={triggerDraft.triggerType === 'WEBHOOK' ? triggerDraft.eventType : triggerDraft.timezone}
                   onChange={(event) => triggerDraft.triggerType === 'WEBHOOK'
                     ? setTriggerDraftValue('eventType', event.target.value)
@@ -1162,7 +1151,7 @@ export function ExecutionWorkbench(props: { signedIn: boolean; currentUser: Curr
                 />
               </Field>
               <Field label="secretRef">
-                <input value={triggerDraft.secretRef} onChange={(event) => setTriggerDraftValue('secretRef', event.target.value)} />
+                <InputControl value={triggerDraft.secretRef} onChange={(event) => setTriggerDraftValue('secretRef', event.target.value)} />
               </Field>
               <div className="document-actions">
                 <button className="btn btn-primary" type="submit" disabled={!canManage || !selectedPlanId || triggerActionState.loading}>
@@ -1188,7 +1177,7 @@ export function ExecutionWorkbench(props: { signedIn: boolean; currentUser: Curr
               {triggers.length ? triggers.map((trigger) => (
                 <div className="execution-trigger-item" key={trigger.id}>
                   <div>
-                    <strong>{trigger.triggerType}</strong>
+                    <strong>{displayValueLabel(trigger.triggerType)}</strong>
                     <span>{dictionaryLabel(trigger.status)} · {fieldLabel('secretRef')} {displayValueLabel(trigger.secretRefConfigured ? 'SET' : 'OFF')}</span>
                     <small className="mono">{shortId(trigger.secretRefDigest ?? trigger.configDigest)}</small>
                   </div>
@@ -1219,7 +1208,7 @@ export function ExecutionWorkbench(props: { signedIn: boolean; currentUser: Curr
             <div className="execution-event-list">
               {triggerEvents.length ? triggerEvents.map((event) => (
                 <div className="execution-event-item" key={event.id}>
-                  <span>{event.status} · {event.sourceEventId}</span>
+                  <span>{displayValueLabel(event.status)} · {event.sourceEventId}</span>
                   <small className="mono">{event.traceId ?? shortId(event.requestDigest)}{event.runId ? ` · ${shortId(event.runId)}` : ''}</small>
                 </div>
               )) : <div className="table-empty">{translate('auto.k0898')}</div>}

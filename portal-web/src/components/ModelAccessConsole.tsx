@@ -1,3 +1,5 @@
+import { AutoComplete, DatePicker, Drawer } from 'antd';
+import dayjs from 'dayjs';
 import {
   Activity,
   AlertTriangle,
@@ -75,9 +77,10 @@ import {
   type InvokeModelResponse
 } from '../api/modelAccess';
 import { canUseButton, hasPermission } from '../permissions';
-import { dictionaryLabel, dictionaryListLabel } from '../platform/dictionaries';
+import { dictionaryLabel, dictionaryListLabel, fieldLabel } from '../platform/dictionaries';
 import { translate } from '../platform/i18n';
-import { NativeSelect } from './ui';
+import { AssetNavigationTabs } from './AssetNavigationTabs';
+import { CheckboxControl, InputControl, NumberControl, SelectControl, TextAreaControl } from './ui';
 
 type WorkState = {
   loading: boolean;
@@ -87,6 +90,7 @@ type WorkState = {
 };
 
 type TabKey = 'providers' | 'prompts' | 'playground' | 'quality' | 'policies' | 'logs';
+type ModelAccessDrawer = 'provider' | 'prompt' | 'policy' | 'playground' | null;
 
 type ProviderDraft = {
   name: string;
@@ -269,13 +273,13 @@ const initialPlaygroundResult: PlaygroundResult = {
 
 const qualityTaskTypeOptions = ['ALL', 'case-design', 'defect-triage', 'requirement-summary'] as const;
 
-const tabs: Array<{ key: TabKey; label: string; icon: LucideIcon }> = [
-  { key: 'providers', label: translate('auto.k0905'), icon: ServerCog },
-  { key: 'prompts', label: translate('auto.k2610'), icon: FileDiff },
-  { key: 'playground', label: translate('auto.k2611'), icon: PlayCircle },
-  { key: 'quality', label: translate('auto.k0906'), icon: Eye },
-  { key: 'policies', label: translate('auto.k0907'), icon: SlidersHorizontal },
-  { key: 'logs', label: translate('auto.k0908'), icon: Activity }
+const tabs: Array<{ key: TabKey; label: string; icon: LucideIcon; enabled: boolean }> = [
+  { key: 'providers', label: translate('auto.k0905'), icon: ServerCog, enabled: true },
+  { key: 'prompts', label: translate('auto.k2610'), icon: FileDiff, enabled: true },
+  { key: 'playground', label: translate('auto.k2611'), icon: PlayCircle, enabled: true },
+  { key: 'quality', label: translate('auto.k0906'), icon: Eye, enabled: true },
+  { key: 'policies', label: translate('auto.k0907'), icon: SlidersHorizontal, enabled: true },
+  { key: 'logs', label: translate('auto.k0908'), icon: Activity, enabled: true }
 ];
 
 export function ModelAccessConsole(props: { signedIn: boolean; currentUser: CurrentUser | null }) {
@@ -320,6 +324,7 @@ export function ModelAccessConsole(props: { signedIn: boolean; currentUser: Curr
   const [policyState, setPolicyState] = useState<WorkState>({ loading: false });
   const [logState, setLogState] = useState<WorkState>({ loading: false });
   const [exportState, setExportState] = useState<WorkState>({ loading: false });
+  const [openDrawer, setOpenDrawer] = useState<ModelAccessDrawer>(null);
 
   const invocationFilters = useMemo(() => buildInvocationFilters(logFilters), [logFilters]);
 
@@ -806,6 +811,7 @@ export function ModelAccessConsole(props: { signedIn: boolean; currentUser: Curr
       outputCostPer1kTokens: String(provider.outputCostPer1kTokens)
     });
     setActiveTab('providers');
+    setOpenDrawer('provider');
   }
 
   function editPolicy(policy: ModelAccessPolicy) {
@@ -822,6 +828,7 @@ export function ModelAccessConsole(props: { signedIn: boolean; currentUser: Curr
       reason: policy.reason ?? ''
     });
     setActiveTab('policies');
+    setOpenDrawer('policy');
     setPolicyState({ loading: false });
   }
 
@@ -858,22 +865,7 @@ export function ModelAccessConsole(props: { signedIn: boolean; currentUser: Curr
             </div>
           </div>
 
-          <div className="asset-tab-strip">
-            {tabs.map((tab) => {
-              const Icon = tab.icon;
-              return (
-                <button
-                  className={`asset-tab ${activeTab === tab.key ? 'active' : ''}`}
-                  type="button"
-                  key={tab.key}
-                  onClick={() => setActiveTab(tab.key)}
-                >
-                  <Icon size={14} />
-                  {tab.label}
-                </button>
-              );
-            })}
-          </div>
+          <AssetNavigationTabs activeKey={activeTab} ariaLabel={translate('auto.k0413')} tabs={tabs} onSelectTab={setActiveTab} />
 
           <StateLine state={loadState} />
 
@@ -883,13 +875,21 @@ export function ModelAccessConsole(props: { signedIn: boolean; currentUser: Curr
               checks={providerChecks}
               draft={providerDraft}
               editingProviderId={editingProviderId}
+              hideForm
               providers={providers}
               resilience={providerResilience}
               state={providerState}
+              onCreate={() => {
+                setEditingProviderId(null);
+                setProviderDraft(initialProviderDraft);
+                setProviderState({ loading: false });
+                setOpenDrawer('provider');
+              }}
               onCancelEdit={() => {
                 setEditingProviderId(null);
                 setProviderDraft(initialProviderDraft);
                 setProviderState({ loading: false });
+                setOpenDrawer(null);
               }}
               onChangeDraft={(key, value) => {
                 setProviderDraft((current) => ({ ...current, [key]: value }));
@@ -908,6 +908,7 @@ export function ModelAccessConsole(props: { signedIn: boolean; currentUser: Curr
               canManage={canManagePrompts}
               diffPrompts={diffPrompts}
               draft={promptDraft}
+              hideForm
               leftPromptId={leftPromptId}
               promptFilter={promptFilter}
               promptKeys={promptKeys}
@@ -916,6 +917,11 @@ export function ModelAccessConsole(props: { signedIn: boolean; currentUser: Curr
               selectedPromptKey={selectedPromptKey}
               selectedPromptVersions={selectedPromptVersions}
               state={promptState}
+              onCreate={() => {
+                setPromptDraft(initialPromptDraft);
+                setPromptState({ loading: false });
+                setOpenDrawer('prompt');
+              }}
               onActivate={onActivatePrompt}
               onApprove={onApprovePrompt}
               onChangeDraft={(key, value) => {
@@ -946,10 +952,12 @@ export function ModelAccessConsole(props: { signedIn: boolean; currentUser: Curr
             <PlaygroundTab
               canManage={canManageInvocations}
               draft={playgroundDraft}
+              hideForm
               prompts={selectedPromptVersions.length ? selectedPromptVersions : prompts}
               providers={providers}
               result={playgroundResult}
               state={playgroundState}
+              onOpenConfig={() => setOpenDrawer('playground')}
               onAddMessage={() => {
                 setPlaygroundDraft((current) => ({
                   ...current,
@@ -1008,9 +1016,15 @@ export function ModelAccessConsole(props: { signedIn: boolean; currentUser: Curr
               canManage={canManagePolicies}
               draft={policyDraft}
               effectivePolicy={effectivePolicy}
+              hideForm
               policies={policies}
               previewDraft={policyPreviewDraft}
               state={policyState}
+              onCreate={() => {
+                setPolicyDraft(initialPolicyDraft);
+                setPolicyState({ loading: false });
+                setOpenDrawer('policy');
+              }}
               onChangeDraft={(key, value) => {
                 const patch: Partial<PolicyDraft> = { [key]: value } as Partial<PolicyDraft>;
                 if (key === 'scopeType' && value === 'PLATFORM') {
@@ -1090,6 +1104,217 @@ export function ModelAccessConsole(props: { signedIn: boolean; currentUser: Curr
           </div>
         </div>
       </aside>
+      <Drawer
+        className="model-access-drawer"
+        destroyOnHidden
+        footer={null}
+        maskClosable={!providerState.loading && !promptState.loading && !policyState.loading && !playgroundState.loading}
+        open={openDrawer === 'provider'}
+        placement="right"
+        title={editingProviderId ? translate('auto.k0978') : translate('auto.k0979')}
+        width={720}
+        onClose={() => {
+          if (!providerState.loading) {
+            setOpenDrawer(null);
+          }
+        }}
+      >
+        <ProviderTab
+          canManage={canManageProviders}
+          checks={providerChecks}
+          draft={providerDraft}
+          editingProviderId={editingProviderId}
+          hideTable
+          hideToolbar
+          providers={providers}
+          resilience={providerResilience}
+          state={providerState}
+          onCheck={onCheckProvider}
+          onCreate={() => undefined}
+          onEdit={editProvider}
+          onResetCircuit={onResetCircuit}
+          onCancelEdit={() => {
+            setEditingProviderId(null);
+            setProviderDraft(initialProviderDraft);
+            setProviderState({ loading: false });
+            setOpenDrawer(null);
+          }}
+          onChangeDraft={(key, value) => {
+            setProviderDraft((current) => ({ ...current, [key]: value }));
+            setProviderState({ loading: false });
+          }}
+          onSubmit={onSubmitProvider}
+          onToggle={onToggleProvider}
+        />
+      </Drawer>
+      <Drawer
+        className="model-access-drawer"
+        destroyOnHidden
+        footer={null}
+        maskClosable={!promptState.loading}
+        open={openDrawer === 'prompt'}
+        placement="right"
+        title={translate('auto.k1015')}
+        width={760}
+        onClose={() => {
+          if (!promptState.loading) {
+            setOpenDrawer(null);
+          }
+        }}
+      >
+        <PromptTab
+          canManage={canManagePrompts}
+          diffPrompts={diffPrompts}
+          draft={promptDraft}
+          hideDiff
+          hideFilter
+          hideTable
+          hideToolbar
+          leftPromptId={leftPromptId}
+          promptFilter={promptFilter}
+          promptKeys={promptKeys}
+          prompts={prompts}
+          rightPromptId={rightPromptId}
+          selectedPromptKey={selectedPromptKey}
+          selectedPromptVersions={selectedPromptVersions}
+          state={promptState}
+          onActivate={onActivatePrompt}
+          onApprove={onApprovePrompt}
+          onChangeDraft={(key, value) => {
+            setPromptDraft((current) => ({ ...current, [key]: value }));
+            setPromptState({ loading: false });
+          }}
+          onCreate={() => undefined}
+          onFilter={async (value) => {
+            setPromptFilter(value);
+            setLeftPromptId('');
+            setRightPromptId('');
+            setPromptState({ loading: true });
+            try {
+              const response = await fetchPrompts(value);
+              setPrompts(response.data);
+              setPromptState({ loading: false, traceId: response.trace_id });
+            } catch (error: unknown) {
+              setPromptState({ loading: false, error: errorMessage(error, translate('auto.k0961')), traceId: traceId(error) });
+            }
+          }}
+          onLeftPromptChange={setLeftPromptId}
+          onReject={onRejectPrompt}
+          onRightPromptChange={setRightPromptId}
+          onSubmit={onSubmitPrompt}
+        />
+      </Drawer>
+      <Drawer
+        className="model-access-drawer"
+        destroyOnHidden
+        footer={null}
+        maskClosable={!policyState.loading}
+        open={openDrawer === 'policy'}
+        placement="right"
+        title={translate('auto.k1002')}
+        width={760}
+        onClose={() => {
+          if (!policyState.loading) {
+            setOpenDrawer(null);
+          }
+        }}
+      >
+        <PolicyTab
+          canManage={canManagePolicies}
+          draft={policyDraft}
+          effectivePolicy={effectivePolicy}
+          hideEffective
+          hideTable
+          hideToolbar
+          policies={policies}
+          previewDraft={policyPreviewDraft}
+          state={policyState}
+          onChangeDraft={(key, value) => {
+            const patch: Partial<PolicyDraft> = { [key]: value } as Partial<PolicyDraft>;
+            if (key === 'scopeType' && value === 'PLATFORM') {
+              patch.scopeKey = 'GLOBAL';
+            }
+            setPolicyDraft((current) => ({ ...current, ...patch }));
+            setPolicyState({ loading: false });
+          }}
+          onChangePreview={(key, value) => {
+            setPolicyPreviewDraft((current) => ({ ...current, [key]: value }));
+            setPolicyState({ loading: false });
+          }}
+          onCreate={() => undefined}
+          onEdit={editPolicy}
+          onPreview={onRefreshEffectivePolicy}
+          onResetDraft={() => {
+            setPolicyDraft(initialPolicyDraft);
+            setPolicyState({ loading: false });
+          }}
+          onSubmit={onSubmitPolicy}
+        />
+      </Drawer>
+      <Drawer
+        className="model-access-drawer"
+        destroyOnHidden
+        footer={null}
+        maskClosable={!playgroundState.loading}
+        open={openDrawer === 'playground'}
+        placement="right"
+        title={translate('auto.k2611')}
+        width={820}
+        onClose={() => {
+          if (!playgroundState.loading) {
+            setOpenDrawer(null);
+          }
+        }}
+      >
+        <PlaygroundTab
+          canManage={canManageInvocations}
+          draft={playgroundDraft}
+          hideResult
+          hideToolbar
+          prompts={selectedPromptVersions.length ? selectedPromptVersions : prompts}
+          providers={providers}
+          result={playgroundResult}
+          state={playgroundState}
+          onAddMessage={() => {
+            setPlaygroundDraft((current) => ({
+              ...current,
+              messages: [...current.messages, createPlaygroundMessage('user', '')]
+            }));
+            setPlaygroundState({ loading: false });
+          }}
+          onChangeDraft={(key, value) => {
+            setPlaygroundDraft((current) => ({ ...current, [key]: value }));
+            setPlaygroundState({ loading: false });
+          }}
+          onChangeMessage={(id, key, value) => {
+            setPlaygroundDraft((current) => ({
+              ...current,
+              messages: current.messages.map((item) => item.id === id ? { ...item, [key]: value } : item)
+            }));
+            setPlaygroundState({ loading: false });
+          }}
+          onRemoveMessage={(id) => {
+            setPlaygroundDraft((current) => {
+              const nextMessages = current.messages.filter((item) => item.id !== id);
+              return { ...current, messages: nextMessages.length ? nextMessages : [createPlaygroundMessage('user', '')] };
+            });
+            setPlaygroundState({ loading: false });
+          }}
+          onReset={() => {
+            setPlaygroundDraft({
+              ...initialPlaygroundDraft,
+              projectId: playgroundDraft.projectId,
+              promptKey: selectedPromptKey || initialPlaygroundDraft.promptKey
+            });
+            setPlaygroundResult(initialPlaygroundResult);
+            setPlaygroundState({ loading: false });
+          }}
+          onCancelJob={onCancelPlaygroundJob}
+          onOpenConfig={() => undefined}
+          onRefreshJob={onRefreshPlaygroundJob}
+          onRun={onRunPlayground}
+        />
+      </Drawer>
     </div>
   );
 }
@@ -1099,12 +1324,16 @@ function ProviderTab(props: {
   checks: Record<string, ProviderCheckResponse>;
   draft: ProviderDraft;
   editingProviderId: string | null;
+  hideForm?: boolean;
+  hideTable?: boolean;
+  hideToolbar?: boolean;
   providers: ModelProviderConfig[];
   resilience: Record<string, ProviderResilienceResponse>;
   state: WorkState;
   onCancelEdit: () => void;
   onChangeDraft: (key: keyof ProviderDraft, value: string) => void;
   onCheck: (provider: ModelProviderConfig) => Promise<void>;
+  onCreate: () => void;
   onEdit: (provider: ModelProviderConfig) => void;
   onResetCircuit: (provider: ModelProviderConfig) => Promise<void>;
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
@@ -1112,50 +1341,58 @@ function ProviderTab(props: {
 }) {
   return (
     <div className="model-access-section">
-      <form className="model-access-form" onSubmit={props.onSubmit}>
+      {!props.hideToolbar ? (
+        <div className="panel-title-row model-access-action-row">
+          <h2>{translate('auto.k0905')}</h2>
+          <button className="btn btn-primary btn-sm" type="button" disabled={!props.canManage || props.state.loading} onClick={props.onCreate}>
+            <Plus size={14} /> {translate('auto.k0979')}
+          </button>
+        </div>
+      ) : null}
+      {!props.hideForm ? <form className="model-access-form" onSubmit={props.onSubmit}>
         <div className="document-form-grid model-access-provider-grid">
           <label className="field">
             <span>{translate('auto.k0177')}<b>*</b></span>
-            <input value={props.draft.name} disabled={!props.canManage} onChange={(event) => props.onChangeDraft('name', event.target.value)} />
+            <InputControl value={props.draft.name} disabled={!props.canManage} onChange={(event) => props.onChangeDraft('name', event.target.value)} />
           </label>
           <label className="field">
             <span>{translate('auto.k0286')}<b>*</b></span>
-            <NativeSelect value={props.draft.providerType} disabled={!props.canManage || Boolean(props.editingProviderId)} onChange={(event) => props.onChangeDraft('providerType', event.target.value)}>
+            <SelectControl value={props.draft.providerType} disabled={!props.canManage || Boolean(props.editingProviderId)} onChange={(event) => props.onChangeDraft('providerType', event.target.value)}>
               {MODEL_PROVIDER_TYPES.map((type) => <option key={type} value={type}>{dictionaryLabel(type)}</option>)}
-            </NativeSelect>
+            </SelectControl>
           </label>
           <label className="field">
             <span>{translate('auto.k0972')}</span>
-            <input value={props.draft.routingGroup} placeholder="default" disabled={!props.canManage} onChange={(event) => props.onChangeDraft('routingGroup', event.target.value)} />
+            <InputControl value={props.draft.routingGroup} placeholder="default" disabled={!props.canManage} onChange={(event) => props.onChangeDraft('routingGroup', event.target.value)} />
           </label>
           <label className="field">
             <span>{translate('auto.k0973')}</span>
-            <input value={props.draft.capabilities} placeholder="CHAT,TEXT,JSON" disabled={!props.canManage} onChange={(event) => props.onChangeDraft('capabilities', event.target.value)} />
+            <InputControl value={props.draft.capabilities} placeholder="CHAT,TEXT,JSON" disabled={!props.canManage} onChange={(event) => props.onChangeDraft('capabilities', event.target.value)} />
           </label>
           <label className="field">
             <span>{translate('auto.k2613')}</span>
-            <input value={props.draft.baseUrl} placeholder="https://api.example.com" disabled={!props.canManage} onChange={(event) => props.onChangeDraft('baseUrl', event.target.value)} />
+            <InputControl value={props.draft.baseUrl} placeholder="https://api.example.com" disabled={!props.canManage} onChange={(event) => props.onChangeDraft('baseUrl', event.target.value)} />
           </label>
           <label className="field">
             <span>{translate('auto.k2614')}</span>
-            <input value={props.draft.apiKeyRef} placeholder="env:MODEL_API_KEY" disabled={!props.canManage} onChange={(event) => props.onChangeDraft('apiKeyRef', event.target.value)} />
+            <InputControl value={props.draft.apiKeyRef} placeholder="env:MODEL_API_KEY" disabled={!props.canManage} onChange={(event) => props.onChangeDraft('apiKeyRef', event.target.value)} />
             <small>{translate('auto.k0974')}</small>
           </label>
           <label className="field">
             <span>{translate('auto.k0419')}</span>
-            <input type="number" min="0" value={props.draft.priority} disabled={!props.canManage} onChange={(event) => props.onChangeDraft('priority', event.target.value)} />
+            <NumberControl min={0} value={props.draft.priority} disabled={!props.canManage} onChange={(event) => props.onChangeDraft('priority', event.target.value)} />
           </label>
           <label className="field">
             <span>{translate('auto.k0975')}</span>
-            <input type="number" min="100" value={props.draft.timeoutMs} disabled={!props.canManage} onChange={(event) => props.onChangeDraft('timeoutMs', event.target.value)} />
+            <NumberControl min={100} value={props.draft.timeoutMs} disabled={!props.canManage} onChange={(event) => props.onChangeDraft('timeoutMs', event.target.value)} />
           </label>
           <label className="field">
             <span>{translate('auto.k0976')}</span>
-            <input type="number" min="0" step="0.0001" value={props.draft.inputCostPer1kTokens} disabled={!props.canManage} onChange={(event) => props.onChangeDraft('inputCostPer1kTokens', event.target.value)} />
+            <NumberControl min={0} step={0.0001} value={props.draft.inputCostPer1kTokens} disabled={!props.canManage} onChange={(event) => props.onChangeDraft('inputCostPer1kTokens', event.target.value)} />
           </label>
           <label className="field">
             <span>{translate('auto.k0977')}</span>
-            <input type="number" min="0" step="0.0001" value={props.draft.outputCostPer1kTokens} disabled={!props.canManage} onChange={(event) => props.onChangeDraft('outputCostPer1kTokens', event.target.value)} />
+            <NumberControl min={0} step={0.0001} value={props.draft.outputCostPer1kTokens} disabled={!props.canManage} onChange={(event) => props.onChangeDraft('outputCostPer1kTokens', event.target.value)} />
           </label>
         </div>
         <div className="document-actions">
@@ -1168,9 +1405,9 @@ function ProviderTab(props: {
           )}
           <StateLine state={props.state} />
         </div>
-      </form>
+      </form> : null}
 
-      <div className="table-wrap model-access-table-wrap">
+      {!props.hideTable ? <div className="table-wrap model-access-table-wrap">
         <table className="model-access-provider-table">
           <thead>
             <tr>
@@ -1237,7 +1474,7 @@ function ProviderTab(props: {
             )}
           </tbody>
         </table>
-      </div>
+      </div> : null}
     </div>
   );
 }
@@ -1246,11 +1483,16 @@ function PolicyTab(props: {
   canManage: boolean;
   draft: PolicyDraft;
   effectivePolicy: ModelAccessEffectivePolicy | null;
+  hideEffective?: boolean;
+  hideForm?: boolean;
+  hideTable?: boolean;
+  hideToolbar?: boolean;
   policies: ModelAccessPolicy[];
   previewDraft: PolicyPreviewDraft;
   state: WorkState;
   onChangeDraft: (key: keyof PolicyDraft, value: string | boolean) => void;
   onChangePreview: (key: keyof PolicyPreviewDraft, value: string) => void;
+  onCreate: () => void;
   onEdit: (policy: ModelAccessPolicy) => void;
   onPreview: (event?: FormEvent<HTMLFormElement>) => Promise<void>;
   onResetDraft: () => void;
@@ -1258,8 +1500,16 @@ function PolicyTab(props: {
 }) {
   return (
     <div className="model-access-section">
+      {!props.hideToolbar ? (
+        <div className="panel-title-row model-access-action-row">
+          <h2>{translate('auto.k0907')}</h2>
+          <button className="btn btn-primary btn-sm" type="button" disabled={!props.canManage || props.state.loading} onClick={props.onCreate}>
+            <Plus size={14} /> {translate('auto.k1002')}
+          </button>
+        </div>
+      ) : null}
       <div className="model-access-policy-grid">
-        <form className="model-access-form" onSubmit={props.onSubmit}>
+        {!props.hideForm ? <form className="model-access-form" onSubmit={props.onSubmit}>
           <div className="model-access-policy-entry">
             <div>
               <strong>{translate('auto.k0987')}</strong>
@@ -1271,57 +1521,57 @@ function PolicyTab(props: {
           <div className="document-form-grid model-access-policy-form-grid">
             <label className="field">
               <span>{translate('auto.k0263')}<b>*</b></span>
-              <NativeSelect value={props.draft.scopeType} disabled={!props.canManage} onChange={(event) => props.onChangeDraft('scopeType', event.target.value)}>
+              <SelectControl value={props.draft.scopeType} disabled={!props.canManage} onChange={(event) => props.onChangeDraft('scopeType', event.target.value)}>
                 {MODEL_POLICY_SCOPE_TYPES.map((type) => <option key={type} value={type}>{dictionaryLabel(type)}</option>)}
-              </NativeSelect>
+              </SelectControl>
             </label>
             <label className="field">
               <span>{translate('auto.k2619')}<b>*</b></span>
-              <input value={props.draft.scopeKey} disabled={!props.canManage || props.draft.scopeType === 'PLATFORM'} onChange={(event) => props.onChangeDraft('scopeKey', event.target.value)} />
+              <InputControl value={props.draft.scopeKey} disabled={!props.canManage || props.draft.scopeType === 'PLATFORM'} onChange={(event) => props.onChangeDraft('scopeKey', event.target.value)} />
             </label>
             <label className="field model-access-checkbox-field">
               <span>{translate('auto.k0990')}</span>
-              <input type="checkbox" checked={props.draft.enabled} disabled={!props.canManage} onChange={(event) => props.onChangeDraft('enabled', event.target.checked)} />
+              <CheckboxControl checked={props.draft.enabled} disabled={!props.canManage} onChange={(event) => props.onChangeDraft('enabled', event.target.checked)} />
             </label>
             <label className="field">
               <span>{translate('auto.k0991')}</span>
-              <NativeSelect value={props.draft.modelInvocationEnabled} disabled={!props.canManage} onChange={(event) => props.onChangeDraft('modelInvocationEnabled', event.target.value)}>
+              <SelectControl value={props.draft.modelInvocationEnabled} disabled={!props.canManage} onChange={(event) => props.onChangeDraft('modelInvocationEnabled', event.target.value)}>
                 <option value="INHERIT">{dictionaryLabel('INHERIT')}</option>
                 <option value="ENABLED">{dictionaryLabel('ENABLED')}</option>
                 <option value="DISABLED">{dictionaryLabel('DISABLED')}</option>
-              </NativeSelect>
+              </SelectControl>
             </label>
             <label className="field">
               <span>{translate('auto.k0995')}</span>
-              <NativeSelect value={props.draft.publicModelAllowed} disabled={!props.canManage} onChange={(event) => props.onChangeDraft('publicModelAllowed', event.target.value)}>
+              <SelectControl value={props.draft.publicModelAllowed} disabled={!props.canManage} onChange={(event) => props.onChangeDraft('publicModelAllowed', event.target.value)}>
                 <option value="INHERIT">{dictionaryLabel('INHERIT')}</option>
                 <option value="ENABLED">{dictionaryLabel('ENABLED')}</option>
                 <option value="DISABLED">{dictionaryLabel('DISABLED')}</option>
-              </NativeSelect>
+              </SelectControl>
             </label>
             <label className="field">
               <span>{translate('auto.k0997')}</span>
-              <input type="number" min="0" step="0.00000001" value={props.draft.dailyBudgetLimit} disabled={!props.canManage} onChange={(event) => props.onChangeDraft('dailyBudgetLimit', event.target.value)} />
+              <NumberControl min={0} step={0.00000001} value={props.draft.dailyBudgetLimit} disabled={!props.canManage} onChange={(event) => props.onChangeDraft('dailyBudgetLimit', event.target.value)} />
             </label>
             <label className="field">
               <span>{translate('auto.k0998')}</span>
-              <input type="number" min="0.01" max="1" step="0.01" value={props.draft.costAlertWarningRatio} disabled={!props.canManage} onChange={(event) => props.onChangeDraft('costAlertWarningRatio', event.target.value)} />
+              <NumberControl min={0.01} max={1} step={0.01} value={props.draft.costAlertWarningRatio} disabled={!props.canManage} onChange={(event) => props.onChangeDraft('costAlertWarningRatio', event.target.value)} />
             </label>
             <label className="field">
               <span>{translate('auto.k0999')}</span>
-              <NativeSelect value={props.draft.budgetOverrunAction} disabled={!props.canManage} onChange={(event) => props.onChangeDraft('budgetOverrunAction', event.target.value)}>
+              <SelectControl value={props.draft.budgetOverrunAction} disabled={!props.canManage} onChange={(event) => props.onChangeDraft('budgetOverrunAction', event.target.value)}>
                 <option value="">{dictionaryLabel('INHERIT')}</option>
                 <option value="BLOCK">{dictionaryLabel('BLOCK')}</option>
                 <option value="FALLBACK">{dictionaryLabel('FALLBACK')}</option>
-              </NativeSelect>
+              </SelectControl>
             </label>
             <label className="field">
               <span>{translate('auto.k0972')}</span>
-              <input value={props.draft.routingGroup} placeholder="default/private" disabled={!props.canManage} onChange={(event) => props.onChangeDraft('routingGroup', event.target.value)} />
+              <InputControl value={props.draft.routingGroup} placeholder="default/private" disabled={!props.canManage} onChange={(event) => props.onChangeDraft('routingGroup', event.target.value)} />
             </label>
             <label className="field model-access-policy-reason">
               <span>{translate('auto.k0211')}</span>
-              <input value={props.draft.reason} maxLength={300} disabled={!props.canManage} onChange={(event) => props.onChangeDraft('reason', event.target.value)} />
+              <InputControl value={props.draft.reason} maxLength={300} disabled={!props.canManage} onChange={(event) => props.onChangeDraft('reason', event.target.value)} />
             </label>
           </div>
           <div className="document-actions">
@@ -1330,17 +1580,17 @@ function PolicyTab(props: {
             <button className="secondary-button" type="button" disabled={!props.canManage} onClick={props.onResetDraft}>{translate('auto.k0254')}</button>
             <StateLine state={props.state} />
           </div>
-        </form>
+        </form> : null}
 
-        <form className="model-access-effective-panel" onSubmit={(event) => void props.onPreview(event)}>
+        {!props.hideEffective ? <form className="model-access-effective-panel" onSubmit={(event) => void props.onPreview(event)}>
           <div className="panel-title-row">
             <h2>{translate('auto.k1003')}</h2>
             <Eye size={16} />
           </div>
           <div className="document-form-grid model-access-effective-grid">
-            <label className="field"><span>{translate('auto.k2620')}</span><input value={props.previewDraft.projectId} onChange={(event) => props.onChangePreview('projectId', event.target.value)} /></label>
-            <label className="field"><span>{translate('auto.k2621')}</span><input value={props.previewDraft.environmentId} onChange={(event) => props.onChangePreview('environmentId', event.target.value)} /></label>
-            <label className="field"><span>{translate('auto.k0247')}</span><input value={props.previewDraft.roles} placeholder="SuperAdmin,Auditor" onChange={(event) => props.onChangePreview('roles', event.target.value)} /></label>
+            <label className="field"><span>{translate('auto.k2620')}</span><InputControl value={props.previewDraft.projectId} onChange={(event) => props.onChangePreview('projectId', event.target.value)} /></label>
+            <label className="field"><span>{translate('auto.k2621')}</span><InputControl value={props.previewDraft.environmentId} onChange={(event) => props.onChangePreview('environmentId', event.target.value)} /></label>
+            <label className="field"><span>{translate('auto.k0247')}</span><InputControl value={props.previewDraft.roles} placeholder="SuperAdmin,Auditor" onChange={(event) => props.onChangePreview('roles', event.target.value)} /></label>
           </div>
           <div className="document-actions">
             <button className="secondary-button" type="submit" disabled={props.state.loading}><RefreshCw size={15} /> {translate('auto.k1004')}</button>
@@ -1358,10 +1608,10 @@ function PolicyTab(props: {
               ? props.effectivePolicy?.matchedScopes.map((scope) => <StatusPill key={scope} value={scope} />)
               : <span className="table-secondary">-</span>}
           </div>
-        </form>
+        </form> : null}
       </div>
 
-      <div className="table-wrap model-access-table-wrap">
+      {!props.hideTable ? <div className="table-wrap model-access-table-wrap">
         <table>
           <thead>
             <tr>
@@ -1405,7 +1655,7 @@ function PolicyTab(props: {
             )}
           </tbody>
         </table>
-      </div>
+      </div> : null}
     </div>
   );
 }
@@ -1414,6 +1664,11 @@ function PromptTab(props: {
   canManage: boolean;
   diffPrompts: { left?: PromptTemplate; right?: PromptTemplate; rows: DiffRow[] };
   draft: PromptDraft;
+  hideDiff?: boolean;
+  hideFilter?: boolean;
+  hideForm?: boolean;
+  hideTable?: boolean;
+  hideToolbar?: boolean;
   leftPromptId: string;
   promptFilter: string;
   promptKeys: string[];
@@ -1425,64 +1680,75 @@ function PromptTab(props: {
   onActivate: (prompt: PromptTemplate) => Promise<void>;
   onApprove: (prompt: PromptTemplate) => Promise<void>;
   onChangeDraft: (key: keyof PromptDraft, value: string | boolean) => void;
+  onCreate: () => void;
   onFilter: (value: string) => Promise<void>;
   onLeftPromptChange: (value: string) => void;
   onReject: (prompt: PromptTemplate) => Promise<void>;
   onRightPromptChange: (value: string) => void;
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
 }) {
+  const promptKeyOptions = props.promptKeys.map((key) => ({ label: key, value: key }));
+
   return (
     <div className="model-access-section">
+      {!props.hideToolbar ? (
+        <div className="panel-title-row model-access-action-row">
+          <h2>{translate('auto.k2610')}</h2>
+          <button className="btn btn-primary btn-sm" type="button" disabled={!props.canManage || props.state.loading} onClick={props.onCreate}>
+            <Plus size={14} /> {translate('auto.k1015')}
+          </button>
+        </div>
+      ) : null}
       <div className="model-access-prompt-grid">
-        <form className="model-access-form" onSubmit={props.onSubmit}>
+        {!props.hideForm ? <form className="model-access-form" onSubmit={props.onSubmit}>
           <div className="document-form-grid model-access-prompt-form-grid">
             <label className="field">
               <span>{translate('auto.k2622')}<b>*</b></span>
-              <input value={props.draft.promptKey} disabled={!props.canManage} onChange={(event) => props.onChangeDraft('promptKey', event.target.value)} />
+              <InputControl value={props.draft.promptKey} disabled={!props.canManage} onChange={(event) => props.onChangeDraft('promptKey', event.target.value)} />
             </label>
             <label className="field">
               <span>{translate('auto.k0177')}<b>*</b></span>
-              <input value={props.draft.name} disabled={!props.canManage} onChange={(event) => props.onChangeDraft('name', event.target.value)} />
+              <InputControl value={props.draft.name} disabled={!props.canManage} onChange={(event) => props.onChangeDraft('name', event.target.value)} />
             </label>
             <label className="field model-access-checkbox-field">
               <span>{translate('auto.k1011')}</span>
-              <input type="checkbox" checked={props.draft.activate} disabled={!props.canManage} onChange={(event) => props.onChangeDraft('activate', event.target.checked)} />
+              <CheckboxControl checked={props.draft.activate} disabled={!props.canManage} onChange={(event) => props.onChangeDraft('activate', event.target.checked)} />
             </label>
             <label className="field model-access-checkbox-field">
               <span>{translate('auto.k1012')}</span>
-              <input type="checkbox" checked={props.draft.highRisk} disabled={!props.canManage} onChange={(event) => props.onChangeDraft('highRisk', event.target.checked)} />
+              <CheckboxControl checked={props.draft.highRisk} disabled={!props.canManage} onChange={(event) => props.onChangeDraft('highRisk', event.target.checked)} />
             </label>
           </div>
           <label className="field document-content-field">
             <span>{translate('auto.k1013')}<b>*</b></span>
-            <textarea value={props.draft.content} maxLength={12000} disabled={!props.canManage} onChange={(event) => props.onChangeDraft('content', event.target.value)} />
+            <TextAreaControl value={props.draft.content} maxLength={12000} disabled={!props.canManage} autoSize={{ minRows: 8, maxRows: 18 }} onChange={(event) => props.onChangeDraft('content', event.target.value)} />
             <small>{props.draft.content.length} / 12000</small>
           </label>
           <label className="field">
             <span>{translate('auto.k1014')}</span>
-            <input value={props.draft.changeNote} disabled={!props.canManage} onChange={(event) => props.onChangeDraft('changeNote', event.target.value)} />
+            <InputControl value={props.draft.changeNote} disabled={!props.canManage} onChange={(event) => props.onChangeDraft('changeNote', event.target.value)} />
           </label>
           <div className="document-actions">
             <button className="primary-button" type="submit" disabled={!props.canManage || props.state.loading}>
               <Plus size={16} /> {translate('auto.k1015')}</button>
             <StateLine state={props.state} />
           </div>
-        </form>
+        </form> : null}
 
-        <div className="model-access-diff-panel">
+        {!props.hideDiff ? <div className="model-access-diff-panel">
           <div className="panel-title-row">
             <h2>{translate('auto.k1016')}</h2>
             <FileDiff size={16} />
           </div>
           <div className="model-access-diff-selectors">
-            <NativeSelect value={props.leftPromptId} onChange={(event) => props.onLeftPromptChange(event.target.value)}>
+            <SelectControl value={props.leftPromptId} onChange={(event) => props.onLeftPromptChange(event.target.value)}>
               <option value="">{translate('auto.k1017')}</option>
               {props.selectedPromptVersions.map((prompt) => <option key={prompt.id} value={prompt.id}>{prompt.promptKey} v{prompt.version}</option>)}
-            </NativeSelect>
-            <NativeSelect value={props.rightPromptId} onChange={(event) => props.onRightPromptChange(event.target.value)}>
+            </SelectControl>
+            <SelectControl value={props.rightPromptId} onChange={(event) => props.onRightPromptChange(event.target.value)}>
               <option value="">{translate('auto.k1018')}</option>
               {props.selectedPromptVersions.map((prompt) => <option key={prompt.id} value={prompt.id}>{prompt.promptKey} v{prompt.version}</option>)}
-            </NativeSelect>
+            </SelectControl>
           </div>
           <div className="model-access-diff-meta">
             <span>{props.diffPrompts.left ? `v${props.diffPrompts.left.version}` : '-'}</span>
@@ -1496,26 +1762,31 @@ function PromptTab(props: {
               </div>
             )) : <span className="table-secondary">{translate('auto.k1019')}</span>}
           </div>
-        </div>
+        </div> : null}
       </div>
 
-      <form className="asset-filter-bar model-access-prompt-filter" onSubmit={(event) => {
+      {!props.hideFilter ? <form className="asset-filter-bar model-access-prompt-filter" onSubmit={(event) => {
         event.preventDefault();
         void props.onFilter(props.promptFilter);
       }}>
         <label className="field">
           <span>{translate('auto.k2622')}</span>
-          <input value={props.promptFilter} list="model-access-prompt-keys" onChange={(event) => void props.onFilter(event.target.value)} />
-          <datalist id="model-access-prompt-keys">
-            {props.promptKeys.map((key) => <option key={key} value={key} />)}
-          </datalist>
+          <AutoComplete
+            className="ui-select-control"
+            classNames={{ popup: { root: 'ui-select-control-dropdown' } }}
+            getPopupContainer={modelAccessPopupContainer}
+            options={promptKeyOptions}
+            value={props.promptFilter}
+            onChange={(value) => void props.onFilter(value)}
+            onSelect={(value) => void props.onFilter(value)}
+          />
         </label>
         <div className="asset-filter-actions">
           <button className="secondary-button" type="submit"><Search size={15} /> {translate('auto.k0372')}</button>
         </div>
-      </form>
+      </form> : null}
 
-      <div className="table-wrap model-access-table-wrap">
+      {!props.hideTable ? <div className="table-wrap model-access-table-wrap">
         <table>
           <thead>
             <tr>
@@ -1563,7 +1834,7 @@ function PromptTab(props: {
             )}
           </tbody>
         </table>
-      </div>
+      </div> : null}
     </div>
   );
 }
@@ -1571,6 +1842,9 @@ function PromptTab(props: {
 function PlaygroundTab(props: {
   canManage: boolean;
   draft: PlaygroundDraft;
+  hideForm?: boolean;
+  hideResult?: boolean;
+  hideToolbar?: boolean;
   prompts: PromptTemplate[];
   providers: ModelProviderConfig[];
   result: PlaygroundResult;
@@ -1579,6 +1853,7 @@ function PlaygroundTab(props: {
   onChangeDraft: (key: keyof PlaygroundDraft, value: string | boolean | PlaygroundMessageDraft[]) => void;
   onChangeMessage: (id: string, key: 'role' | 'content', value: string) => void;
   onRemoveMessage: (id: string) => void;
+  onOpenConfig: () => void;
   onReset: () => void;
   onRun: (mode: PlaygroundRunMode) => Promise<void>;
   onRefreshJob: () => Promise<void>;
@@ -1586,63 +1861,78 @@ function PlaygroundTab(props: {
 }) {
   const metadataEvent = props.result.streamEvents.find((event): event is Extract<ModelStreamEvent, { type: 'metadata' }> => event.type === 'metadata');
   const latestTraceId = metadataEvent?.traceId ?? props.result.job?.traceId;
+  const promptKeyOptions = Array.from(new Set(props.prompts.map((item) => item.promptKey))).map((key) => ({ label: key, value: key }));
 
   return (
     <div className="model-access-section">
+      {!props.hideToolbar ? (
+        <div className="panel-title-row model-access-action-row">
+          <h2>{translate('auto.k2611')}</h2>
+          <button className="btn btn-primary btn-sm" type="button" disabled={!props.canManage || props.state.loading} onClick={props.onOpenConfig}>
+            <PlayCircle size={14} /> {translate('auto.k1028')}
+          </button>
+        </div>
+      ) : null}
       <div className="model-access-playground-grid">
-        <form className="model-access-form" onSubmit={(event) => event.preventDefault()}>
+        {!props.hideForm ? <form className="model-access-form" onSubmit={(event) => event.preventDefault()}>
           <div className="document-form-grid model-access-playground-form-grid">
             <label className="field">
               <span>{translate('auto.k2620')}<b>*</b></span>
-              <input value={props.draft.projectId} disabled={!props.canManage} onChange={(event) => props.onChangeDraft('projectId', event.target.value)} />
+              <InputControl value={props.draft.projectId} disabled={!props.canManage} onChange={(event) => props.onChangeDraft('projectId', event.target.value)} />
             </label>
             <label className="field">
               <span>{translate('auto.k2623')}</span>
-              <input value={props.draft.applicationId} disabled={!props.canManage} onChange={(event) => props.onChangeDraft('applicationId', event.target.value)} />
+              <InputControl value={props.draft.applicationId} disabled={!props.canManage} onChange={(event) => props.onChangeDraft('applicationId', event.target.value)} />
             </label>
             <label className="field">
               <span>{translate('auto.k2621')}</span>
-              <input value={props.draft.environmentId} disabled={!props.canManage} onChange={(event) => props.onChangeDraft('environmentId', event.target.value)} />
+              <InputControl value={props.draft.environmentId} disabled={!props.canManage} onChange={(event) => props.onChangeDraft('environmentId', event.target.value)} />
             </label>
             <label className="field">
               <span>{translate('auto.k2622')}</span>
-              <input value={props.draft.promptKey} list="model-access-playground-prompt-keys" disabled={!props.canManage} onChange={(event) => props.onChangeDraft('promptKey', event.target.value)} />
-              <datalist id="model-access-playground-prompt-keys">
-                {Array.from(new Set(props.prompts.map((item) => item.promptKey))).map((key) => <option key={key} value={key} />)}
-              </datalist>
+              <AutoComplete
+                className="ui-select-control"
+                classNames={{ popup: { root: 'ui-select-control-dropdown' } }}
+                disabled={!props.canManage}
+                getPopupContainer={modelAccessPopupContainer}
+                options={promptKeyOptions}
+                value={props.draft.promptKey}
+                onChange={(value) => props.onChangeDraft('promptKey', value)}
+                onSelect={(value) => props.onChangeDraft('promptKey', value)}
+              />
             </label>
             <label className="field">
               <span>{translate('auto.k0905')}</span>
-              <NativeSelect value={props.draft.providerId} disabled={!props.canManage} onChange={(event) => props.onChangeDraft('providerId', event.target.value)}>
+              <SelectControl value={props.draft.providerId} disabled={!props.canManage} onChange={(event) => props.onChangeDraft('providerId', event.target.value)}>
                 <option value="">{translate('auto.k1024')}</option>
                 {props.providers.map((provider) => <option key={provider.id} value={provider.id}>{provider.name}</option>)}
-              </NativeSelect>
+              </SelectControl>
             </label>
             <label className="field">
               <span>{translate('auto.k2624')}</span>
-              <input value={props.draft.modelName} disabled={!props.canManage} onChange={(event) => props.onChangeDraft('modelName', event.target.value)} />
+              <InputControl value={props.draft.modelName} disabled={!props.canManage} onChange={(event) => props.onChangeDraft('modelName', event.target.value)} />
             </label>
             <label className="field">
               <span>{translate('auto.k0276')}</span>
-              <NativeSelect value={props.draft.sensitivityLevel} disabled={!props.canManage} onChange={(event) => props.onChangeDraft('sensitivityLevel', event.target.value)}>
+              <SelectControl value={props.draft.sensitivityLevel} disabled={!props.canManage} onChange={(event) => props.onChangeDraft('sensitivityLevel', event.target.value)}>
                 <option value="PUBLIC">{dictionaryLabel('PUBLIC')}</option>
                 <option value="INTERNAL">{dictionaryLabel('INTERNAL')}</option>
                 <option value="CONFIDENTIAL">{dictionaryLabel('CONFIDENTIAL')}</option>
                 <option value="RESTRICTED">{dictionaryLabel('RESTRICTED')}</option>
-              </NativeSelect>
+              </SelectControl>
             </label>
             <label className="field">
               <span>{translate('auto.k0973')}</span>
-              <input value={props.draft.capability} disabled={!props.canManage} onChange={(event) => props.onChangeDraft('capability', event.target.value)} />
+              <InputControl value={props.draft.capability} disabled={!props.canManage} onChange={(event) => props.onChangeDraft('capability', event.target.value)} />
             </label>
             <label className="field model-access-checkbox-field">
               <span>{translate('auto.k1025')}</span>
-              <input type="checkbox" checked={props.draft.allowPublicModel} disabled={!props.canManage} onChange={(event) => props.onChangeDraft('allowPublicModel', event.target.checked)} />
+              <CheckboxControl checked={props.draft.allowPublicModel} disabled={!props.canManage} onChange={(event) => props.onChangeDraft('allowPublicModel', event.target.checked)} />
             </label>
           </div>
           <label className="field document-content-field">
             <span>{translate('auto.k2625')}</span>
-            <textarea value={props.draft.promptVariablesText} disabled={!props.canManage} onChange={(event) => props.onChangeDraft('promptVariablesText', event.target.value)} />
+            <TextAreaControl value={props.draft.promptVariablesText} disabled={!props.canManage} autoSize={{ minRows: 4, maxRows: 10 }} onChange={(event) => props.onChangeDraft('promptVariablesText', event.target.value)} />
           </label>
 
           <div className="model-access-message-editor">
@@ -1655,15 +1945,15 @@ function PlaygroundTab(props: {
               <div className="model-access-message-row" key={message.id}>
                 <label className="field">
                   <span>{translate('auto.k0247')}{index + 1}</span>
-                  <NativeSelect value={message.role} disabled={!props.canManage} onChange={(event) => props.onChangeMessage(message.id, 'role', event.target.value)}>
+                  <SelectControl value={message.role} disabled={!props.canManage} onChange={(event) => props.onChangeMessage(message.id, 'role', event.target.value)}>
                     <option value="system">{dictionaryLabel('system')}</option>
                     <option value="user">{dictionaryLabel('user')}</option>
                     <option value="assistant">{dictionaryLabel('assistant')}</option>
-                  </NativeSelect>
+                  </SelectControl>
                 </label>
                 <label className="field document-content-field">
                   <span>{translate('auto.k1013')}</span>
-                  <textarea value={message.content} disabled={!props.canManage} onChange={(event) => props.onChangeMessage(message.id, 'content', event.target.value)} />
+                  <TextAreaControl value={message.content} disabled={!props.canManage} autoSize={{ minRows: 4, maxRows: 12 }} onChange={(event) => props.onChangeMessage(message.id, 'content', event.target.value)} />
                 </label>
                 <button className="mini-button icon-only" type="button" title={translate('auto.k1027')} disabled={!props.canManage || props.draft.messages.length === 1} onClick={() => props.onRemoveMessage(message.id)}>
                   <XCircle size={14} />
@@ -1682,9 +1972,9 @@ function PlaygroundTab(props: {
             <button className="secondary-button" type="button" onClick={props.onReset}>{translate('auto.k0254')}</button>
             <StateLine state={props.state} />
           </div>
-        </form>
+        </form> : null}
 
-        <div className="model-access-playground-result">
+        {!props.hideResult ? <div className="model-access-playground-result">
           <div className="panel-title-row">
             <h2>{translate('auto.k0219')}</h2>
               <span className="table-secondary">{props.result.mode ? translate('auto.k1031', { value0: dictionaryLabel(props.result.mode) }) : translate('auto.k1032')}</span>
@@ -1716,9 +2006,9 @@ function PlaygroundTab(props: {
                   <XCircle size={15} /> {translate('auto.k1034')}</button>
               </div>
               <div className="model-access-job-meta">
-                <span>jobId: {props.result.job.jobId}</span>
-                <span>traceId: {props.result.job.traceId ?? '-'}</span>
-                <span>finishedAt: {formatDateTime(props.result.job.finishedAt)}</span>
+                <span>{fieldLabel('jobId')}：{props.result.job.jobId}</span>
+                <span>{fieldLabel('traceId')}：{props.result.job.traceId ?? '-'}</span>
+                <span>{fieldLabel('finishedAt')}：{formatDateTime(props.result.job.finishedAt)}</span>
               </div>
               {props.result.job.errorCode && (
                 <div className="document-state-line error">{props.result.job.errorCode}: {props.result.job.errorMessage ?? '-'}</div>
@@ -1728,13 +2018,13 @@ function PlaygroundTab(props: {
 
           <label className="field document-content-field">
             <span>{translate('auto.k1013')}</span>
-            <textarea value={props.result.streamContent || props.result.response?.content || ''} readOnly />
+            <TextAreaControl value={props.result.streamContent || props.result.response?.content || ''} readOnly autoSize={{ minRows: 6, maxRows: 18 }} />
           </label>
 
           <div className="model-access-stream-events">
             <div className="panel-title-row">
               <h2>{translate('auto.k1035')}</h2>
-              <span className="table-secondary">{latestTraceId ? `Trace ID：${latestTraceId}` : '-'}</span>
+              <span className="table-secondary">{latestTraceId ? `${fieldLabel('traceId')}：${latestTraceId}` : '-'}</span>
             </div>
             <div className="table-wrap model-access-table-wrap">
               <table>
@@ -1757,7 +2047,7 @@ function PlaygroundTab(props: {
               </table>
             </div>
           </div>
-        </div>
+        </div> : null}
       </div>
     </div>
   );
@@ -1778,9 +2068,9 @@ function QualityTab(props: {
       }}>
         <label className="field">
           <span>{translate('auto.k1037')}</span>
-          <NativeSelect value={props.selectedTaskType} onChange={(event) => props.onChangeTaskType(event.target.value as (typeof qualityTaskTypeOptions)[number])}>
+          <SelectControl value={props.selectedTaskType} onChange={(event) => props.onChangeTaskType(event.target.value as (typeof qualityTaskTypeOptions)[number])}>
             {qualityTaskTypeOptions.map((item) => <option key={item} value={item}>{dictionaryLabel(item)}</option>)}
-          </NativeSelect>
+          </SelectControl>
         </label>
         <div className="asset-filter-actions">
           <button className="secondary-button" type="submit"><RefreshCw size={15} /> {translate('auto.k0170')}</button>
@@ -1880,41 +2170,61 @@ function LogsTab(props: {
   return (
     <div className="model-access-section">
       <form className="asset-filter-bar model-access-log-filter" onSubmit={(event) => void props.onApplyFilters(event)}>
-        <label className="field"><span>{translate('auto.k2620')}</span><input value={props.filters.projectId} onChange={(event) => props.onChangeFilter('projectId', event.target.value)} /></label>
-        <label className="field"><span>{translate('auto.k2623')}</span><input value={props.filters.applicationId} onChange={(event) => props.onChangeFilter('applicationId', event.target.value)} /></label>
-        <label className="field"><span>{translate('auto.k2621')}</span><input value={props.filters.environmentId} onChange={(event) => props.onChangeFilter('environmentId', event.target.value)} /></label>
+        <label className="field"><span>{translate('auto.k2620')}</span><InputControl value={props.filters.projectId} onChange={(event) => props.onChangeFilter('projectId', event.target.value)} /></label>
+        <label className="field"><span>{translate('auto.k2623')}</span><InputControl value={props.filters.applicationId} onChange={(event) => props.onChangeFilter('applicationId', event.target.value)} /></label>
+        <label className="field"><span>{translate('auto.k2621')}</span><InputControl value={props.filters.environmentId} onChange={(event) => props.onChangeFilter('environmentId', event.target.value)} /></label>
         <label className="field">
           <span>{translate('auto.k0276')}</span>
-          <NativeSelect value={props.filters.sensitivityLevel} onChange={(event) => props.onChangeFilter('sensitivityLevel', event.target.value)}>
+          <SelectControl value={props.filters.sensitivityLevel} onChange={(event) => props.onChangeFilter('sensitivityLevel', event.target.value)}>
             <option value="">{translate('auto.k0195')}</option>
             <option value="PUBLIC">{dictionaryLabel('PUBLIC')}</option>
             <option value="INTERNAL">{dictionaryLabel('INTERNAL')}</option>
             <option value="CONFIDENTIAL">{dictionaryLabel('CONFIDENTIAL')}</option>
             <option value="RESTRICTED">{dictionaryLabel('RESTRICTED')}</option>
-          </NativeSelect>
+          </SelectControl>
         </label>
         <label className="field">
           <span>{translate('auto.k0182')}</span>
-          <NativeSelect value={props.filters.status} onChange={(event) => props.onChangeFilter('status', event.target.value)}>
+          <SelectControl value={props.filters.status} onChange={(event) => props.onChangeFilter('status', event.target.value)}>
             <option value="">{translate('auto.k0195')}</option>
             {INVOCATION_STATUSES.map((status) => <option key={status} value={status}>{dictionaryLabel(status)}</option>)}
-          </NativeSelect>
+          </SelectControl>
         </label>
         <label className="field">
           <span>{translate('auto.k0905')}</span>
-          <NativeSelect value={props.filters.providerId} onChange={(event) => props.onChangeFilter('providerId', event.target.value)}>
+          <SelectControl value={props.filters.providerId} onChange={(event) => props.onChangeFilter('providerId', event.target.value)}>
             <option value="">{translate('auto.k0195')}</option>
             {props.providers.map((provider) => <option key={provider.id} value={provider.id}>{provider.name}</option>)}
-          </NativeSelect>
+          </SelectControl>
         </label>
-        <label className="field"><span>{translate('auto.k2640')}</span><input value={props.filters.actorService} onChange={(event) => props.onChangeFilter('actorService', event.target.value)} /></label>
-        <label className="field"><span>{translate('auto.k2641')}</span><input value={props.filters.roleScope} onChange={(event) => props.onChangeFilter('roleScope', event.target.value)} /></label>
-        <label className="field"><span>{translate('auto.k1048')}</span><input value={props.costFilters.projectId} onChange={(event) => props.onChangeCostFilter('projectId', event.target.value)} /></label>
-        <label className="field"><span>{translate('auto.k1049')}</span><input value={props.costFilters.actorService} onChange={(event) => props.onChangeCostFilter('actorService', event.target.value)} /></label>
-        <label className="field"><span>{translate('auto.k1050')}</span><input type="datetime-local" value={props.filters.startTime} onChange={(event) => props.onChangeFilter('startTime', event.target.value)} /></label>
-        <label className="field"><span>{translate('auto.k1051')}</span><input type="datetime-local" value={props.filters.endTime} onChange={(event) => props.onChangeFilter('endTime', event.target.value)} /></label>
-        <label className="field"><span>{translate('auto.k1052')}</span><input type="date" value={props.costFilters.startDate} onChange={(event) => props.onChangeCostFilter('startDate', event.target.value)} /></label>
-        <label className="field"><span>{translate('auto.k1053')}</span><input type="date" value={props.costFilters.endDate} onChange={(event) => props.onChangeCostFilter('endDate', event.target.value)} /></label>
+        <label className="field"><span>{translate('auto.k2640')}</span><InputControl value={props.filters.actorService} onChange={(event) => props.onChangeFilter('actorService', event.target.value)} /></label>
+        <label className="field"><span>{translate('auto.k2641')}</span><InputControl value={props.filters.roleScope} onChange={(event) => props.onChangeFilter('roleScope', event.target.value)} /></label>
+        <label className="field"><span>{translate('auto.k1048')}</span><InputControl value={props.costFilters.projectId} onChange={(event) => props.onChangeCostFilter('projectId', event.target.value)} /></label>
+        <label className="field"><span>{translate('auto.k1049')}</span><InputControl value={props.costFilters.actorService} onChange={(event) => props.onChangeCostFilter('actorService', event.target.value)} /></label>
+        <label className="field">
+          <span>{translate('auto.k1050')}</span>
+          <DatePicker
+            showTime
+            value={datePickerValue(props.filters.startTime)}
+            onChange={(_, value) => props.onChangeFilter('startTime', Array.isArray(value) ? value[0] ?? '' : value)}
+          />
+        </label>
+        <label className="field">
+          <span>{translate('auto.k1051')}</span>
+          <DatePicker
+            showTime
+            value={datePickerValue(props.filters.endTime)}
+            onChange={(_, value) => props.onChangeFilter('endTime', Array.isArray(value) ? value[0] ?? '' : value)}
+          />
+        </label>
+        <label className="field">
+          <span>{translate('auto.k1052')}</span>
+          <DatePicker value={datePickerValue(props.costFilters.startDate)} onChange={(_, value) => props.onChangeCostFilter('startDate', Array.isArray(value) ? value[0] ?? '' : value)} />
+        </label>
+        <label className="field">
+          <span>{translate('auto.k1053')}</span>
+          <DatePicker value={datePickerValue(props.costFilters.endDate)} onChange={(_, value) => props.onChangeCostFilter('endDate', Array.isArray(value) ? value[0] ?? '' : value)} />
+        </label>
         <div className="asset-filter-actions">
           <button className="secondary-button" type="submit" disabled={props.state.loading}><Search size={15} /> {translate('auto.k0372')}</button>
           <button className="secondary-button" type="button" disabled={!props.canExport || props.exportState.loading} onClick={() => void props.onExport()}><Download size={15} /> CSV</button>
@@ -2059,6 +2369,10 @@ function StatusPill(props: { value?: string }) {
   return <span className={`status-pill ${tone}`} title={value}>{dictionaryLabel(value)}</span>;
 }
 
+function modelAccessPopupContainer(triggerNode: HTMLElement) {
+  return (triggerNode.closest('.ant-drawer-content') as HTMLElement | null) ?? document.body;
+}
+
 function StateLine(props: { state: WorkState }) {
   if (props.state.loading) {
     return <span className="document-state-line">{translate('auto.k1062')}</span>;
@@ -2070,7 +2384,7 @@ function StateLine(props: { state: WorkState }) {
     return <span className="document-state-line success">{props.state.success}{props.state.traceId ? ` · ${props.state.traceId}` : ''}</span>;
   }
   if (props.state.traceId) {
-    return <span className="document-state-line">Trace ID：{props.state.traceId}</span>;
+    return <span className="document-state-line">{fieldLabel('traceId')}：{props.state.traceId}</span>;
   }
   return null;
 }
@@ -2291,6 +2605,14 @@ function localDateTimeToInstant(value: string) {
   }
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? undefined : date.toISOString();
+}
+
+function datePickerValue(value: string) {
+  if (!value) {
+    return null;
+  }
+  const parsed = dayjs(value);
+  return parsed.isValid() ? parsed : null;
 }
 
 function buildDiffRows(leftContent: string, rightContent: string): DiffRow[] {

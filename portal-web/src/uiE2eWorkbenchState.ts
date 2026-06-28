@@ -19,6 +19,7 @@ import type {
   UpdateUiE2eScenePayload,
   UpsertUiE2eFlakyMarkPayload
 } from './api/uiE2e';
+import { displayValueLabel, fieldLabel } from './platform/dictionaries';
 import { translate } from './platform/i18n';
 
 export type UiE2eSceneStepDraft = {
@@ -248,6 +249,22 @@ export type UiE2eBatchRunSummary = {
   failedItems: string[];
 };
 
+type UiE2eCheckMetricKey =
+  | 'backfill'
+  | 'batchRun'
+  | 'created'
+  | 'failed'
+  | 'limit'
+  | 'maxScenesPerRun'
+  | 'replayed'
+  | 'requested'
+  | 'runIds'
+  | 'sceneIds'
+  | 'sceneMatched'
+  | 'sceneNotApproved'
+  | 'unchanged'
+  | 'updated';
+
 export type UiE2eRunFlakyPreset = {
   status: 'FLAKY_CANDIDATE' | 'CONFIRMED_FLAKY' | 'WAIVED';
   label: string;
@@ -265,7 +282,7 @@ export type UiE2eRunFlakyGuidance = {
 
 export type UiE2eRunAuditTimelineItem = {
   id: string;
-  kindLabel: 'RUN' | 'STEP' | 'ARTIFACT' | 'FLAKY';
+  kindLabel: string;
   title: string;
   detail: string;
   occurredAt?: string;
@@ -416,7 +433,7 @@ export function buildUiE2eWorkbenchOverview(
     notices.push({ tone: 'info', message: translate('auto.k2340', { value0: confirmedFlaky }) });
   }
 
-  const runnerLabel = health ? `${health.runnerEnabled ? 'ON' : 'OFF'} · ${health.runnerMode || 'UNKNOWN'}` : translate('auto.k1118');
+  const runnerLabel = health ? `${displayValueLabel(health.runnerEnabled ? 'ON' : 'OFF')} · ${displayValueLabel(health.runnerMode || 'UNKNOWN')}` : translate('auto.k1118');
   const runnerTone: UiE2eWorkbenchTone = !health
     ? 'info'
     : health.status !== 'UP'
@@ -424,7 +441,7 @@ export function buildUiE2eWorkbenchOverview(
       : health.runnerEnabled
         ? 'success'
         : 'warning';
-  const allowlistLabel = health ? (health.allowlistEnabled ? `ON (${health.allowlistHostCount})` : 'OFF') : translate('auto.k1118');
+  const allowlistLabel = health ? (health.allowlistEnabled ? `${displayValueLabel('ON')} (${health.allowlistHostCount})` : displayValueLabel('OFF')) : translate('auto.k1118');
   const allowlistTone: UiE2eWorkbenchTone = !health ? 'info' : health.allowlistEnabled ? 'success' : 'warning';
 
   return {
@@ -522,18 +539,18 @@ export function labelUiE2eSceneFocusMode(mode: UiE2eSceneFocusMode) {
 
 export function buildUiE2eSceneListSummary(scene: UiE2eSceneSummary): UiE2eSceneListSummary {
   const signals: string[] = [
-    `risk=${scene.riskLevel}`,
-    `steps=${scene.stepCount}`
+    `${fieldLabel('riskLevel')}=${displayValueLabel(scene.riskLevel)}`,
+    `${fieldLabel('steps')}=${scene.stepCount}`
   ];
   if (scene.environmentId) {
-    pushUnique(signals, `env=${scene.environmentId}`);
+    pushUnique(signals, `${fieldLabel('environmentId')}=${scene.environmentId}`);
   }
   if (scene.tags.length) {
-    pushUnique(signals, `tags=${scene.tags.length}`);
+    pushUnique(signals, `${fieldLabel('tags')}=${scene.tags.length}`);
   }
   const sourceType = extractUiE2eSceneSourceType(scene.sourceSummary);
   if (sourceType) {
-    pushUnique(signals, `source=${sourceType}`);
+    pushUnique(signals, `${fieldLabel('sourceType')}=${displayValueLabel(sourceType)}`);
   }
 
   let detail: string;
@@ -562,7 +579,7 @@ export function buildUiE2eSceneListSummary(scene: UiE2eSceneSummary): UiE2eScene
             ? translate('auto.k0067')
             : scene.status === 'ARCHIVED'
               ? translate('auto.k2359')
-              : `risk=${scene.riskLevel}`,
+              : `${fieldLabel('riskLevel')}=${displayValueLabel(scene.riskLevel)}`,
     detail,
     signals
   };
@@ -669,28 +686,29 @@ export function labelUiE2eBundleFocusMode(mode: UiE2eBundleFocusMode) {
 }
 
 export function buildUiE2eBundleListSummary(bundle: UiE2eBundleSummary): UiE2eBundleListSummary {
-  const staticCheckLabel = compactUiE2eStaticCheckStatus(bundle.staticCheckStatus);
+  const staticCheckStatus = compactUiE2eStaticCheckStatus(bundle.staticCheckStatus);
+  const staticCheckLabel = staticCheckStatus ? displayValueLabel(staticCheckStatus) : undefined;
   const signals: string[] = [];
   if (staticCheckLabel) {
-    pushUnique(signals, `static=${staticCheckLabel}`);
+    pushUnique(signals, `${fieldLabel('staticCheck')}=${staticCheckLabel}`);
   }
   if (bundle.sceneStatus) {
-    pushUnique(signals, `scene=${bundle.sceneStatus}`);
+    pushUnique(signals, `${fieldLabel('sceneStatus')}=${displayValueLabel(bundle.sceneStatus)}`);
   }
   if (bundle.bundleDigest) {
-    pushUnique(signals, 'digest-ready');
+    pushUnique(signals, `${fieldLabel('digest')}=${displayValueLabel('READY')}`);
   }
   if (bundle.status === 'REVIEWING') {
-    pushUnique(signals, 'review-pending');
+    pushUnique(signals, `${fieldLabel('review')}=${displayValueLabel('PENDING')}`);
   }
   if (bundle.status === 'APPROVED') {
-    pushUnique(signals, 'run-ready');
+    pushUnique(signals, `${fieldLabel('runStatus')}=${displayValueLabel('READY')}`);
   }
   if (bundle.status === 'REJECTED') {
-    pushUnique(signals, 'needs-resubmit');
+    pushUnique(signals, translate('auto.k2378'));
   }
   if (bundle.status === 'DRAFT') {
-    pushUnique(signals, 'draft');
+    pushUnique(signals, displayValueLabel('DRAFT'));
   }
 
   let detail: string;
@@ -718,7 +736,7 @@ export function buildUiE2eBundleListSummary(bundle: UiE2eBundleSummary): UiE2eBu
   } else if (bundle.status === 'REJECTED') {
     headline = translate('auto.k2378');
   } else {
-    headline = staticCheckLabel ? `static=${staticCheckLabel}` : bundle.status;
+    headline = staticCheckLabel ? `${fieldLabel('staticCheck')}=${staticCheckLabel}` : displayValueLabel(bundle.status);
   }
 
   return {
@@ -754,14 +772,14 @@ export function buildUiE2eRunQueueOverview(runs: UiE2eRunSummary[]): UiE2eRunQue
       },
       {
         mode: 'flaky',
-        label: 'Confirmed Flaky',
+        label: displayValueLabel('CONFIRMED_FLAKY'),
         desc: translate('auto.k2383'),
         count: filterUiE2eRunsByFocusMode(runs, 'flaky').length,
         tone: 'warning'
       },
       {
         mode: 'runnerDisabled',
-        label: 'Runner Off',
+        label: displayValueLabel('RUNNER_DISABLED'),
         desc: translate('auto.k2384'),
         count: filterUiE2eRunsByFocusMode(runs, 'runnerDisabled').length,
         tone: 'warning'
@@ -797,9 +815,9 @@ export function labelUiE2eRunFocusMode(mode: UiE2eRunFocusMode) {
     case 'blocked':
       return translate('auto.k2381');
     case 'flaky':
-      return 'Confirmed Flaky';
+      return displayValueLabel('CONFIRMED_FLAKY');
     case 'runnerDisabled':
-      return 'Runner Off';
+      return displayValueLabel('RUNNER_DISABLED');
     case 'all':
     default:
       return translate('auto.k2385');
@@ -807,28 +825,28 @@ export function labelUiE2eRunFocusMode(mode: UiE2eRunFocusMode) {
 }
 
 export function buildUiE2eRunListSummary(run: UiE2eRunSummary): UiE2eRunListSummary {
-  const failureLabel = compactUiE2eFailureCode(run.failureCode);
+  const failureLabel = run.failureCode ? displayValueLabel(run.failureCode) : undefined;
   const signals: string[] = [];
   const accountSummary = run.accountSummary || {};
   const browserTypes = stringArrayFromUnknown(accountSummary.browserTypes);
   const visualRegressionEnabled = booleanFromUnknown(accountSummary.visualRegressionEnabled);
   if (failureLabel) {
-    pushUnique(signals, `failure=${failureLabel}`);
+    pushUnique(signals, `${fieldLabel('failureCode')}=${failureLabel}`);
   }
   if (run.flakyStatus && run.flakyStatus !== 'NONE') {
-    pushUnique(signals, `flaky=${run.flakyStatus}`);
+    pushUnique(signals, `${fieldLabel('flaky')}=${displayValueLabel(run.flakyStatus)}`);
   }
   if (run.status === 'BLOCKED' && run.failureCode === 'UI_E2E_RUNNER_DISABLED') {
-    pushUnique(signals, 'aggregate-only');
+    pushUnique(signals, '聚合摘要');
   }
   if (isUiE2eRunActiveStatus(run.status)) {
-    pushUnique(signals, 'auto-refresh');
+    pushUnique(signals, '自动刷新');
   }
   if (browserTypes.length > 1) {
-    pushUnique(signals, `browsers=${browserTypes.join('/')}`);
+    pushUnique(signals, `${fieldLabel('browsers')}=${browserTypes.map((item) => displayValueLabel(item)).join('/')}`);
   }
   if (visualRegressionEnabled) {
-    pushUnique(signals, 'visual-regression');
+    pushUnique(signals, '视觉回归');
   }
 
   let detail: string;
@@ -849,7 +867,7 @@ export function buildUiE2eRunListSummary(run: UiE2eRunSummary): UiE2eRunListSumm
   }
 
   return {
-    headline: failureLabel || `runner=${run.runnerMode}`,
+    headline: failureLabel || `${fieldLabel('runnerMode')}=${displayValueLabel(run.runnerMode)}`,
     detail,
     signals
   };
@@ -885,26 +903,26 @@ export function buildUiE2eRunCreationReadiness(input: {
     missingFields.push('browsers');
   }
   if (draft.visualRegressionEnabled && !draft.baselineRunId.trim()) {
-    pushUnique(checks, 'visualBaseline=auto-latest-success');
+    pushUnique(checks, formatUiE2eCheck('baselineRunId', translate('auto.k1998')));
   }
 
   if (health) {
-    pushUnique(checks, `runner=${health.runnerEnabled ? 'ON' : 'OFF'}:${health.runnerMode || 'UNKNOWN'}`);
+    pushUnique(checks, formatUiE2eCheck('runner', `${displayValueLabel(health.runnerEnabled ? 'ON' : 'OFF')} · ${displayValueLabel(health.runnerMode || 'UNKNOWN')}`));
   } else {
-    pushUnique(checks, 'health=pending');
+    pushUnique(checks, formatUiE2eCheck('healthSummary', displayValueLabel('PENDING')));
   }
   if (scene?.status) {
-    pushUnique(checks, `scene=${scene.status}`);
+    pushUnique(checks, formatUiE2eCheck('sceneStatus', displayValueLabel(scene.status)));
   } else if (draft.sceneId.trim()) {
-    pushUnique(checks, 'scene=list-miss');
+    pushUnique(checks, formatUiE2eCheck('scene', translate('auto.k1999')));
   }
   if (bundle?.status) {
-    pushUnique(checks, `bundle=${bundle.status}`);
+    pushUnique(checks, formatUiE2eCheck('bundleId', displayValueLabel(bundle.status)));
   } else if (draft.bundleId.trim()) {
-    pushUnique(checks, 'bundle=list-miss');
+    pushUnique(checks, formatUiE2eCheck('bundleId', translate('auto.k1999')));
   }
   if (missingFields.length) {
-    pushUnique(checks, `missing=${missingFields.join(',')}`);
+    pushUnique(checks, `${translate('auto.k2601')}=${missingFields.map((field) => fieldLabel(field)).join('、')}`);
   }
 
   if (missingFields.length) {
@@ -921,7 +939,7 @@ export function buildUiE2eRunCreationReadiness(input: {
     return {
       ready: false,
       tone: 'warning',
-      label: 'Runner Disabled',
+      label: displayValueLabel('RUNNER_DISABLED'),
       summary: translate('auto.k2395'),
       checks
     };
@@ -931,8 +949,8 @@ export function buildUiE2eRunCreationReadiness(input: {
     return {
       ready: false,
       tone: 'warning',
-      label: 'Scene Not Ready',
-      summary: translate('auto.k2396', { value0: scene.code || draft.sceneId, value1: scene.status }),
+      label: displayValueLabel('SCENE_NOT_READY'),
+      summary: translate('auto.k2396', { value0: scene.code || draft.sceneId, value1: displayValueLabel(scene.status) }),
       checks
     };
   }
@@ -941,8 +959,8 @@ export function buildUiE2eRunCreationReadiness(input: {
     return {
       ready: false,
       tone: 'warning',
-      label: 'Bundle Not Ready',
-      summary: translate('auto.k2397', { value0: bundle.sceneCode || draft.bundleId, value1: bundle.status }),
+      label: displayValueLabel('BUNDLE_NOT_READY'),
+      summary: translate('auto.k2397', { value0: bundle.sceneCode || draft.bundleId, value1: displayValueLabel(bundle.status) }),
       checks
     };
   }
@@ -951,8 +969,8 @@ export function buildUiE2eRunCreationReadiness(input: {
     return {
       ready: false,
       tone: 'warning',
-      label: 'Scene Bundle Mismatch',
-      summary: translate('auto.k2398', { value0: bundle.sceneStatus }),
+      label: translate('auto.k2984'),
+      summary: translate('auto.k2398', { value0: displayValueLabel(bundle.sceneStatus) }),
       checks
     };
   }
@@ -960,7 +978,7 @@ export function buildUiE2eRunCreationReadiness(input: {
   return {
     ready: true,
     tone: 'success',
-    label: 'Ready To Run',
+    label: translate('auto.k2985'),
     summary: translate('auto.k2399'),
     checks
   };
@@ -1036,23 +1054,23 @@ export function buildUiE2eBatchRunReadiness(input: {
   const nonApprovedScenes = matchedScenes.filter((scene) => scene.status !== 'APPROVED');
 
   if (health) {
-    pushUnique(checks, `runner=${health.runnerEnabled ? 'ON' : 'OFF'}:${health.runnerMode || 'UNKNOWN'}`);
-    pushUnique(checks, `batch=${booleanFromUnknown(health.runnerCapacity?.batchRunReady, true) ? 'READY' : 'PENDING'}`);
-    pushUnique(checks, `maxScenes=${health.maxScenesPerRun}`);
+    pushUnique(checks, formatUiE2eCheck('runner', `${displayValueLabel(health.runnerEnabled ? 'ON' : 'OFF')} · ${displayValueLabel(health.runnerMode || 'UNKNOWN')}`));
+    pushUnique(checks, formatUiE2eCheck('batchRun', displayValueLabel(booleanFromUnknown(health.runnerCapacity?.batchRunReady, true) ? 'READY' : 'PENDING')));
+    pushUnique(checks, formatUiE2eCheck('maxScenesPerRun', health.maxScenesPerRun));
   } else {
-    pushUnique(checks, 'health=pending');
+    pushUnique(checks, formatUiE2eCheck('healthSummary', displayValueLabel('PENDING')));
   }
   if (sceneIds.length) {
-    pushUnique(checks, `sceneIds=${sceneIds.length}`);
+    pushUnique(checks, formatUiE2eCheck('sceneIds', sceneIds.length));
   }
   if (matchedScenes.length) {
-    pushUnique(checks, `sceneMatched=${matchedScenes.length}`);
+    pushUnique(checks, formatUiE2eCheck('sceneMatched', matchedScenes.length));
   }
   if (nonApprovedScenes.length) {
-    pushUnique(checks, `sceneNotApproved=${nonApprovedScenes.length}`);
+    pushUnique(checks, formatUiE2eCheck('sceneNotApproved', nonApprovedScenes.length));
   }
   if (issues.length) {
-    pushUnique(checks, `issues=${issues.length}`);
+    pushUnique(checks, formatUiE2eCheck('issues', issues.length));
   }
 
   if (issues.length || !payload) {
@@ -1069,7 +1087,7 @@ export function buildUiE2eBatchRunReadiness(input: {
     return {
       ready: false,
       tone: 'warning',
-      label: 'Batch Size Exceeded',
+      label: translate('auto.k2986'),
       summary: translate('auto.k2414', { value0: health.maxScenesPerRun }),
       checks
     };
@@ -1079,7 +1097,7 @@ export function buildUiE2eBatchRunReadiness(input: {
     return {
       ready: false,
       tone: 'warning',
-      label: 'Runner Disabled',
+      label: displayValueLabel('RUNNER_DISABLED'),
       summary: translate('auto.k2415'),
       checks
     };
@@ -1089,7 +1107,7 @@ export function buildUiE2eBatchRunReadiness(input: {
     return {
       ready: false,
       tone: 'warning',
-      label: 'Batch Pending',
+      label: translate('auto.k2987'),
       summary: translate('auto.k2416'),
       checks
     };
@@ -1099,7 +1117,7 @@ export function buildUiE2eBatchRunReadiness(input: {
     return {
       ready: false,
       tone: 'warning',
-      label: 'Scene Not Ready',
+      label: displayValueLabel('SCENE_NOT_READY'),
       summary: translate('auto.k2417', { value0: nonApprovedScenes.length }),
       checks
     };
@@ -1108,7 +1126,7 @@ export function buildUiE2eBatchRunReadiness(input: {
   return {
     ready: true,
     tone: 'success',
-    label: 'Batch Ready',
+    label: translate('auto.k2988'),
     summary: translate('auto.k2418', { value0: payload.sceneIds.length }),
     checks
   };
@@ -1161,16 +1179,16 @@ export function buildUiE2eRunBackfillReadiness(input: {
   const { payload, issues } = buildUiE2eRunBackfillPayload(draft);
   const checks: string[] = [];
   if (health) {
-    pushUnique(checks, `backfill=${booleanFromUnknown(health.runnerCapacity?.summaryBackfillReady) ? 'READY' : 'PENDING'}`);
+    pushUnique(checks, formatUiE2eCheck('backfill', displayValueLabel(booleanFromUnknown(health.runnerCapacity?.summaryBackfillReady) ? 'READY' : 'PENDING')));
   } else {
-    pushUnique(checks, 'health=pending');
+    pushUnique(checks, formatUiE2eCheck('healthSummary', displayValueLabel('PENDING')));
   }
   const runIdCount = uniqueOrderedRunIds(draft.runIdsText).length;
   if (runIdCount) {
-    pushUnique(checks, `runIds=${runIdCount}`);
+    pushUnique(checks, formatUiE2eCheck('runIds', runIdCount));
   }
   if (draft.limit.trim()) {
-    pushUnique(checks, `limit=${draft.limit.trim()}`);
+    pushUnique(checks, formatUiE2eCheck('limit', draft.limit.trim()));
   }
 
   if (issues.length || !payload) {
@@ -1187,7 +1205,7 @@ export function buildUiE2eRunBackfillReadiness(input: {
     return {
       ready: false,
       tone: 'warning',
-      label: 'Backfill Pending',
+      label: translate('auto.k2989'),
       summary: translate('auto.k2426'),
       checks
     };
@@ -1196,7 +1214,7 @@ export function buildUiE2eRunBackfillReadiness(input: {
   return {
     ready: true,
     tone: 'success',
-    label: 'Backfill Ready',
+    label: translate('auto.k2990'),
     summary: payload.runIds?.length
       ? translate('auto.k2427', { value0: payload.runIds.length })
       : translate('auto.k2428', { value0: payload.limit || 0 }),
@@ -1211,22 +1229,22 @@ export function buildUiE2eRunBackfillSummary(result: UiE2eRunSummaryBackfill): U
   const updatedItems = result.items.filter((item) => item.updated).length;
   const unchangedItems = result.items.filter((item) => !item.updated && !item.errorCode).length;
   const signals: string[] = [
-    `requested=${result.requestedCount}`,
-    `updated=${result.updatedCount}`,
-    `unchanged=${result.unchangedCount}`,
-    `failed=${result.failedCount}`
+    formatUiE2eCheck('requested', result.requestedCount),
+    formatUiE2eCheck('updated', result.updatedCount),
+    formatUiE2eCheck('unchanged', result.unchangedCount),
+    formatUiE2eCheck('failed', result.failedCount)
   ];
   if (updatedItems !== result.updatedCount) {
-    pushUnique(signals, `updatedItems=${updatedItems}`);
+    pushUnique(signals, formatUiE2eCheck('updated', updatedItems));
   }
   if (unchangedItems !== result.unchangedCount) {
-    pushUnique(signals, `unchangedItems=${unchangedItems}`);
+    pushUnique(signals, formatUiE2eCheck('unchanged', unchangedItems));
   }
 
   if (result.failedCount > 0) {
     return {
       tone: result.updatedCount > 0 ? 'warning' : 'error',
-      label: result.updatedCount > 0 ? 'Backfill Partially Failed' : 'Backfill Failed',
+      label: result.updatedCount > 0 ? translate('auto.k2991') : translate('auto.k2992'),
       summary: result.updatedCount > 0
         ? translate('auto.k2429', { value0: result.updatedCount, value1: result.failedCount })
         : translate('auto.k2430', { value0: result.failedCount }),
@@ -1238,7 +1256,7 @@ export function buildUiE2eRunBackfillSummary(result: UiE2eRunSummaryBackfill): U
   if (result.updatedCount > 0) {
     return {
       tone: 'success',
-      label: 'Backfill Updated',
+      label: translate('auto.k2993'),
       summary: translate('auto.k2431', { value0: result.updatedCount, value1: result.unchangedCount }),
       signals,
       failedItems
@@ -1247,7 +1265,7 @@ export function buildUiE2eRunBackfillSummary(result: UiE2eRunSummaryBackfill): U
 
   return {
     tone: 'info',
-    label: 'Backfill Unchanged',
+    label: translate('auto.k2994'),
     summary: translate('auto.k2432', { value0: result.requestedCount }),
     signals,
     failedItems
@@ -1259,16 +1277,16 @@ export function buildUiE2eBatchRunSummary(result: UiE2eBatchRun): UiE2eBatchRunS
     .filter((item) => item.outcome === 'FAILED')
     .map((item) => `${item.sceneCode || item.sceneId} · ${compactUiE2eFailureCode(item.errorCode)}${item.errorMessage ? ` · ${compactUiE2eText(item.errorMessage, 48)}` : ''}`);
   const signals: string[] = [
-    `requested=${result.requestedCount}`,
-    `created=${result.createdCount}`,
-    `replayed=${result.replayedCount}`,
-    `failed=${result.failedCount}`
+    formatUiE2eCheck('requested', result.requestedCount),
+    formatUiE2eCheck('created', result.createdCount),
+    formatUiE2eCheck('replayed', result.replayedCount),
+    formatUiE2eCheck('failed', result.failedCount)
   ];
 
   if (result.failedCount > 0) {
     return {
       tone: result.createdCount > 0 || result.replayedCount > 0 ? 'warning' : 'error',
-      label: result.createdCount > 0 || result.replayedCount > 0 ? 'Batch Partially Failed' : 'Batch Failed',
+      label: result.createdCount > 0 || result.replayedCount > 0 ? translate('auto.k2995') : translate('auto.k2996'),
       summary: result.createdCount > 0 || result.replayedCount > 0
         ? translate('auto.k2433', { value0: result.createdCount, value1: result.replayedCount, value2: result.failedCount })
         : translate('auto.k2434', { value0: result.failedCount }),
@@ -1280,7 +1298,7 @@ export function buildUiE2eBatchRunSummary(result: UiE2eBatchRun): UiE2eBatchRunS
   if (result.replayedCount > 0) {
     return {
       tone: 'success',
-      label: 'Batch Replayed',
+      label: translate('auto.k2997'),
       summary: translate('auto.k2435', { value0: result.createdCount, value1: result.replayedCount }),
       signals,
       failedItems
@@ -1289,7 +1307,7 @@ export function buildUiE2eBatchRunSummary(result: UiE2eBatchRun): UiE2eBatchRunS
 
   return {
     tone: 'success',
-    label: 'Batch Created',
+    label: translate('auto.k2998'),
     summary: translate('auto.k2436', { value0: result.createdCount }),
     signals,
     failedItems
@@ -1300,7 +1318,7 @@ export function buildUiE2eRunDiagnosis(detail: UiE2eRunDetail): UiE2eRunDiagnosi
   const executionSummary = detail.executionSummary || {};
   const failureBucketCounts = numberRecord(executionSummary.failureBucketCounts);
   const primaryFailureBucketEntry = sortedCountEntries(failureBucketCounts)[0];
-  const primaryFailureBucket = primaryFailureBucketEntry ? `${primaryFailureBucketEntry[0]} x${primaryFailureBucketEntry[1]}` : undefined;
+  const primaryFailureBucket = primaryFailureBucketEntry ? `${displayValueLabel(primaryFailureBucketEntry[0])} x${primaryFailureBucketEntry[1]}` : undefined;
   const blockedArtifacts = detail.artifacts.filter((artifact) => artifact.captureStatus === 'BLOCKED');
   const blockedArtifactReasons = uniqueStrings(
     blockedArtifacts.map((artifact) => extractUiE2eArtifactCaptureBlockedReason(artifact.redactionFlags))
@@ -1322,25 +1340,25 @@ export function buildUiE2eRunDiagnosis(detail: UiE2eRunDetail): UiE2eRunDiagnosi
   const parallelExecutionEnabled = booleanFromUnknown(executionSummary.parallelExecutionEnabled, browserCount > 1);
 
   if (detail.failureCode) {
-    pushUnique(signals, `failureCode=${detail.failureCode}`);
+    pushUnique(signals, `${fieldLabel('failureCode')}=${displayValueLabel(detail.failureCode)}`);
   }
   if (detail.failureSummary) {
-    pushUnique(signals, `failureSummary=${detail.failureSummary}`);
+    pushUnique(signals, `${fieldLabel('failureSummary')}=${detail.failureSummary}`);
   }
   if (primaryFailureBucketEntry) {
     pushUnique(
       signals,
-      `failureBucketCounts=${sortedCountEntries(failureBucketCounts).map(([bucket, count]) => `${bucket} x${count}`).join(', ')}`
+      `${fieldLabel('failureBucket')}=${sortedCountEntries(failureBucketCounts).map(([bucket, count]) => `${displayValueLabel(bucket)} x${count}`).join(', ')}`
     );
   }
   if (blockedArtifacts.length) {
     pushUnique(
       signals,
-      `artifactCaptureBlocked=${blockedArtifacts.length}${blockedArtifactReasons.length ? ` (${blockedArtifactReasons.join(', ')})` : ''}`
+      `${fieldLabel('artifactCaptureBlocked')}=${blockedArtifacts.length}${blockedArtifactReasons.length ? ` (${blockedArtifactReasons.map((item) => displayValueLabel(item)).join(', ')})` : ''}`
     );
   }
   if (flakyStatus === 'CONFIRMED_FLAKY') {
-    pushUnique(signals, 'flakyStatus=CONFIRMED_FLAKY');
+    pushUnique(signals, `${fieldLabel('flaky')}=${displayValueLabel('CONFIRMED_FLAKY')}`);
   }
   if (booleanFromUnknown(executionSummary.aggregateOnly)) {
     pushUnique(signals, translate('auto.k2437'));
@@ -1352,30 +1370,30 @@ export function buildUiE2eRunDiagnosis(detail: UiE2eRunDetail): UiE2eRunDiagnosi
     pushUnique(signals, translate('auto.k2439'));
   }
   if (browserTypes.length) {
-    pushUnique(signals, `browserTypes=${browserTypes.join(',')}`);
+    pushUnique(signals, `${fieldLabel('browsers')}=${browserTypes.map((item) => displayValueLabel(item)).join(',')}`);
   }
   if (parallelExecutionEnabled) {
-    pushUnique(signals, `parallelExecutionEnabled=true（${browserCount} browsers）`);
+    pushUnique(signals, `${fieldLabel('parallel')}=${displayValueLabel('ON')}（${browserCount} 个浏览器）`);
   }
   if (visualRegressionEnabled) {
     pushUnique(
       signals,
       visualThreshold == null
-        ? 'visualRegressionEnabled=true（threshold=exact-match）'
-        : `visualRegressionEnabled=true（threshold=${visualThreshold}）`
+        ? `${fieldLabel('visual')}=${displayValueLabel('ON')}（阈值=精确匹配）`
+        : `${fieldLabel('visual')}=${displayValueLabel('ON')}（阈值=${visualThreshold}）`
     );
     if (visualBaselineRunId) {
-      pushUnique(signals, `visualBaselineRunId=${visualBaselineRunId}`);
+      pushUnique(signals, `${fieldLabel('baselineRunId')}=${visualBaselineRunId}`);
     }
   }
   if (visualComparisonCount > 0 || visualMismatchCount > 0) {
     pushUnique(
       signals,
-      `visualComparison=${visualComparisonCount} compared / ${visualMismatchCount} mismatched`
+      `${fieldLabel('visualComparison')}=${visualComparisonCount} 次比对 / ${visualMismatchCount} 次不匹配`
     );
   }
   if (visualMismatchBrowsers.length) {
-    pushUnique(signals, `visualMismatchBrowsers=${visualMismatchBrowsers.join(',')}`);
+    pushUnique(signals, `${fieldLabel('visualMismatchBrowsers')}=${visualMismatchBrowsers.map((item) => displayValueLabel(item)).join(',')}`);
   }
 
   let tone: UiE2eWorkbenchNoticeTone;
@@ -1394,33 +1412,33 @@ export function buildUiE2eRunDiagnosis(detail: UiE2eRunDetail): UiE2eRunDiagnosi
     failureCodeDiagnosis.actions.forEach((item) => pushUnique(nextActions, item));
   } else if (detail.status === 'FAILED') {
     tone = flakyStatus === 'CONFIRMED_FLAKY' ? 'warning' : 'error';
-    label = flakyStatus === 'CONFIRMED_FLAKY' ? 'CONFIRMED_FLAKY' : 'FAILED';
+    label = displayValueLabel(flakyStatus === 'CONFIRMED_FLAKY' ? 'CONFIRMED_FLAKY' : 'FAILED');
     summary = primaryFailureBucketEntry
-      ? translate('auto.k2442', { value0: primaryFailureBucketEntry[0] })
+      ? translate('auto.k2442', { value0: displayValueLabel(primaryFailureBucketEntry[0]) })
       : translate('auto.k2443');
   } else if (detail.status === 'TIMEOUT') {
     tone = 'error';
-    label = 'TIMEOUT';
+    label = displayValueLabel('TIMEOUT');
     summary = translate('auto.k2444');
   } else if (detail.status === 'BLOCKED') {
     tone = 'warning';
-    label = 'BLOCKED';
+    label = displayValueLabel('BLOCKED');
     summary = primaryFailureBucketEntry?.[0] === 'RUNNER'
       ? translate('auto.k2445')
       : translate('auto.k2446');
   } else if (detail.status === 'CANCELED') {
     tone = 'warning';
-    label = 'CANCELED';
+    label = displayValueLabel('CANCELED');
     summary = translate('auto.k2447');
   } else if (detail.status === 'SUCCEEDED') {
     tone = blockedArtifacts.length ? 'warning' : 'success';
-    label = blockedArtifacts.length ? 'SUCCEEDED_WITH_WARNINGS' : 'SUCCEEDED';
+    label = blockedArtifacts.length ? translate('auto.k2999') : displayValueLabel('SUCCEEDED');
     summary = blockedArtifacts.length
       ? translate('auto.k2448', { value0: blockedArtifacts.length })
       : translate('auto.k2449');
   } else {
     tone = 'info';
-    label = detail.status || 'UNKNOWN';
+    label = displayValueLabel(detail.status || 'UNKNOWN');
     summary = translate('auto.k2450');
   }
 
@@ -1594,7 +1612,7 @@ export function buildUiE2eRunAuditTimeline(detail: UiE2eRunDetail): UiE2eRunAudi
 
   pushUiE2eRunAuditTimelineEvent(events, {
     id: `${detail.id}:created`,
-    kindLabel: 'RUN',
+    kindLabel: translate('auto.k2887'),
     title: translate('auto.k2486'),
     detail: detail.requestKey
       ? translate('auto.k2487', { value0: detail.requestKey })
@@ -1607,7 +1625,7 @@ export function buildUiE2eRunAuditTimeline(detail: UiE2eRunDetail): UiE2eRunAudi
   if (detail.idempotentReplay) {
     pushUiE2eRunAuditTimelineEvent(events, {
       id: `${detail.id}:replay`,
-      kindLabel: 'RUN',
+      kindLabel: translate('auto.k2887'),
       title: translate('auto.k2489'),
       detail: translate('auto.k2490'),
       occurredAt: undefined,
@@ -1619,9 +1637,9 @@ export function buildUiE2eRunAuditTimeline(detail: UiE2eRunDetail): UiE2eRunAudi
   if (detail.startedAt) {
     pushUiE2eRunAuditTimelineEvent(events, {
       id: `${detail.id}:started`,
-      kindLabel: 'RUN',
+      kindLabel: translate('auto.k2887'),
       title: translate('auto.k2491'),
-      detail: translate('auto.k2492', { value0: detail.runnerMode, value1: detail.status }),
+      detail: translate('auto.k2492', { value0: displayValueLabel(detail.runnerMode), value1: displayValueLabel(detail.status) }),
       occurredAt: detail.startedAt,
       tone: isUiE2eRunActiveStatus(detail.status) ? 'info' : 'success',
       sortOrder: 30
@@ -1631,8 +1649,8 @@ export function buildUiE2eRunAuditTimeline(detail: UiE2eRunDetail): UiE2eRunAudi
   detail.stepResults.forEach((step, index) => {
     pushUiE2eRunAuditTimelineEvent(events, {
       id: `${detail.id}:step:${step.id || index}`,
-      kindLabel: 'STEP',
-      title: translate('auto.k2493', { value0: step.stepOrder, value1: step.status }),
+      kindLabel: translate('auto.k1346'),
+      title: translate('auto.k2493', { value0: step.stepOrder, value1: displayValueLabel(step.status) }),
       detail: buildUiE2eRunStepAuditDetail(step),
       occurredAt: step.updatedAt || step.createdAt,
       tone: uiE2eToneFromStatus(step.status),
@@ -1643,8 +1661,8 @@ export function buildUiE2eRunAuditTimeline(detail: UiE2eRunDetail): UiE2eRunAudi
   detail.artifacts.forEach((artifact, index) => {
     pushUiE2eRunAuditTimelineEvent(events, {
       id: `${detail.id}:artifact:${artifact.id || index}`,
-      kindLabel: 'ARTIFACT',
-      title: `Artifact · ${artifact.artifactType} · ${artifact.captureStatus}`,
+      kindLabel: translate('auto.k3001'),
+      title: `${fieldLabel('artifacts')} · ${displayValueLabel(artifact.artifactType)} · ${displayValueLabel(artifact.captureStatus)}`,
       detail: buildUiE2eArtifactAuditDetail(artifact),
       occurredAt: artifact.updatedAt || artifact.createdAt,
       tone: artifact.captureStatus === 'BLOCKED' ? 'warning' : uiE2eToneFromStatus(artifact.captureStatus),
@@ -1655,8 +1673,8 @@ export function buildUiE2eRunAuditTimeline(detail: UiE2eRunDetail): UiE2eRunAudi
   if (detail.flakyMark) {
     pushUiE2eRunAuditTimelineEvent(events, {
       id: `${detail.id}:flaky:${detail.flakyMark.id}`,
-      kindLabel: 'FLAKY',
-      title: translate('auto.k2494', { value0: detail.flakyMark.status }),
+      kindLabel: fieldLabel('flaky'),
+      title: translate('auto.k2494', { value0: displayValueLabel(detail.flakyMark.status) }),
       detail: buildUiE2eFlakyAuditDetail(detail.flakyMark),
       occurredAt: detail.flakyMark.updatedAt || detail.flakyMark.createdAt,
       tone: detail.flakyMark.status === 'CONFIRMED_FLAKY' ? 'warning' : uiE2eToneFromStatus(detail.flakyMark.status),
@@ -1667,7 +1685,7 @@ export function buildUiE2eRunAuditTimeline(detail: UiE2eRunDetail): UiE2eRunAudi
   if (!isUiE2eRunActiveStatus(detail.status)) {
     pushUiE2eRunAuditTimelineEvent(events, {
       id: `${detail.id}:finished`,
-      kindLabel: 'RUN',
+      kindLabel: translate('auto.k2887'),
       title: translate('auto.k2495', { value0: detail.status }),
       detail: buildUiE2eRunTerminalAuditDetail(detail),
       occurredAt: detail.finishedAt || detail.updatedAt,
@@ -1899,7 +1917,7 @@ export function explainUiE2eArtifactCaptureBlockedReason(reason?: string) {
     case 'artifactRefIncomplete':
       return translate('auto.k2533');
     default:
-      return reason ? `captureBlockedReason=${reason}` : translate('auto.k2534');
+      return reason ? `${fieldLabel('captureBlockedReason')}=${displayValueLabel(reason)}` : translate('auto.k2534');
   }
 }
 
@@ -2256,7 +2274,7 @@ function buildFailureCodeDiagnosis(failureCode?: string) {
     case 'UI_E2E_RUNNER_DISABLED':
       return {
         tone: 'warning' as const,
-        label: 'RUNNER_DISABLED',
+        label: displayValueLabel(failureCode),
         summary: translate('auto.k2560'),
         actions: [
           translate('auto.k2561'),
@@ -2266,7 +2284,7 @@ function buildFailureCodeDiagnosis(failureCode?: string) {
     case 'UI_E2E_RUNNER_CANCELED':
       return {
         tone: 'warning' as const,
-        label: 'RUNNER_CANCELED',
+        label: displayValueLabel(failureCode),
         summary: translate('auto.k2563'),
         actions: [
           translate('auto.k2564')
@@ -2275,7 +2293,7 @@ function buildFailureCodeDiagnosis(failureCode?: string) {
     case 'UI_E2E_ACCOUNT_LEASE_INVALID':
       return {
         tone: 'error' as const,
-        label: 'ACCOUNT_LEASE_INVALID',
+        label: displayValueLabel(failureCode),
         summary: translate('auto.k2565'),
         actions: [
           translate('auto.k2566')
@@ -2284,7 +2302,7 @@ function buildFailureCodeDiagnosis(failureCode?: string) {
     case 'UI_E2E_BASE_URL_NOT_ALLOWED':
       return {
         tone: 'error' as const,
-        label: 'BASE_URL_NOT_ALLOWED',
+        label: displayValueLabel(failureCode),
         summary: translate('auto.k2567'),
         actions: [
           translate('auto.k2568')
@@ -2293,7 +2311,7 @@ function buildFailureCodeDiagnosis(failureCode?: string) {
     case 'UI_E2E_RESOURCE_SCOPE_DENIED':
       return {
         tone: 'error' as const,
-        label: 'RESOURCE_SCOPE_DENIED',
+        label: displayValueLabel(failureCode),
         summary: translate('auto.k2569'),
         actions: [
           translate('auto.k2570')
@@ -2302,7 +2320,7 @@ function buildFailureCodeDiagnosis(failureCode?: string) {
     case 'UI_E2E_SCENE_NOT_READY':
       return {
         tone: 'warning' as const,
-        label: 'SCENE_NOT_READY',
+        label: displayValueLabel(failureCode),
         summary: translate('auto.k2571'),
         actions: [
           translate('auto.k2572')
@@ -2311,7 +2329,7 @@ function buildFailureCodeDiagnosis(failureCode?: string) {
     case 'UI_E2E_BUNDLE_NOT_READY':
       return {
         tone: 'warning' as const,
-        label: 'BUNDLE_NOT_READY',
+        label: displayValueLabel(failureCode),
         summary: translate('auto.k2573'),
         actions: [
           translate('auto.k2574')
@@ -2320,7 +2338,7 @@ function buildFailureCodeDiagnosis(failureCode?: string) {
     case 'UI_E2E_EXPORT_DISABLED':
       return {
         tone: 'warning' as const,
-        label: 'EXPORT_DISABLED',
+        label: displayValueLabel(failureCode),
         summary: translate('auto.k2575'),
         actions: [
           translate('auto.k2576')
@@ -2329,7 +2347,7 @@ function buildFailureCodeDiagnosis(failureCode?: string) {
     case 'UI_E2E_VISUAL_REGRESSION_FAILED':
       return {
         tone: 'error' as const,
-        label: 'VISUAL_REGRESSION_FAILED',
+        label: displayValueLabel(failureCode),
         summary: translate('auto.k2577'),
         actions: [
           translate('auto.k2578'),
@@ -2387,7 +2405,7 @@ function artifactBlockedReasonAction(reason?: string) {
     case 'artifactRefIncomplete':
       return translate('auto.k2589');
     default:
-      return reason ? translate('auto.k2590', { value0: reason }) : undefined;
+      return reason ? translate('auto.k2590', { value0: displayValueLabel(reason) }) : undefined;
   }
 }
 
@@ -2438,24 +2456,24 @@ function runFlakyReasonCode(failureCode?: string, failureBucket?: string) {
 
 function runFlakyReasonLead(detail: UiE2eRunDetail, failureBucket?: string) {
   if (failureBucket) {
-    return translate('auto.k2591', { value0: failureBucket });
+    return translate('auto.k2591', { value0: displayValueLabel(failureBucket) });
   }
   if (detail.failureCode) {
-    return translate('auto.k2592', { value0: detail.failureCode });
+    return translate('auto.k2592', { value0: displayValueLabel(detail.failureCode) });
   }
-  return translate('auto.k2593', { value0: detail.status });
+  return translate('auto.k2593', { value0: displayValueLabel(detail.status) });
 }
 
 function buildUiE2eRunStepAuditDetail(step: UiE2eRunStepResult) {
   const parts: string[] = [];
   if (step.failureBucket) {
-    parts.push(`failureBucket=${step.failureBucket}`);
+    parts.push(`${fieldLabel('failureBucket')}=${displayValueLabel(step.failureBucket)}`);
   }
   if (step.errorCode) {
-    parts.push(`errorCode=${step.errorCode}`);
+    parts.push(`${fieldLabel('errorCode')}=${displayValueLabel(step.errorCode)}`);
   }
   if (step.durationMs > 0) {
-    parts.push(`duration=${step.durationMs}ms`);
+    parts.push(`${fieldLabel('duration')}=${step.durationMs}ms`);
   }
   return parts.length ? parts.join(' · ') : translate('auto.k2594');
 }
@@ -2468,13 +2486,13 @@ function buildUiE2eArtifactAuditDetail(artifact: UiE2eArtifactManifest) {
   }
   const parts: string[] = [];
   if (artifact.artifactDigest) {
-    parts.push(`digest=${artifact.artifactDigest}`);
+    parts.push(`${fieldLabel('digest')}=${artifact.artifactDigest}`);
   }
   if (artifact.storageRef) {
-    parts.push('storageRef=ready');
+    parts.push(`${fieldLabel('storageRef')}=${displayValueLabel('READY')}`);
   }
   if (artifact.sizeBytes > 0) {
-    parts.push(`size=${artifact.sizeBytes}B`);
+    parts.push(`${fieldLabel('sizeBytes')}=${artifact.sizeBytes}B`);
   }
   return parts.length ? parts.join(' · ') : translate('auto.k2595');
 }
@@ -2482,7 +2500,7 @@ function buildUiE2eArtifactAuditDetail(artifact: UiE2eArtifactManifest) {
 function buildUiE2eFlakyAuditDetail(mark: UiE2eFlakyMark) {
   const parts: string[] = [];
   if (mark.reasonCode) {
-    parts.push(`reason=${mark.reasonCode}`);
+    parts.push(`${fieldLabel('reasonCode')}=${displayValueLabel(mark.reasonCode)}`);
   }
   const summary = compactUiE2eText(mark.reasonSummary, 96);
   if (summary) {
@@ -2494,14 +2512,14 @@ function buildUiE2eFlakyAuditDetail(mark: UiE2eFlakyMark) {
 function buildUiE2eRunTerminalAuditDetail(detail: UiE2eRunDetail) {
   const parts: string[] = [];
   if (detail.failureCode) {
-    parts.push(`failure=${compactUiE2eFailureCode(detail.failureCode)}`);
+    parts.push(`${fieldLabel('failureCode')}=${displayValueLabel(detail.failureCode)}`);
   }
   const failureSummary = compactUiE2eText(detail.failureSummary, 96);
   if (failureSummary) {
     parts.push(failureSummary);
   }
   if (detail.traceId) {
-    parts.push(`traceId=${detail.traceId}`);
+    parts.push(`${fieldLabel('traceId')}=${detail.traceId}`);
   }
   return parts.length ? parts.join(' · ') : translate('auto.k2597');
 }
@@ -2572,6 +2590,10 @@ function sortedCountEntries(counts: Record<string, number>) {
     }
     return left[0].localeCompare(right[0]);
   });
+}
+
+function formatUiE2eCheck(key: UiE2eCheckMetricKey | string, value: unknown) {
+  return `${fieldLabel(key)}=${value}`;
 }
 
 function pushUnique(items: string[], value?: string) {

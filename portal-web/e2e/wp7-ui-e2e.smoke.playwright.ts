@@ -45,14 +45,17 @@ async function runWp7MainFlow(page: Page, assertResponsive: boolean) {
 
   await expect(page.getByRole('heading', { name: 'UI E2E' })).toBeVisible();
   await expect(page.getByTestId('ui-e2e-workbench')).toBeVisible();
-  await expect(page.locator('.metric-card').filter({ hasText: 'APPROVED 场景' }).getByText('1')).toBeVisible();
+  await expect(page.locator('.metric-card').filter({ hasText: '已批准场景' }).getByText('1')).toBeVisible();
   await expect(page.locator('.metric-card').filter({ hasText: '待评审脚本包' }).getByText('1')).toBeVisible();
   await expect(page.locator('.metric-card').filter({ hasText: '活跃运行' }).getByText('1')).toBeVisible();
-  await expect(page.locator('.metric-card').filter({ hasText: 'allowlist' }).getByText('ON (2)')).toBeVisible();
-  await expect(page.locator('.notice.warning').filter({ hasText: 'runner 默认关闭' })).toBeVisible();
+  await expect(page.locator('.metric-card').filter({ hasText: '访问白名单' }).getByText('开启 (2)')).toBeVisible();
+  await expect(page.locator('.notice.warning').filter({ hasText: '运行器默认关闭' })).toBeVisible();
 
   const scenePanel = page.locator('section.panel').filter({ has: page.getByRole('heading', { name: '场景筛选与创建' }) });
-  const sceneForm = scenePanel.locator('form.ui-e2e-form').first();
+  await scenePanel.getByRole('button', { name: '创建场景' }).click();
+  const sceneDrawer = page.getByRole('dialog', { name: '创建场景' });
+  await expect(sceneDrawer).toBeVisible();
+  const sceneForm = sceneDrawer.locator('form.ui-e2e-form').first();
   await fieldControl(sceneForm, 'projectId', 'input').fill('project-wp7-ui-smoke');
   await fieldControl(sceneForm, 'code', 'input').fill('portal-ui-smoke-created');
   await fieldControl(sceneForm, 'name', 'input').fill('后台管理员登录并进入首页');
@@ -63,7 +66,7 @@ async function runWp7MainFlow(page: Page, assertResponsive: boolean) {
   await fieldControl(sceneForm, 'tags', 'input').fill('login smoke');
   await fieldControl(sceneForm, 'sourceSummary', 'textarea').fill('{"pageRefs":["page-ui-1"],"flowRefs":["flow-ui-1"],"testCaseRefs":["case-ui-1"]}');
   await sceneForm.getByRole('button', { name: '创建场景' }).click();
-  await expect(sceneForm.locator('.document-state-line.success')).toContainText('场景已创建');
+  await expect(sceneDrawer).toBeHidden();
   expect(mock.createScenePayload).toMatchObject({
     projectId: 'project-wp7-ui-smoke',
     code: 'portal-ui-smoke-created',
@@ -75,51 +78,62 @@ async function runWp7MainFlow(page: Page, assertResponsive: boolean) {
   const createdSceneItem = page.locator('.ui-e2e-list-item').filter({ hasText: 'portal-ui-smoke-created' }).first();
   await expect(createdSceneItem).toBeVisible();
   await createdSceneItem.click();
-  await expect(page.locator('section.panel').filter({ has: page.getByRole('heading', { name: '场景详情' }) }).getByText('步骤 1 · LOGIN')).toBeVisible();
+  await expect(page.locator('section.panel').filter({ has: page.getByRole('heading', { name: '场景详情' }) }).getByText(/步骤\s*1\s*·\s*LOGIN/)).toBeVisible();
 
   const bundlePanel = page.locator('section.panel').filter({ has: page.getByRole('heading', { name: '脚本包评审' }) });
-  const bundleForm = bundlePanel.locator('form.ui-e2e-form').first();
+  await bundlePanel.getByRole('button', { name: '生成脚本包' }).click();
+  const bundleDrawer = page.getByRole('dialog', { name: '生成脚本包' });
+  await expect(bundleDrawer).toBeVisible();
+  const bundleForm = bundleDrawer.locator('form.ui-e2e-form').first();
   await bundleForm.getByRole('button', { name: '生成脚本包' }).click();
-  await expect(bundleForm.locator('.document-state-line.success')).toContainText('脚本包已生成');
+  await expect(bundleDrawer).toBeHidden();
   expect(mock.createBundlePayload).toMatchObject({
     sceneId: mock.createdSceneId
   });
-  await bundleForm.getByRole('button', { name: '送审' }).click();
-  await expect(bundleForm.locator('.document-state-line.success')).toContainText('脚本包已送审');
-  await bundleForm.getByRole('button', { name: '批准' }).click();
-  await expect(bundleForm.locator('.document-state-line.success')).toContainText('脚本包已批准');
+  await bundlePanel.getByRole('button', { name: '送审', exact: true }).click();
+  await expect(bundlePanel.locator('.document-state-line.success')).toContainText('脚本包已送审');
+  await bundlePanel.getByRole('button', { name: '批准', exact: true }).click();
+  await expect(bundlePanel.locator('.document-state-line.success')).toContainText('脚本包已批准');
 
   const runPanel = page.locator('section.panel').filter({ has: page.getByRole('heading', { name: '运行主链路' }) });
-  const runForm = runPanel.locator('form.ui-e2e-form').first();
   const runFilterForm = runPanel.locator('form.ui-e2e-filter-grid').first();
+  await runPanel.getByRole('button', { name: '创建运行' }).click();
+  const runDrawer = page.getByRole('dialog', { name: '创建运行' });
+  await expect(runDrawer).toBeVisible();
+  const runForm = runDrawer.locator('form.ui-e2e-form').first();
   const runCreationNotice = runForm.locator('.notice').first();
   await expect(runCreationNotice).toContainText('请先补全 accountLeaseRef');
   await fieldControl(runForm, 'accountLeaseRef', 'input').fill('55555555-5555-4555-8555-555555555555');
   await fieldControl(runForm, 'requestKey', 'input').fill('wp7-ui-request-1');
   await fieldControl(runForm, 'reason', 'input').fill('browser smoke run');
-  await expect(runCreationNotice).toContainText('当前环境 runner 默认关闭');
+  await expect(runCreationNotice).toContainText('当前环境运行器默认关闭');
   await expect(runForm.getByRole('button', { name: '创建运行' })).toBeDisabled();
+  await runDrawer.getByRole('button', { name: '取消' }).click();
+  await expect(runDrawer).toBeHidden();
 
   await selectAntdOption(page, fieldControl(runFilterForm, 'status', 'select'), '已阻断');
   await runFilterForm.getByRole('button', { name: '筛选' }).click();
   const blockedRunItem = runPanel.locator('.ui-e2e-list-item').first();
-  await expect(blockedRunItem).toContainText('RUNNER_DISABLED');
+  await expect(blockedRunItem).toContainText('UI E2E 运行器已禁用');
   await blockedRunItem.click();
   await expect(page.locator('section.panel').filter({ has: page.getByRole('heading', { name: '运行详情' }) }).getByText(blockedRunId)).toBeVisible();
-  await runForm.getByRole('button', { name: '导出摘要' }).click();
-  await expect(runForm.locator('.document-state-line.success')).toContainText('运行脱敏摘要已导出');
+  await runPanel.getByRole('button', { name: '导出摘要' }).click();
+  await expect(runPanel.locator('.document-state-line.success')).toContainText('运行脱敏摘要已导出');
   expect(mock.exportRunSeen).toBe(true);
 
-  const flakyPanel = page.locator('section.panel').filter({ has: page.getByRole('heading', { name: 'Flaky 治理' }) });
-  const flakyForm = flakyPanel.locator('form.ui-e2e-form').first();
+  const flakyPanel = page.locator('section.panel').filter({ has: page.getByRole('heading', { name: '不稳定用例治理' }) });
+  await flakyPanel.getByRole('button', { name: '保存不稳定标记' }).click();
+  const flakyDrawer = page.getByRole('dialog', { name: '保存不稳定标记' });
+  await expect(flakyDrawer).toBeVisible();
+  const flakyForm = flakyDrawer.locator('form.ui-e2e-form').first();
   await fieldControl(flakyForm, 'projectId', 'input').fill('project-wp7-ui-smoke');
   await fieldControl(flakyForm, 'sceneId', 'input').fill(mock.createdSceneId);
   await fieldControl(flakyForm, 'runId', 'input').fill(blockedRunId);
-  await selectAntdOption(page, fieldControl(flakyForm, 'status', 'select'), '已确认 Flaky');
+  await selectAntdOption(page, fieldControl(flakyForm, 'status', 'select'), '已确认不稳定');
   await fieldControl(flakyForm, 'reasonCode', 'input').fill('locator-drift');
   await fieldControl(flakyForm, 'reasonSummary', 'input').fill('定位器偶发漂移');
-  await flakyForm.getByRole('button', { name: '保存 Flaky 标记' }).click();
-  await expect(flakyForm.locator('.document-state-line.success')).toContainText('Flaky 标记已更新');
+  await flakyForm.getByRole('button', { name: '保存不稳定标记' }).click();
+  await expect(flakyDrawer).toBeHidden();
   expect(mock.upsertFlakyPayload).toMatchObject({
     projectId: 'project-wp7-ui-smoke',
     sceneId: mock.createdSceneId,
@@ -137,14 +151,49 @@ async function runWp7MainFlow(page: Page, assertResponsive: boolean) {
   }
 }
 
+const fieldLabelByKey: Record<string, string> = {
+  accountLeaseRef: '账号租约',
+  applicationId: '应用 ID',
+  code: '编码',
+  environmentId: '环境 ID',
+  name: '名称',
+  projectId: '项目 ID',
+  reason: '原因',
+  reasonCode: '原因码',
+  reasonSummary: '原因说明',
+  requestKey: '请求键',
+  riskLevel: '风险等级',
+  runId: '运行 ID',
+  sceneId: '场景 ID',
+  sourceSummary: '来源摘要',
+  status: '状态',
+  tags: '标签'
+};
+
 function fieldControl(form: Locator, label: string, controlSelector: 'input' | 'select' | 'textarea') {
-  const targetSelector = controlSelector === 'select' ? '.ui-native-select' : controlSelector;
-  return form.locator(`label.field:has(.field-label:text-is("${label}")) ${targetSelector}`).first();
+  const visibleLabel = fieldLabelByKey[label] ?? label;
+  if (controlSelector === 'select') {
+    return form.getByRole('combobox', { name: new RegExp(escapeRegExp(visibleLabel)) }).first();
+  }
+  const field = form.locator(`label.field:has(.field-label:text-is("${visibleLabel}"))`).first();
+  if (controlSelector === 'textarea') {
+    return field.locator('.ui-textarea-control, textarea').first();
+  }
+  return field.locator('.ui-input-control, input').first();
 }
 
 async function selectAntdOption(page: Page, control: Locator, optionName: string) {
-  await control.locator('.ant-select-selector').click();
+  const selector = control.locator('.ant-select-selector');
+  if (await selector.count()) {
+    await selector.first().click();
+  } else {
+    await control.click();
+  }
   await page.locator('.ant-select-dropdown:not(.ant-select-dropdown-hidden) .ant-select-item-option-content', { hasText: optionName }).first().click();
+}
+
+function escapeRegExp(value: string) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
 async function assertNoSensitiveSamples(page: Page) {

@@ -24,7 +24,7 @@ import { GenerationSourceBadge } from './TestDesignWorkbenchShared';
 import { taskGenerationSource } from '../testDesignGenerationSource';
 import { dictionaryLabel } from '../platform/dictionaries';
 import { translate } from '../platform/i18n';
-import { NativeSelect } from './ui';
+import { CheckboxControl, InputControl, NumberControl, SelectControl } from './ui';
 
 export function TestDesignGenerationConfigPanel(props: {
   canGenerate: boolean;
@@ -55,14 +55,14 @@ export function TestDesignGenerationConfigPanel(props: {
         <form className="main-stack" onSubmit={props.onCreateTask}>
           <label className="field">
             <span className="field-label">{translate('auto.k1603')}</span>
-            <NativeSelect value={draft.templateId} onChange={(event) => props.onSelectGenerationTemplate(event.target.value)} disabled={!props.canGenerate || props.mutationState.loading || props.templateState.loading}>
+            <SelectControl value={draft.templateId} onChange={(event) => props.onSelectGenerationTemplate(event.target.value)} disabled={!props.canGenerate || props.mutationState.loading || props.templateState.loading}>
               <option value="">{translate('auto.k1604')}</option>
               {props.templates.filter((template) => template.enabled).map((template) => (
                 <option key={template.id} value={template.id}>
                   {template.projectId ? translate('auto.k0176') : translate('auto.k1605')} · {template.name}
                 </option>
               ))}
-            </NativeSelect>
+            </SelectControl>
             <span className="field-hint">
               {props.selectedGenerationTemplate
                 ? `${props.selectedGenerationTemplate.promptKey}@${props.selectedGenerationTemplate.promptVersion} · ${props.selectedGenerationTemplate.generationStrategy}/${props.selectedGenerationTemplate.coverageStrategy}`
@@ -71,48 +71,48 @@ export function TestDesignGenerationConfigPanel(props: {
           </label>
           <label className="field">
             <span className="field-label">{translate('auto.k1389')}</span>
-            <input value={draft.projectId} onChange={(event) => props.onGenerationDraftChange((current) => ({ ...current, projectId: event.target.value }))} placeholder="project UUID" disabled={!props.canGenerate || props.mutationState.loading} />
+            <InputControl value={draft.projectId} onChange={(event) => props.onGenerationDraftChange((current) => ({ ...current, projectId: event.target.value }))} placeholder="project UUID" disabled={!props.canGenerate || props.mutationState.loading} />
           </label>
           <label className="field">
             <span className="field-label">{translate('auto.k1607')}</span>
-            <input value={draft.title} onChange={(event) => props.onGenerationDraftChange((current) => ({ ...current, title: event.target.value }))} placeholder={translate('auto.k1608')} disabled={!props.canGenerate || props.mutationState.loading} />
+            <InputControl value={draft.title} onChange={(event) => props.onGenerationDraftChange((current) => ({ ...current, title: event.target.value }))} placeholder={translate('auto.k1608')} disabled={!props.canGenerate || props.mutationState.loading} />
           </label>
           <div className="test-design-template-inline-grid">
             <label className="field">
               <span className="field-label">Prompt Key</span>
-              <input value={draft.promptKey} onChange={(event) => props.onGenerationDraftChange((current) => ({ ...current, promptKey: event.target.value }))} placeholder={props.health?.promptKey ?? translate('auto.k1609')} disabled={!props.canGenerate || props.mutationState.loading} />
+              <InputControl value={draft.promptKey} onChange={(event) => props.onGenerationDraftChange((current) => ({ ...current, promptKey: event.target.value }))} placeholder={props.health?.promptKey ?? translate('auto.k1609')} disabled={!props.canGenerate || props.mutationState.loading} />
             </label>
             <label className="field">
               <span className="field-label">Prompt Version</span>
-              <input value={draft.promptVersion} onChange={(event) => props.onGenerationDraftChange((current) => ({ ...current, promptVersion: event.target.value }))} placeholder={props.health?.promptVersion ?? translate('auto.k1609')} disabled={!props.canGenerate || props.mutationState.loading} />
+              <InputControl value={draft.promptVersion} onChange={(event) => props.onGenerationDraftChange((current) => ({ ...current, promptVersion: event.target.value }))} placeholder={props.health?.promptVersion ?? translate('auto.k1609')} disabled={!props.canGenerate || props.mutationState.loading} />
             </label>
           </div>
           <label className="field">
             <span className="field-label">{translate('auto.k1610')}</span>
-            <input value={draft.caseCountPerRequirement} type="number" min="1" max="6" onChange={(event) => props.onGenerationDraftChange((current) => ({ ...current, caseCountPerRequirement: event.target.value }))} disabled={!props.canGenerate || props.mutationState.loading} />
+            <NumberControl value={draft.caseCountPerRequirement} min={1} max={6} onChange={(event) => props.onGenerationDraftChange((current) => ({ ...current, caseCountPerRequirement: event.target.value }))} disabled={!props.canGenerate || props.mutationState.loading} />
           </label>
           <label className="field">
             <span className="field-label">{translate('auto.k1611')}</span>
-            <input value={draft.environmentKey} onChange={(event) => props.onGenerationDraftChange((current) => ({ ...current, environmentKey: event.target.value }))} placeholder="qa / staging" disabled={!props.canGenerate || props.mutationState.loading} />
+            <InputControl value={draft.environmentKey} onChange={(event) => props.onGenerationDraftChange((current) => ({ ...current, environmentKey: event.target.value }))} placeholder="qa / staging" disabled={!props.canGenerate || props.mutationState.loading} />
           </label>
           <label className="field">
             <span className="field-label">{translate('auto.k1612')}</span>
-            <input value={draft.contextApiIds} onChange={(event) => props.onGenerationDraftChange((current) => ({ ...current, contextApiIds: event.target.value }))} placeholder={translate('auto.k1613', { value0: props.explicitContextAssetLimit })} disabled={!props.canGenerate || props.mutationState.loading} />
+            <InputControl value={draft.contextApiIds} onChange={(event) => props.onGenerationDraftChange((current) => ({ ...current, contextApiIds: event.target.value }))} placeholder={translate('auto.k1613', { value0: props.explicitContextAssetLimit })} disabled={!props.canGenerate || props.mutationState.loading} />
           </label>
           <label className="field">
             <span className="field-label">{translate('auto.k1614')}</span>
-            <input value={draft.contextPageIds} onChange={(event) => props.onGenerationDraftChange((current) => ({ ...current, contextPageIds: event.target.value }))} placeholder={translate('auto.k1613', { value0: props.explicitContextAssetLimit })} disabled={!props.canGenerate || props.mutationState.loading} />
+            <InputControl value={draft.contextPageIds} onChange={(event) => props.onGenerationDraftChange((current) => ({ ...current, contextPageIds: event.target.value }))} placeholder={translate('auto.k1613', { value0: props.explicitContextAssetLimit })} disabled={!props.canGenerate || props.mutationState.loading} />
           </label>
           <label className="field">
             <span className="field-label">{translate('auto.k1615')}</span>
-            <input value={draft.contextFlowIds} onChange={(event) => props.onGenerationDraftChange((current) => ({ ...current, contextFlowIds: event.target.value }))} placeholder={translate('auto.k1613', { value0: props.explicitContextAssetLimit })} disabled={!props.canGenerate || props.mutationState.loading} />
+            <InputControl value={draft.contextFlowIds} onChange={(event) => props.onGenerationDraftChange((current) => ({ ...current, contextFlowIds: event.target.value }))} placeholder={translate('auto.k1613', { value0: props.explicitContextAssetLimit })} disabled={!props.canGenerate || props.mutationState.loading} />
           </label>
           <div className="field">
             <span className="field-label">{translate('auto.k1315')}</span>
             <div className="test-design-checks">
               {TEST_DESIGN_COVERAGE_TYPES.map((type) => (
                 <label key={type}>
-                  <input type="checkbox" checked={draft.coverageTypes.includes(type)} onChange={() => props.onToggleCoverage(type)} disabled={!props.canGenerate || props.mutationState.loading} />
+                  <CheckboxControl checked={draft.coverageTypes.includes(type)} onChange={() => props.onToggleCoverage(type)} disabled={!props.canGenerate || props.mutationState.loading} />
                   <span>{dictionaryLabel(type)}</span>
                 </label>
               ))}
@@ -155,11 +155,11 @@ export function TestDesignTaskListPanel(props: {
         <div className="asset-filter-bar test-design-side-filter">
           <label className="field">
             <span className="field-label">{translate('auto.k0176')}</span>
-            <input value={props.taskFilters.projectId} onChange={(event) => props.onTaskFiltersChange((current) => ({ ...current, projectId: event.target.value }))} placeholder="project UUID" disabled={props.disabled || props.loadState.loading} />
+            <InputControl value={props.taskFilters.projectId} onChange={(event) => props.onTaskFiltersChange((current) => ({ ...current, projectId: event.target.value }))} placeholder="project UUID" disabled={props.disabled || props.loadState.loading} />
           </label>
           <label className="field">
             <span className="field-label">{translate('auto.k0182')}</span>
-            <NativeSelect value={props.taskFilters.status} onChange={(event) => props.onTaskFiltersChange((current) => ({ ...current, status: event.target.value }))} disabled={props.disabled || props.loadState.loading}>
+            <SelectControl value={props.taskFilters.status} onChange={(event) => props.onTaskFiltersChange((current) => ({ ...current, status: event.target.value }))} disabled={props.disabled || props.loadState.loading}>
               <option value="">{translate('auto.k0195')}</option>
               <option value="DRAFT">{dictionaryLabel('DRAFT')}</option>
               <option value="QUEUED">{dictionaryLabel('QUEUED')}</option>
@@ -171,11 +171,11 @@ export function TestDesignTaskListPanel(props: {
               <option value="PUBLISH_QUEUED">{dictionaryLabel('PUBLISH_QUEUED')}</option>
               <option value="PUBLISHING">{dictionaryLabel('PUBLISHING')}</option>
               <option value="PUBLISHED">{dictionaryLabel('PUBLISHED')}</option>
-            </NativeSelect>
+            </SelectControl>
           </label>
           <label className="field">
             <span className="field-label">{translate('auto.k1316')}</span>
-            <input value={props.taskFilters.keyword} onChange={(event) => props.onTaskFiltersChange((current) => ({ ...current, keyword: event.target.value }))} placeholder={translate('auto.k1607')} disabled={props.disabled || props.loadState.loading} />
+            <InputControl value={props.taskFilters.keyword} onChange={(event) => props.onTaskFiltersChange((current) => ({ ...current, keyword: event.target.value }))} placeholder={translate('auto.k1607')} disabled={props.disabled || props.loadState.loading} />
           </label>
           <button className="btn btn-secondary btn-sm" type="button" disabled={props.disabled} onClick={() => props.onTaskFiltersChange(props.initialTaskFilters)}>
             <Search size={15} />

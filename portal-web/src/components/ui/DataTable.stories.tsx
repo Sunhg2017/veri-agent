@@ -1,19 +1,20 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import { useState } from 'react';
+import { dictionaryLabel } from '../../platform/dictionaries';
 import { DataTable, type DataTableColumn, type DataTableSortState } from './DataTable';
 
 type RequirementRow = {
   id: string;
   owner: string;
-  priority: 'High' | 'Medium' | 'Low';
-  status: 'Approved' | 'Draft' | 'Reviewing';
+  priority: 'HIGH' | 'MEDIUM' | 'LOW';
+  status: 'APPROVED' | 'DRAFT' | 'REVIEWING';
   title: string;
   updatedAt: string;
 };
 
 const columns: Array<DataTableColumn<RequirementRow>> = [
   {
-    header: 'Requirement',
+    header: '需求',
     id: 'title',
     render: (row) => (
       <span className="table-primary">
@@ -26,29 +27,29 @@ const columns: Array<DataTableColumn<RequirementRow>> = [
     width: '34%'
   },
   {
-    header: 'Owner',
+    header: '负责人',
     id: 'owner',
     sortable: true,
     sortValue: (row) => row.owner,
     width: 160
   },
   {
-    header: 'Priority',
+    header: '优先级',
     id: 'priority',
-    render: (row) => <span className={`badge ${row.priority === 'High' ? 'badge-danger' : row.priority === 'Medium' ? 'badge-warning' : 'badge-info'}`}>{row.priority}</span>,
+    render: (row) => <span className={`badge ${row.priority === 'HIGH' ? 'badge-danger' : row.priority === 'MEDIUM' ? 'badge-warning' : 'badge-info'}`}>{dictionaryLabel(row.priority)}</span>,
     sortable: true,
     sortValue: (row) => row.priority,
     width: 130
   },
   {
-    header: 'Status',
+    header: '状态',
     id: 'status',
-    render: (row) => <span className={`status-badge ${row.status === 'Approved' ? 'success' : row.status === 'Reviewing' ? 'warning' : 'neutral'}`}>{row.status}</span>,
+    render: (row) => <span className={`status-badge ${row.status === 'APPROVED' ? 'success' : row.status === 'REVIEWING' ? 'warning' : 'neutral'}`}>{dictionaryLabel(row.status)}</span>,
     width: 140
   },
   {
     align: 'right',
-    header: 'Updated',
+    header: '更新时间',
     id: 'updatedAt',
     sortable: true,
     sortValue: (row) => row.updatedAt,
@@ -57,9 +58,9 @@ const columns: Array<DataTableColumn<RequirementRow>> = [
 ];
 
 const rows: RequirementRow[] = [
-  { id: 'REQ-101', owner: 'Jia Chen', priority: 'High', status: 'Reviewing', title: 'Checkout approval workflow', updatedAt: '2026-06-22' },
-  { id: 'REQ-104', owner: 'Alex Morgan', priority: 'Medium', status: 'Draft', title: 'Invoice reconciliation import', updatedAt: '2026-06-19' },
-  { id: 'REQ-117', owner: 'Priya Shah', priority: 'Low', status: 'Approved', title: 'Release readiness dashboard', updatedAt: '2026-06-24' }
+  { id: 'REQ-101', owner: '陈嘉', priority: 'HIGH', status: 'REVIEWING', title: '结算审批流程', updatedAt: '2026-06-22' },
+  { id: 'REQ-104', owner: '王磊', priority: 'MEDIUM', status: 'DRAFT', title: '发票对账导入', updatedAt: '2026-06-19' },
+  { id: 'REQ-117', owner: '李敏', priority: 'LOW', status: 'APPROVED', title: '发布准出看板', updatedAt: '2026-06-24' }
 ];
 
 const meta = {
@@ -68,7 +69,7 @@ const meta = {
   parameters: {
     docs: {
       description: {
-        component: 'Dense enterprise table primitive with sorting, row selection, loading and empty states.'
+        component: '面向企业工作台的高密表格组件，支持排序、行选择、加载和空状态。'
       }
     }
   },
@@ -84,7 +85,7 @@ export const Default: Story = {
     columns,
     rows
   },
-  render: () => <DataTable ariaLabel="Requirement review table" columns={columns} getRowId={(row) => row.id} rows={rows} />
+  render: () => <DataTable ariaLabel="需求评审表格" columns={columns} getRowId={(row) => row.id} rows={rows} />
 };
 
 export const SortableAndSelectable: Story = {
@@ -98,7 +99,7 @@ export const SortableAndSelectable: Story = {
 
     return (
       <DataTable
-        ariaLabel="Selectable requirement review table"
+        ariaLabel="可选择需求评审表格"
         columns={columns}
         getRowId={(row) => row.id}
         onRowClick={(row) => setSelectedRowId(row.id)}
@@ -117,7 +118,7 @@ export const Loading: Story = {
     columns,
     rows: []
   },
-  render: () => <DataTable ariaLabel="Loading requirements" columns={columns} loading rows={[]} />
+  render: () => <DataTable ariaLabel="加载需求" columns={columns} loading rows={[]} />
 };
 
 export const Empty: Story = {
@@ -127,10 +128,10 @@ export const Empty: Story = {
   },
   render: () => (
     <DataTable
-      ariaLabel="Empty requirements"
+      ariaLabel="空需求表格"
       columns={columns}
-      emptyDescription="Create or import requirements to start building traceable test assets."
-      emptyTitle="No requirements yet"
+      emptyDescription="创建或导入需求后即可开始构建可追溯测试资产。"
+      emptyTitle="暂无需求"
       rows={[]}
     />
   )

@@ -5,22 +5,22 @@ import { TreeView, type TreeNode } from './TreeView';
 const nodes: TreeNode[] = [
   {
     id: 'wp3',
-    label: 'WP3 Asset Library',
-    meta: '6 modules',
+    label: 'WP3 资产库',
+    meta: '6 个模块',
     children: [
-      { id: 'requirements', label: 'Requirements', meta: '128' },
-      { id: 'apis', label: 'API contracts', meta: '42' },
-      { id: 'flows', label: 'Business flows', meta: '17' }
+      { id: 'requirements', label: '需求', meta: '128' },
+      { id: 'apis', label: '接口契约', meta: '42' },
+      { id: 'flows', label: '业务流', meta: '17' }
     ]
   },
   {
     id: 'wp5',
-    label: 'WP5 Test Design',
-    meta: '4 modules',
+    label: 'WP5 测试设计',
+    meta: '4 个模块',
     children: [
-      { id: 'generation', label: 'Generation tasks', meta: '23' },
-      { id: 'review', label: 'Candidate review', meta: '9' },
-      { disabled: true, id: 'archive', label: 'Archived reports', meta: 'locked' }
+      { id: 'generation', label: '生成任务', meta: '23' },
+      { id: 'review', label: '候选评审', meta: '9' },
+      { disabled: true, id: 'archive', label: '已归档报告', meta: '锁定' }
     ]
   }
 ];
@@ -31,7 +31,7 @@ const meta = {
   parameters: {
     docs: {
       description: {
-        component: 'Hierarchical tree primitive for compact navigation, filters and asset outlines.'
+        component: '用于紧凑导航、筛选和资产大纲的层级树组件。'
       }
     }
   },
@@ -50,7 +50,7 @@ export const Default: Story = {
     const [selectedId, setSelectedId] = useState('requirements');
     return (
       <TreeView
-        ariaLabel="Workbench module tree"
+        ariaLabel="工作台模块树"
         defaultExpandedIds={['wp3', 'wp5']}
         nodes={nodes}
         onSelect={(node) => setSelectedId(node.id)}
@@ -62,7 +62,7 @@ export const Default: Story = {
 
 export const Empty: Story = {
   args: {
-    emptyLabel: 'No navigation nodes are available.',
+    emptyLabel: '暂无可用导航节点。',
     nodes: []
   }
 };

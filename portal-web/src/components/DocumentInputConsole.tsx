@@ -16,7 +16,7 @@ import {
   Webhook,
   XCircle
 } from 'lucide-react';
-import { Drawer, Select } from 'antd';
+import { Drawer } from 'antd';
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
 import type { CurrentUser } from '../api/auth';
 import {
@@ -63,6 +63,7 @@ import {
 import { hasPermission } from '../permissions';
 import { dictionaryLabel, fieldLabel } from '../platform/dictionaries';
 import { translate } from '../platform/i18n';
+import { CheckboxControl, InputControl, SelectControl, TextAreaControl } from './ui';
 
 type WorkState = {
   loading: boolean;
@@ -163,7 +164,6 @@ const initialCandidateFilters: CandidateFilterState = {
 const ASYNC_IMPORT_STATUSES = new Set(['MODEL_PARSE_QUEUED', 'MODEL_PARSE_RUNNING', 'PUBLISH_QUEUED', 'PUBLISHING']);
 const ASYNC_WEBHOOK_STATUSES = new Set(['ACCEPTED', 'PROCESSING']);
 const EVENT_POLL_INTERVAL_MS = 1500;
-const DOCUMENT_SELECT_POPUP_CLASS = 'document-select-dropdown';
 const SOURCE_STATUS_OPTIONS = [
   { label: translate('auto.k0734'), value: '' },
   { label: dictionaryLabel('ENABLED'), value: 'ENABLED' },
@@ -196,10 +196,6 @@ const WEBHOOK_STATUS_OPTIONS = [
   { label: dictionaryLabel('DEAD_LETTER'), value: 'DEAD_LETTER' },
   { label: dictionaryLabel('REPLAYED'), value: 'REPLAYED' }
 ];
-
-function selectPopupContainer(triggerNode: HTMLElement) {
-  return (triggerNode.closest('.ant-drawer-content') as HTMLElement | null) ?? document.body;
-}
 
 export function DocumentInputConsole(props: { signedIn: boolean; currentUser: CurrentUser | null }) {
   const [health, setHealth] = useState<DocumentInputHealth | null>(null);
@@ -990,7 +986,7 @@ export function DocumentInputConsole(props: { signedIn: boolean; currentUser: Cu
             <div className="document-form-grid">
               <label className="field" htmlFor="source-project-id">
                 <span>{fieldLabel('defaultProjectId')}</span>
-                <input
+                <InputControl
                   id="source-project-id"
                   value={sourceDraft.defaultProjectId}
                   disabled={sourceDisabled || sourceState.loading}
@@ -1000,7 +996,7 @@ export function DocumentInputConsole(props: { signedIn: boolean; currentUser: Cu
               </label>
               <label className="field" htmlFor="source-title">
                 <span>{translate('auto.k0177')}<b>*</b></span>
-                <input
+                <InputControl
                   id="source-title"
                   value={sourceDraft.name}
                   disabled={sourceDisabled || sourceState.loading}
@@ -1010,36 +1006,28 @@ export function DocumentInputConsole(props: { signedIn: boolean; currentUser: Cu
               </label>
               <label className="field" htmlFor="source-type">
                 <span>{fieldLabel('sourceType')}</span>
-                <Select
-                  className="document-select"
-                  classNames={{ popup: { root: DOCUMENT_SELECT_POPUP_CLASS } }}
-                  getPopupContainer={selectPopupContainer}
+                <SelectControl
                   id="source-type"
                   value={sourceDraft.sourceType}
                   disabled={sourceDisabled || sourceState.loading}
                   options={DOCUMENT_SOURCE_TYPE_SELECT_OPTIONS}
-                  optionFilterProp="label"
-                  showSearch
-                  onChange={(value) => setSourceDraft((current) => ({ ...current, sourceType: value as DocumentSourceType }))}
+                  onChange={(event) => setSourceDraft((current) => ({ ...current, sourceType: event.target.value as DocumentSourceType }))}
                 />
                 <small>{sourceTypeReserved ? translate('auto.k0732') : translate('auto.k0733')}</small>
               </label>
               <label className="field" htmlFor="source-status">
                 <span>{fieldLabel('status')}</span>
-                <Select
-                  className="document-select"
-                  classNames={{ popup: { root: DOCUMENT_SELECT_POPUP_CLASS } }}
-                  getPopupContainer={selectPopupContainer}
+                <SelectControl
                   id="source-status"
                   value={sourceDraft.status}
                   disabled={sourceDisabled || sourceState.loading}
                   options={SOURCE_STATUS_OPTIONS}
-                  onChange={(value) => setSourceDraft((current) => ({ ...current, status: value }))}
+                  onChange={(event) => setSourceDraft((current) => ({ ...current, status: event.target.value }))}
                 />
               </label>
               <label className="field" htmlFor="source-code">
                 <span>{fieldLabel('sourceCode')}<b>*</b></span>
-                <input
+                <InputControl
                   id="source-code"
                   value={sourceDraft.sourceCode}
                   disabled={sourceDisabled || sourceState.loading}
@@ -1049,7 +1037,7 @@ export function DocumentInputConsole(props: { signedIn: boolean; currentUser: Cu
               </label>
               <label className="field" htmlFor="source-mapping-id">
                 <span>{fieldLabel('mappingId')}</span>
-                <input
+                <InputControl
                   id="source-mapping-id"
                   value={sourceDraft.mappingId}
                   disabled={sourceDisabled || sourceState.loading}
@@ -1059,7 +1047,7 @@ export function DocumentInputConsole(props: { signedIn: boolean; currentUser: Cu
               </label>
               <label className="field" htmlFor="source-secret-ref">
                 <span>{fieldLabel('secretRef')}</span>
-                <input
+                <InputControl
                   id="source-secret-ref"
                   value={sourceDraft.secretRef}
                   disabled={sourceDisabled || sourceState.loading}
@@ -1069,20 +1057,17 @@ export function DocumentInputConsole(props: { signedIn: boolean; currentUser: Cu
               </label>
               <label className="field" htmlFor="source-event-version">
                 <span>{fieldLabel('eventVersion')}</span>
-                <Select
-                  className="document-select"
-                  classNames={{ popup: { root: DOCUMENT_SELECT_POPUP_CLASS } }}
-                  getPopupContainer={selectPopupContainer}
+                <SelectControl
                   id="source-event-version"
                   value={sourceDraft.eventVersion}
                   disabled={sourceDisabled || sourceState.loading}
                   options={EVENT_VERSION_OPTIONS}
-                  onChange={(value) => setSourceDraft((current) => ({ ...current, eventVersion: value }))}
+                  onChange={(event) => setSourceDraft((current) => ({ ...current, eventVersion: event.target.value }))}
                 />
               </label>
               <label className="field" htmlFor="source-mapping-version">
                 <span>{fieldLabel('mappingVersion')}</span>
-                <input
+                <InputControl
                   id="source-mapping-version"
                   value={sourceDraft.mappingVersion}
                   disabled={sourceDisabled || sourceState.loading}
@@ -1092,7 +1077,7 @@ export function DocumentInputConsole(props: { signedIn: boolean; currentUser: Cu
               </label>
               <label className="field" htmlFor="source-url">
                 <span>{fieldLabel('endpointUrl')}</span>
-                <input
+                <InputControl
                   id="source-url"
                   value={sourceDraft.endpointUrl}
                   disabled={sourceDisabled || sourceState.loading}
@@ -1102,7 +1087,7 @@ export function DocumentInputConsole(props: { signedIn: boolean; currentUser: Cu
               </label>
               <label className="field" htmlFor="source-description">
                 <span>{fieldLabel('description')}</span>
-                <input
+                <InputControl
                   id="source-description"
                   value={sourceDraft.description}
                   disabled={sourceDisabled || sourceState.loading}
@@ -1254,7 +1239,7 @@ export function DocumentInputConsole(props: { signedIn: boolean; currentUser: Cu
             <div className="document-form-grid">
               <label className="field" htmlFor="import-project-id">
                 <span>{fieldLabel('projectId')}<b>*</b></span>
-                <input
+                <InputControl
                   id="import-project-id"
                   value={importDraft.projectId}
                   disabled={importDisabled || importState.loading}
@@ -1264,7 +1249,7 @@ export function DocumentInputConsole(props: { signedIn: boolean; currentUser: Cu
               </label>
               <label className="field" htmlFor="import-title">
                 <span>{translate('auto.k0440')}</span>
-                <input
+                <InputControl
                   id="import-title"
                   value={importDraft.title}
                   disabled={importDisabled || importState.loading}
@@ -1274,23 +1259,18 @@ export function DocumentInputConsole(props: { signedIn: boolean; currentUser: Cu
               </label>
               <label className="field" htmlFor="import-source-type">
                 <span>{fieldLabel('sourceType')}</span>
-                <Select
-                  className="document-select"
-                  classNames={{ popup: { root: DOCUMENT_SELECT_POPUP_CLASS } }}
-                  getPopupContainer={selectPopupContainer}
+                <SelectControl
                   id="import-source-type"
                   value={importDraft.sourceType}
                   disabled={importDisabled || importState.loading}
                   options={DOCUMENT_SOURCE_TYPE_SELECT_OPTIONS}
-                  optionFilterProp="label"
-                  showSearch
-                  onChange={(value) => setImportDraft((current) => ({ ...current, sourceType: value as DocumentSourceType }))}
+                  onChange={(event) => setImportDraft((current) => ({ ...current, sourceType: event.target.value as DocumentSourceType }))}
                 />
                 <small>{importTypeReserved ? translate('auto.k0750') : translate('auto.k0751')}</small>
               </label>
               <label className="field" htmlFor="import-source-ref">
                 <span>{fieldLabel('sourceRef')}</span>
-                <input
+                <InputControl
                   id="import-source-ref"
                   value={importDraft.sourceRef}
                   disabled={importDisabled || importState.loading}
@@ -1300,7 +1280,7 @@ export function DocumentInputConsole(props: { signedIn: boolean; currentUser: Cu
               </label>
               <label className="field" htmlFor="import-source-url">
                 <span>{fieldLabel('sourceUrl')}</span>
-                <input
+                <InputControl
                   id="import-source-url"
                   value={importDraft.sourceUrl}
                   disabled={importDisabled || importState.loading}
@@ -1310,7 +1290,7 @@ export function DocumentInputConsole(props: { signedIn: boolean; currentUser: Cu
               </label>
               <label className="field" htmlFor="import-source-id">
                 <span>{fieldLabel('sourceId')}</span>
-                <input
+                <InputControl
                   id="import-source-id"
                   value={importDraft.sourceId}
                   disabled={importDisabled || importState.loading}
@@ -1320,7 +1300,7 @@ export function DocumentInputConsole(props: { signedIn: boolean; currentUser: Cu
               </label>
               <label className="field" htmlFor="import-mapping-id">
                 <span>{fieldLabel('mappingId')}</span>
-                <input
+                <InputControl
                   id="import-mapping-id"
                   value={importDraft.mappingId}
                   disabled={importDisabled || importState.loading}
@@ -1331,7 +1311,7 @@ export function DocumentInputConsole(props: { signedIn: boolean; currentUser: Cu
             </div>
             <label className="field document-content-field" htmlFor="import-content">
               <span>{fieldLabel('content')}</span>
-              <textarea
+              <TextAreaControl
                 id="import-content"
                 value={importDraft.content}
                 disabled={importDisabled || importState.loading || importFile !== null}
@@ -1341,7 +1321,7 @@ export function DocumentInputConsole(props: { signedIn: boolean; currentUser: Cu
             </label>
             <label className="field document-upload-field" htmlFor="import-file">
               <span>{translate('auto.k0753')}</span>
-              <input
+              <InputControl
                 id="import-file"
                 type="file"
                 disabled={importDisabled || importState.loading || importDraft.content.trim().length > 0}
@@ -1405,7 +1385,7 @@ export function DocumentInputConsole(props: { signedIn: boolean; currentUser: Cu
           <form className="document-form" onSubmit={submitMapping}>
             <label className="field document-content-field" htmlFor="field-mapping">
               <span>{fieldLabel('mapping JSON')}</span>
-              <textarea
+              <TextAreaControl
                 id="field-mapping"
                 value={mappingText}
                 disabled={sourceDisabled || mappingState.loading}
@@ -1461,7 +1441,7 @@ export function DocumentInputConsole(props: { signedIn: boolean; currentUser: Cu
               <span>{loadState.error}</span>
             </div>
           )}
-          {loadState.traceId && <div className="panel-trace">Trace ID：{loadState.traceId}</div>}
+          {loadState.traceId && <div className="panel-trace">{fieldLabel('traceId')}：{loadState.traceId}</div>}
         </section>
 
         <section className="panel insight-panel document-history-panel">
@@ -1579,7 +1559,7 @@ export function DocumentInputConsole(props: { signedIn: boolean; currentUser: Cu
                   ))}
                 </div>
               )}
-              {detailState.traceId && <div className="panel-trace">Trace ID：{detailState.traceId}</div>}
+              {detailState.traceId && <div className="panel-trace">{fieldLabel('traceId')}：{detailState.traceId}</div>}
               <StateLine state={publishingState} />
               <StateLine state={publishRecordState} />
             </div>
@@ -1601,24 +1581,21 @@ export function DocumentInputConsole(props: { signedIn: boolean; currentUser: Cu
           </div>
           {selectedImportId && (
             <div className="document-candidate-toolbar candidate-filter-toolbar">
-              <Select
-                className="document-inline-select"
-                classNames={{ popup: { root: DOCUMENT_SELECT_POPUP_CLASS } }}
-                getPopupContainer={selectPopupContainer}
+              <SelectControl
                 value={candidateFilters.status}
                 disabled={candidateState.loading}
                 options={CANDIDATE_STATUS_OPTIONS}
-                onChange={(value) => setCandidateFilters((current) => ({ ...current, status: value }))}
+                onChange={(event) => setCandidateFilters((current) => ({ ...current, status: event.target.value }))}
                 aria-label={translate('auto.k0796')}
               />
-              <input
+              <InputControl
                 type="text"
                 value={candidateFilters.sourceRef}
                 disabled={candidateState.loading}
                 onChange={(event) => setCandidateFilters((current) => ({ ...current, sourceRef: event.target.value }))}
                 placeholder={fieldLabel('sourceRef')}
               />
-              <input
+              <InputControl
                 type="text"
                 value={candidateFilters.keyword}
                 disabled={candidateState.loading}
@@ -1646,9 +1623,9 @@ export function DocumentInputConsole(props: { signedIn: boolean; currentUser: Cu
           {candidates.length > 0 && (
             <div className="document-candidate-toolbar">
               <label className="candidate-select" htmlFor="candidate-select-all">
-                <input
+                <CheckboxControl
                   id="candidate-select-all"
-                  type="checkbox"
+
                   checked={allCandidatesSelected}
                   disabled={candidateDisabled || candidateState.loading}
                   onChange={() => toggleAllCandidates()}
@@ -1656,7 +1633,7 @@ export function DocumentInputConsole(props: { signedIn: boolean; currentUser: Cu
                 <span>{translate('auto.k0798')}</span>
               </label>
               <span className="table-secondary">{translate('auto.k0799')}{selectedCandidateIds.length}</span>
-              <input
+              <InputControl
                 value={batchIgnoreReason}
                 disabled={candidateDisabled || candidateState.loading}
                 onChange={(event) => setBatchIgnoreReason(event.target.value)}
@@ -1688,9 +1665,9 @@ export function DocumentInputConsole(props: { signedIn: boolean; currentUser: Cu
                   <article className="document-candidate-card" key={candidate.id}>
                     <div className="document-candidate-heading">
                       <label className="candidate-select" htmlFor={`candidate-select-${candidate.id}`}>
-                        <input
+                        <CheckboxControl
                           id={`candidate-select-${candidate.id}`}
-                          type="checkbox"
+
                           checked={selectedCandidateIds.includes(candidate.id)}
                           disabled={candidateDisabled || candidateState.loading}
                           onChange={() => toggleCandidateSelection(candidate.id)}
@@ -1701,7 +1678,7 @@ export function DocumentInputConsole(props: { signedIn: boolean; currentUser: Cu
                     </div>
                     <label className="field" htmlFor={`candidate-title-${candidate.id}`}>
                       <span>{translate('auto.k0440')}</span>
-                      <input
+                      <InputControl
                         id={`candidate-title-${candidate.id}`}
                         value={draft.title}
                         disabled={candidateDisabled || candidateState.loading}
@@ -1710,7 +1687,7 @@ export function DocumentInputConsole(props: { signedIn: boolean; currentUser: Cu
                     </label>
                     <label className="field" htmlFor={`candidate-priority-${candidate.id}`}>
                       <span>{translate('auto.k0419')}</span>
-                      <input
+                      <InputControl
                         id={`candidate-priority-${candidate.id}`}
                         value={draft.priority}
                         disabled={candidateDisabled || candidateState.loading}
@@ -1720,7 +1697,7 @@ export function DocumentInputConsole(props: { signedIn: boolean; currentUser: Cu
                     </label>
                     <label className="field" htmlFor={`candidate-description-${candidate.id}`}>
                       <span>{translate('auto.k0443')}</span>
-                      <textarea
+                      <TextAreaControl
                         id={`candidate-description-${candidate.id}`}
                         className="compact-textarea"
                         value={draft.description}
@@ -1730,7 +1707,7 @@ export function DocumentInputConsole(props: { signedIn: boolean; currentUser: Cu
                     </label>
                     <label className="field" htmlFor={`candidate-acceptance-${candidate.id}`}>
                       <span>{translate('auto.k0650')}</span>
-                      <textarea
+                      <TextAreaControl
                         id={`candidate-acceptance-${candidate.id}`}
                         className="compact-textarea"
                         value={draft.acceptanceCriteria}
@@ -1740,7 +1717,7 @@ export function DocumentInputConsole(props: { signedIn: boolean; currentUser: Cu
                     </label>
                     <label className="field" htmlFor={`candidate-tags-${candidate.id}`}>
                       <span>{translate('auto.k0803')}</span>
-                      <input
+                      <InputControl
                         id={`candidate-tags-${candidate.id}`}
                         value={draft.tags}
                         disabled={candidateDisabled || candidateState.loading}
@@ -1779,7 +1756,7 @@ export function DocumentInputConsole(props: { signedIn: boolean; currentUser: Cu
                     )}
                     <label className="field" htmlFor={`candidate-ignore-${candidate.id}`}>
                       <span>{translate('auto.k0804')}</span>
-                      <input
+                      <InputControl
                         id={`candidate-ignore-${candidate.id}`}
                         value={draft.ignoreReason}
                         disabled={candidateDisabled || candidateState.loading}
@@ -1824,7 +1801,7 @@ export function DocumentInputConsole(props: { signedIn: boolean; currentUser: Cu
           <div className="webhook-filter-grid">
             <label className="field" htmlFor="webhook-source-id-filter">
               <span>{fieldLabel('sourceId')}</span>
-              <input
+              <InputControl
                 id="webhook-source-id-filter"
                 value={eventFilters.sourceId}
                 disabled={!props.signedIn || eventState.loading}
@@ -1834,7 +1811,7 @@ export function DocumentInputConsole(props: { signedIn: boolean; currentUser: Cu
             </label>
             <label className="field" htmlFor="webhook-source-filter">
               <span>{fieldLabel('sourceCode')}</span>
-              <input
+              <InputControl
                 id="webhook-source-filter"
                 value={eventFilters.sourceCode}
                 disabled={!props.signedIn || eventState.loading}
@@ -1844,7 +1821,7 @@ export function DocumentInputConsole(props: { signedIn: boolean; currentUser: Cu
             </label>
             <label className="field" htmlFor="webhook-event-type-filter">
               <span>{fieldLabel('eventType')}</span>
-              <input
+              <InputControl
                 id="webhook-event-type-filter"
                 value={eventFilters.eventType}
                 disabled={!props.signedIn || eventState.loading}
@@ -1854,15 +1831,12 @@ export function DocumentInputConsole(props: { signedIn: boolean; currentUser: Cu
             </label>
             <label className="field" htmlFor="webhook-status-filter">
               <span>{fieldLabel('status')}</span>
-              <Select
-                className="document-select"
-                classNames={{ popup: { root: DOCUMENT_SELECT_POPUP_CLASS } }}
-                getPopupContainer={selectPopupContainer}
+              <SelectControl
                 id="webhook-status-filter"
                 value={eventFilters.status}
                 disabled={!props.signedIn || eventState.loading}
                 options={WEBHOOK_STATUS_OPTIONS}
-                onChange={(value) => setEventFilters((current) => ({ ...current, status: value }))}
+                onChange={(event) => setEventFilters((current) => ({ ...current, status: event.target.value }))}
               />
             </label>
           </div>

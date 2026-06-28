@@ -40,10 +40,11 @@ import {
 } from '../api/assets';
 import { hasPermission } from '../permissions';
 import type { AssetNavigationKey } from './AssetStructuredWorkbench';
+import { AssetNavigationTabs } from './AssetNavigationTabs';
 import { AssetTraceTopologyPanel, describeTopologyFocus } from './AssetTraceTopologyPanel';
-import { dictionaryLabel } from '../platform/dictionaries';
+import { dictionaryLabel, fieldLabel } from '../platform/dictionaries';
 import { translate } from '../platform/i18n';
-import { NativeSelect } from './ui';
+import { InputControl, SelectControl } from './ui';
 
 type AssetNavigationTab = {
   key: AssetNavigationKey;
@@ -390,7 +391,7 @@ export function AssetTraceWorkbench(props: {
                 <Archive size={20} />
               </div>
               <div>
-                <span className="eyebrow">Trace Matrix</span>
+                <span className="eyebrow">{translate('auto.k0618')}</span>
                 <h2>{translate('auto.k0532')}</h2>
               </div>
             </div>
@@ -404,29 +405,12 @@ export function AssetTraceWorkbench(props: {
               {translate('auto.k0170')}</button>
           </div>
 
-          <div className="asset-tab-strip" aria-label={translate('auto.k0413')}>
-            {props.tabs.map((tab) => {
-              const Icon = tab.icon;
-              return (
-                <button
-                  className={`asset-tab ${tab.key === 'trace' ? 'active' : ''}`}
-                  type="button"
-                  key={tab.key}
-                  disabled={!tab.enabled}
-                  onClick={() => props.onSelectTab(tab.key)}
-                  title={tab.label}
-                >
-                  <Icon size={15} />
-                  <span>{tab.label}</span>
-                </button>
-              );
-            })}
-          </div>
+          <AssetNavigationTabs activeKey="trace" ariaLabel={translate('auto.k0413')} tabs={props.tabs} onSelectTab={props.onSelectTab} />
 
           <form className="asset-filter-bar trace-filter-bar" onSubmit={(event) => event.preventDefault()}>
             <label className="field" htmlFor="asset-trace-filter-project">
-              <span>projectId</span>
-              <input
+              <span>{fieldLabel('projectId')}</span>
+              <InputControl
                 id="asset-trace-filter-project"
                 value={filters.projectId}
                 disabled={disabled}
@@ -436,7 +420,7 @@ export function AssetTraceWorkbench(props: {
             </label>
             <label className="field" htmlFor="asset-trace-filter-requirement-status">
               <span>{translate('auto.k0533')}</span>
-              <NativeSelect
+              <SelectControl
                 id="asset-trace-filter-requirement-status"
                 value={filters.requirementStatus}
                 disabled={disabled}
@@ -446,11 +430,11 @@ export function AssetTraceWorkbench(props: {
                 {ASSET_REQUIREMENT_STATUSES.map((status) => (
                   <option key={status} value={status}>{dictionaryLabel(status)}</option>
                 ))}
-              </NativeSelect>
+              </SelectControl>
             </label>
             <label className="field" htmlFor="asset-trace-filter-api-status">
               <span>{translate('auto.k0534')}</span>
-              <NativeSelect
+              <SelectControl
                 id="asset-trace-filter-api-status"
                 value={filters.apiStatus}
                 disabled={disabled}
@@ -460,11 +444,11 @@ export function AssetTraceWorkbench(props: {
                 {ASSET_API_STATUSES.map((status) => (
                   <option key={status} value={status}>{dictionaryLabel(status)}</option>
                 ))}
-              </NativeSelect>
+              </SelectControl>
             </label>
             <label className="field" htmlFor="asset-trace-filter-page-status">
               <span>{translate('auto.k0535')}</span>
-              <NativeSelect
+              <SelectControl
                 id="asset-trace-filter-page-status"
                 value={filters.pageStatus}
                 disabled={disabled}
@@ -474,11 +458,11 @@ export function AssetTraceWorkbench(props: {
                 {ASSET_PAGE_STATUSES.map((status) => (
                   <option key={status} value={status}>{dictionaryLabel(status)}</option>
                 ))}
-              </NativeSelect>
+              </SelectControl>
             </label>
             <label className="field" htmlFor="asset-trace-filter-flow-status">
               <span>{translate('auto.k0536')}</span>
-              <NativeSelect
+              <SelectControl
                 id="asset-trace-filter-flow-status"
                 value={filters.flowStatus}
                 disabled={disabled}
@@ -488,11 +472,11 @@ export function AssetTraceWorkbench(props: {
                 {ASSET_FLOW_STATUSES.map((status) => (
                   <option key={status} value={status}>{dictionaryLabel(status)}</option>
                 ))}
-              </NativeSelect>
+              </SelectControl>
             </label>
             <label className="field" htmlFor="asset-trace-filter-case-status">
               <span>{translate('auto.k0537')}</span>
-              <NativeSelect
+              <SelectControl
                 id="asset-trace-filter-case-status"
                 value={filters.caseStatus}
                 disabled={disabled}
@@ -502,11 +486,11 @@ export function AssetTraceWorkbench(props: {
                 {ASSET_TEST_CASE_STATUSES.map((status) => (
                   <option key={status} value={status}>{dictionaryLabel(status)}</option>
                 ))}
-              </NativeSelect>
+              </SelectControl>
             </label>
             <label className="field" htmlFor="asset-trace-filter-coverage">
               <span>{translate('auto.k0538')}</span>
-              <NativeSelect
+              <SelectControl
                 id="asset-trace-filter-coverage"
                 value={filters.coverage}
                 disabled={disabled}
@@ -516,11 +500,11 @@ export function AssetTraceWorkbench(props: {
                 <option value="covered">{translate('auto.k0521')}</option>
                 <option value="partial">{translate('auto.k0522')}</option>
                 <option value="uncovered">{translate('auto.k0523')}</option>
-              </NativeSelect>
+              </SelectControl>
             </label>
             <label className="field" htmlFor="asset-trace-filter-keyword">
               <span>keyword</span>
-              <input
+              <InputControl
                 id="asset-trace-filter-keyword"
                 value={filters.keyword}
                 disabled={disabled}
@@ -735,7 +719,7 @@ export function AssetTraceWorkbench(props: {
             <StatusMetric label={translate('auto.k0427')} value={health?.service ?? 'asset-service'} />
             <StatusMetric label={translate('auto.k0182')} value={health?.status ?? (props.signedIn ? translate('auto.k0428') : translate('auto.k0429'))} pill />
             <StatusMetric label={translate('auto.k0133')} value={String(requirements.length)} />
-            <StatusMetric label="API" value={String(apis.length)} />
+            <StatusMetric label={dictionaryLabel('API')} value={String(apis.length)} />
             <StatusMetric label={translate('auto.k0134')} value={String(pages.length)} />
             <StatusMetric label={translate('auto.k0135')} value={String(flows.length)} />
             <StatusMetric label={translate('auto.k0136')} value={String(cases.length)} />
@@ -1051,10 +1035,10 @@ function ImpactPanel(props: {
       <div className="asset-detail-stack">
         <div className="resource-summary">
           <strong>{row.requirement.title}</strong>
-          <div><span>projectId</span><em>{row.requirement.projectId ?? '-'}</em></div>
-          <div><span>priority</span><em>{dictionaryLabel(row.requirement.priority)}</em></div>
-          <div><span>status</span><em>{dictionaryLabel(row.requirement.status)}</em></div>
-          <div><span>id</span><em>{row.requirement.id}</em></div>
+          <div><span>{fieldLabel('projectId')}</span><em>{row.requirement.projectId ?? '-'}</em></div>
+          <div><span>{fieldLabel('priority')}</span><em>{dictionaryLabel(row.requirement.priority)}</em></div>
+          <div><span>{fieldLabel('status')}</span><em>{dictionaryLabel(row.requirement.status)}</em></div>
+          <div><span>{fieldLabel('id')}</span><em>{row.requirement.id}</em></div>
         </div>
         <div className="asset-source-trace">
           <strong>{translate('auto.k0576')}</strong>
@@ -1085,7 +1069,7 @@ function ImpactPanel(props: {
               onImpact={() => props.onSelectSubject({ type: 'page', id: page.id })}
               onOpen={() => props.onOpenAsset('pages', page.id)}
               primary={page.name}
-              secondary={page.urlPattern ?? page.status}
+              secondary={page.urlPattern ?? dictionaryLabel(page.status)}
             />
           )}
         />
@@ -1098,7 +1082,7 @@ function ImpactPanel(props: {
               onImpact={() => props.onSelectSubject({ type: 'flow', id: flow.id })}
               onOpen={() => props.onOpenAsset('flows', flow.id)}
               primary={flow.name}
-              secondary={flow.status}
+              secondary={dictionaryLabel(flow.status)}
             />
           )}
         />
@@ -1111,7 +1095,7 @@ function ImpactPanel(props: {
               onImpact={() => props.onSelectSubject({ type: 'case', id: item.id })}
               onOpen={() => props.onOpenAsset('cases', item.id)}
               primary={item.title}
-              secondary={item.status}
+              secondary={dictionaryLabel(item.status)}
             />
           )}
         />
@@ -1133,10 +1117,10 @@ function ImpactPanel(props: {
       <div className="asset-detail-stack">
         <div className="resource-summary">
           <strong>{api.summary}</strong>
-          <div><span>method</span><em>{api.httpMethod}</em></div>
-          <div><span>path</span><em>{api.path}</em></div>
-          <div><span>status</span><em>{dictionaryLabel(api.status)}</em></div>
-          <div><span>id</span><em>{api.id}</em></div>
+          <div><span>{fieldLabel('method')}</span><em>{dictionaryLabel(api.httpMethod)}</em></div>
+          <div><span>{fieldLabel('path')}</span><em>{api.path}</em></div>
+          <div><span>{fieldLabel('status')}</span><em>{dictionaryLabel(api.status)}</em></div>
+          <div><span>{fieldLabel('id')}</span><em>{api.id}</em></div>
         </div>
         <div className="asset-source-trace">
           <strong>{translate('auto.k0576')}</strong>
@@ -1154,7 +1138,7 @@ function ImpactPanel(props: {
               onImpact={() => props.onSelectSubject({ type: 'requirement', id: requirement.id })}
               onOpen={() => props.onOpenAsset('requirements', requirement.id)}
               primary={requirement.title}
-              secondary={requirement.status}
+              secondary={dictionaryLabel(requirement.status)}
             />
           )}
         />
@@ -1167,7 +1151,7 @@ function ImpactPanel(props: {
               onImpact={() => props.onSelectSubject({ type: 'case', id: item.id })}
               onOpen={() => props.onOpenAsset('cases', item.id)}
               primary={item.title}
-              secondary={item.status}
+              secondary={dictionaryLabel(item.status)}
             />
           )}
         />
@@ -1188,15 +1172,15 @@ function ImpactPanel(props: {
       <div className="asset-detail-stack">
         <div className="resource-summary">
           <strong>{page.name}</strong>
-          <div><span>projectId</span><em>{page.projectId ?? '-'}</em></div>
-          <div><span>urlPattern</span><em>{page.urlPattern ?? '-'}</em></div>
-          <div><span>status</span><em>{dictionaryLabel(page.status)}</em></div>
-          <div><span>id</span><em>{page.id}</em></div>
+          <div><span>{fieldLabel('projectId')}</span><em>{page.projectId ?? '-'}</em></div>
+          <div><span>{fieldLabel('urlPattern')}</span><em>{page.urlPattern ?? '-'}</em></div>
+          <div><span>{fieldLabel('status')}</span><em>{dictionaryLabel(page.status)}</em></div>
+          <div><span>{fieldLabel('id')}</span><em>{page.id}</em></div>
         </div>
         <div className="asset-source-trace">
           <strong>{translate('auto.k0576')}</strong>
           <div><span>{translate('auto.k0133')}</span><em>{requirements.length}</em></div>
-          <div><span>{translate('auto.k0179')}</span><em>{page.source}</em></div>
+          <div><span>{translate('auto.k0179')}</span><em>{dictionaryLabel(page.source)}</em></div>
           <div><span>{translate('auto.k0544')}</span><em>{requirements.length ? translate('auto.k0593') : translate('auto.k0594')}</em></div>
           <div><span>{translate('auto.k0579')}</span><em>{translate('auto.k0595')}</em></div>
         </div>
@@ -1209,7 +1193,7 @@ function ImpactPanel(props: {
               onImpact={() => props.onSelectSubject({ type: 'requirement', id: requirement.id })}
               onOpen={() => props.onOpenAsset('requirements', requirement.id)}
               primary={requirement.title}
-              secondary={requirement.status}
+              secondary={dictionaryLabel(requirement.status)}
             />
           )}
         />
@@ -1230,10 +1214,10 @@ function ImpactPanel(props: {
       <div className="asset-detail-stack">
         <div className="resource-summary">
           <strong>{flow.name}</strong>
-          <div><span>projectId</span><em>{flow.projectId ?? '-'}</em></div>
-          <div><span>priority</span><em>{dictionaryLabel(flow.priority)}</em></div>
-          <div><span>status</span><em>{dictionaryLabel(flow.status)}</em></div>
-          <div><span>id</span><em>{flow.id}</em></div>
+          <div><span>{fieldLabel('projectId')}</span><em>{flow.projectId ?? '-'}</em></div>
+          <div><span>{fieldLabel('priority')}</span><em>{dictionaryLabel(flow.priority)}</em></div>
+          <div><span>{fieldLabel('status')}</span><em>{dictionaryLabel(flow.status)}</em></div>
+          <div><span>{fieldLabel('id')}</span><em>{flow.id}</em></div>
         </div>
         <div className="asset-source-trace">
           <strong>{translate('auto.k0576')}</strong>
@@ -1251,7 +1235,7 @@ function ImpactPanel(props: {
               onImpact={() => props.onSelectSubject({ type: 'requirement', id: requirement.id })}
               onOpen={() => props.onOpenAsset('requirements', requirement.id)}
               primary={requirement.title}
-              secondary={requirement.status}
+              secondary={dictionaryLabel(requirement.status)}
             />
           )}
         />
@@ -1272,10 +1256,10 @@ function ImpactPanel(props: {
     <div className="asset-detail-stack">
       <div className="resource-summary">
         <strong>{testCase.title}</strong>
-        <div><span>projectId</span><em>{testCase.projectId ?? '-'}</em></div>
-        <div><span>priority</span><em>{dictionaryLabel(testCase.priority)}</em></div>
-        <div><span>status</span><em>{dictionaryLabel(testCase.status)}</em></div>
-        <div><span>id</span><em>{testCase.id}</em></div>
+        <div><span>{fieldLabel('projectId')}</span><em>{testCase.projectId ?? '-'}</em></div>
+        <div><span>{fieldLabel('priority')}</span><em>{dictionaryLabel(testCase.priority)}</em></div>
+        <div><span>{fieldLabel('status')}</span><em>{dictionaryLabel(testCase.status)}</em></div>
+        <div><span>{fieldLabel('id')}</span><em>{testCase.id}</em></div>
       </div>
       <div className="asset-source-trace">
         <strong>{translate('auto.k0576')}</strong>
@@ -1438,7 +1422,7 @@ function StateLine(props: { state: WorkState }) {
     );
   }
   if (props.state.traceId) {
-    return <span className="document-state-line">Trace ID：{props.state.traceId}</span>;
+    return <span className="document-state-line">{fieldLabel('traceId')}：{props.state.traceId}</span>;
   }
   return null;
 }

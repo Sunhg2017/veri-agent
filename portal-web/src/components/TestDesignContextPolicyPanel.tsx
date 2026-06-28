@@ -26,7 +26,7 @@ import {
 } from './TestDesignWorkbenchShared';
 import { dictionaryLabel } from '../platform/dictionaries';
 import { translate } from '../platform/i18n';
-import { NativeSelect } from './ui';
+import { InputControl, NumberControl, SelectControl, TextAreaControl } from './ui';
 
 export function TestDesignContextPolicyPanel(props: {
   disabled: boolean;
@@ -72,7 +72,7 @@ export function TestDesignContextPolicyPanel(props: {
         <form className="test-design-context-policy-form" onSubmit={props.onSubmit}>
           <label className="field">
             <span className="field-label">{translate('auto.k1389')}</span>
-            <input
+            <InputControl
               value={draft.projectId}
               onChange={(event) => props.onDraftChange((current) => ({ ...current, projectId: event.target.value }))}
               placeholder="project UUID"
@@ -81,7 +81,7 @@ export function TestDesignContextPolicyPanel(props: {
           </label>
           <label className="field">
             <span className="field-label">{translate('auto.k1390')}</span>
-            <input
+            <InputControl
               value={draft.environmentKey}
               onChange={(event) => props.onDraftChange((current) => ({ ...current, environmentKey: event.target.value }))}
               placeholder="qa"
@@ -90,18 +90,18 @@ export function TestDesignContextPolicyPanel(props: {
           </label>
           <label className="field">
             <span className="field-label">{translate('auto.k1391')}</span>
-            <NativeSelect
+            <SelectControl
               value={draft.scopeType}
               onChange={(event) => props.onDraftChange((current) => ({ ...current, scopeType: event.target.value === 'ENVIRONMENT' ? 'ENVIRONMENT' : 'PROJECT' }))}
               disabled={!props.canPolicyManage || state.loading}
             >
               <option value="PROJECT">{dictionaryLabel('PROJECT')}</option>
               <option value="ENVIRONMENT">{dictionaryLabel('ENVIRONMENT')}</option>
-            </NativeSelect>
+            </SelectControl>
           </label>
           <label className="field">
             <span className="field-label">{translate('auto.k1392')}</span>
-            <NativeSelect
+            <SelectControl
               value={draft.changeReasonCode}
               onChange={(event) => props.onDraftChange((current) => ({ ...current, changeReasonCode: event.target.value as TestDesignContextPolicyDraft['changeReasonCode'] }))}
               disabled={!props.canPolicyManage || state.loading}
@@ -109,77 +109,47 @@ export function TestDesignContextPolicyPanel(props: {
               {TEST_DESIGN_CONTEXT_POLICY_REASON_CODES.map((code) => (
                 <option key={code} value={code}>{dictionaryLabel(code)}</option>
               ))}
-            </NativeSelect>
+            </SelectControl>
           </label>
           <label className="field">
             <span className="field-label">{translate('auto.k0431')}</span>
-            <input
-              value={draft.linkedAssetsPerRequirement}
-              type="number"
-              min="1"
-              max="50"
+            <NumberControl value={draft.linkedAssetsPerRequirement} min={1} max={50}
               onChange={(event) => props.onDraftChange((current) => ({ ...current, linkedAssetsPerRequirement: event.target.value }))}
-              disabled={!props.canPolicyManage || state.loading}
-            />
+              disabled={!props.canPolicyManage || state.loading} />
           </label>
           <label className="field">
             <span className="field-label">{translate('auto.k1393')}</span>
-            <input
-              value={draft.explicitAssetsPerType}
-              type="number"
-              min="1"
-              max="50"
+            <NumberControl value={draft.explicitAssetsPerType} min={1} max={50}
               onChange={(event) => props.onDraftChange((current) => ({ ...current, explicitAssetsPerType: event.target.value }))}
-              disabled={!props.canPolicyManage || state.loading}
-            />
+              disabled={!props.canPolicyManage || state.loading} />
           </label>
           <label className="field">
             <span className="field-label">{translate('auto.k1394')}</span>
-            <input
-              value={draft.existingCasesPerRequirement}
-              type="number"
-              min="1"
-              max="50"
+            <NumberControl value={draft.existingCasesPerRequirement} min={1} max={50}
               onChange={(event) => props.onDraftChange((current) => ({ ...current, existingCasesPerRequirement: event.target.value }))}
-              disabled={!props.canPolicyManage || state.loading}
-            />
+              disabled={!props.canPolicyManage || state.loading} />
           </label>
           <label className="field">
             <span className="field-label">{translate('auto.k1395')}</span>
-            <input
-              value={draft.requirementDescriptionChars}
-              type="number"
-              min="1"
-              max="2000"
+            <NumberControl value={draft.requirementDescriptionChars} min={1} max={2000}
               onChange={(event) => props.onDraftChange((current) => ({ ...current, requirementDescriptionChars: event.target.value }))}
-              disabled={!props.canPolicyManage || state.loading}
-            />
+              disabled={!props.canPolicyManage || state.loading} />
           </label>
           <label className="field">
             <span className="field-label">{translate('auto.k1396')}</span>
-            <input
-              value={draft.acceptanceCriteriaChars}
-              type="number"
-              min="1"
-              max="2000"
+            <NumberControl value={draft.acceptanceCriteriaChars} min={1} max={2000}
               onChange={(event) => props.onDraftChange((current) => ({ ...current, acceptanceCriteriaChars: event.target.value }))}
-              disabled={!props.canPolicyManage || state.loading}
-            />
+              disabled={!props.canPolicyManage || state.loading} />
           </label>
           <label className="field">
             <span className="field-label">{translate('auto.k1397')}</span>
-            <input
-              value={draft.assetSchemaChars}
-              type="number"
-              min="1"
-              max="2000"
+            <NumberControl value={draft.assetSchemaChars} min={1} max={2000}
               onChange={(event) => props.onDraftChange((current) => ({ ...current, assetSchemaChars: event.target.value }))}
-              disabled={!props.canPolicyManage || state.loading}
-            />
+              disabled={!props.canPolicyManage || state.loading} />
           </label>
           <label className="field">
             <span className="field-label">{translate('auto.k1398')}</span>
-            <input
+            <InputControl
               value={draft.workOrderKey}
               onChange={(event) => props.onDraftChange((current) => ({ ...current, workOrderKey: event.target.value }))}
               placeholder="WP5-CTX-..."
@@ -188,7 +158,7 @@ export function TestDesignContextPolicyPanel(props: {
           </label>
           <label className="field">
             <span className="field-label">{translate('auto.k1399')}</span>
-            <input
+            <InputControl
               value={draft.workOrderTitle}
               onChange={(event) => props.onDraftChange((current) => ({ ...current, workOrderTitle: event.target.value }))}
               disabled={!props.canPolicyManage || state.loading}
@@ -196,7 +166,7 @@ export function TestDesignContextPolicyPanel(props: {
           </label>
           <label className="field test-design-context-policy-wide">
             <span className="field-label">{translate('auto.k1400')}</span>
-            <input
+            <InputControl
               value={draft.workOrderUrl}
               onChange={(event) => props.onDraftChange((current) => ({ ...current, workOrderUrl: event.target.value }))}
               placeholder="https://..."
@@ -205,7 +175,7 @@ export function TestDesignContextPolicyPanel(props: {
           </label>
           <label className="field test-design-context-policy-wide">
             <span className="field-label">{translate('auto.k1401')}</span>
-            <textarea
+            <TextAreaControl
               value={draft.policyBody}
               maxLength={4000}
               rows={4}
@@ -215,7 +185,7 @@ export function TestDesignContextPolicyPanel(props: {
           </label>
           <label className="field test-design-context-policy-wide">
             <span className="field-label">{translate('auto.k1402')}</span>
-            <textarea
+            <TextAreaControl
               value={draft.policyDiffSummary}
               maxLength={1000}
               rows={3}
@@ -225,7 +195,7 @@ export function TestDesignContextPolicyPanel(props: {
           </label>
           <label className="field test-design-context-policy-wide">
             <span className="field-label">{translate('auto.k1403')}</span>
-            <textarea
+            <TextAreaControl
               value={draft.requestNote}
               maxLength={1000}
               rows={3}
@@ -246,7 +216,7 @@ export function TestDesignContextPolicyPanel(props: {
         <div className="test-design-context-policy-review-grid">
           <label className="field">
             <span className="field-label">{translate('auto.k1409')}</span>
-            <NativeSelect
+            <SelectControl
               value={draft.approvalReasonCode}
               onChange={(event) => props.onDraftChange((current) => ({ ...current, approvalReasonCode: event.target.value as TestDesignContextPolicyDraft['approvalReasonCode'] }))}
               disabled={!props.canPolicyManage || state.loading}
@@ -254,11 +224,11 @@ export function TestDesignContextPolicyPanel(props: {
               {TEST_DESIGN_CONTEXT_POLICY_REASON_CODES.map((code) => (
                 <option key={code} value={code}>{dictionaryLabel(code)}</option>
               ))}
-            </NativeSelect>
+            </SelectControl>
           </label>
           <label className="field">
             <span className="field-label">{translate('auto.k1410')}</span>
-            <NativeSelect
+            <SelectControl
               value={draft.workOrderStatus}
               onChange={(event) => props.onDraftChange((current) => ({ ...current, workOrderStatus: event.target.value as TestDesignContextPolicyDraft['workOrderStatus'] }))}
               disabled={!props.canPolicyManage || state.loading}
@@ -267,11 +237,11 @@ export function TestDesignContextPolicyPanel(props: {
               {TEST_DESIGN_CONTEXT_POLICY_WORK_ORDER_STATUSES.map((status) => (
                 <option key={status} value={status}>{dictionaryLabel(status)}</option>
               ))}
-            </NativeSelect>
+            </SelectControl>
           </label>
           <label className="field test-design-context-policy-wide">
             <span className="field-label">{translate('auto.k1412')}</span>
-            <textarea
+            <TextAreaControl
               value={draft.reviewNote}
               maxLength={1000}
               rows={3}
@@ -283,18 +253,18 @@ export function TestDesignContextPolicyPanel(props: {
         <div className="test-design-context-policy-note-form">
           <label className="field">
             <span className="field-label">{translate('auto.k1413')}</span>
-            <NativeSelect
+            <SelectControl
               value={draft.noteType}
               onChange={(event) => props.onDraftChange((current) => ({ ...current, noteType: event.target.value === 'WORK_ORDER' ? 'WORK_ORDER' : 'COMMENT' }))}
               disabled={!props.canPolicyManage || state.loading || !props.selectedOverrideId}
             >
               <option value="COMMENT">{dictionaryLabel('COMMENT')}</option>
               <option value="WORK_ORDER">{dictionaryLabel('WORK_ORDER')}</option>
-            </NativeSelect>
+            </SelectControl>
           </label>
           <label className="field test-design-context-policy-wide">
             <span className="field-label">{translate('auto.k1414')}</span>
-            <textarea
+            <TextAreaControl
               value={draft.noteText}
               maxLength={1000}
               rows={3}

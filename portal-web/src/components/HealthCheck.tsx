@@ -1,6 +1,7 @@
 import { Activity, AlertCircle, CheckCircle2, RefreshCw, Server } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { ApiResult, HealthResponse, fetchHealth } from '../lib/api';
+import { fieldLabel } from '../platform/dictionaries';
 import { translate } from '../platform/i18n';
 
 function formatHealthStatus(result: ApiResult<HealthResponse> | null): string {
@@ -66,7 +67,7 @@ export default function HealthCheck() {
             <dd>{result.status}</dd>
           </div>
           <div>
-            <dt>Trace ID</dt>
+            <dt>{fieldLabel('traceId')}</dt>
             <dd>{result.traceId ?? result.data.trace_id ?? translate('auto.k0903')}</dd>
           </div>
         </dl>

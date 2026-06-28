@@ -121,7 +121,7 @@ import {
   type UiE2eSceneStepDraft
 } from '../uiE2eWorkbenchState';
 import { translate } from '../platform/i18n';
-import { NativeSelect } from './ui';
+import { CheckboxControl, InputControl, SelectControl, TextAreaControl } from './ui';
 
 type WorkState = {
   loading: boolean;
@@ -136,7 +136,7 @@ type SimpleFilters = {
   keyword: string;
 };
 
-type UiE2eDrawer = 'scene' | 'bundle' | 'run' | 'flaky' | null;
+type UiE2eDrawer = 'scene' | 'bundle' | 'run' | 'batchRun' | 'backfill' | 'flaky' | null;
 
 type SceneFilters = SimpleFilters & {
   applicationId: string;
@@ -169,6 +169,12 @@ const initialSceneImportDraft: UiE2eSceneImportDraft = {
   tagsText: '',
   content: ''
 };
+
+const browserOptions = ['CHROMIUM', 'FIREFOX', 'WEBKIT'].map((value) => ({
+  label: dictionaryLabel(value),
+  searchLabel: `${value} ${dictionaryLabel(value)}`,
+  value
+}));
 
 export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentUser | null }) {
   const canRead = hasPermission(props.currentUser, 'uiE2e:read');
@@ -809,7 +815,7 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
       downloadBlob(response.blob, response.filename || fallbackArtifactFileName(artifact), response.contentType);
       setRunActionState({
         loading: false,
-        success: translate('auto.k0843', { value0: artifact.artifactType }),
+        success: translate('auto.k0843', { value0: displayValueLabel(artifact.artifactType) }),
         traceId: response.traceId
       });
     } catch (error: unknown) {
@@ -873,7 +879,7 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
   return (
     <div className="ui-e2e-workbench" data-testid="ui-e2e-workbench">
       <section className="metrics-grid">
-        <Metric icon={<CheckCircle2 size={20} />} label={translate('auto.k1882')} value={String(overview.approvedScenes)} desc={health?.runnerMode || translate('auto.k1118')} tone="success" />
+        <Metric icon={<CheckCircle2 size={20} />} label={translate('auto.k1882')} value={String(overview.approvedScenes)} desc={displayValueLabel(health?.runnerMode || translate('auto.k1118'))} tone="success" />
         <Metric icon={<FileText size={20} />} label={translate('auto.k1883')} value={String(overview.reviewingBundles)} desc={health?.artifactPolicy ? '产物策略已就绪' : translate('auto.k1118')} tone="info" />
         <Metric icon={<Play size={20} />} label={translate('auto.k1884')} value={String(overview.activeRuns)} desc={overview.runnerLabel} tone={overview.runnerTone} />
         <Metric icon={<AlertTriangle size={20} />} label={translate('auto.k1885')} value={String(overview.recentFailures)} desc={overview.blockedRuns ? `blocked=${overview.blockedRuns}` : translate('auto.k1886')} tone={overview.recentFailures ? 'danger' : overview.blockedRuns ? 'warning' : 'success'} />
@@ -894,26 +900,26 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
             {health ? (
               <>
                 <div className="ui-e2e-health-grid">
-                  <SummaryTile label="runnerMode" value={health.runnerMode || '-'} />
-                  <SummaryTile label="runnerEnabled" value={health.runnerEnabled ? 'ON' : 'OFF'} tone={health.runnerEnabled ? 'success' : 'warning'} />
-                  <SummaryTile label="allowlist" value={health.allowlistEnabled ? `ON (${health.allowlistHostCount})` : 'OFF'} />
-                  <SummaryTile label="export" value={health.exportEnabled ? 'ON' : 'OFF'} />
-                  <SummaryTile label="browserPool" value={runnerPoolReady ? 'READY' : 'PENDING'} tone={runnerPoolReady ? 'success' : 'warning'} />
-                  <SummaryTile label="batchRun" value={batchRunReady ? 'READY' : 'PENDING'} tone={batchRunReady ? 'success' : 'warning'} />
-                  <SummaryTile label="backfill" value={summaryBackfillReady ? 'READY' : 'PENDING'} tone={summaryBackfillReady ? 'success' : 'warning'} />
-                  <SummaryTile label="saturated" value={runnerSaturated ? 'YES' : 'NO'} tone={runnerSaturated ? 'warning' : 'success'} />
+                  <SummaryTile label={fieldLabel('runnerMode')} value={displayValueLabel(health.runnerMode || '-')} />
+                  <SummaryTile label={fieldLabel('runnerEnabled')} value={displayValueLabel(health.runnerEnabled ? 'ON' : 'OFF')} tone={health.runnerEnabled ? 'success' : 'warning'} />
+                  <SummaryTile label={fieldLabel('allowlist')} value={health.allowlistEnabled ? `${displayValueLabel('ON')} (${health.allowlistHostCount})` : displayValueLabel('OFF')} />
+                  <SummaryTile label={fieldLabel('export')} value={displayValueLabel(health.exportEnabled ? 'ON' : 'OFF')} />
+                  <SummaryTile label={fieldLabel('browserPool')} value={dictionaryLabel(runnerPoolReady ? 'READY' : 'PENDING')} tone={runnerPoolReady ? 'success' : 'warning'} />
+                  <SummaryTile label={fieldLabel('batchRun')} value={dictionaryLabel(batchRunReady ? 'READY' : 'PENDING')} tone={batchRunReady ? 'success' : 'warning'} />
+                  <SummaryTile label={fieldLabel('backfill')} value={dictionaryLabel(summaryBackfillReady ? 'READY' : 'PENDING')} tone={summaryBackfillReady ? 'success' : 'warning'} />
+                  <SummaryTile label={fieldLabel('saturated')} value={displayValueLabel(runnerSaturated ? 'YES' : 'NO')} tone={runnerSaturated ? 'warning' : 'success'} />
                 </div>
                 <div className="report-section-grid">
-                  <InfoBlock title="supportedNodeTypes" value={health.supportedNodeTypes.join(', ') || '-'} />
-                  <InfoBlock title="maxConcurrency" value={String(health.maxConcurrency)} />
-                  <InfoBlock title="activeWorkers" value={String(runnerActiveWorkers)} />
-                  <InfoBlock title="availableWorkers" value={String(runnerAvailableWorkers)} />
-                  <InfoBlock title="queuedTasks" value={String(runnerQueuedTasks)} />
-                  <InfoBlock title="completedTasks" value={String(runnerCompletedTasks)} />
-                  <InfoBlock title="defaultTimeout" value={`${health.defaultTimeoutSeconds}s`} />
-                  <InfoBlock title="maxScenesPerRun" value={String(health.maxScenesPerRun)} />
-                  <InfoBlock title="recentFailures" value={String(overview.recentFailures)} />
-                  <InfoBlock title="blockedRuns" value={String(overview.blockedRuns)} />
+                  <InfoBlock title={fieldLabel('supportedNodeTypes')} value={health.supportedNodeTypes.map((type) => dictionaryLabel(type)).join('、') || '-'} />
+                  <InfoBlock title={fieldLabel('maxConcurrency')} value={String(health.maxConcurrency)} />
+                  <InfoBlock title={fieldLabel('activeWorkers')} value={String(runnerActiveWorkers)} />
+                  <InfoBlock title={fieldLabel('availableWorkers')} value={String(runnerAvailableWorkers)} />
+                  <InfoBlock title={fieldLabel('queuedTasks')} value={String(runnerQueuedTasks)} />
+                  <InfoBlock title={fieldLabel('completedTasks')} value={String(runnerCompletedTasks)} />
+                  <InfoBlock title={fieldLabel('defaultTimeout')} value={`${health.defaultTimeoutSeconds}s`} />
+                  <InfoBlock title={fieldLabel('maxScenesPerRun')} value={String(health.maxScenesPerRun)} />
+                  <InfoBlock title={fieldLabel('recentFailures')} value={String(overview.recentFailures)} />
+                  <InfoBlock title={fieldLabel('blockedRuns')} value={String(overview.blockedRuns)} />
                 </div>
                 <PolicySummary policy={{ ...health.credentialPolicy, ...health.artifactPolicy, ...health.policy }} />
               </>
@@ -940,46 +946,46 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
           >
             <form className="ui-e2e-filter-grid" onSubmit={(event) => { event.preventDefault(); void refreshWorkbench(); }}>
               <Field label="projectId">
-                <input value={sceneFilters.projectId} onChange={(event) => setSceneFilters((current) => ({ ...current, projectId: event.target.value }))} placeholder="project-alpha" />
+                <InputControl value={sceneFilters.projectId} onChange={(event) => setSceneFilters((current) => ({ ...current, projectId: event.target.value }))} placeholder="project-alpha" />
               </Field>
               <Field label="status">
-                <NativeSelect value={sceneFilters.status} onChange={(event) => setSceneFilters((current) => ({ ...current, status: event.target.value }))}>
+                <SelectControl value={sceneFilters.status} onChange={(event) => setSceneFilters((current) => ({ ...current, status: event.target.value }))}>
                   <option value="">{translate('auto.k0195')}</option>
                   <option value="DRAFT">{dictionaryLabel('DRAFT')}</option>
                   <option value="REVIEWING">{dictionaryLabel('REVIEWING')}</option>
                   <option value="APPROVED">{dictionaryLabel('APPROVED')}</option>
                   <option value="DISABLED">{dictionaryLabel('DISABLED')}</option>
                   <option value="ARCHIVED">{dictionaryLabel('ARCHIVED')}</option>
-                </NativeSelect>
+                </SelectControl>
               </Field>
               <Field label="applicationId">
-                <input
+                <InputControl
                   value={sceneFilters.applicationId}
                   onChange={(event) => setSceneFilters((current) => ({ ...current, applicationId: event.target.value }))}
                   placeholder="app-alpha"
                 />
               </Field>
               <Field label="environmentId">
-                <input
+                <InputControl
                   value={sceneFilters.environmentId}
                   onChange={(event) => setSceneFilters((current) => ({ ...current, environmentId: event.target.value }))}
                   placeholder="staging"
                 />
               </Field>
-              <Field label="riskLevel">
-                <NativeSelect value={sceneFilters.riskLevel} onChange={(event) => setSceneFilters((current) => ({ ...current, riskLevel: event.target.value }))}>
+              <Field label={fieldLabel('riskLevel')}>
+                <SelectControl value={sceneFilters.riskLevel} onChange={(event) => setSceneFilters((current) => ({ ...current, riskLevel: event.target.value }))}>
                   <option value="">{translate('auto.k0195')}</option>
                   <option value="LOW">{dictionaryLabel('LOW')}</option>
                   <option value="MEDIUM">{dictionaryLabel('MEDIUM')}</option>
                   <option value="HIGH">{dictionaryLabel('HIGH')}</option>
                   <option value="CRITICAL">{dictionaryLabel('CRITICAL')}</option>
-                </NativeSelect>
+                </SelectControl>
               </Field>
               <Field label="tag">
-                <input value={sceneFilters.tag} onChange={(event) => setSceneFilters((current) => ({ ...current, tag: event.target.value }))} placeholder="smoke" />
+                <InputControl value={sceneFilters.tag} onChange={(event) => setSceneFilters((current) => ({ ...current, tag: event.target.value }))} placeholder="smoke" />
               </Field>
               <Field label="keyword">
-                <input value={sceneFilters.keyword} onChange={(event) => setSceneFilters((current) => ({ ...current, keyword: event.target.value }))} placeholder="code / name / tag" />
+                <InputControl value={sceneFilters.keyword} onChange={(event) => setSceneFilters((current) => ({ ...current, keyword: event.target.value }))} placeholder="code / name / tag" />
               </Field>
               <div className="report-filter-actions">
                 <button className="btn btn-secondary" type="submit" disabled={loadState.loading}>
@@ -1034,42 +1040,42 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
             <form className="ui-e2e-form document-drawer-form" onSubmit={onSubmitScene}>
               <div className="form-grid">
                 <Field label="projectId">
-                  <input value={sceneDraft.projectId} onChange={(event) => setSceneDraftValue('projectId', event.target.value)} placeholder="project-alpha" disabled={!canManage || sceneActionState.loading || Boolean(editingSceneId)} />
+                  <InputControl value={sceneDraft.projectId} onChange={(event) => setSceneDraftValue('projectId', event.target.value)} placeholder="project-alpha" disabled={!canManage || sceneActionState.loading || Boolean(editingSceneId)} />
                 </Field>
                 <Field label="applicationId">
-                  <input value={sceneDraft.applicationId} onChange={(event) => setSceneDraftValue('applicationId', event.target.value)} placeholder="app-alpha" disabled={!canManage || sceneActionState.loading} />
+                  <InputControl value={sceneDraft.applicationId} onChange={(event) => setSceneDraftValue('applicationId', event.target.value)} placeholder="app-alpha" disabled={!canManage || sceneActionState.loading} />
                 </Field>
                 <Field label="environmentId">
-                  <input value={sceneDraft.environmentId} onChange={(event) => setSceneDraftValue('environmentId', event.target.value)} placeholder="staging" disabled={!canManage || sceneActionState.loading} />
+                  <InputControl value={sceneDraft.environmentId} onChange={(event) => setSceneDraftValue('environmentId', event.target.value)} placeholder="staging" disabled={!canManage || sceneActionState.loading} />
                 </Field>
                 <Field label="code">
-                  <input value={sceneDraft.code} onChange={(event) => setSceneDraftValue('code', event.target.value)} placeholder="portal-login-smoke" disabled={!canManage || sceneActionState.loading || Boolean(editingSceneId)} />
+                  <InputControl value={sceneDraft.code} onChange={(event) => setSceneDraftValue('code', event.target.value)} placeholder="portal-login-smoke" disabled={!canManage || sceneActionState.loading || Boolean(editingSceneId)} />
                 </Field>
                 <Field label="name">
-                  <input value={sceneDraft.name} onChange={(event) => setSceneDraftValue('name', event.target.value)} placeholder={translate('auto.k1895')} disabled={!canManage || sceneActionState.loading} />
+                  <InputControl value={sceneDraft.name} onChange={(event) => setSceneDraftValue('name', event.target.value)} placeholder={translate('auto.k1895')} disabled={!canManage || sceneActionState.loading} />
                 </Field>
                 <Field label="status">
-                  <NativeSelect value={sceneDraft.status} onChange={(event) => setSceneDraftValue('status', event.target.value)} disabled={!canManage || sceneActionState.loading}>
+                  <SelectControl value={sceneDraft.status} onChange={(event) => setSceneDraftValue('status', event.target.value)} disabled={!canManage || sceneActionState.loading}>
                     <option value="DRAFT">{dictionaryLabel('DRAFT')}</option>
                     <option value="REVIEWING">{dictionaryLabel('REVIEWING')}</option>
                     <option value="APPROVED">{dictionaryLabel('APPROVED')}</option>
                     <option value="DISABLED">{dictionaryLabel('DISABLED')}</option>
-                  </NativeSelect>
+                  </SelectControl>
                 </Field>
-                <Field label="riskLevel">
-                  <NativeSelect value={sceneDraft.riskLevel} onChange={(event) => setSceneDraftValue('riskLevel', event.target.value)} disabled={!canManage || sceneActionState.loading}>
+                <Field label={fieldLabel('riskLevel')}>
+                  <SelectControl value={sceneDraft.riskLevel} onChange={(event) => setSceneDraftValue('riskLevel', event.target.value)} disabled={!canManage || sceneActionState.loading}>
                     <option value="LOW">{dictionaryLabel('LOW')}</option>
                     <option value="MEDIUM">{dictionaryLabel('MEDIUM')}</option>
                     <option value="HIGH">{dictionaryLabel('HIGH')}</option>
                     <option value="CRITICAL">{dictionaryLabel('CRITICAL')}</option>
-                  </NativeSelect>
+                  </SelectControl>
                 </Field>
-                <Field label="tags">
-                  <input value={sceneDraft.tagsText} onChange={(event) => setSceneDraftValue('tagsText', event.target.value)} placeholder="login smoke admin" disabled={!canManage || sceneActionState.loading} />
+                <Field label={fieldLabel('tags')}>
+                  <InputControl value={sceneDraft.tagsText} onChange={(event) => setSceneDraftValue('tagsText', event.target.value)} placeholder="login smoke admin" disabled={!canManage || sceneActionState.loading} />
                 </Field>
               </div>
               <Field label="sourceSummary">
-                <textarea value={sceneDraft.sourceSummaryText} onChange={(event) => setSceneDraftValue('sourceSummaryText', event.target.value)} disabled={!canManage || sceneActionState.loading} />
+                <TextAreaControl value={sceneDraft.sourceSummaryText} onChange={(event) => setSceneDraftValue('sourceSummaryText', event.target.value)} disabled={!canManage || sceneActionState.loading} />
               </Field>
               <div className="report-card-list">
                 <div className="report-mini-card report-mini-card-muted">
@@ -1078,18 +1084,18 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
                     <span className="badge badge-neutral">仅草稿</span>
                   </div>
                   <div className="form-grid">
-                    <Field label="sourceType">
-                      <NativeSelect
+                    <Field label={fieldLabel('sourceType')}>
+                      <SelectControl
                         value={sceneImportDraft.sourceType}
                         onChange={(event) => setSceneImportDraft((current) => ({ ...current, sourceType: event.target.value as UiE2eSceneImportSourceType }))}
                         disabled={!canManage || sceneActionState.loading}
                       >
                         <option value="PLAYWRIGHT_CODEGEN">{dictionaryLabel('PLAYWRIGHT_CODEGEN')}</option>
                         <option value="SELENIUM_IDE">{dictionaryLabel('SELENIUM_IDE')}</option>
-                      </NativeSelect>
+                      </SelectControl>
                     </Field>
                     <Field label="codeHint">
-                      <input
+                      <InputControl
                         value={sceneImportDraft.codeHint}
                         onChange={(event) => setSceneImportDraft((current) => ({ ...current, codeHint: event.target.value }))}
                         placeholder="portal-login-import"
@@ -1097,7 +1103,7 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
                       />
                     </Field>
                     <Field label="nameHint">
-                      <input
+                      <InputControl
                         value={sceneImportDraft.nameHint}
                         onChange={(event) => setSceneImportDraft((current) => ({ ...current, nameHint: event.target.value }))}
                         placeholder={translate('auto.k1897')}
@@ -1105,7 +1111,7 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
                       />
                     </Field>
                     <Field label="importTags">
-                      <input
+                      <InputControl
                         value={sceneImportDraft.tagsText}
                         onChange={(event) => setSceneImportDraft((current) => ({ ...current, tagsText: event.target.value }))}
                         placeholder="import smoke"
@@ -1114,7 +1120,7 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
                     </Field>
                   </div>
                   <Field label="content">
-                    <textarea
+                    <TextAreaControl
                       value={sceneImportDraft.content}
                       onChange={(event) => setSceneImportDraft((current) => ({ ...current, content: event.target.value }))}
                       placeholder={translate('auto.k1898')}
@@ -1145,22 +1151,22 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
                     </div>
                     <div className="ui-e2e-step-grid">
                       <Field label="stepType">
-                        <input value={step.stepType} onChange={(event) => updateSceneStep(index, 'stepType', event.target.value)} disabled={!canManage || sceneActionState.loading} />
+                        <InputControl value={step.stepType} onChange={(event) => updateSceneStep(index, 'stepType', event.target.value)} disabled={!canManage || sceneActionState.loading} />
                       </Field>
                       <Field label="actionSummary">
-                        <textarea value={step.actionSummaryText} onChange={(event) => updateSceneStep(index, 'actionSummaryText', event.target.value)} disabled={!canManage || sceneActionState.loading} />
+                        <TextAreaControl value={step.actionSummaryText} onChange={(event) => updateSceneStep(index, 'actionSummaryText', event.target.value)} disabled={!canManage || sceneActionState.loading} />
                       </Field>
                       <Field label="locatorStrategy">
-                        <textarea value={step.locatorStrategyText} onChange={(event) => updateSceneStep(index, 'locatorStrategyText', event.target.value)} disabled={!canManage || sceneActionState.loading} />
+                        <TextAreaControl value={step.locatorStrategyText} onChange={(event) => updateSceneStep(index, 'locatorStrategyText', event.target.value)} disabled={!canManage || sceneActionState.loading} />
                       </Field>
                       <Field label="assertionSummary">
-                        <textarea value={step.assertionSummaryText} onChange={(event) => updateSceneStep(index, 'assertionSummaryText', event.target.value)} disabled={!canManage || sceneActionState.loading} />
+                        <TextAreaControl value={step.assertionSummaryText} onChange={(event) => updateSceneStep(index, 'assertionSummaryText', event.target.value)} disabled={!canManage || sceneActionState.loading} />
                       </Field>
                       <Field label="waitPolicy">
-                        <textarea value={step.waitPolicyText} onChange={(event) => updateSceneStep(index, 'waitPolicyText', event.target.value)} disabled={!canManage || sceneActionState.loading} />
+                        <TextAreaControl value={step.waitPolicyText} onChange={(event) => updateSceneStep(index, 'waitPolicyText', event.target.value)} disabled={!canManage || sceneActionState.loading} />
                       </Field>
                       <Field label="dataBinding">
-                        <textarea
+                        <TextAreaControl
                           value={step.dataBindingText}
                           onChange={(event) => updateSceneStep(index, 'dataBindingText', event.target.value)}
                           placeholder={'{"dataSetCode":"checkout-users","recordKey":"user-001","bindingAlias":"user"}'}
@@ -1254,10 +1260,10 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
             <form className="ui-e2e-form document-drawer-form" onSubmit={(event) => { event.preventDefault(); void onCreateBundle(); }}>
               <div className="form-grid">
                 <Field label="sceneId">
-                  <input value={bundleSceneId} onChange={(event) => setBundleSceneId(event.target.value)} placeholder={selectedSceneId || translate('auto.k1912')} disabled={!canManage || bundleActionState.loading} />
+                  <InputControl value={bundleSceneId} onChange={(event) => setBundleSceneId(event.target.value)} placeholder={selectedSceneId || translate('auto.k1912')} disabled={!canManage || bundleActionState.loading} />
                 </Field>
-                <Field label="review note">
-                  <input value={reviewNote} onChange={(event) => setReviewNote(event.target.value)} placeholder={translate('auto.k1913')} disabled={bundleActionState.loading} />
+                <Field label="reviewNote">
+                  <InputControl value={reviewNote} onChange={(event) => setReviewNote(event.target.value)} placeholder={translate('auto.k1913')} disabled={bundleActionState.loading} />
                 </Field>
               </div>
               <div className="report-actions-row">
@@ -1284,20 +1290,20 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
             <StateLine state={bundleActionState} />
             <form className="ui-e2e-filter-grid" onSubmit={(event) => { event.preventDefault(); void refreshWorkbench(); }}>
               <Field label="projectId">
-                <input value={bundleFilters.projectId} onChange={(event) => setBundleFilters((current) => ({ ...current, projectId: event.target.value }))} placeholder="project-alpha" />
+                <InputControl value={bundleFilters.projectId} onChange={(event) => setBundleFilters((current) => ({ ...current, projectId: event.target.value }))} placeholder="project-alpha" />
               </Field>
               <Field label="status">
-                <NativeSelect value={bundleFilters.status} onChange={(event) => setBundleFilters((current) => ({ ...current, status: event.target.value }))}>
+                <SelectControl value={bundleFilters.status} onChange={(event) => setBundleFilters((current) => ({ ...current, status: event.target.value }))}>
                   <option value="">{translate('auto.k0195')}</option>
                   <option value="DRAFT">{dictionaryLabel('DRAFT')}</option>
                   <option value="REVIEWING">{dictionaryLabel('REVIEWING')}</option>
                   <option value="APPROVED">{dictionaryLabel('APPROVED')}</option>
                   <option value="REJECTED">{dictionaryLabel('REJECTED')}</option>
                   <option value="ARCHIVED">{dictionaryLabel('ARCHIVED')}</option>
-                </NativeSelect>
+                </SelectControl>
               </Field>
               <Field label="keyword">
-                <input value={bundleFilters.keyword} onChange={(event) => setBundleFilters((current) => ({ ...current, keyword: event.target.value }))} placeholder="scene / digest" />
+                <InputControl value={bundleFilters.keyword} onChange={(event) => setBundleFilters((current) => ({ ...current, keyword: event.target.value }))} placeholder="scene / digest" />
               </Field>
               <div className="report-filter-actions">
                 <button className="btn btn-secondary" type="submit" disabled={loadState.loading}>
@@ -1361,8 +1367,14 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
             title={translate('auto.k1917')}
             desc={translate('auto.k1918')}
             action={(
-              <button className="btn btn-primary btn-sm" type="button" onClick={openCreateRunDrawer} disabled={!canExecute || runActionState.loading}>
-                <Play size={15} />{translate('auto.k1924')}</button>
+              <div className="report-actions-row compact">
+                <button className="btn btn-primary btn-sm" type="button" onClick={openCreateRunDrawer} disabled={!canExecute || runActionState.loading}>
+                  <Play size={15} />{translate('auto.k1924')}</button>
+                <button className="btn btn-secondary btn-sm" type="button" onClick={openBatchRunDrawer} disabled={!canExecute || runActionState.loading}>
+                  <Play size={15} />{translate('auto.k1926')}</button>
+                <button className="btn btn-secondary btn-sm" type="button" onClick={openBackfillDrawer} disabled={!canManage || runActionState.loading}>
+                  <RefreshCw size={15} />{translate('auto.k1927')}</button>
+              </div>
             )}
           >
             <Drawer
@@ -1382,39 +1394,41 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
             <form className="ui-e2e-form document-drawer-form" onSubmit={onCreateRun}>
               <div className="form-grid">
                 <Field label="projectId">
-                  <input value={runDraft.projectId} onChange={(event) => setRunDraftValue('projectId', event.target.value)} placeholder="project-alpha" disabled={!canExecute || runActionState.loading} />
+                  <InputControl value={runDraft.projectId} onChange={(event) => setRunDraftValue('projectId', event.target.value)} placeholder="project-alpha" disabled={!canExecute || runActionState.loading} />
                 </Field>
                 <Field label="sceneId">
-                  <input value={runDraft.sceneId} onChange={(event) => setRunDraftValue('sceneId', event.target.value)} placeholder="UUID" disabled={!canExecute || runActionState.loading} />
+                  <InputControl value={runDraft.sceneId} onChange={(event) => setRunDraftValue('sceneId', event.target.value)} placeholder="UUID" disabled={!canExecute || runActionState.loading} />
                 </Field>
                 <Field label="bundleId">
-                  <input value={runDraft.bundleId} onChange={(event) => setRunDraftValue('bundleId', event.target.value)} placeholder="UUID" disabled={!canExecute || runActionState.loading} />
+                  <InputControl value={runDraft.bundleId} onChange={(event) => setRunDraftValue('bundleId', event.target.value)} placeholder="UUID" disabled={!canExecute || runActionState.loading} />
                 </Field>
                 <Field label="environmentId">
-                  <input value={runDraft.environmentId} onChange={(event) => setRunDraftValue('environmentId', event.target.value)} placeholder="staging" disabled={!canExecute || runActionState.loading} />
+                  <InputControl value={runDraft.environmentId} onChange={(event) => setRunDraftValue('environmentId', event.target.value)} placeholder="staging" disabled={!canExecute || runActionState.loading} />
                 </Field>
                 <Field label="baseUrlRef">
-                  <input value={runDraft.baseUrlRef} onChange={(event) => setRunDraftValue('baseUrlRef', event.target.value)} placeholder="env:staging" disabled={!canExecute || runActionState.loading} />
+                  <InputControl value={runDraft.baseUrlRef} onChange={(event) => setRunDraftValue('baseUrlRef', event.target.value)} placeholder="env:staging" disabled={!canExecute || runActionState.loading} />
                 </Field>
                 <Field label="accountLeaseRef">
-                  <input value={runDraft.accountLeaseRef} onChange={(event) => setRunDraftValue('accountLeaseRef', event.target.value)} placeholder="UUID" disabled={!canExecute || runActionState.loading} />
+                  <InputControl value={runDraft.accountLeaseRef} onChange={(event) => setRunDraftValue('accountLeaseRef', event.target.value)} placeholder="UUID" disabled={!canExecute || runActionState.loading} />
                 </Field>
                 <Field label="requestKey">
-                  <input value={runDraft.requestKey} onChange={(event) => setRunDraftValue('requestKey', event.target.value)} placeholder={translate('auto.k1133')} disabled={!canExecute || runActionState.loading} />
+                  <InputControl value={runDraft.requestKey} onChange={(event) => setRunDraftValue('requestKey', event.target.value)} placeholder={translate('auto.k1133')} disabled={!canExecute || runActionState.loading} />
                 </Field>
                 <Field label="reason">
-                  <input value={runDraft.reason} onChange={(event) => setRunDraftValue('reason', event.target.value)} placeholder={translate('auto.k1919')} disabled={!canExecute || runActionState.loading} />
+                  <InputControl value={runDraft.reason} onChange={(event) => setRunDraftValue('reason', event.target.value)} placeholder={translate('auto.k1919')} disabled={!canExecute || runActionState.loading} />
                 </Field>
                 <Field label="browsers">
-                  <input
+                  <SelectControl
+                    mode="multiple"
+                    options={browserOptions}
                     value={runDraft.browsersText}
                     onChange={(event) => setRunDraftValue('browsersText', event.target.value)}
-                    placeholder="CHROMIUM FIREFOX WEBKIT"
+                    placeholder={translate('auto.k3000')}
                     disabled={!canExecute || runActionState.loading}
                   />
                 </Field>
                 <Field label="baselineRunId">
-                  <input
+                  <InputControl
                     value={runDraft.baselineRunId}
                     onChange={(event) => setRunDraftValue('baselineRunId', event.target.value)}
                     placeholder={translate('auto.k1920')}
@@ -1422,7 +1436,7 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
                   />
                 </Field>
                 <Field label="visualThreshold">
-                  <input
+                  <InputControl
                     value={runDraft.visualMismatchThreshold}
                     onChange={(event) => setRunDraftValue('visualMismatchThreshold', event.target.value)}
                     placeholder={translate('auto.k1921')}
@@ -1432,8 +1446,8 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
               </div>
               <label className="field field-inline">
                 <span className="field-inline-main">
-                  <input
-                    type="checkbox"
+                  <CheckboxControl
+
                     checked={runDraft.visualRegressionEnabled}
                     onChange={(event) => setRunDraftBooleanValue('visualRegressionEnabled', event.target.checked)}
                     disabled={!canExecute || runActionState.loading}
@@ -1452,26 +1466,42 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
               <div className="report-actions-row">
                 {canExecute && (
                   <>
-                    <button className="btn btn-primary" type="submit" disabled={runCreateDisabled} title={runCreateButtonTitle}>
-                      <Play size={16} />{translate('auto.k1924')}</button>
+                <button className="btn btn-primary" type="submit" disabled={runCreateDisabled} title={runCreateButtonTitle}>
+                  <Play size={16} />{translate('auto.k1924')}</button>
                   </>
                 )}
-                <button className="btn btn-secondary" type="button" onClick={() => void onCreateBatchRun()} disabled={runBatchDisabled}>
-                  <Play size={16} />{translate('auto.k1926')}</button>
-                <button className="btn btn-secondary" type="button" onClick={() => void onBackfillRunSummary()} disabled={runBackfillDisabled}>
-                  <RefreshCw size={16} />{translate('auto.k1927')}</button>
+                <button className="btn btn-secondary" type="button" disabled={runActionState.loading} onClick={() => setOpenDrawer(null)}>
+                  {translate('actions.cancel')}</button>
               </div>
               {!canExecute && (
                 <div className="notice info">{translate('auto.k1928')}</div>
               )}
+              <StateLine state={runActionState} />
+            </form>
+            </Drawer>
+            <Drawer
+              className="ui-e2e-drawer"
+              destroyOnHidden
+              maskClosable={!runActionState.loading}
+              open={openDrawer === 'batchRun'}
+              placement="right"
+              title={translate('auto.k1926')}
+              width={760}
+              onClose={() => {
+                if (!runActionState.loading) {
+                  setOpenDrawer(null);
+                }
+              }}
+            >
+            <form className="ui-e2e-form document-drawer-form" onSubmit={(event) => { event.preventDefault(); void onCreateBatchRun(); }}>
               <div className={`notice ${runBatchReadiness.tone}`}>
-                <strong>Batch Run · {runBatchReadiness.label}</strong>
+                <strong>{translate('auto.k1926')} · {runBatchReadiness.label}</strong>
                 <span>{runBatchReadiness.summary}</span>
                 {runBatchReadiness.checks.length ? <span>{runBatchReadiness.checks.join(' · ')}</span> : null}
               </div>
               <div className="form-grid">
-                <Field label="batch projectId">
-                  <input
+                <Field label="batchProjectId">
+                  <InputControl
                     value={batchRunDraft.projectId}
                     onChange={(event) => setBatchRunDraftValue('projectId', event.target.value)}
                     placeholder="project-alpha"
@@ -1479,7 +1509,7 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
                   />
                 </Field>
                 <Field label="sceneIds">
-                  <textarea
+                  <TextAreaControl
                     value={batchRunDraft.sceneIdsText}
                     onChange={(event) => setBatchRunDraftValue('sceneIdsText', event.target.value)}
                     placeholder={translate('auto.k1929')}
@@ -1487,24 +1517,24 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
                     rows={3}
                   />
                 </Field>
-                <Field label="batch environmentId">
-                  <input
+                <Field label="batchEnvironmentId">
+                  <InputControl
                     value={batchRunDraft.environmentId}
                     onChange={(event) => setBatchRunDraftValue('environmentId', event.target.value)}
                     placeholder="staging"
                     disabled={!canExecute || runActionState.loading}
                   />
                 </Field>
-                <Field label="batch baseUrlRef">
-                  <input
+                <Field label="batchBaseUrlRef">
+                  <InputControl
                     value={batchRunDraft.baseUrlRef}
                     onChange={(event) => setBatchRunDraftValue('baseUrlRef', event.target.value)}
                     placeholder="env:staging"
                     disabled={!canExecute || runActionState.loading}
                   />
                 </Field>
-                <Field label="batch accountLeaseRef">
-                  <input
+                <Field label="batchAccountLeaseRef">
+                  <InputControl
                     value={batchRunDraft.accountLeaseRef}
                     onChange={(event) => setBatchRunDraftValue('accountLeaseRef', event.target.value)}
                     placeholder="UUID"
@@ -1512,39 +1542,41 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
                   />
                 </Field>
                 <Field label="requestKeyPrefix">
-                  <input
+                  <InputControl
                     value={batchRunDraft.requestKeyPrefix}
                     onChange={(event) => setBatchRunDraftValue('requestKeyPrefix', event.target.value)}
                     placeholder={translate('auto.k1930')}
                     disabled={!canExecute || runActionState.loading}
                   />
                 </Field>
-                <Field label="batch reason">
-                  <input
+                <Field label="batchReason">
+                  <InputControl
                     value={batchRunDraft.reason}
                     onChange={(event) => setBatchRunDraftValue('reason', event.target.value)}
                     placeholder={translate('auto.k1931')}
                     disabled={!canExecute || runActionState.loading}
                   />
                 </Field>
-                <Field label="batch browsers">
-                  <input
+                <Field label="batchBrowsers">
+                  <SelectControl
+                    mode="multiple"
+                    options={browserOptions}
                     value={batchRunDraft.browsersText}
                     onChange={(event) => setBatchRunDraftValue('browsersText', event.target.value)}
-                    placeholder="CHROMIUM FIREFOX WEBKIT"
+                    placeholder={translate('auto.k3000')}
                     disabled={!canExecute || runActionState.loading}
                   />
                 </Field>
-                <Field label="batch baselineRunId">
-                  <input
+                <Field label="batchBaselineRunId">
+                  <InputControl
                     value={batchRunDraft.baselineRunId}
                     onChange={(event) => setBatchRunDraftValue('baselineRunId', event.target.value)}
                     placeholder={translate('auto.k1920')}
                     disabled={!canExecute || runActionState.loading || !batchRunDraft.visualRegressionEnabled}
                   />
                 </Field>
-                <Field label="batch visualThreshold">
-                  <input
+                <Field label="batchVisualThreshold">
+                  <InputControl
                     value={batchRunDraft.visualMismatchThreshold}
                     onChange={(event) => setBatchRunDraftValue('visualMismatchThreshold', event.target.value)}
                     placeholder={translate('auto.k1921')}
@@ -1554,8 +1586,8 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
               </div>
               <label className="field field-inline">
                 <span className="field-inline-main">
-                  <input
-                    type="checkbox"
+                  <CheckboxControl
+
                     checked={batchRunDraft.visualRegressionEnabled}
                     onChange={(event) => setBatchRunDraftBooleanValue('visualRegressionEnabled', event.target.checked)}
                     disabled={!canExecute || runActionState.loading}
@@ -1564,6 +1596,12 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
                 </span>
                 <small>{translate('auto.k1933')}</small>
               </label>
+              <div className="report-actions-row">
+                <button className="btn btn-primary" type="submit" disabled={runBatchDisabled}>
+                  <Play size={16} />{translate('auto.k1926')}</button>
+                <button className="btn btn-secondary" type="button" disabled={runActionState.loading} onClick={() => setOpenDrawer(null)}>
+                  {translate('actions.cancel')}</button>
+              </div>
               {runBatchSummary ? (
                 <div className="report-card-list">
                   <div className="report-mini-card report-mini-card-muted">
@@ -1582,14 +1620,32 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
                   </div>
                 </div>
               ) : null}
+              <StateLine state={runActionState} />
+            </form>
+            </Drawer>
+            <Drawer
+              className="ui-e2e-drawer"
+              destroyOnHidden
+              maskClosable={!runActionState.loading}
+              open={openDrawer === 'backfill'}
+              placement="right"
+              title={translate('auto.k1927')}
+              width={640}
+              onClose={() => {
+                if (!runActionState.loading) {
+                  setOpenDrawer(null);
+                }
+              }}
+            >
+            <form className="ui-e2e-form document-drawer-form" onSubmit={(event) => { event.preventDefault(); void onBackfillRunSummary(); }}>
               <div className={`notice ${runBackfillReadiness.tone}`}>
-                <strong>Run Summary Backfill · {runBackfillReadiness.label}</strong>
+                <strong>{translate('auto.k1927')} · {runBackfillReadiness.label}</strong>
                 <span>{runBackfillReadiness.summary}</span>
                 {runBackfillReadiness.checks.length ? <span>{runBackfillReadiness.checks.join(' · ')}</span> : null}
               </div>
               <div className="form-grid">
-                <Field label="backfill projectId">
-                  <input
+                <Field label="backfillProjectId">
+                  <InputControl
                     value={runBackfillDraft.projectId}
                     onChange={(event) => setRunBackfillDraft((current) => ({ ...current, projectId: event.target.value }))}
                     placeholder="project-alpha"
@@ -1597,7 +1653,7 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
                   />
                 </Field>
                 <Field label="runIds">
-                  <input
+                  <InputControl
                     value={runBackfillDraft.runIdsText}
                     onChange={(event) => setRunBackfillDraft((current) => ({ ...current, runIdsText: event.target.value }))}
                     placeholder={translate('auto.k1935')}
@@ -1605,13 +1661,19 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
                   />
                 </Field>
                 <Field label="limit">
-                  <input
+                  <InputControl
                     value={runBackfillDraft.limit}
                     onChange={(event) => setRunBackfillDraft((current) => ({ ...current, limit: event.target.value }))}
                     placeholder={translate('auto.k1936')}
                     disabled={!canManage || runActionState.loading}
                   />
                 </Field>
+              </div>
+              <div className="report-actions-row">
+                <button className="btn btn-primary" type="submit" disabled={runBackfillDisabled}>
+                  <RefreshCw size={16} />{translate('auto.k1927')}</button>
+                <button className="btn btn-secondary" type="button" disabled={runActionState.loading} onClick={() => setOpenDrawer(null)}>
+                  {translate('actions.cancel')}</button>
               </div>
               {runBackfillSummary ? (
                 <div className="report-card-list">
@@ -1639,18 +1701,18 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
                 <Square size={15} />{translate('auto.k1925')}</button>
               <button className="btn btn-secondary btn-sm" type="button" onClick={() => void onExportRun()} disabled={!canExport || runActionState.loading || !runDetail}>
                 <Download size={15} />{translate('auto.k0221')}</button>
-              <button className="btn btn-secondary btn-sm" type="button" onClick={() => void onCreateBatchRun()} disabled={runBatchDisabled}>
+              <button className="btn btn-secondary btn-sm" type="button" onClick={openBatchRunDrawer} disabled={!canExecute || runActionState.loading}>
                 <Play size={15} />{translate('auto.k1926')}</button>
-              <button className="btn btn-secondary btn-sm" type="button" onClick={() => void onBackfillRunSummary()} disabled={runBackfillDisabled}>
+              <button className="btn btn-secondary btn-sm" type="button" onClick={openBackfillDrawer} disabled={!canManage || runActionState.loading}>
                 <RefreshCw size={15} />{translate('auto.k1927')}</button>
             </div>
             <StateLine state={runActionState} />
             <form className="ui-e2e-filter-grid" onSubmit={(event) => { event.preventDefault(); void refreshWorkbench(); }}>
               <Field label="projectId">
-                <input value={runFilters.projectId} onChange={(event) => setRunFilters((current) => ({ ...current, projectId: event.target.value }))} placeholder="project-alpha" />
+                <InputControl value={runFilters.projectId} onChange={(event) => setRunFilters((current) => ({ ...current, projectId: event.target.value }))} placeholder="project-alpha" />
               </Field>
               <Field label="status">
-                <NativeSelect value={runFilters.status} onChange={(event) => setRunFilters((current) => ({ ...current, status: event.target.value }))}>
+                <SelectControl value={runFilters.status} onChange={(event) => setRunFilters((current) => ({ ...current, status: event.target.value }))}>
                   <option value="">{translate('auto.k0195')}</option>
                   <option value="QUEUED">{dictionaryLabel('QUEUED')}</option>
                   <option value="RUNNING">{dictionaryLabel('RUNNING')}</option>
@@ -1659,10 +1721,10 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
                   <option value="TIMEOUT">{dictionaryLabel('TIMEOUT')}</option>
                   <option value="CANCELED">{dictionaryLabel('CANCELED')}</option>
                   <option value="BLOCKED">{dictionaryLabel('BLOCKED')}</option>
-                </NativeSelect>
+                </SelectControl>
               </Field>
               <Field label="keyword">
-                <input value={runFilters.keyword} onChange={(event) => setRunFilters((current) => ({ ...current, keyword: event.target.value }))} placeholder="requestKey / scene" />
+                <InputControl value={runFilters.keyword} onChange={(event) => setRunFilters((current) => ({ ...current, keyword: event.target.value }))} placeholder="requestKey / scene" />
               </Field>
               <div className="report-filter-actions">
                 <button className="btn btn-secondary" type="submit" disabled={loadState.loading}>
@@ -1747,27 +1809,27 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
             <form className="ui-e2e-form document-drawer-form" onSubmit={onUpsertFlaky}>
               <div className="form-grid">
                 <Field label="projectId">
-                  <input value={flakyDraft.projectId} onChange={(event) => setFlakyDraftValue('projectId', event.target.value)} placeholder="project-alpha" disabled={!canFlaky || flakyActionState.loading} />
+                  <InputControl value={flakyDraft.projectId} onChange={(event) => setFlakyDraftValue('projectId', event.target.value)} placeholder="project-alpha" disabled={!canFlaky || flakyActionState.loading} />
                 </Field>
                 <Field label="sceneId">
-                  <input value={flakyDraft.sceneId} onChange={(event) => setFlakyDraftValue('sceneId', event.target.value)} placeholder={translate('auto.k1941')} disabled={!canFlaky || flakyActionState.loading} />
+                  <InputControl value={flakyDraft.sceneId} onChange={(event) => setFlakyDraftValue('sceneId', event.target.value)} placeholder={translate('auto.k1941')} disabled={!canFlaky || flakyActionState.loading} />
                 </Field>
                 <Field label="runId">
-                  <input value={flakyDraft.runId} onChange={(event) => setFlakyDraftValue('runId', event.target.value)} placeholder={translate('auto.k1941')} disabled={!canFlaky || flakyActionState.loading} />
+                  <InputControl value={flakyDraft.runId} onChange={(event) => setFlakyDraftValue('runId', event.target.value)} placeholder={translate('auto.k1941')} disabled={!canFlaky || flakyActionState.loading} />
                 </Field>
                 <Field label="status">
-                  <NativeSelect value={flakyDraft.status} onChange={(event) => setFlakyDraftValue('status', event.target.value)} disabled={!canFlaky || flakyActionState.loading}>
+                  <SelectControl value={flakyDraft.status} onChange={(event) => setFlakyDraftValue('status', event.target.value)} disabled={!canFlaky || flakyActionState.loading}>
                     <option value="NONE">{dictionaryLabel('NONE')}</option>
                     <option value="FLAKY_CANDIDATE">{dictionaryLabel('FLAKY_CANDIDATE')}</option>
                     <option value="CONFIRMED_FLAKY">{dictionaryLabel('CONFIRMED_FLAKY')}</option>
                     <option value="WAIVED">{dictionaryLabel('WAIVED')}</option>
-                  </NativeSelect>
+                  </SelectControl>
                 </Field>
                 <Field label="reasonCode">
-                  <input value={flakyDraft.reasonCode} onChange={(event) => setFlakyDraftValue('reasonCode', event.target.value)} placeholder="locator-drift" disabled={!canFlaky || flakyActionState.loading} />
+                  <InputControl value={flakyDraft.reasonCode} onChange={(event) => setFlakyDraftValue('reasonCode', event.target.value)} placeholder="locator-drift" disabled={!canFlaky || flakyActionState.loading} />
                 </Field>
                 <Field label="reasonSummary">
-                  <input value={flakyDraft.reasonSummary} onChange={(event) => setFlakyDraftValue('reasonSummary', event.target.value)} placeholder={translate('auto.k1942')} disabled={!canFlaky || flakyActionState.loading} />
+                  <InputControl value={flakyDraft.reasonSummary} onChange={(event) => setFlakyDraftValue('reasonSummary', event.target.value)} placeholder={translate('auto.k1942')} disabled={!canFlaky || flakyActionState.loading} />
                 </Field>
               </div>
               <div className="report-actions-row">
@@ -1782,19 +1844,19 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
             <StateLine state={flakyActionState} />
             <form className="ui-e2e-filter-grid" onSubmit={(event) => { event.preventDefault(); void refreshWorkbench(); }}>
               <Field label="projectId">
-                <input value={flakyFilters.projectId} onChange={(event) => setFlakyFilters((current) => ({ ...current, projectId: event.target.value }))} placeholder="project-alpha" />
+                <InputControl value={flakyFilters.projectId} onChange={(event) => setFlakyFilters((current) => ({ ...current, projectId: event.target.value }))} placeholder="project-alpha" />
               </Field>
               <Field label="status">
-                <NativeSelect value={flakyFilters.status} onChange={(event) => setFlakyFilters((current) => ({ ...current, status: event.target.value }))}>
+                <SelectControl value={flakyFilters.status} onChange={(event) => setFlakyFilters((current) => ({ ...current, status: event.target.value }))}>
                   <option value="">{translate('auto.k0195')}</option>
                   <option value="NONE">{dictionaryLabel('NONE')}</option>
                   <option value="FLAKY_CANDIDATE">{dictionaryLabel('FLAKY_CANDIDATE')}</option>
                   <option value="CONFIRMED_FLAKY">{dictionaryLabel('CONFIRMED_FLAKY')}</option>
                   <option value="WAIVED">{dictionaryLabel('WAIVED')}</option>
-                </NativeSelect>
+                </SelectControl>
               </Field>
               <Field label="keyword">
-                <input value={flakyFilters.keyword} onChange={(event) => setFlakyFilters((current) => ({ ...current, keyword: event.target.value }))} placeholder="reason / scene / run" />
+                <InputControl value={flakyFilters.keyword} onChange={(event) => setFlakyFilters((current) => ({ ...current, keyword: event.target.value }))} placeholder="reason / scene / run" />
               </Field>
               <div className="report-filter-actions">
                 <button className="btn btn-secondary" type="submit" disabled={loadState.loading}>
@@ -2029,6 +2091,16 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
     setOpenDrawer('run');
   }
 
+  function openBatchRunDrawer() {
+    setRunActionState({ loading: false });
+    setOpenDrawer('batchRun');
+  }
+
+  function openBackfillDrawer() {
+    setRunActionState({ loading: false });
+    setOpenDrawer('backfill');
+  }
+
   function openFlakyDrawer() {
     setFlakyActionState({ loading: false });
     setOpenDrawer('flaky');
@@ -2076,16 +2148,16 @@ function SceneDetailPanel(props: {
         <span className="report-mono">{props.detail.id}</span>
       </div>
       <div className="report-summary-grid">
-        <SummaryTile label="riskLevel" value={props.detail.riskLevel} />
-        <SummaryTile label="stepCount" value={String(props.detail.steps.length)} />
-        <SummaryTile label="application" value={props.detail.applicationId || '-'} />
-        <SummaryTile label="environment" value={props.detail.environmentId || '-'} />
+        <SummaryTile label={fieldLabel('riskLevel')} value={dictionaryLabel(props.detail.riskLevel)} />
+        <SummaryTile label={fieldLabel('stepCount')} value={String(props.detail.steps.length)} />
+        <SummaryTile label={fieldLabel('application')} value={props.detail.applicationId || '-'} />
+        <SummaryTile label={fieldLabel('environment')} value={props.detail.environmentId || '-'} />
       </div>
       <div className="report-section-grid">
-        <InfoBlock title="tags" value={props.detail.tags.join(', ') || '-'} />
-        <InfoBlock title="policy" value={formatRecord(props.detail.policy)} />
-        <InfoBlock title="sourceSummary" value={formatRecord(props.detail.sourceSummary)} />
-        <InfoBlock title="updatedAt" value={props.detail.updatedAt ? formatDateTime(props.detail.updatedAt) : '-'} />
+        <InfoBlock title={fieldLabel('tags')} value={props.detail.tags.join(', ') || '-'} />
+        <InfoBlock title={fieldLabel('policy')} value={formatRecord(props.detail.policy)} />
+        <InfoBlock title={fieldLabel('sourceSummary')} value={formatRecord(props.detail.sourceSummary)} />
+        <InfoBlock title={fieldLabel('updatedAt')} value={props.detail.updatedAt ? formatDateTime(props.detail.updatedAt) : '-'} />
       </div>
       <div className="report-card-list">
         <div className="report-mini-card report-mini-card-muted">
@@ -2163,15 +2235,15 @@ function BundleDetailPanel(props: { detail: UiE2eBundleDetail | null; exported: 
       </div>
       <div className="report-summary-grid">
         <SummaryTile label="staticCheck" value={props.detail.staticCheckStatus || '-'} tone={statusTone(props.detail.staticCheckStatus || 'UNKNOWN')} />
-        <SummaryTile label="sceneStatus" value={props.detail.sceneStatus || '-'} />
-        <SummaryTile label="riskLevel" value={props.detail.riskLevel || '-'} />
-        <SummaryTile label="reviews" value={String(props.detail.reviews.length)} />
+        <SummaryTile label={fieldLabel('sceneStatus')} value={props.detail.sceneStatus ? dictionaryLabel(props.detail.sceneStatus) : '-'} />
+        <SummaryTile label={fieldLabel('riskLevel')} value={props.detail.riskLevel ? dictionaryLabel(props.detail.riskLevel) : '-'} />
+        <SummaryTile label={fieldLabel('reviews')} value={String(props.detail.reviews.length)} />
       </div>
       <div className="report-section-grid">
-        <InfoBlock title="bundleDigest" value={props.detail.bundleDigest || '-'} />
-        <InfoBlock title="tags" value={props.detail.tags.join(', ') || '-'} />
-        <InfoBlock title="specSummary" value={formatRecord(props.detail.specSummary)} />
-        <InfoBlock title="fixtureSummary" value={formatRecord(props.detail.fixtureSummary)} />
+        <InfoBlock title={fieldLabel('bundleDigest')} value={props.detail.bundleDigest || '-'} />
+        <InfoBlock title={fieldLabel('tags')} value={props.detail.tags.join(', ') || '-'} />
+        <InfoBlock title={fieldLabel('specSummary')} value={formatRecord(props.detail.specSummary)} />
+        <InfoBlock title={fieldLabel('fixtureSummary')} value={formatRecord(props.detail.fixtureSummary)} />
       </div>
       <PolicySummary policy={{ ...props.detail.staticCheckSummary, ...props.detail.policy }} />
       {props.detail.reviews.length ? (
@@ -2179,7 +2251,7 @@ function BundleDetailPanel(props: { detail: UiE2eBundleDetail | null; exported: 
           {props.detail.reviews.map((review) => (
             <div className="report-mini-card" key={review.id}>
               <div className="report-card-heading">
-                <strong>{review.reviewStatus}</strong>
+                <strong>{displayValueLabel(review.reviewStatus)}</strong>
                 <span className="badge badge-neutral">{review.reviewedBy || '-'}</span>
               </div>
               <span>{review.reviewComment || translate('auto.k1955')}</span>
@@ -2198,10 +2270,10 @@ function BundleDetailPanel(props: { detail: UiE2eBundleDetail | null; exported: 
               <span className="badge badge-neutral">{props.exported.schemaVersion}</span>
             </div>
             <div className="report-section-grid">
-              <InfoBlock title="exportedAt" value={props.exported.exportedAt ? formatDateTime(props.exported.exportedAt) : '-'} />
-              <InfoBlock title="reviewSummary" value={formatRecord(props.exported.reviewSummary)} />
-              <InfoBlock title="redactionPolicy" value={formatRecord(props.exported.redactionPolicy)} />
-              <InfoBlock title="exportPolicy" value={formatRecord(props.exported.bundle.policy)} />
+              <InfoBlock title={fieldLabel('exportedAt')} value={props.exported.exportedAt ? formatDateTime(props.exported.exportedAt) : '-'} />
+              <InfoBlock title={fieldLabel('reviewSummary')} value={formatRecord(props.exported.reviewSummary)} />
+              <InfoBlock title={fieldLabel('redactionPolicy')} value={formatRecord(props.exported.redactionPolicy)} />
+              <InfoBlock title={fieldLabel('exportPolicy')} value={formatRecord(props.exported.bundle.policy)} />
             </div>
           </div>
         </div>
@@ -2248,39 +2320,39 @@ function RunDetailPanel(props: {
         <span className="report-mono">{props.detail.id}</span>
       </div>
       <div className="report-summary-grid">
-        <SummaryTile label="runnerMode" value={props.detail.runnerMode} />
-        <SummaryTile label="flaky" value={props.detail.flakyMark?.status || props.detail.flakyStatus || 'NONE'} tone={statusTone(props.detail.flakyMark?.status || props.detail.flakyStatus || 'NONE')} />
-        <SummaryTile label="steps" value={String(props.detail.stepResults.length)} />
-        <SummaryTile label="artifacts" value={String(props.detail.artifacts.length)} />
+        <SummaryTile label={fieldLabel('runnerMode')} value={displayValueLabel(props.detail.runnerMode)} />
+        <SummaryTile label={fieldLabel('flaky')} value={dictionaryLabel(props.detail.flakyMark?.status || props.detail.flakyStatus || 'NONE')} tone={statusTone(props.detail.flakyMark?.status || props.detail.flakyStatus || 'NONE')} />
+        <SummaryTile label={fieldLabel('steps')} value={String(props.detail.stepResults.length)} />
+        <SummaryTile label={fieldLabel('artifacts')} value={String(props.detail.artifacts.length)} />
       </div>
       <div className="report-summary-grid">
-        <SummaryTile label="browsers" value={browserTypes.join(' / ') || 'CHROMIUM'} tone={parallelExecutionEnabled ? 'info' : undefined} />
-        <SummaryTile label="parallel" value={parallelExecutionEnabled ? `ON (${browserCount})` : 'OFF'} tone={parallelExecutionEnabled ? 'info' : undefined} />
-        <SummaryTile label="visual" value={visualRegressionEnabled ? 'ON' : 'OFF'} tone={visualRegressionEnabled ? 'warning' : undefined} />
-        <SummaryTile label="diffs" value={visualRegressionEnabled ? `${visualMismatchCount}/${visualComparisonCount}` : '-'} tone={visualMismatchCount > 0 ? 'danger' : visualComparisonCount > 0 ? 'success' : undefined} />
+        <SummaryTile label={fieldLabel('browsers')} value={browserTypes.map((browser) => displayValueLabel(browser)).join(' / ') || displayValueLabel('CHROMIUM')} tone={parallelExecutionEnabled ? 'info' : undefined} />
+        <SummaryTile label={fieldLabel('parallel')} value={parallelExecutionEnabled ? `${displayValueLabel('ON')} (${browserCount})` : displayValueLabel('OFF')} tone={parallelExecutionEnabled ? 'info' : undefined} />
+        <SummaryTile label={fieldLabel('visual')} value={displayValueLabel(visualRegressionEnabled ? 'ON' : 'OFF')} tone={visualRegressionEnabled ? 'warning' : undefined} />
+        <SummaryTile label={fieldLabel('diffs')} value={visualRegressionEnabled ? `${visualMismatchCount}/${visualComparisonCount}` : '-'} tone={visualMismatchCount > 0 ? 'danger' : visualComparisonCount > 0 ? 'success' : undefined} />
       </div>
       <div className="report-section-grid">
-        <InfoBlock title="failureCode" value={props.detail.failureCode || '-'} />
-        <InfoBlock title="traceId" value={props.detail.traceId || props.state.traceId || '-'} />
-        <InfoBlock title="accountSummary" value={formatRecord(props.detail.accountSummary)} />
-        <InfoBlock title="executionSummary" value={formatRecord(executionSummary)} />
+        <InfoBlock title={fieldLabel('failureCode')} value={props.detail.failureCode ? displayValueLabel(props.detail.failureCode) : '-'} />
+        <InfoBlock title={fieldLabel('traceId')} value={props.detail.traceId || props.state.traceId || '-'} />
+        <InfoBlock title={fieldLabel('accountSummary')} value={formatRecord(props.detail.accountSummary)} />
+        <InfoBlock title={fieldLabel('executionSummary')} value={formatRecord(executionSummary)} />
       </div>
       {(browserRuns.length || visualRegressionEnabled) ? (
         <div className="report-card-list">
           <div className="report-mini-card report-mini-card-muted">
             <div className="report-card-heading">
               <strong>{translate('auto.k1959')}</strong>
-              <span className="badge badge-neutral">{browserCount} browsers</span>
+              <span className="badge badge-neutral">{browserCount} 个浏览器</span>
             </div>
-            <span>{browserTypes.join(' / ') || 'CHROMIUM'}</span>
+            <span>{browserTypes.map((browser) => displayValueLabel(browser)).join(' / ') || displayValueLabel('CHROMIUM')}</span>
             <small>{parallelExecutionEnabled ? translate('auto.k1960') : translate('auto.k1961')}</small>
             {browserRuns.length ? (
               <div className="report-policy-list">
                 <div className="report-policy-title">{translate('auto.k1962')}</div>
                 {browserRuns.map((item, index) => (
                   <span key={`${recordText(item.browserType) || 'browser'}-${index}`}>
-                    {(recordText(item.browserType) || 'UNKNOWN')}={recordText(item.status) || 'UNKNOWN'}
-                    {recordText(item.failureCode) ? ` (${recordText(item.failureCode)})` : ''}
+                    {displayValueLabel(recordText(item.browserType) || 'UNKNOWN')}={displayValueLabel(recordText(item.status) || 'UNKNOWN')}
+                    {recordText(item.failureCode) ? ` (${displayValueLabel(recordText(item.failureCode))})` : ''}
                   </span>
                 ))}
               </div>
@@ -2291,18 +2363,18 @@ function RunDetailPanel(props: {
               <div className="report-card-heading">
                 <strong>{translate('auto.k1963')}</strong>
                 <span className={`badge badge-${visualMismatchCount > 0 ? 'danger' : visualComparisonCount > 0 ? 'success' : 'neutral'}`}>
-                  {visualMismatchCount > 0 ? 'MISMATCH' : visualComparisonCount > 0 ? 'MATCHED' : 'PENDING'}
+                  {visualMismatchCount > 0 ? displayValueLabel('MISMATCH') : visualComparisonCount > 0 ? displayValueLabel('MATCHED') : displayValueLabel('PENDING')}
                 </span>
               </div>
               <span>
-                baseline={visualBaselineRunId || 'auto latest succeeded'}
-                {visualThreshold !== '-' ? ` · threshold=${visualThreshold}` : ' · threshold=exact-match'}
+                {fieldLabel('baselineRunId')}={visualBaselineRunId || '自动选择最近成功运行'}
+                {visualThreshold !== '-' ? ` · ${fieldLabel('visualThreshold')}=${visualThreshold}` : ` · ${fieldLabel('visualThreshold')}=精确匹配`}
               </span>
               <small>
                 {translate('auto.k1964')}{visualComparisonCount} {translate('auto.k1965')}{visualMismatchCount} {translate('auto.k1966')}{visualDiffArtifactCount} {translate('auto.k1356')}</small>
               {visualMismatchBrowsers.length ? (
                 <div className="notice warning">
-                  <span>{translate('auto.k1967')}{visualMismatchBrowsers.join(' / ')}</span>
+                  <span>{translate('auto.k1967')}{visualMismatchBrowsers.map((browser) => displayValueLabel(browser)).join(' / ')}</span>
                 </div>
               ) : null}
             </div>
@@ -2374,8 +2446,8 @@ function RunDetailPanel(props: {
               <span className="badge badge-neutral">{props.exported.schemaVersion}</span>
             </div>
             <div className="report-section-grid">
-              <InfoBlock title="exportedAt" value={props.exported.exportedAt ? formatDateTime(props.exported.exportedAt) : '-'} />
-              <InfoBlock title="redactionPolicy" value={formatRecord(props.exported.redactionPolicy)} />
+              <InfoBlock title={fieldLabel('exportedAt')} value={props.exported.exportedAt ? formatDateTime(props.exported.exportedAt) : '-'} />
+              <InfoBlock title={fieldLabel('redactionPolicy')} value={formatRecord(props.exported.redactionPolicy)} />
             </div>
           </div>
         </div>
@@ -2426,21 +2498,21 @@ function FlakyDetailPanel(props: { item: UiE2eFlakyMark | null; state: WorkState
         <span className="report-mono">{props.item.id}</span>
       </div>
       <div className="report-summary-grid">
-        <SummaryTile label="scene" value={props.item.sceneCode || shortId(props.item.sceneId)} />
-        <SummaryTile label="riskLevel" value={props.item.sceneRiskLevel || '-'} tone={statusTone(props.item.sceneRiskLevel || 'UNKNOWN')} />
-        <SummaryTile label="linkedRuns" value={String(props.item.linkedRunCount)} />
-        <SummaryTile label="runStatus" value={props.item.runStatus || '-'} />
-        <SummaryTile label="latestFailure" value={props.item.latestFailureBucket || '-'} tone={statusTone(props.item.runStatus || props.item.status)} />
+        <SummaryTile label={fieldLabel('scene')} value={props.item.sceneCode || shortId(props.item.sceneId)} />
+        <SummaryTile label={fieldLabel('riskLevel')} value={props.item.sceneRiskLevel ? dictionaryLabel(props.item.sceneRiskLevel) : '-'} tone={statusTone(props.item.sceneRiskLevel || 'UNKNOWN')} />
+        <SummaryTile label={fieldLabel('linkedRuns')} value={String(props.item.linkedRunCount)} />
+        <SummaryTile label={fieldLabel('runStatus')} value={props.item.runStatus ? dictionaryLabel(props.item.runStatus) : '-'} />
+        <SummaryTile label={fieldLabel('latestFailure')} value={props.item.latestFailureBucket ? displayValueLabel(props.item.latestFailureBucket) : '-'} tone={statusTone(props.item.runStatus || props.item.status)} />
       </div>
       <div className="report-section-grid">
-        <InfoBlock title="reasonCode" value={props.item.reasonCode || '-'} />
-        <InfoBlock title="reasonSummary" value={props.item.reasonSummary || '-'} />
-        <InfoBlock title="runId" value={props.item.runId || '-'} />
-        <InfoBlock title="sceneName" value={props.item.sceneName || '-'} />
-        <InfoBlock title="createdBy" value={props.item.createdBy || '-'} />
-        <InfoBlock title="updatedBy" value={props.item.updatedBy || '-'} />
-        <InfoBlock title="createdAt" value={props.item.createdAt ? formatDateTime(props.item.createdAt) : '-'} />
-        <InfoBlock title="updatedAt" value={props.item.updatedAt ? formatDateTime(props.item.updatedAt) : '-'} />
+        <InfoBlock title={fieldLabel('reasonCode')} value={props.item.reasonCode ? displayValueLabel(props.item.reasonCode) : '-'} />
+        <InfoBlock title={fieldLabel('reasonSummary')} value={props.item.reasonSummary || '-'} />
+        <InfoBlock title={fieldLabel('runId')} value={props.item.runId || '-'} />
+        <InfoBlock title={fieldLabel('sceneName')} value={props.item.sceneName || '-'} />
+        <InfoBlock title={fieldLabel('createdBy')} value={props.item.createdBy || '-'} />
+        <InfoBlock title={fieldLabel('updatedBy')} value={props.item.updatedBy || '-'} />
+        <InfoBlock title={fieldLabel('createdAt')} value={props.item.createdAt ? formatDateTime(props.item.createdAt) : '-'} />
+        <InfoBlock title={fieldLabel('updatedAt')} value={props.item.updatedAt ? formatDateTime(props.item.updatedAt) : '-'} />
       </div>
       <div className={`notice ${insight.tone}`}>
         <strong>{translate('auto.k1983')}{insight.label}</strong>
@@ -2464,9 +2536,9 @@ function StepResultsList(props: { steps: UiE2eRunStepResult[] }) {
     <div className="report-card-list">
       {props.steps.map((step) => (
         <div className="report-mini-card" key={step.id}>
-          <div className="report-card-heading">
-            <strong>{translate('auto.k1346')}{step.stepOrder} · {step.status}</strong>
-            <span className={`badge badge-${statusTone(step.status)}`}>{step.failureBucket || 'NO_FAILURE'}</span>
+            <div className="report-card-heading">
+            <strong>{translate('auto.k1346')}{step.stepOrder} · {displayValueLabel(step.status)}</strong>
+            <span className={`badge badge-${statusTone(step.status)}`}>{displayValueLabel(step.failureBucket || 'NO_FAILURE')}</span>
           </div>
           <div className="report-section-grid">
             <InfoBlock title="durationMs" value={String(step.durationMs)} />
@@ -2479,8 +2551,8 @@ function StepResultsList(props: { steps: UiE2eRunStepResult[] }) {
               <div className="report-policy-title">{translate('auto.k1987')}</div>
               {(step.summary.browserResults as Array<Record<string, unknown>>).map((item, index) => (
                 <span key={`${recordText(item.browserType) || 'browser'}-${index}`}>
-                  {(recordText(item.browserType) || 'UNKNOWN')}={recordText(item.status) || 'UNKNOWN'}
-                  {recordText(item.errorCode) ? ` · ${recordText(item.errorCode)}` : ''}
+                  {displayValueLabel(recordText(item.browserType) || 'UNKNOWN')}={displayValueLabel(recordText(item.status) || 'UNKNOWN')}
+                  {recordText(item.errorCode) ? ` · ${displayValueLabel(recordText(item.errorCode))}` : ''}
                 </span>
               ))}
             </div>
@@ -2530,16 +2602,16 @@ function ArtifactCard(props: {
   return (
     <div className="report-mini-card">
       <div className="report-card-heading">
-        <strong>{props.artifact.artifactType}</strong>
-        <span className={`badge badge-${statusTone(props.artifact.captureStatus)}`}>{props.artifact.captureStatus}</span>
+        <strong>{displayValueLabel(props.artifact.artifactType)}</strong>
+        <span className={`badge badge-${statusTone(props.artifact.captureStatus)}`}>{displayValueLabel(props.artifact.captureStatus)}</span>
       </div>
       {(browserType || visualRole) ? (
         <div className="report-policy-list">
           <div className="report-policy-title">{translate('auto.k1989')}</div>
-          {browserType ? <span>browser={browserType}</span> : null}
-          {visualRole ? <span>visualRole={visualRole}</span> : null}
-          {visualMismatchRatio !== '-' ? <span>mismatchRatio={visualMismatchRatio}</span> : null}
-          {visualPassed ? <span>visualPassed={visualPassed}</span> : null}
+          {browserType ? <span>{fieldLabel('browser')}={displayValueLabel(browserType)}</span> : null}
+          {visualRole ? <span>{fieldLabel('visualRole')}={displayValueLabel(visualRole)}</span> : null}
+          {visualMismatchRatio !== '-' ? <span>{fieldLabel('mismatchRatio')}={visualMismatchRatio}</span> : null}
+          {visualPassed ? <span>{fieldLabel('visualPassed')}={displayValueLabel(visualPassed)}</span> : null}
         </div>
       ) : null}
       <div className="report-section-grid">
@@ -2693,7 +2765,7 @@ function StateLine(props: { state: WorkState }) {
     return <span className="document-state-line success">{props.state.success}{props.state.traceId ? ` · ${props.state.traceId}` : ''}</span>;
   }
   if (props.state.traceId) {
-    return <span className="document-state-line">Trace ID：{props.state.traceId}</span>;
+    return <span className="document-state-line">{fieldLabel('traceId')}：{props.state.traceId}</span>;
   }
   return null;
 }

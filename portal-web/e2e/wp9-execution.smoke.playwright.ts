@@ -30,38 +30,38 @@ async function runWp9MainFlow(page: Page, assertResponsive: boolean) {
   await page.goto('/#execution');
 
   await expect(page.getByRole('heading', { name: '执行编排' })).toBeVisible();
-  await expect(page.locator('.execution-policy-item').filter({ hasText: 'Scheduler' }).getByText('ENABLED')).toBeVisible();
+  await expect(page.locator('.execution-policy-item').filter({ hasText: '调度器' }).getByText('已启用')).toBeVisible();
   await expect(page.getByTestId('execution-plan-list').getByText('Baseline WP9 smoke plan')).toBeVisible();
-  await expect(page.getByTestId('execution-run-detail').getByText('EXECUTION_RUN_FAILED').first()).toBeVisible();
+  await expect(page.getByTestId('execution-run-detail').getByText('执行运行失败').first()).toBeVisible();
 
-  const planForm = page.locator('form.panel').first();
-  await expect(planForm.locator('.panel-title')).toHaveText('编辑计划');
-  await expect(planForm.getByLabel('环境')).toHaveValue('staging');
-  await planForm.getByRole('button', { name: '新建' }).click();
-  await expect(planForm.locator('.panel-title')).toHaveText('新建计划');
-  await expect(planForm.locator('.execution-node-editor')).toHaveCount(1);
-  await planForm.getByLabel('项目').fill('project-wp9-ui-smoke');
-  await planForm.getByLabel('名称').fill('WP9 UI smoke plan');
-  await planForm.getByLabel('环境').fill('staging');
-  await selectAntdOption(page, planForm.getByLabel('状态'), '就绪');
-  await planForm.getByLabel('描述').fill('desktop and mobile browser smoke');
+  const planListPanel = page.getByTestId('execution-plan-list');
+  await planListPanel.getByRole('button', { name: '新建计划' }).click();
+  const planDialog = page.getByRole('dialog', { name: '新建计划' });
+  const planForm = planDialog.locator('form.document-drawer-form').first();
+  await expect(planDialog).toBeVisible();
+  await expect(planDialog.locator('.execution-node-editor')).toHaveCount(1);
+  await fieldControl(planForm, '项目').fill('project-wp9-ui-smoke');
+  await fieldControl(planForm, '名称').fill('WP9 UI smoke plan');
+  await fieldControl(planForm, '环境').fill('staging');
+  await selectAntdOption(page, fieldSelect(planForm, '状态'), '就绪');
+  await fieldControl(planForm, '描述').fill('desktop and mobile browser smoke');
 
   await planForm.getByRole('button', { name: '添加节点' }).click();
-  const nodeEditors = planForm.locator('.execution-node-editor');
-  await nodeEditors.nth(0).getByLabel('node key').fill('api-smoke');
-  await nodeEditors.nth(0).getByLabel('bundleId').fill('bundle-wp9-ui-smoke');
-  await nodeEditors.nth(0).getByLabel('baseUrlRef').fill('env:staging');
-  await nodeEditors.nth(0).getByLabel('caseIds').fill('case-ui-1, case-ui-2');
-  await nodeEditors.nth(0).getByLabel('secretRefs').fill('secret://wp9/ui-runtime');
+  const nodeEditors = planDialog.locator('.execution-node-editor');
+  await nodeEditors.nth(0).getByLabel('节点键').fill('api-smoke');
+  await nodeEditors.nth(0).getByLabel('场景包 ID').fill('bundle-wp9-ui-smoke');
+  await nodeEditors.nth(0).getByLabel('基础 URL 引用').fill('env:staging');
+  await nodeEditors.nth(0).getByLabel('用例 ID').fill('case-ui-1, case-ui-2');
+  await nodeEditors.nth(0).getByLabel('密钥引用').fill('secret://wp9/ui-runtime');
   await nodeEditors.nth(0).getByLabel('重试次数').fill('2');
-  await nodeEditors.nth(1).getByLabel('node key').fill('report');
+  await nodeEditors.nth(1).getByLabel('节点键').fill('report');
   await selectAntdOption(page, nodeEditors.nth(1).getByLabel('节点类型'), '报告交接');
   await nodeEditors.nth(1).getByLabel('依赖').fill('api-smoke');
   await selectAntdOption(page, nodeEditors.nth(1).getByLabel('失败策略'), '继续');
   await nodeEditors.nth(1).getByLabel('重试次数').fill('0');
 
-  await planForm.getByRole('button', { name: '创建' }).click();
-  await expect(page.getByText('执行计划已创建')).toBeVisible();
+  await planForm.getByRole('button', { name: '新建计划' }).click();
+  await expect(planListPanel.getByText('执行计划已创建')).toBeVisible();
 
   const createdNodes = ((mock.createPlanPayload?.dag as { nodes?: Array<Record<string, unknown>> } | undefined)?.nodes ?? []);
   expect(createdNodes).toHaveLength(2);
@@ -83,19 +83,23 @@ async function runWp9MainFlow(page: Page, assertResponsive: boolean) {
     dependencies: ['api-smoke']
   });
 
-  const editForm = page.locator('form.panel').first();
-  await expect(editForm.locator('.panel-title')).toHaveText('编辑计划');
-  await editForm.getByLabel('描述').fill('updated from wp9 browser smoke');
+  await expect(planListPanel.getByText('WP9 UI smoke plan')).toBeVisible();
+  await planListPanel.getByRole('row', { name: /WP9 UI smoke plan/ }).click();
+  await planListPanel.getByRole('button', { name: '编辑计划' }).click();
+  const editDialog = page.getByRole('dialog', { name: '编辑计划' });
+  const editForm = editDialog.locator('form.document-drawer-form').first();
+  await expect(editDialog).toBeVisible();
+  await fieldControl(editForm, '描述').fill('updated from wp9 browser smoke');
   await editForm.getByRole('button', { name: '保存更新' }).click();
-  await expect(page.getByText('执行计划已更新')).toBeVisible();
+  await expect(planListPanel.getByText('执行计划已更新')).toBeVisible();
   expect(((mock.updatePlanPayload?.dag as { nodes?: unknown[] } | undefined)?.nodes ?? [])).toHaveLength(2);
 
   const dagPanel = page.getByTestId('execution-dag-preview');
   await dagPanel.getByRole('button', { name: 'Dry run' }).click();
-  await expect(dagPanel.getByText('VALID')).toBeVisible();
-  await expect(dagPanel.getByText('issues 0')).toBeVisible();
+  await expect(dagPanel.getByText('有效')).toBeVisible();
+  await expect(dagPanel.getByText('问题数 0')).toBeVisible();
 
-  await dagPanel.getByLabel('requestKey').fill('wp9-ui-request-1');
+  await dagPanel.getByLabel('请求键').fill('wp9-ui-request-1');
   await dagPanel.getByLabel('原因').fill('browser smoke manual run');
   await dagPanel.getByRole('button', { name: '运行' }).click();
   await expect(page.getByText('运行已触发')).toBeVisible();
@@ -106,25 +110,28 @@ async function runWp9MainFlow(page: Page, assertResponsive: boolean) {
 
   const runPanel = page.getByTestId('execution-run-detail');
   await expect(runPanel.getByText('trace-run-create')).toBeVisible();
-  await expect(runPanel.getByText('RUNNING').first()).toBeVisible();
+  await expect(runPanel.getByText('运行中').first()).toBeVisible();
   await runPanel.getByRole('button', { name: '取消' }).click();
   await expect(page.getByText('运行已取消或保持终态')).toBeVisible();
-  await expect(runPanel.getByText('CANCELED').first()).toBeVisible();
-  await expect(runPanel.getByText('EXECUTION_RUN_CANCELED').first()).toBeVisible();
+  await expect(runPanel.getByText('已取消').first()).toBeVisible();
+  await expect(runPanel.getByText('执行运行已取消').first()).toBeVisible();
   expect(mock.cancelSeen).toBe(true);
 
-  await runPanel.locator('.execution-run-item').filter({ hasText: 'FAILED' }).click();
-  await expect(runPanel.getByText('EXECUTION_RUN_FAILED').first()).toBeVisible();
+  await runPanel.locator('.execution-run-item').filter({ hasText: '失败' }).click();
+  await expect(runPanel.getByText('执行运行失败').first()).toBeVisible();
   await runPanel.getByRole('button', { name: '重试' }).click();
   await expect(page.getByText('重试已提交')).toBeVisible();
   await expect(runPanel.getByText('trace-run-retry')).toBeVisible();
   expect(mock.retrySeen).toBe(true);
 
   const triggerPanel = page.locator('section.panel').filter({ hasText: '触发配置' });
-  await triggerPanel.getByLabel('source').fill('github');
-  await triggerPanel.getByLabel('eventType').fill('deployment_status');
-  await triggerPanel.getByLabel('secretRef').fill('secret://wp9/webhook-ui');
   await triggerPanel.getByRole('button', { name: '新增' }).click();
+  const triggerDialog = page.getByRole('dialog', { name: '新增' });
+  const triggerForm = triggerDialog.locator('form.document-drawer-form').first();
+  await triggerForm.getByLabel('来源').fill('github');
+  await triggerForm.getByLabel('事件类型').fill('deployment_status');
+  await triggerForm.getByLabel('密钥引用').fill('secret://wp9/webhook-ui');
+  await triggerForm.getByRole('button', { name: '新增' }).click();
   await expect(page.getByText('触发配置已创建')).toBeVisible();
   expect(mock.triggerPayload).toMatchObject({
     triggerType: 'WEBHOOK',
@@ -134,14 +141,14 @@ async function runWp9MainFlow(page: Page, assertResponsive: boolean) {
   });
 
   const createdTrigger = triggerPanel.locator('.execution-trigger-item').first();
-  await expect(createdTrigger.getByText('secret configured')).toBeVisible();
+  await expect(createdTrigger.getByText('密钥引用 已设置')).toBeVisible();
   await createdTrigger.getByRole('button', { name: 'Dry run' }).click();
-  await expect(triggerPanel.getByText('VALID')).toBeVisible();
-  await expect(triggerPanel.getByText('global on')).toBeVisible();
+  await expect(triggerPanel.getByText('有效')).toBeVisible();
+  await expect(triggerPanel.getByText('全局开关 开启')).toBeVisible();
   await createdTrigger.getByRole('button', { name: '事件' }).click();
   await expect(triggerPanel.getByText('evt-ui-created')).toBeVisible();
   await createdTrigger.getByRole('button', { name: '启用' }).click();
-  await expect(page.getByText('触发配置已更新为 ENABLED')).toBeVisible();
+  await expect(page.getByText('触发配置已更新为 已启用')).toBeVisible();
   expect(await triggerPanel.innerText()).not.toContain('secret://wp9/webhook-ui');
 
   if (assertResponsive) {
@@ -159,8 +166,21 @@ async function expectNoHorizontalOverflow(page: Page, selector: string) {
   expect(overflow).toBe(false);
 }
 
+function fieldControl(scope: ReturnType<Page['locator']>, label: string) {
+  return scope.locator(`label.field:has(.field-label:text-is("${label}"))`).locator('.ui-input-control, input').first();
+}
+
+function fieldSelect(scope: ReturnType<Page['locator']>, label: string) {
+  return scope.locator(`label.field:has(.field-label:text-is("${label}"))`).getByRole('combobox').first();
+}
+
 async function selectAntdOption(page: Page, control: ReturnType<Page['getByLabel']>, optionName: string) {
-  await control.locator('xpath=./ancestor-or-self::*[contains(concat(" ", normalize-space(@class), " "), " ant-select ")][1]').locator('.ant-select-selector').click();
+  const selector = control.locator('.ant-select-selector');
+  if (await selector.count()) {
+    await selector.first().click();
+  } else {
+    await control.click();
+  }
   await page.locator('.ant-select-dropdown:not(.ant-select-dropdown-hidden) .ant-select-item-option-content', { hasText: optionName }).first().click();
 }
 

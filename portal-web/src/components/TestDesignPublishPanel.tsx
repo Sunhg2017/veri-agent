@@ -43,7 +43,7 @@ import {
 } from './TestDesignWorkbenchShared';
 import { dictionaryLabel } from '../platform/dictionaries';
 import { translate } from '../platform/i18n';
-import { NativeSelect } from './ui';
+import { InputControl, SelectControl, TextAreaControl } from './ui';
 
 export function TestDesignPublishPanel(props: {
   canRead: boolean;
@@ -166,7 +166,7 @@ export function TestDesignPublishPanel(props: {
           <form className="test-design-release-readiness-form" onSubmit={props.onRequestReleaseReadinessApproval}>
             <label className="field">
               <span className="field-label">{translate('auto.k1558')}</span>
-              <NativeSelect
+              <SelectControl
                 value={releaseDraft.exceptionReasonCode}
                 onChange={(event) => props.onReleaseReadinessDraftChange((current) => ({ ...current, exceptionReasonCode: event.target.value }))}
                 disabled={!props.canPublish || props.releaseReadinessState.loading}
@@ -174,11 +174,11 @@ export function TestDesignPublishPanel(props: {
                 {props.releaseReadinessReasonCodes.map((code) => (
                   <option key={code} value={code}>{dictionaryLabel(code)}</option>
                 ))}
-              </NativeSelect>
+              </SelectControl>
             </label>
             <label className="field">
               <span className="field-label">{translate('auto.k1398')}</span>
-              <input
+              <InputControl
                 value={releaseDraft.workOrderKey}
                 onChange={(event) => props.onReleaseReadinessDraftChange((current) => ({ ...current, workOrderKey: event.target.value }))}
                 placeholder="WP5-RR-..."
@@ -187,7 +187,7 @@ export function TestDesignPublishPanel(props: {
             </label>
             <label className="field">
               <span className="field-label">{translate('auto.k1399')}</span>
-              <input
+              <InputControl
                 value={releaseDraft.workOrderTitle}
                 onChange={(event) => props.onReleaseReadinessDraftChange((current) => ({ ...current, workOrderTitle: event.target.value }))}
                 disabled={!props.canPublish || props.releaseReadinessState.loading}
@@ -195,7 +195,7 @@ export function TestDesignPublishPanel(props: {
             </label>
             <label className="field">
               <span className="field-label">{translate('auto.k1400')}</span>
-              <input
+              <InputControl
                 value={releaseDraft.workOrderUrl}
                 onChange={(event) => props.onReleaseReadinessDraftChange((current) => ({ ...current, workOrderUrl: event.target.value }))}
                 placeholder="https://..."
@@ -204,7 +204,7 @@ export function TestDesignPublishPanel(props: {
             </label>
             <label className="field test-design-release-readiness-wide">
               <span className="field-label">{translate('auto.k1559')}</span>
-              <textarea
+              <TextAreaControl
                 value={releaseDraft.exceptionSummary}
                 maxLength={1000}
                 rows={3}
@@ -214,7 +214,7 @@ export function TestDesignPublishPanel(props: {
             </label>
             <label className="field test-design-release-readiness-wide">
               <span className="field-label">{translate('auto.k1560')}</span>
-              <textarea
+              <TextAreaControl
                 value={releaseDraft.riskMitigation}
                 maxLength={1000}
                 rows={3}
@@ -224,7 +224,7 @@ export function TestDesignPublishPanel(props: {
             </label>
             <label className="field test-design-release-readiness-wide">
               <span className="field-label">{translate('auto.k1403')}</span>
-              <textarea
+              <TextAreaControl
                 value={releaseDraft.requestNote}
                 maxLength={1000}
                 rows={2}
@@ -244,7 +244,7 @@ export function TestDesignPublishPanel(props: {
           <div className="test-design-release-readiness-review-grid">
             <label className="field">
               <span className="field-label">{translate('auto.k1409')}</span>
-              <NativeSelect
+              <SelectControl
                 value={releaseDraft.approvalReasonCode}
                 onChange={(event) => props.onReleaseReadinessDraftChange((current) => ({ ...current, approvalReasonCode: event.target.value }))}
                 disabled={!props.canPublish || props.releaseReadinessState.loading || !props.selectedPendingReleaseReadinessApproval}
@@ -252,11 +252,11 @@ export function TestDesignPublishPanel(props: {
                 {props.releaseReadinessReasonCodes.map((code) => (
                   <option key={code} value={code}>{dictionaryLabel(code)}</option>
                 ))}
-              </NativeSelect>
+              </SelectControl>
             </label>
             <label className="field">
               <span className="field-label">{translate('auto.k1410')}</span>
-              <NativeSelect
+              <SelectControl
                 value={releaseDraft.workOrderStatus}
                 onChange={(event) => props.onReleaseReadinessDraftChange((current) => ({ ...current, workOrderStatus: event.target.value }))}
                 disabled={!props.canPublish || props.releaseReadinessState.loading || !props.selectedPendingReleaseReadinessApproval}
@@ -265,11 +265,11 @@ export function TestDesignPublishPanel(props: {
                 {props.releaseReadinessWorkOrderStatuses.map((status) => (
                   <option key={status} value={status}>{dictionaryLabel(status)}</option>
                 ))}
-              </NativeSelect>
+              </SelectControl>
             </label>
             <label className="field test-design-release-readiness-wide">
               <span className="field-label">{translate('auto.k1412')}</span>
-              <textarea
+              <TextAreaControl
                 value={releaseDraft.reviewNote}
                 maxLength={1000}
                 rows={2}
@@ -326,18 +326,18 @@ export function TestDesignPublishPanel(props: {
           <div className="test-design-release-readiness-note-form">
             <label className="field">
               <span className="field-label">{translate('auto.k1413')}</span>
-              <NativeSelect
+              <SelectControl
                 value={releaseDraft.noteType}
                 onChange={(event) => props.onReleaseReadinessDraftChange((current) => ({ ...current, noteType: event.target.value === 'WORK_ORDER' ? 'WORK_ORDER' : 'COMMENT' }))}
                 disabled={!props.canPublish || props.releaseReadinessState.loading || !props.selectedReleaseReadinessApprovalId}
               >
                 <option value="COMMENT">{dictionaryLabel('COMMENT')}</option>
                 <option value="WORK_ORDER">{dictionaryLabel('WORK_ORDER')}</option>
-              </NativeSelect>
+              </SelectControl>
             </label>
             <label className="field test-design-release-readiness-wide">
               <span className="field-label">{translate('auto.k1414')}</span>
-              <textarea
+              <TextAreaControl
                 value={releaseDraft.noteText}
                 maxLength={1000}
                 rows={2}
@@ -543,7 +543,7 @@ function ReportArchivePanel(props: {
       <form className="test-design-release-readiness-form" onSubmit={props.onRequestApproval}>
         <label className="field">
           <span className="field-label">{translate('auto.k1576')}</span>
-          <NativeSelect
+          <SelectControl
             value={props.draft.approvalType}
             onChange={(event) => props.onDraftChange((current) => ({ ...current, approvalType: event.target.value === 'EXTERNAL_SHARE' ? 'EXTERNAL_SHARE' : 'ARCHIVE' }))}
             disabled={!props.canExport || props.state.loading || !props.selectedArchiveId}
@@ -551,11 +551,11 @@ function ReportArchivePanel(props: {
             {props.approvalTypes.map((type) => (
               <option key={type} value={type}>{dictionaryLabel(type)}</option>
             ))}
-          </NativeSelect>
+          </SelectControl>
         </label>
         <label className="field">
           <span className="field-label">{translate('auto.k1577')}</span>
-          <NativeSelect
+          <SelectControl
             value={props.draft.reasonCode}
             onChange={(event) => props.onDraftChange((current) => ({ ...current, reasonCode: event.target.value }))}
             disabled={!props.canExport || props.state.loading || !props.selectedArchiveId}
@@ -563,11 +563,11 @@ function ReportArchivePanel(props: {
             {props.reasonCodes.map((code) => (
               <option key={code} value={code}>{dictionaryLabel(code)}</option>
             ))}
-          </NativeSelect>
+          </SelectControl>
         </label>
         <label className="field">
           <span className="field-label">{translate('auto.k1398')}</span>
-          <input
+          <InputControl
             value={props.draft.workOrderKey}
             onChange={(event) => props.onDraftChange((current) => ({ ...current, workOrderKey: event.target.value }))}
             placeholder="WP5-ARCH-..."
@@ -576,7 +576,7 @@ function ReportArchivePanel(props: {
         </label>
         <label className="field">
           <span className="field-label">{translate('auto.k1400')}</span>
-          <input
+          <InputControl
             value={props.draft.workOrderUrl}
             onChange={(event) => props.onDraftChange((current) => ({ ...current, workOrderUrl: event.target.value }))}
             placeholder="https://..."
@@ -585,7 +585,7 @@ function ReportArchivePanel(props: {
         </label>
         <label className="field test-design-release-readiness-wide">
           <span className="field-label">{translate('auto.k1578')}</span>
-          <textarea
+          <TextAreaControl
             value={props.draft.requestSummary}
             maxLength={1000}
             rows={3}
@@ -595,7 +595,7 @@ function ReportArchivePanel(props: {
         </label>
         <label className="field test-design-release-readiness-wide">
           <span className="field-label">{translate('auto.k1403')}</span>
-          <textarea
+          <TextAreaControl
             value={props.draft.requestNote}
             maxLength={1000}
             rows={2}
@@ -614,7 +614,7 @@ function ReportArchivePanel(props: {
       <div className="test-design-release-readiness-review-grid">
         <label className="field">
           <span className="field-label">{translate('auto.k1409')}</span>
-          <NativeSelect
+          <SelectControl
             value={props.draft.approvalReasonCode}
             onChange={(event) => props.onDraftChange((current) => ({ ...current, approvalReasonCode: event.target.value }))}
             disabled={!props.canExport || props.state.loading || !props.selectedPendingApproval}
@@ -622,11 +622,11 @@ function ReportArchivePanel(props: {
             {props.reasonCodes.map((code) => (
               <option key={code} value={code}>{dictionaryLabel(code)}</option>
             ))}
-          </NativeSelect>
+          </SelectControl>
         </label>
         <label className="field">
           <span className="field-label">{translate('auto.k1410')}</span>
-          <NativeSelect
+          <SelectControl
             value={props.draft.workOrderStatus}
             onChange={(event) => props.onDraftChange((current) => ({ ...current, workOrderStatus: event.target.value }))}
             disabled={!props.canExport || props.state.loading || !props.selectedPendingApproval}
@@ -635,11 +635,11 @@ function ReportArchivePanel(props: {
             {props.workOrderStatuses.map((status) => (
               <option key={status} value={status}>{dictionaryLabel(status)}</option>
             ))}
-          </NativeSelect>
+          </SelectControl>
         </label>
         <label className="field test-design-release-readiness-wide">
           <span className="field-label">{translate('auto.k1412')}</span>
-          <textarea
+          <TextAreaControl
             value={props.draft.reviewNote}
             maxLength={1000}
             rows={2}
@@ -694,18 +694,18 @@ function ReportArchivePanel(props: {
       <div className="test-design-release-readiness-note-form">
         <label className="field">
           <span className="field-label">{translate('auto.k1413')}</span>
-          <NativeSelect
+          <SelectControl
             value={props.draft.noteType}
             onChange={(event) => props.onDraftChange((current) => ({ ...current, noteType: event.target.value === 'WORK_ORDER' ? 'WORK_ORDER' : 'COMMENT' }))}
             disabled={!props.canExport || props.state.loading || !props.selectedApprovalId}
           >
             <option value="COMMENT">{dictionaryLabel('COMMENT')}</option>
             <option value="WORK_ORDER">{dictionaryLabel('WORK_ORDER')}</option>
-          </NativeSelect>
+          </SelectControl>
         </label>
         <label className="field test-design-release-readiness-wide">
           <span className="field-label">{translate('auto.k1414')}</span>
-          <textarea
+          <TextAreaControl
             value={props.draft.noteText}
             maxLength={1000}
             rows={2}
@@ -782,7 +782,7 @@ function PublishConflictPanel(props: {
       <div className="test-design-conflict-form">
         <label className="field">
           <span className="field-label">{translate('auto.k1367')}</span>
-          <input
+          <InputControl
             value={props.conflictResolutionDraft.reason}
             onChange={(event) => props.onConflictResolutionDraftChange((current) => ({ ...current, reason: event.target.value }))}
             disabled={!props.canPublish || props.publishState.loading}
@@ -790,7 +790,7 @@ function PublishConflictPanel(props: {
         </label>
         <label className="field">
           <span className="field-label">{translate('auto.k1368')}</span>
-          <input
+          <InputControl
             value={props.conflictCaseKeyword}
             onChange={(event) => props.onConflictCaseKeywordChange(event.target.value)}
             placeholder={translate('auto.k1369')}
@@ -799,7 +799,7 @@ function PublishConflictPanel(props: {
         </label>
         <label className="field">
           <span className="field-label">{translate('auto.k1370')}</span>
-          <input
+          <InputControl
             value={props.conflictResolutionDraft.comment}
             onChange={(event) => props.onConflictResolutionDraftChange((current) => ({ ...current, comment: event.target.value }))}
             placeholder={translate('auto.k1371')}
@@ -832,7 +832,7 @@ function PublishConflictPanel(props: {
                 {!candidate && <small>{translate('auto.k1586')}</small>}
               </span>
               <div className="test-design-conflict-controls">
-                <NativeSelect
+                <SelectControl
                   value={targetCaseId}
                   onChange={(event) => {
                     const nextCaseId = event.target.value;
@@ -855,7 +855,7 @@ function PublishConflictPanel(props: {
                       {testCase.title || shortIdentifier(testCase.id)}
                     </option>
                   ))}
-                </NativeSelect>
+                </SelectControl>
                 <button
                   className="btn btn-secondary btn-xs"
                   type="button"

@@ -15,6 +15,7 @@ import {
   ShieldCheck,
   type LucideIcon
 } from 'lucide-react';
+import { Drawer } from 'antd';
 import { useEffect, useState } from 'react';
 import type * as React from 'react';
 import type { CurrentUser } from '../api/auth';
@@ -76,9 +77,9 @@ import {
   type PageKey,
   type UserLifecycleAction
 } from '../permissions';
-import { dictionaryLabel } from '../platform/dictionaries';
+import { dictionaryLabel, fieldLabel } from '../platform/dictionaries';
 import { translate } from '../platform/i18n';
-import { NativeSelect } from './ui';
+import { InputControl, SelectControl } from './ui';
 
 function optionalBoolean(value: string | undefined): boolean | undefined {
   if (value === 'true') return true;
@@ -171,7 +172,7 @@ export function ManagementPage(props: ManagementPageProps) {
         columns={canMutateUsers ? [translate('auto.k0246'), translate('auto.k0247'), translate('auto.k0232'), translate('auto.k0182'), translate('auto.k0248'), translate('auto.k0249')] : [translate('auto.k0246'), translate('auto.k0247'), translate('auto.k0232'), translate('auto.k0182'), translate('auto.k0248')]}
         rows={data.users.map((item: UserView) => [
           item.username,
-          item.role,
+          roleDisplayLabel(item.role),
           item.department,
           <span key={`${item.username}-status`}>
             <StatusBadge status={item.status} />
@@ -232,7 +233,7 @@ export function ManagementPage(props: ManagementPageProps) {
             changeStatus={() => Promise.resolve()}
             detailTitle={(d) => d.display_name || d.username}
             draftFromDetail={(d) => ({ display_name: d.display_name, email: d.email })}
-            detailRows={(d) => [[translate('auto.k0261'), d.username], [translate('auto.k0260'), d.email || '-'], [translate('auto.k0247'), d.role], [translate('auto.k0232'), d.department], [translate('auto.k0182'), d.status], [translate('auto.k0248'), d.last_seen]]}
+            detailRows={(d) => [[translate('auto.k0261'), d.username], [translate('auto.k0260'), d.email || '-'], [translate('auto.k0247'), roleDisplayLabel(d.role)], [translate('auto.k0232'), d.department], [translate('auto.k0182'), d.status], [translate('auto.k0248'), d.last_seen]]}
             onChanged={props.onRefresh}
           />
         }
@@ -277,9 +278,9 @@ export function ManagementPage(props: ManagementPageProps) {
   // ===================== Projects
   if (page === 'projects') {
     const sensitivityOptions = [
-      { value: '', label: translate('auto.k0265') }, { value: 'PUBLIC', label: 'PUBLIC' },
-      { value: 'INTERNAL', label: 'INTERNAL' }, { value: 'CONFIDENTIAL', label: 'CONFIDENTIAL' },
-      { value: 'STRICT', label: 'STRICT' }
+      { value: '', label: translate('auto.k0265') }, { value: 'PUBLIC', label: dictionaryLabel('PUBLIC') },
+      { value: 'INTERNAL', label: dictionaryLabel('INTERNAL') }, { value: 'CONFIDENTIAL', label: dictionaryLabel('CONFIDENTIAL') },
+      { value: 'STRICT', label: dictionaryLabel('STRICT') }
     ];
     const publicModelOptions = [
       { value: '', label: translate('auto.k0265') }, { value: 'true', label: translate('auto.k0266') }, { value: 'false', label: translate('auto.k0267') }
@@ -352,16 +353,16 @@ export function ManagementPage(props: ManagementPageProps) {
   // ===================== Applications
   if (page === 'applications') {
     const sensitivityOptions = [
-      { value: '', label: translate('auto.k0265') }, { value: 'PUBLIC', label: 'PUBLIC' },
-      { value: 'INTERNAL', label: 'INTERNAL' }, { value: 'CONFIDENTIAL', label: 'CONFIDENTIAL' },
-      { value: 'STRICT', label: 'STRICT' }
+      { value: '', label: translate('auto.k0265') }, { value: 'PUBLIC', label: dictionaryLabel('PUBLIC') },
+      { value: 'INTERNAL', label: dictionaryLabel('INTERNAL') }, { value: 'CONFIDENTIAL', label: dictionaryLabel('CONFIDENTIAL') },
+      { value: 'STRICT', label: dictionaryLabel('STRICT') }
     ];
     const publicModelOptions = [
       { value: '', label: translate('auto.k0265') }, { value: 'true', label: translate('auto.k0266') }, { value: 'false', label: translate('auto.k0267') }
     ];
     const appTypeOptions = [
-      { value: '', label: translate('auto.k0265') }, { value: 'Web', label: 'Web' }, { value: 'Backend', label: 'Backend' },
-      { value: 'Frontend', label: 'Frontend' }, { value: 'Mobile', label: 'Mobile' }, { value: 'Service', label: 'Service' }, { value: 'API', label: 'API' }
+      { value: '', label: translate('auto.k0265') }, { value: 'Web', label: dictionaryLabel('Web') }, { value: 'Backend', label: dictionaryLabel('Backend') },
+      { value: 'Frontend', label: dictionaryLabel('Frontend') }, { value: 'Mobile', label: dictionaryLabel('Mobile') }, { value: 'Service', label: dictionaryLabel('Service') }, { value: 'API', label: dictionaryLabel('API') }
     ];
     return (
       <DataSection
@@ -387,8 +388,8 @@ export function ManagementPage(props: ManagementPageProps) {
               fields={[
                 { key: 'name', label: translate('auto.k0290'), placeholder: translate('auto.k0291') },
                 { key: 'app_type', label: translate('auto.k0292'), kind: 'select' as const, options: appTypeOptions },
-                { key: 'default_web_url', label: 'Web URL', placeholder: 'https://web.example.test' },
-                { key: 'default_api_base_url', label: 'API Base URL', placeholder: 'https://api.example.test' },
+                { key: 'default_web_url', label: fieldLabel('defaultWebUrl'), placeholder: 'https://web.example.test' },
+                { key: 'default_api_base_url', label: fieldLabel('defaultApiBaseUrl'), placeholder: 'https://api.example.test' },
                 { key: 'sensitivity_level', label: translate('auto.k0276'), kind: 'select' as const, options: sensitivityOptions },
                 { key: 'allow_public_model', label: translate('auto.k0277'), kind: 'public-model' as const, options: publicModelOptions }
               ]}
@@ -432,8 +433,8 @@ export function ManagementPage(props: ManagementPageProps) {
   // ===================== Environments
   if (page === 'environments') {
     const envTypeOptions = [
-      { value: '', label: translate('auto.k0265') }, { value: 'DEV', label: 'DEV' }, { value: 'TEST', label: 'TEST' },
-      { value: 'STAGING', label: 'STAGING' }, { value: 'PREPROD', label: 'PREPROD' }, { value: 'PROD', label: 'PROD' }
+      { value: '', label: translate('auto.k0265') }, { value: 'DEV', label: dictionaryLabel('DEV') }, { value: 'TEST', label: dictionaryLabel('TEST') },
+      { value: 'STAGING', label: dictionaryLabel('STAGING') }, { value: 'PREPROD', label: dictionaryLabel('PREPROD') }, { value: 'PROD', label: dictionaryLabel('PROD') }
     ];
     return (
       <DataSection
@@ -442,7 +443,7 @@ export function ManagementPage(props: ManagementPageProps) {
         icon={ServerCog}
         action={translate('auto.k0297')}
         createResource="environments"
-        columns={[translate('auto.k0215'), translate('auto.k0298'), 'Endpoint', translate('auto.k0182')]}
+        columns={[translate('auto.k0215'), translate('auto.k0298'), fieldLabel('endpoint'), translate('auto.k0182')]}
         rows={data.environments.map((item: EnvironmentView) => [item.name, item.cluster, item.endpoint, <StatusBadge key={item.name} status={item.status} />])}
         loadState={loadState}
         signedIn={signedIn}
@@ -459,8 +460,8 @@ export function ManagementPage(props: ManagementPageProps) {
               fields={[
                 { key: 'name', label: translate('auto.k0301'), placeholder: translate('auto.k0302') },
                 { key: 'env_type', label: translate('auto.k0303'), kind: 'select' as const, options: envTypeOptions },
-                { key: 'web_url', label: 'Web URL', placeholder: 'https://web.env.test' },
-                { key: 'api_base_url', label: 'API Base URL', placeholder: 'https://api.env.test' }
+                { key: 'web_url', label: fieldLabel('webUrl'), placeholder: 'https://web.env.test' },
+                { key: 'api_base_url', label: fieldLabel('apiBaseUrl'), placeholder: 'https://api.env.test' }
               ]}
               signedIn={signedIn}
               canEdit={hasPermission(currentUser, 'environment:edit')}
@@ -475,7 +476,7 @@ export function ManagementPage(props: ManagementPageProps) {
               changeStatus={changeEnvironmentStatus}
               detailTitle={(d) => d.name}
               draftFromDetail={(d) => ({ name: d.name, api_base_url: d.endpoint })}
-              detailRows={(d) => [[translate('auto.k0298'), d.cluster], ['Endpoint', d.endpoint], [translate('auto.k0182'), d.status]]}
+              detailRows={(d) => [[translate('auto.k0298'), d.cluster], [fieldLabel('endpoint'), d.endpoint], [translate('auto.k0182'), d.status]]}
               onChanged={props.onRefresh}
             />
             <EnvironmentConnectivityPanel
@@ -644,7 +645,25 @@ interface DataSectionProps {
 
 function DataSection(props: DataSectionProps) {
   const [quickCreateValue, setQuickCreateValue] = useState('');
+  const [createOpen, setCreateOpen] = useState(false);
   const Icon = props.icon;
+  const quickCreatePlaceholder = translate('auto.k0327', {
+    value0: props.action
+      .replace(translate('auto.k0894'), '')
+      .replace(translate('auto.k0862'), '')
+      .replace(translate('auto.k2606'), '')
+      || translate('auto.k0177')
+  });
+
+  async function submitQuickCreate(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!props.onCreate || !props.createResource || !quickCreateValue.trim()) {
+      return;
+    }
+    await props.onCreate(props.createResource, props.action, quickCreateValue);
+    setQuickCreateValue('');
+    setCreateOpen(false);
+  }
 
   return (
     <div className="content-grid">
@@ -661,28 +680,14 @@ function DataSection(props: DataSectionProps) {
           </div>
           <div className="toolbar-actions management-toolbar-actions">
             {props.canCreate && props.onCreate && (
-              <div className="management-quick-create">
-                <input
-                  type="text"
-                  placeholder={translate('auto.k0327', {
-                    value0: props.action
-                      .replace(translate('auto.k0894'), '')
-                      .replace(translate('auto.k0862'), '')
-                      .replace(translate('auto.k2606'), '')
-                      || translate('auto.k0177')
-                  })}
-                  value={quickCreateValue}
-                  onChange={(e) => setQuickCreateValue(e.target.value)}
-                  disabled={!props.signedIn}
-                />
-                <button
-                  className="btn btn-primary btn-sm"
-                  disabled={!props.signedIn || props.loadState.loading || !quickCreateValue.trim()}
-                  onClick={() => { props.onCreate!(props.createResource!, props.action, quickCreateValue); setQuickCreateValue(''); }}
-                >
-                  {props.action}
-                </button>
-              </div>
+              <button
+                className="btn btn-primary btn-sm"
+                disabled={!props.signedIn || props.loadState.loading}
+                type="button"
+                onClick={() => setCreateOpen(true)}
+              >
+                {props.action}
+              </button>
             )}
             {props.onRefresh && (
               <button className="btn btn-secondary btn-sm" onClick={props.onRefresh} disabled={props.loadState.loading}>
@@ -720,6 +725,49 @@ function DataSection(props: DataSectionProps) {
           )}
         </div>
       </div>
+      {props.canCreate && props.onCreate && (
+        <Drawer
+          className="management-create-drawer"
+          destroyOnHidden
+          footer={null}
+          maskClosable={!props.loadState.loading}
+          open={createOpen}
+          placement="right"
+          title={props.action}
+          width={420}
+          onClose={() => {
+            if (!props.loadState.loading) {
+              setCreateOpen(false);
+            }
+          }}
+        >
+          <form className="document-form document-drawer-form" onSubmit={(event) => void submitQuickCreate(event)}>
+            <label className="field">
+              <span>{translate('auto.k0177')}<b>*</b></span>
+              <InputControl
+                autoFocus
+                type="text"
+                placeholder={quickCreatePlaceholder}
+                value={quickCreateValue}
+                onChange={(event) => setQuickCreateValue(event.target.value)}
+                disabled={!props.signedIn || props.loadState.loading}
+              />
+            </label>
+            <div className="document-actions">
+              <button
+                className="btn btn-primary btn-sm"
+                disabled={!props.signedIn || props.loadState.loading || !quickCreateValue.trim()}
+                type="submit"
+              >
+                {props.action}
+              </button>
+              <button className="btn btn-secondary btn-sm" type="button" disabled={props.loadState.loading} onClick={() => setCreateOpen(false)}>
+                {translate('auto.k0739')}
+              </button>
+            </div>
+          </form>
+        </Drawer>
+      )}
 
       {props.sidePanel && (
         <div className="side-stack">
@@ -809,7 +857,7 @@ function ResourceLifecyclePanel<T extends object>(props: ResourceLifecyclePanelP
         </div>
 
         <div className="field management-select-field">
-          <NativeSelect
+          <SelectControl
             value={selectedKey}
             onChange={(e) => setSelectedKey(e.target.value)}
             disabled={!props.signedIn}
@@ -818,7 +866,7 @@ function ResourceLifecyclePanel<T extends object>(props: ResourceLifecyclePanelP
             {props.resources.map((r) => (
               <option key={r} value={r}>{r}</option>
             ))}
-          </NativeSelect>
+          </SelectControl>
         </div>
 
         {loading && <div className="skeleton skeleton-text" />}
@@ -844,16 +892,16 @@ function ResourceLifecyclePanel<T extends object>(props: ResourceLifecyclePanelP
                     <div className="field" key={field.key}>
                       <label className="field-label">{field.label}</label>
                       {field.kind === 'select' || field.kind === 'public-model' ? (
-                        <NativeSelect
+                        <SelectControl
                           value={editDraft[field.key] ?? ''}
                           onChange={(e) => setEditDraft((d) => d ? { ...d, [field.key]: e.target.value } : d)}
                         >
                           {(field.options ?? []).map((opt) => (
                             <option key={opt.value} value={opt.value}>{opt.label}</option>
                           ))}
-                        </NativeSelect>
+                        </SelectControl>
                       ) : (
-                        <input
+                        <InputControl
                           type="text"
                           value={editDraft[field.key] ?? ''}
                           onChange={(e) => setEditDraft((d) => d ? { ...d, [field.key]: e.target.value } : d)}
@@ -908,14 +956,14 @@ function RoleBindingControls(props: {
     <div className="role-binding-controls">
       {props.canAssign && (
         <>
-          <NativeSelect
+          <SelectControl
             value={selectedRole}
             onChange={(e) => setSelectedRole(e.target.value)}
             disabled={!props.signedIn}
           >
             <option value="">{translate('auto.k0247')}</option>
             {props.roles.map((r) => <option key={r.code} value={r.code}>{r.name}</option>)}
-          </NativeSelect>
+          </SelectControl>
           <button
             className="btn btn-xs btn-secondary"
             disabled={!props.signedIn || props.loading || !selectedRole}
@@ -1016,7 +1064,7 @@ function ScopedRolePanel(props: {
         </div>
 
         <div className="field management-select-field">
-          <NativeSelect
+          <SelectControl
             value={selectedKey}
             onChange={(e) => setSelectedKey(e.target.value)}
             disabled={!props.signedIn}
@@ -1024,7 +1072,7 @@ function ScopedRolePanel(props: {
           >
             <option value="">{translate('auto.k0334')}{props.resourceLabel}...</option>
             {props.resources.map((r) => <option key={r} value={r}>{r}</option>)}
-          </NativeSelect>
+          </SelectControl>
         </div>
 
         {error && <div className="notice error management-notice-sm">{error}</div>}
@@ -1043,7 +1091,7 @@ function ScopedRolePanel(props: {
                   <div key={m.username} className="management-list-row">
                     <div>
                       <div className="management-primary-text">{m.display_name || m.username}</div>
-                      <div className="text-tertiary text-xs">{m.role}</div>
+                      <div className="text-tertiary text-xs">{roleDisplayLabel(m.role)}</div>
                     </div>
                     {props.canManage && (
                       <button className="btn btn-xs btn-secondary" onClick={() => remove(m.username)} disabled={loading}>{translate('auto.k0342')}</button>
@@ -1055,20 +1103,20 @@ function ScopedRolePanel(props: {
 
             {props.canManage && (
               <div className="management-member-add-grid">
-                <input
+                <InputControl
                   type="text"
                   placeholder={translate('auto.k0343')}
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
                   className="management-compact-control"
                 />
-                <NativeSelect
+                <SelectControl
                   value={roleCode}
                   onChange={(e) => setRoleCode(e.target.value)}
                   className="management-compact-control"
                 >
-                  {props.roles.map((role) => <option key={role} value={role}>{role}</option>)}
-                </NativeSelect>
+                  {props.roles.map((role) => <option key={role} value={role}>{roleDisplayLabel(role)}</option>)}
+                </SelectControl>
                 <button className="btn btn-primary btn-sm" onClick={add} disabled={loading || !username.trim()}>{translate('auto.k0344')}</button>
               </div>
             )}
@@ -1118,7 +1166,7 @@ function EnvironmentConnectivityPanel(props: {
         </div>
 
         <div className="field management-select-field">
-          <NativeSelect
+          <SelectControl
             value={selectedKey}
             onChange={(e) => setSelectedKey(e.target.value)}
             disabled={!props.signedIn}
@@ -1126,7 +1174,7 @@ function EnvironmentConnectivityPanel(props: {
           >
             <option value="">{translate('auto.k0348')}</option>
             {props.resources.map((r) => <option key={r} value={r}>{r}</option>)}
-          </NativeSelect>
+          </SelectControl>
         </div>
 
         {props.canRun && selectedKey && (
@@ -1184,7 +1232,7 @@ function RoleDefinitionPanel(props: {
         </div>
 
         <div className="field management-select-field">
-          <NativeSelect
+          <SelectControl
             value={selectedCode}
             onChange={(e) => setSelectedCode(e.target.value)}
             disabled={!props.signedIn}
@@ -1192,7 +1240,7 @@ function RoleDefinitionPanel(props: {
           >
             <option value="">{translate('auto.k0352')}</option>
             {props.roles.map((r) => <option key={r.code} value={r.code}>{r.name} ({r.code})</option>)}
-          </NativeSelect>
+          </SelectControl>
         </div>
 
         {loading && <div className="skeleton skeleton-text" />}
@@ -1328,11 +1376,11 @@ function AuditOutboxPanel(props: ManagementPageProps) {
       <div className="panel-body">
         <div className="management-side-heading">
           <div className="text-tertiary text-xs font-semibold management-eyebrow">{translate('auto.k0366')}</div>
-          <h3 className="panel-title management-side-title">Audit Outbox</h3>
+          <h3 className="panel-title management-side-title">{translate('auto.k2946')}</h3>
         </div>
 
         <div className="management-outbox-filter-grid">
-          <NativeSelect
+          <SelectControl
             value={props.auditOutboxFilters.status}
             onChange={(e) => props.onAuditOutboxFiltersChange({ ...props.auditOutboxFilters, status: e.target.value })}
             className="management-compact-control"
@@ -1341,15 +1389,15 @@ function AuditOutboxPanel(props: ManagementPageProps) {
             <option value="PENDING">{translate('auto.k0366')}</option>
             <option value="SUCCESS">{translate('auto.k0368')}</option>
             <option value="FAILED">{translate('auto.k0369')}</option>
-          </NativeSelect>
-          <input
-            type="text" placeholder="Trace ID"
+          </SelectControl>
+          <InputControl
+            type="text" placeholder={fieldLabel('traceId')}
             value={props.auditOutboxFilters.traceId}
             onChange={(e) => props.onAuditOutboxFiltersChange({ ...props.auditOutboxFilters, traceId: e.target.value })}
             className="management-compact-control"
           />
         </div>
-        <input
+        <InputControl
           type="text" placeholder={translate('auto.k0370')}
           value={props.auditOutboxFilters.search}
           onChange={(e) => props.onAuditOutboxFiltersChange({ ...props.auditOutboxFilters, search: e.target.value })}
@@ -1391,11 +1439,19 @@ function AuditOutboxPanel(props: ManagementPageProps) {
 
 function roleScope(role: RoleView): string {
   if (role.scope_type) {
-    return role.scope_type.charAt(0).toUpperCase() + role.scope_type.slice(1).toLowerCase();
+    return dictionaryLabel(role.scope_type);
   }
-  return 'Platform';
+  return dictionaryLabel('PLATFORM');
 }
 
 function roleDescription(role: RoleView): string {
   return role.description || '';
+}
+
+function roleDisplayLabel(role: string) {
+  const normalized = role
+    .replace(/([a-z0-9])([A-Z])/g, '$1_$2')
+    .replace(/[-\s]+/g, '_')
+    .toUpperCase();
+  return dictionaryLabel(normalized, role);
 }

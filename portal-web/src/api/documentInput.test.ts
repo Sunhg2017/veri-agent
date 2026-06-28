@@ -237,7 +237,7 @@ describe('document input API helpers', () => {
     expect(message).toContain('PDF 未抽取到文本');
     expect(message).toContain('WP4_OCR_COMMAND');
     expect(message).toContain('错误码：VALIDATION_ERROR');
-    expect(message).toContain('Trace ID：trc_pdf_empty');
+    expect(message).toContain('追踪 ID：trc_pdf_empty');
   });
 
   it('adds webhook signature troubleshooting hints', () => {
@@ -249,7 +249,7 @@ describe('document input API helpers', () => {
     expect(message).toContain('secretRef/WP4_WEBHOOK_SECRET');
     expect(message).toContain('raw body');
     expect(message).toContain('X-VA-* Header');
-    expect(message).toContain('Trace ID：trc_webhook_signature');
+    expect(message).toContain('追踪 ID：trc_webhook_signature');
   });
 
   it('does not duplicate backend next-step guidance', () => {
@@ -260,7 +260,7 @@ describe('document input API helpers', () => {
 
     expect(message.match(/建议/g)).toBeNull();
     expect(message).toContain('下一步：请管理员配置 OCR provider。');
-    expect(message).toContain('Trace ID：trc_ocr');
+    expect(message).toContain('追踪 ID：trc_ocr');
   });
 
   it('normalizes source health from the WP4 backend contract', () => {

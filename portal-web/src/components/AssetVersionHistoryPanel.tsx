@@ -1,6 +1,7 @@
 import { History, RefreshCw, RotateCcw } from 'lucide-react';
 import type { AssetVersionHistoryView } from '../api/assets';
 import { assetVersionDiffRows, formatAssetVersionDiffValue } from '../assetVersionDiff';
+import { fieldLabel } from '../platform/dictionaries';
 import { translate } from '../platform/i18n';
 
 type VersionHistoryState = {
@@ -51,15 +52,15 @@ export function AssetVersionHistoryPanel(props: AssetVersionHistoryPanelProps) {
               </summary>
               <div className="asset-version-meta">
                 <div>
-                  <span>actor</span>
+                  <span>{fieldLabel('actor')}</span>
                   <em>{item.actor ?? '-'}</em>
                 </div>
                 <div>
-                  <span>traceId</span>
+                  <span>{fieldLabel('traceId')}</span>
                   <em>{item.traceId ?? '-'}</em>
                 </div>
                 <div>
-                  <span>changedFields</span>
+                  <span>{fieldLabel('changedFields')}</span>
                   <em>{item.changedFields.length ? item.changedFields.join(', ') : '-'}</em>
                 </div>
               </div>
@@ -91,7 +92,7 @@ export function AssetVersionHistoryPanel(props: AssetVersionHistoryPanelProps) {
       )}
 
       {props.state.error && props.items.length > 0 && <span className="document-state-line error">{props.state.error}</span>}
-      {props.state.traceId && !props.state.error && <span className="document-state-line">Trace ID：{props.state.traceId}</span>}
+      {props.state.traceId && !props.state.error && <span className="document-state-line">{fieldLabel('traceId')}：{props.state.traceId}</span>}
     </div>
   );
 }

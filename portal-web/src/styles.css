@@ -944,7 +944,6 @@ a:hover {
   cursor: not-allowed;
 }
 
-.ui-native-select,
 .ui-select-control,
 .document-select,
 .document-inline-select {
@@ -954,7 +953,6 @@ a:hover {
   font-size: var(--font-size-sm);
 }
 
-.ui-native-select,
 .ui-select-control,
 .document-select {
   width: 100%;
@@ -964,7 +962,6 @@ a:hover {
   min-width: 180px;
 }
 
-.ui-native-select .ant-select-selector,
 .ui-select-control .ant-select-selector,
 .document-select .ant-select-selector,
 .document-inline-select .ant-select-selector {
@@ -977,15 +974,12 @@ a:hover {
   transition: border-color var(--transition-fast), box-shadow var(--transition-fast), background var(--transition-fast) !important;
 }
 
-.ui-native-select .ant-select-selection-search-input,
 .ui-select-control .ant-select-selection-search-input,
 .document-select .ant-select-selection-search-input,
 .document-inline-select .ant-select-selection-search-input {
   height: 34px !important;
 }
 
-.ui-native-select .ant-select-selection-item,
-.ui-native-select .ant-select-selection-placeholder,
 .ui-select-control .ant-select-selection-item,
 .ui-select-control .ant-select-selection-placeholder,
 .document-select .ant-select-selection-item,
@@ -996,21 +990,18 @@ a:hover {
   line-height: 34px !important;
 }
 
-.ui-native-select .ant-select-selection-placeholder,
 .ui-select-control .ant-select-selection-placeholder,
 .document-select .ant-select-selection-placeholder,
 .document-inline-select .ant-select-selection-placeholder {
   color: var(--text-placeholder) !important;
 }
 
-.ui-native-select .ant-select-arrow,
 .ui-select-control .ant-select-arrow,
 .document-select .ant-select-arrow,
 .document-inline-select .ant-select-arrow {
   color: var(--text-tertiary);
 }
 
-.ui-native-select:hover .ant-select-selector,
 .ui-select-control:hover .ant-select-selector,
 .document-select:hover .ant-select-selector,
 .document-inline-select:hover .ant-select-selector {
@@ -1018,7 +1009,6 @@ a:hover {
   background: var(--surface-hover) !important;
 }
 
-.ui-native-select.ant-select-focused .ant-select-selector,
 .ui-select-control.ant-select-focused .ant-select-selector,
 .document-select.ant-select-focused .ant-select-selector,
 .document-inline-select.ant-select-focused .ant-select-selector {
@@ -1027,7 +1017,6 @@ a:hover {
   box-shadow: 0 0 0 3px var(--focus-ring) !important;
 }
 
-.ui-native-select.ant-select-disabled .ant-select-selector,
 .ui-select-control.ant-select-disabled .ant-select-selector,
 .document-select.ant-select-disabled .ant-select-selector,
 .document-inline-select.ant-select-disabled .ant-select-selector {
@@ -1037,14 +1026,13 @@ a:hover {
   cursor: not-allowed !important;
 }
 
-.ui-native-select.ant-select-disabled .ant-select-selection-item,
 .ui-select-control.ant-select-disabled .ant-select-selection-item,
 .document-select.ant-select-disabled .ant-select-selection-item,
 .document-inline-select.ant-select-disabled .ant-select-selection-item {
   color: var(--text-tertiary) !important;
 }
 
-.ui-native-select-dropdown,
+.ui-select-control-dropdown,
 .ui-select-dropdown,
 .document-select-dropdown {
   padding: 4px !important;
@@ -1054,7 +1042,7 @@ a:hover {
   box-shadow: var(--shadow-lg);
 }
 
-.ui-native-select-dropdown .ant-select-item,
+.ui-select-control-dropdown .ant-select-item,
 .ui-select-dropdown .ant-select-item,
 .document-select-dropdown .ant-select-item {
   min-height: 32px;
@@ -1064,13 +1052,13 @@ a:hover {
   font-size: var(--font-size-sm);
 }
 
-.ui-native-select-dropdown .ant-select-item-option-active:not(.ant-select-item-option-disabled),
+.ui-select-control-dropdown .ant-select-item-option-active:not(.ant-select-item-option-disabled),
 .ui-select-dropdown .ant-select-item-option-active:not(.ant-select-item-option-disabled),
 .document-select-dropdown .ant-select-item-option-active:not(.ant-select-item-option-disabled) {
   background: var(--surface-hover) !important;
 }
 
-.ui-native-select-dropdown .ant-select-item-option-selected:not(.ant-select-item-option-disabled),
+.ui-select-control-dropdown .ant-select-item-option-selected:not(.ant-select-item-option-disabled),
 .ui-select-dropdown .ant-select-item-option-selected:not(.ant-select-item-option-disabled),
 .document-select-dropdown .ant-select-item-option-selected:not(.ant-select-item-option-disabled) {
   background: color-mix(in srgb, var(--primary) 12%, var(--surface)) !important;
@@ -1078,7 +1066,7 @@ a:hover {
   font-weight: 650;
 }
 
-.ui-native-select-dropdown .ant-select-item-option-disabled,
+.ui-select-control-dropdown .ant-select-item-option-disabled,
 .ui-select-dropdown .ant-select-item-option-disabled,
 .document-select-dropdown .ant-select-item-option-disabled {
   color: var(--text-tertiary) !important;
@@ -2871,36 +2859,51 @@ tbody tr:hover td {
 }
 
 .test-data-tabs {
-  display: inline-flex;
-  width: fit-content;
+  display: flex;
+  width: 100%;
   max-width: 100%;
-  gap: 2px;
-  padding: 3px;
+  gap: 4px;
+  padding: 4px;
   border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  background: var(--surface);
+  border-radius: var(--radius-md);
+  background: var(--surface-muted);
   overflow-x: auto;
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--surface) 72%, transparent);
 }
 
 .test-data-tab {
-  min-height: 34px;
+  appearance: none;
+  -webkit-appearance: none;
+  min-height: 36px;
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  padding: 0 12px;
-  border: none;
+  justify-content: center;
+  gap: 7px;
+  padding: 0 13px;
+  border: 1px solid transparent;
   border-radius: var(--radius-sm);
   background: transparent;
   color: var(--text-secondary);
+  font: inherit;
   font-size: var(--font-size-sm);
-  font-weight: 600;
+  font-weight: 760;
+  line-height: 1;
   white-space: nowrap;
   cursor: pointer;
+  transition: background var(--transition-fast), border-color var(--transition-fast), color var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+.test-data-tab:hover {
+  border-color: var(--border);
+  background: var(--surface);
+  color: var(--text-primary);
 }
 
 .test-data-tab.active {
-  color: var(--primary);
-  background: var(--primary-light);
+  border-color: color-mix(in srgb, var(--primary) 28%, var(--border));
+  color: var(--primary-dark);
+  background: var(--surface);
+  box-shadow: var(--shadow-xs);
 }
 
 .test-data-layout {
@@ -3268,43 +3271,52 @@ tbody tr:hover td {
 /* Tabs */
 .tab-strip {
   display: flex;
-  gap: 3px;
-  width: fit-content;
+  gap: 4px;
+  width: 100%;
   max-width: 100%;
   margin-bottom: var(--space-md);
-  padding: 3px;
+  padding: 4px;
   border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  background: var(--surface);
+  border-radius: var(--radius-md);
+  background: var(--surface-muted);
   overflow-x: auto;
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--surface) 72%, transparent);
 }
 
 .tab {
   position: relative;
-  min-height: 34px;
+  appearance: none;
+  -webkit-appearance: none;
+  min-height: 36px;
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 6px;
   padding: 0 12px;
-  border: none;
+  border: 1px solid transparent;
   border-radius: var(--radius-sm);
   background: transparent;
   color: var(--text-secondary);
   font-size: var(--font-size-sm);
   font-weight: 750;
+  line-height: 1;
   cursor: pointer;
   white-space: nowrap;
-  transition: color var(--transition-fast), background var(--transition-fast);
+  transition: color var(--transition-fast), background var(--transition-fast), border-color var(--transition-fast), box-shadow var(--transition-fast);
 }
 
 .tab:hover {
+  border-color: var(--border);
+  background: var(--surface);
   color: var(--text-primary);
 }
 
 .tab.active {
+  border-color: color-mix(in srgb, var(--primary) 28%, var(--border));
   color: var(--primary-dark);
-  background: var(--primary-bg);
+  background: var(--surface);
   font-weight: 800;
+  box-shadow: var(--shadow-xs);
 }
 
 .tab:disabled {
@@ -6956,6 +6968,22 @@ thead th {
     padding: 12px var(--space-md);
   }
 
+  .app-shell,
+  .workspace,
+  .topbar,
+  .topbar-info,
+  .topbar-actions,
+  main,
+  .page-frame {
+    max-width: 100%;
+    min-width: 0;
+  }
+
+  .topbar-actions {
+    flex-wrap: wrap;
+    justify-content: flex-start;
+  }
+
   .form-grid,
   .asset-form-grid,
   .asset-version-diff-row,
@@ -7011,6 +7039,55 @@ thead th {
   .test-design-step-drag,
   .asset-step-drag {
     margin-top: 0;
+  }
+
+  .test-data-workbench,
+  .test-data-workbench .panel,
+  .test-data-workbench .panel-body,
+  .test-data-workbench .test-data-list,
+  .test-data-workbench .test-data-summary {
+    max-width: 100%;
+    min-width: 0;
+  }
+
+  .test-data-workbench {
+    overflow-wrap: anywhere;
+  }
+
+  .test-data-workbench .panel-header {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .test-data-workbench .test-data-list-item > span,
+  .test-data-workbench .test-data-account-card > span,
+  .test-data-workbench .test-data-list-item small,
+  .test-data-workbench .test-data-list-item strong,
+  .test-data-workbench .test-data-account-card small,
+  .test-data-workbench .test-data-account-card strong,
+  .test-data-workbench .test-data-summary span {
+    max-width: 100%;
+    white-space: normal;
+  }
+
+  .test-data-panel-actions {
+    justify-content: flex-start;
+  }
+
+  .test-data-panel-actions .btn {
+    flex: 1 1 128px;
+    min-width: 0;
+  }
+
+  .test-data-list-item,
+  .test-data-account-card {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .test-data-list-item .status-badge,
+  .test-data-account-card .status-badge {
+    align-self: flex-start;
   }
 
   .topbar h1 { font-size: var(--font-size-lg); }
@@ -8096,12 +8173,25 @@ textarea:focus-visible,
 .field input,
 .field select,
 .field textarea,
+.field .ant-input,
+.field .ant-input-number,
+.field .ant-picker,
+.field .ui-textarea-control,
+.field .ui-number-control,
 .panel input:not([type='checkbox']):not([type='radio']):not([type='file']),
 .panel select,
 .panel textarea,
+.panel .ant-input,
+.panel .ant-input-number,
+.panel .ant-picker,
+.panel .ui-textarea-control,
+.panel .ui-number-control,
 .asset-filter-bar input:not([type='checkbox']):not([type='radio']):not([type='file']),
 .asset-filter-bar select,
 .asset-filter-bar textarea,
+.asset-filter-bar .ant-input,
+.asset-filter-bar .ant-input-number,
+.asset-filter-bar .ant-picker,
 .toolbar-actions input:not([type='checkbox']):not([type='radio']):not([type='file']),
 .toolbar-actions select,
 .panel-toolbar-actions input:not([type='checkbox']):not([type='radio']):not([type='file']),
@@ -8116,24 +8206,66 @@ textarea:focus-visible,
   color: var(--text-primary);
 }
 
+.field .ant-input-number,
+.field .ant-picker,
+.panel .ant-input-number,
+.panel .ant-picker,
+.asset-filter-bar .ant-input-number,
+.asset-filter-bar .ant-picker {
+  width: 100%;
+}
+
+.field .ant-input-number-input,
+.panel .ant-input-number-input,
+.asset-filter-bar .ant-input-number-input {
+  color: var(--text-primary);
+}
+
+.field .ant-picker-input > input,
+.panel .ant-picker-input > input,
+.asset-filter-bar .ant-picker-input > input {
+  color: var(--text-primary);
+}
+
+.field .ant-picker-suffix,
+.panel .ant-picker-suffix,
+.asset-filter-bar .ant-picker-suffix {
+  color: var(--text-tertiary);
+}
+
 .field input:hover,
 .field select:hover,
 .field textarea:hover,
+.field .ant-input:hover,
+.field .ant-input-number:hover,
+.field .ant-picker:hover,
 .panel input:hover,
 .panel select:hover,
-.panel textarea:hover {
+.panel textarea:hover,
+.panel .ant-input:hover,
+.panel .ant-input-number:hover,
+.panel .ant-picker:hover {
   border-color: var(--border-strong);
 }
 
 .field input:focus,
 .field select:focus,
 .field textarea:focus,
+.field .ant-input:focus,
+.field .ant-input-number-focused,
+.field .ant-picker-focused,
 .panel input:focus,
 .panel select:focus,
 .panel textarea:focus,
+.panel .ant-input:focus,
+.panel .ant-input-number-focused,
+.panel .ant-picker-focused,
 .asset-filter-bar input:focus,
 .asset-filter-bar select:focus,
 .asset-filter-bar textarea:focus,
+.asset-filter-bar .ant-input:focus,
+.asset-filter-bar .ant-input-number-focused,
+.asset-filter-bar .ant-picker-focused,
 .toolbar-actions input:focus,
 .toolbar-actions select:focus,
 .panel-toolbar-actions input:focus,
@@ -8412,59 +8544,140 @@ tbody tr:hover td {
   min-width: 0;
 }
 
-.model-access-panel .asset-tab-strip {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin: 16px;
-  padding: 6px;
-  border: 1px solid var(--border-light);
-  border-radius: var(--radius-lg);
-  background: var(--bg-alt);
+.asset-workbench-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(340px, 420px);
+  gap: var(--space-md);
+  align-items: start;
 }
 
-.model-access-panel .asset-tab {
-  appearance: none;
-  -webkit-appearance: none;
-  min-height: 38px;
+.asset-main-stack,
+.asset-side-stack {
+  display: grid;
+  gap: var(--space-md);
+  min-width: 0;
+}
+
+.asset-main-stack > .panel {
+  overflow: hidden;
+}
+
+.asset-drawer-host {
+  display: contents;
+}
+
+.asset-navigation-tabs,
+.panel .asset-navigation-tabs {
+  margin: 16px 16px 0;
+  padding: 0 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-muted);
+}
+
+.asset-navigation-tabs .ant-tabs-nav {
+  margin: 0;
+}
+
+.asset-navigation-tabs .ant-tabs-nav::before {
+  border-bottom-color: var(--border);
+}
+
+.asset-navigation-tabs .ant-tabs-tab {
+  min-height: 44px;
+  margin: 0;
+  padding: 10px 12px;
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+  font-weight: 780;
+  transition: color var(--transition-fast), background var(--transition-fast);
+}
+
+.asset-navigation-tabs .ant-tabs-tab + .ant-tabs-tab {
+  margin-left: 6px;
+}
+
+.asset-navigation-tabs .ant-tabs-tab:hover {
+  color: var(--text-primary);
+  background: var(--surface-hover);
+}
+
+.asset-navigation-tabs .ant-tabs-tab.ant-tabs-tab-active .ant-tabs-tab-btn {
+  color: var(--primary-dark);
+}
+
+.asset-navigation-tabs .ant-tabs-tab.ant-tabs-tab-disabled {
+  color: var(--text-muted);
+}
+
+.asset-navigation-tabs .ant-tabs-ink-bar {
+  height: 3px;
+  border-radius: 999px 999px 0 0;
+  background: var(--primary);
+}
+
+.asset-navigation-tab-label {
   display: inline-flex;
   align-items: center;
   gap: 7px;
-  padding: 0 13px;
-  border: 1px solid transparent;
-  border-radius: var(--radius-md);
-  background: transparent;
-  color: var(--text-secondary);
-  font: inherit;
-  font-size: var(--font-size-sm);
-  font-weight: 780;
-  line-height: 1;
-  cursor: pointer;
   white-space: nowrap;
-  transition: background var(--transition-fast), border-color var(--transition-fast), color var(--transition-fast), box-shadow var(--transition-fast);
 }
 
-.model-access-panel .asset-tab svg {
+.asset-navigation-tab-label svg {
   flex: 0 0 auto;
   color: currentColor;
 }
 
-.model-access-panel .asset-tab:hover {
-  border-color: var(--border);
-  background: var(--surface);
+.asset-detail-stack {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+}
+
+.resource-summary,
+.asset-source-trace,
+.asset-import-result {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+
+.resource-summary strong,
+.asset-source-trace strong,
+.asset-import-result strong {
   color: var(--text-primary);
+  font-size: var(--font-size-sm);
+  font-weight: 850;
 }
 
-.model-access-panel .asset-tab.active {
-  border-color: color-mix(in srgb, var(--primary) 30%, var(--border));
-  background: var(--primary-bg);
-  color: var(--primary-dark);
-  box-shadow: var(--shadow-xs);
+.resource-summary div,
+.asset-source-trace div {
+  display: grid;
+  grid-template-columns: minmax(96px, 0.34fr) minmax(0, 1fr);
+  gap: 8px;
+  align-items: start;
+  min-width: 0;
 }
 
-.model-access-panel .asset-tab:focus-visible {
-  outline: none;
-  box-shadow: 0 0 0 3px var(--focus-ring);
+.resource-summary span,
+.asset-source-trace span {
+  color: var(--text-tertiary);
+  font-size: var(--font-size-xs);
+  font-weight: 760;
+}
+
+.resource-summary em,
+.asset-source-trace em {
+  min-width: 0;
+  color: var(--text-primary);
+  font-style: normal;
+  overflow-wrap: anywhere;
+}
+
+.asset-operation-feedback,
+.asset-import-export-panel,
+.asset-detail-panel {
+  min-width: 0;
 }
 
 .model-access-section {
@@ -8544,12 +8757,21 @@ tbody tr:hover td {
 .model-access-form input:not([type='checkbox']):not([type='radio']),
 .model-access-form select,
 .model-access-form textarea,
+.model-access-form .ant-input,
+.model-access-form .ant-input-number,
+.model-access-form .ant-picker,
 .model-access-effective-panel input,
 .model-access-effective-panel select,
 .model-access-effective-panel textarea,
+.model-access-effective-panel .ant-input,
+.model-access-effective-panel .ant-input-number,
+.model-access-effective-panel .ant-picker,
 .model-access-panel .asset-filter-bar input,
 .model-access-panel .asset-filter-bar select,
 .model-access-panel .asset-filter-bar textarea,
+.model-access-panel .asset-filter-bar .ant-input,
+.model-access-panel .asset-filter-bar .ant-input-number,
+.model-access-panel .asset-filter-bar .ant-picker,
 .model-access-diff-panel select {
   width: 100%;
   min-width: 0;
@@ -8978,13 +9200,9 @@ tbody tr:hover td {
     grid-template-columns: 1fr;
   }
 
-  .model-access-panel .asset-tab-strip {
-    margin: 12px;
-  }
-
-  .model-access-panel .asset-tab {
-    flex: 1 1 132px;
-    justify-content: center;
+  .asset-navigation-tabs {
+    margin: 12px 12px 0;
+    padding: 0 8px;
   }
 
   .model-access-panel > .model-access-section {
@@ -9148,6 +9366,15 @@ tbody tr:hover td {
 }
 
 @media (max-width: 640px) {
+  html,
+  body,
+  #root,
+  .app-shell,
+  .workspace {
+    max-width: 100vw;
+    min-width: 0;
+  }
+
   .sidebar {
     max-height: 62vh;
   }
@@ -9193,7 +9420,7 @@ tbody tr:hover td {
   }
 
   .page-frame {
-    width: calc(100% - 20px);
+    width: min(100%, calc(100vw - 20px));
     margin-top: 12px;
   }
 
@@ -9210,37 +9437,6 @@ tbody tr:hover td {
   .modal-backdrop {
     padding: 12px;
   }
-}
-
-/* Final form-control override: keep native selects visually aligned across workbenches. */
-select {
-  appearance: none;
-  padding-right: 34px;
-  background-color: var(--surface);
-  background-image:
-    linear-gradient(45deg, transparent 50%, var(--text-tertiary) 50%),
-    linear-gradient(135deg, var(--text-tertiary) 50%, transparent 50%);
-  background-position:
-    calc(100% - 17px) 50%,
-    calc(100% - 12px) 50%;
-  background-size: 5px 5px, 5px 5px;
-  background-repeat: no-repeat;
-}
-
-select:hover {
-  background-color: var(--surface-hover);
-}
-
-select:disabled {
-  background-color: var(--bg-alt);
-  background-image:
-    linear-gradient(45deg, transparent 50%, var(--text-placeholder) 50%),
-    linear-gradient(135deg, var(--text-placeholder) 50%, transparent 50%);
-}
-
-select option {
-  background: var(--surface);
-  color: var(--text-primary);
 }
 
 /* ============================================================
@@ -9443,7 +9639,37 @@ select option {
 }
 
 @media (max-width: 720px) {
+  .va-console {
+    max-width: 100vw;
+  }
+
+  .va-console.ant-layout-has-sider {
+    display: block;
+  }
+
+  .va-console-sider,
+  .va-console-sider.ant-layout-sider,
+  .va-console-sider.ant-layout-sider-collapsed {
+    position: relative !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+    flex: 0 0 auto !important;
+  }
+
+  .va-console-sider .ant-layout-sider-children {
+    width: 100%;
+  }
+
+  .va-console.ant-layout-has-sider > .ant-layout {
+    width: 100% !important;
+    min-width: 0;
+    max-width: 100vw;
+  }
+
   .va-console-header {
+    width: 100%;
+    min-width: 0;
     height: auto;
     min-height: 72px;
     align-items: flex-start;
@@ -9451,7 +9677,19 @@ select option {
     padding: 14px 16px;
   }
 
+  .va-console-breadcrumb,
+  .va-console-user {
+    max-width: 100%;
+  }
+
+  .va-console-user {
+    flex-wrap: wrap;
+  }
+
   .va-console-content {
+    width: 100%;
+    max-width: 100vw;
+    min-width: 0;
     padding: 16px;
   }
 

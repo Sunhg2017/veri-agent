@@ -1,5 +1,5 @@
 import { ApiError, requestJson, requestMultipart, type ApiResponse } from './client';
-import { dictionaryLabel } from '../platform/dictionaries';
+import { dictionaryLabel, fieldLabel } from '../platform/dictionaries';
 import { translate } from '../platform/i18n';
 
 export const DOCUMENT_SOURCE_TYPES = [
@@ -483,7 +483,7 @@ export function documentInputErrorMessage(error: unknown, fallback: string) {
       parts.push(translate('auto.k0107', { value0: error.code }));
     }
     if (error.traceId) {
-      parts.push(`Trace ID：${error.traceId}`);
+      parts.push(`${fieldLabel('traceId')}：${error.traceId}`);
     }
   }
   return parts.join(' · ');

@@ -3,10 +3,10 @@ import { useState } from 'react';
 import { SelectField, type SelectOption } from './SelectField';
 
 const options: SelectOption[] = [
-  { label: 'Production', value: 'prod' },
-  { label: 'Staging', value: 'stage' },
-  { label: 'QA sandbox', value: 'qa' },
-  { disabled: true, label: 'Archived environment', value: 'archive' }
+  { label: '生产环境', value: 'prod' },
+  { label: '预发环境', value: 'stage' },
+  { label: '测试沙箱', value: 'qa' },
+  { disabled: true, label: '已归档环境', value: 'archive' }
 ];
 
 const meta = {
@@ -15,7 +15,7 @@ const meta = {
   parameters: {
     docs: {
       description: {
-        component: 'Form select primitive with label, placeholder, hint, error and disabled states.'
+        component: '带标签、占位、提示、错误和禁用状态的表单下拉组件。'
       }
     }
   },
@@ -28,7 +28,7 @@ type Story = StoryObj<typeof meta>;
 
 export const Default: Story = {
   args: {
-    label: 'Environment',
+    label: '环境',
     onChange: () => undefined,
     options,
     value: 'stage'
@@ -37,8 +37,8 @@ export const Default: Story = {
     const [value, setValue] = useState('stage');
     return (
       <SelectField
-        hint="Used to scope API mocks and execution plans."
-        label="Environment"
+        hint="用于限定 API Mock 和执行计划范围。"
+        label="环境"
         onChange={setValue}
         options={options}
         value={value}
@@ -49,7 +49,7 @@ export const Default: Story = {
 
 export const RequiredWithError: Story = {
   args: {
-    label: 'Environment',
+    label: '环境',
     onChange: () => undefined,
     options,
     required: true,
@@ -59,8 +59,8 @@ export const RequiredWithError: Story = {
     const [value, setValue] = useState('');
     return (
       <SelectField
-        error="Environment is required before scheduling a run."
-        label="Environment"
+        error="调度运行前必须选择环境。"
+        label="环境"
         onChange={setValue}
         options={options}
         required
@@ -73,8 +73,8 @@ export const RequiredWithError: Story = {
 export const Disabled: Story = {
   args: {
     disabled: true,
-    hint: 'Locked while the current approval is pending.',
-    label: 'Environment',
+    hint: '当前审批待处理时锁定。',
+    label: '环境',
     onChange: () => undefined,
     options,
     value: 'prod'

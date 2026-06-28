@@ -7,7 +7,7 @@ const meta = {
   parameters: {
     docs: {
       description: {
-        component: 'Shared status primitives for loading, skeleton and empty content states.'
+        component: '用于加载、骨架屏和空内容状态的共享状态组件。'
       }
     }
   },
@@ -19,7 +19,7 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 export const LoadingSpinner: Story = {
-  render: () => <Spinner label="Refreshing workbench data" />
+  render: () => <Spinner label="正在刷新工作台数据" />
 };
 
 export const Skeleton: Story = {
@@ -32,11 +32,11 @@ export const Empty: Story = {
       action={(
         <button className="btn btn-secondary btn-sm" type="button">
           <RefreshCw size={14} />
-          Refresh
+          刷新
         </button>
       )}
-      description="Adjust filters or refresh the source to load records."
-      title="No records found"
+      description="调整筛选条件或刷新数据源后重新加载记录。"
+      title="暂无记录"
     />
   )
 };

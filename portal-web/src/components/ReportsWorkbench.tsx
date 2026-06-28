@@ -43,7 +43,7 @@ import {
 import { canUseButton, hasPermission } from '../permissions';
 import { dictionaryLabel, displayValueLabel, fieldLabel } from '../platform/dictionaries';
 import { translate } from '../platform/i18n';
-import { NativeSelect } from './ui';
+import { CheckboxControl, InputControl, SelectControl } from './ui';
 
 type WorkState = {
   loading: boolean;
@@ -317,7 +317,7 @@ export function ReportsWorkbench(props: { signedIn: boolean; currentUser: Curren
         defectDrafts: current.defectDrafts.map((item) => item.id === result.data.id ? result.data : item)
       } : current);
       setCompareResult(null);
-      setDefectState({ loading: false, success: translate('auto.k1105', { value0: result.data.status }), traceId: result.trace_id });
+      setDefectState({ loading: false, success: translate('auto.k1105', { value0: displayValueLabel(result.data.status) }), traceId: result.trace_id });
     } catch (error: unknown) {
       setDefectState({ loading: false, error: error instanceof Error ? error.message : translate('auto.k1106') });
     }
@@ -436,7 +436,7 @@ export function ReportsWorkbench(props: { signedIn: boolean; currentUser: Curren
         <section className="reports-list-column">
           <Panel
             title={translate('auto.k1128')}
-            desc={health ? `${health.service} · ${health.status} · fieldSet ${health.fieldSetVersion}` : translate('auto.k1129')}
+            desc={health ? `${fieldLabel('service')} ${displayValueLabel(health.service)} · ${fieldLabel('status')} ${displayValueLabel(health.status)} · ${fieldLabel('fieldSetVersion')} ${health.fieldSetVersion}` : translate('auto.k1129')}
             action={(
               <button className="btn btn-secondary btn-sm" type="button" onClick={() => void refreshReports()} disabled={loadState.loading}>
                 <RefreshCw size={15} />{translate('auto.k0170')}</button>
@@ -444,20 +444,20 @@ export function ReportsWorkbench(props: { signedIn: boolean; currentUser: Curren
           >
             <form className="report-filter-grid" onSubmit={(event) => { event.preventDefault(); void refreshReports(); }}>
               <Field label="projectId">
-                <input value={filters.projectId} onChange={(event) => setFilters((current) => ({ ...current, projectId: event.target.value }))} placeholder="project-alpha" />
+                <InputControl value={filters.projectId} onChange={(event) => setFilters((current) => ({ ...current, projectId: event.target.value }))} placeholder="project-alpha" />
               </Field>
               <Field label="executionRunId">
-                <input value={filters.executionRunId} onChange={(event) => setFilters((current) => ({ ...current, executionRunId: event.target.value }))} placeholder="UUID" />
+                <InputControl value={filters.executionRunId} onChange={(event) => setFilters((current) => ({ ...current, executionRunId: event.target.value }))} placeholder="UUID" />
               </Field>
               <Field label="status">
-                <NativeSelect value={filters.status} onChange={(event) => setFilters((current) => ({ ...current, status: event.target.value }))}>
+                <SelectControl value={filters.status} onChange={(event) => setFilters((current) => ({ ...current, status: event.target.value }))}>
                   <option value="">{translate('auto.k0195')}</option>
                   <option value="READY">{dictionaryLabel('READY')}</option>
                   <option value="FAILED">{dictionaryLabel('FAILED')}</option>
                   <option value="QUEUED">{dictionaryLabel('QUEUED')}</option>
                   <option value="GENERATING">{dictionaryLabel('GENERATING')}</option>
                   <option value="ARCHIVED">{dictionaryLabel('ARCHIVED')}</option>
-                </NativeSelect>
+                </SelectControl>
               </Field>
               <div className="report-filter-actions">
                 <button className="btn btn-secondary" type="submit" disabled={loadState.loading}>
@@ -468,20 +468,36 @@ export function ReportsWorkbench(props: { signedIn: boolean; currentUser: Curren
           </Panel>
 
           <Panel
-            title={translate('auto.k1131')}
-            desc={translate('auto.k1132')}
-            testId="report-generate-panel"
+            title={translate('auto.k1136')}
+            desc={translate('auto.k1137', { value0: reports.length })}
+            testId="reports-list"
             action={(
-              <button className="btn btn-primary btn-sm" type="button" disabled={!canGenerate || generateState.loading} onClick={() => setGenerateDrawerOpen(true)}>
-                <FileText size={15} />{translate('auto.k1131')}
-              </button>
+              <>
+                <button className="btn btn-primary btn-sm" type="button" disabled={!canGenerate || generateState.loading} onClick={() => setGenerateDrawerOpen(true)}>
+                  <FileText size={15} />{translate('auto.k1131')}
+                </button>
+                {detail?.status === 'FAILED' && (
+                  <button className="btn btn-secondary btn-sm" type="button" onClick={() => void onRetryReport()} disabled={!canGenerate || generateState.loading}>
+                    <RefreshCw size={15} />{translate('auto.k1135')}</button>
+                )}
+                {reports.length ? (
+                  <label className="field field-inline report-list-toggle">
+                    <span className="field-inline-main">
+                      <CheckboxControl
+
+                        checked={readySelectionFull}
+                        onChange={(event) => toggleReadySelection(event.target.checked)}
+                        disabled={loadState.loading || readyReportCount === 0}
+                      />
+                      <span>{translate('auto.k1138')}</span>
+                    </span>
+                    <small>{translate('auto.k1139')}</small>
+                  </label>
+                ) : null}
+              </>
             )}
           >
             <StateLine state={generateState} />
-            {detail?.status === 'FAILED' && (
-              <button className="btn btn-secondary btn-sm" type="button" onClick={() => void onRetryReport()} disabled={!canGenerate || generateState.loading}>
-                <RefreshCw size={15} />{translate('auto.k1135')}</button>
-            )}
             <Drawer
               className="report-generate-drawer"
               destroyOnHidden
@@ -499,16 +515,16 @@ export function ReportsWorkbench(props: { signedIn: boolean; currentUser: Curren
             <form className="report-generate-form document-drawer-form" onSubmit={onGenerateReport}>
               <div className="form-grid">
                 <Field label="projectId">
-                  <input value={generateDraft.projectId} onChange={(event) => setGenerateDraftValue('projectId', event.target.value)} placeholder="project-alpha" disabled={!canGenerate || generateState.loading} />
+                  <InputControl value={generateDraft.projectId} onChange={(event) => setGenerateDraftValue('projectId', event.target.value)} placeholder="project-alpha" disabled={!canGenerate || generateState.loading} />
                 </Field>
                 <Field label="executionRunId">
-                  <input value={generateDraft.executionRunId} onChange={(event) => setGenerateDraftValue('executionRunId', event.target.value)} placeholder="UUID" disabled={!canGenerate || generateState.loading} />
+                  <InputControl value={generateDraft.executionRunId} onChange={(event) => setGenerateDraftValue('executionRunId', event.target.value)} placeholder="UUID" disabled={!canGenerate || generateState.loading} />
                 </Field>
                 <Field label="requestKey">
-                  <input value={generateDraft.requestKey} onChange={(event) => setGenerateDraftValue('requestKey', event.target.value)} placeholder={translate('auto.k1133')} disabled={!canGenerate || generateState.loading} />
+                  <InputControl value={generateDraft.requestKey} onChange={(event) => setGenerateDraftValue('requestKey', event.target.value)} placeholder={translate('auto.k1133')} disabled={!canGenerate || generateState.loading} />
                 </Field>
                 <Field label="reason">
-                  <input value={generateDraft.reason} onChange={(event) => setGenerateDraftValue('reason', event.target.value)} placeholder={translate('auto.k1134')} disabled={!canGenerate || generateState.loading} />
+                  <InputControl value={generateDraft.reason} onChange={(event) => setGenerateDraftValue('reason', event.target.value)} placeholder={translate('auto.k1134')} disabled={!canGenerate || generateState.loading} />
                 </Field>
               </div>
               <div className="report-actions-row">
@@ -520,27 +536,6 @@ export function ReportsWorkbench(props: { signedIn: boolean; currentUser: Curren
               <StateLine state={generateState} />
             </form>
             </Drawer>
-          </Panel>
-
-          <Panel
-            title={translate('auto.k1136')}
-            desc={translate('auto.k1137', { value0: reports.length })}
-            testId="reports-list"
-            action={reports.length ? (
-              <label className="field field-inline report-list-toggle">
-                <span className="field-inline-main">
-                  <input
-                    type="checkbox"
-                    checked={readySelectionFull}
-                    onChange={(event) => toggleReadySelection(event.target.checked)}
-                    disabled={loadState.loading || readyReportCount === 0}
-                  />
-                  <span>{translate('auto.k1138')}</span>
-                </span>
-                <small>{translate('auto.k1139')}</small>
-              </label>
-            ) : undefined}
-          >
             {selectedReportIds.length ? (
               <div className="report-selection-toolbar">
                 <div className="report-selection-summary">
@@ -567,8 +562,8 @@ export function ReportsWorkbench(props: { signedIn: boolean; currentUser: Curren
                     className={`report-list-item${selectedReportId === report.id ? ' active' : ''}${selectedReportIds.includes(report.id) ? ' selected' : ''}`}
                   >
                     <label className="report-list-selector" aria-label={translate('auto.k1145', { value0: report.id })}>
-                      <input
-                        type="checkbox"
+                      <CheckboxControl
+
                         checked={selectedReportIds.includes(report.id)}
                         onChange={() => toggleReportSelection(report.id)}
                         disabled={loadState.loading}
@@ -581,7 +576,7 @@ export function ReportsWorkbench(props: { signedIn: boolean; currentUser: Curren
                     >
                       <span className={`badge badge-${statusTone(report.status)}`} title={report.status}>{dictionaryLabel(report.status)}</span>
                       <strong>{shortId(report.executionRunId)}</strong>
-                      <span>{stringFrom(report.summary.runStatus, '-')} · {stringFrom(report.summary.diagnosisPrimaryCategory, 'UNKNOWN')}</span>
+                      <span>{displayValueLabel(report.summary.runStatus, '-')} · {displayValueLabel(report.summary.diagnosisPrimaryCategory, 'UNKNOWN')}</span>
                       <small>{report.generatedAt ? formatDateTime(report.generatedAt) : report.createdAt ? formatDateTime(report.createdAt) : report.id}</small>
                     </button>
                   </div>
@@ -733,13 +728,13 @@ function DiagnosisPanel(props: {
         <div className="notice info">{translate('auto.k1159')}</div>
       )}
       {props.diagnosis?.errorCode && (
-        <div className="notice warning">{translate('auto.k1160')}{props.diagnosis.errorCode}</div>
+        <div className="notice warning">{translate('auto.k1160')}{displayValueLabel(props.diagnosis.errorCode)}</div>
       )}
       {candidates.length > 0 && (
         <div className="report-card-list">
           {candidates.slice(0, 4).map((candidate, index) => (
             <div className="report-mini-card" key={index}>
-              <strong>{stringFrom(recordValue(candidate, 'category'), translate('auto.k1161', { value0: index + 1 }))}</strong>
+              <strong>{displayValueLabel(recordValue(candidate, 'category'), translate('auto.k1161', { value0: index + 1 }))}</strong>
               <span>{stringFrom(recordValue(candidate, 'summary'), '-')}</span>
               <small>{formatRecord(recordValue(candidate, 'nextActions'))}</small>
             </div>
@@ -779,18 +774,29 @@ function ComparePanel(props: {
       )}
     >
       <div className="report-compare-controls">
-        <Field label="baseline report">
-          <NativeSelect
+        <Field label="baselineReport">
+          <SelectControl
             value={props.baselineReportId}
             onChange={(event) => props.onBaselineChange(event.target.value)}
-          >
-            <option value="">{translate('auto.k1165')}</option>
-            {props.reports.map((report) => (
-              <option key={report.id} value={report.id}>
-                {report.status} · {shortId(report.executionRunId)} · {report.generatedAt ? formatDateTime(report.generatedAt) : shortId(report.id)}
-              </option>
-            ))}
-          </NativeSelect>
+            options={[
+              { label: translate('auto.k1165'), searchLabel: translate('auto.k1165'), value: '' },
+              ...props.reports.map((report) => ({
+                label: reportSelectLabel(report),
+                searchLabel: [
+                  report.id,
+                  report.executionRunId,
+                  report.projectId,
+                  report.requestKey,
+                  report.status,
+                  report.generatedAt,
+                  report.createdAt,
+                  report.summary.runStatus,
+                  report.summary.diagnosisPrimaryCategory
+                ].filter(Boolean).join(' '),
+                value: report.id
+              }))
+            ]}
+          />
         </Field>
       </div>
       {props.reports.length === 0 && (
@@ -813,19 +819,19 @@ function ComparePanel(props: {
               <CompareDiffList title={translate('auto.k1170')} diffs={props.compareResult.diagnosisDiffs} />
               <div className="report-section-grid">
                 <InfoBlock
-                  title="evidence count"
+                  title="evidenceCountDiff"
                   value={`${props.compareResult.evidenceDiff.baselineCount} -> ${props.compareResult.evidenceDiff.currentCount}`}
                 />
                 <InfoBlock
-                  title="draft count"
+                  title="draftCountDiff"
                   value={`${props.compareResult.defectDraftDiff.baselineCount} -> ${props.compareResult.defectDraftDiff.currentCount}`}
                 />
                 <InfoBlock
-                  title="added manifests"
+                  title="addedManifestsCount"
                   value={props.compareResult.evidenceDiff.addedManifestKeys.join(', ') || '-'}
                 />
                 <InfoBlock
-                  title="removed manifests"
+                  title="removedManifestsCount"
                   value={props.compareResult.evidenceDiff.removedManifestKeys.join(', ') || '-'}
                 />
               </div>
@@ -839,11 +845,11 @@ function ComparePanel(props: {
                   value={`${formatRecord(props.compareResult.evidenceDiff.baselineSourceTypeCounts)} -> ${formatRecord(props.compareResult.evidenceDiff.currentSourceTypeCounts)}`}
                 />
                 <InfoBlock
-                  title="draft statuses"
+                  title="draftStatuses"
                   value={`${formatRecord(props.compareResult.defectDraftDiff.baselineStatusCounts)} -> ${formatRecord(props.compareResult.defectDraftDiff.currentStatusCounts)}`}
                 />
                 <InfoBlock
-                  title="changed fields"
+                  title="changedFields"
                   value={props.compareResult.changedFields.join(', ') || '-'}
                 />
               </div>
@@ -919,7 +925,7 @@ function CompareDiffList(props: { title: string; diffs: Array<{ field: string; b
         <div className="report-compare-diff-list">
           {props.diffs.map((diff) => (
             <div className="report-compare-diff-item" key={`${props.title}-${diff.field}`}>
-              <strong>{diff.field}</strong>
+              <strong>{fieldLabel(diff.field)}</strong>
               <span>{formatRecord(diff.baselineValue)} {'->'} {formatRecord(diff.currentValue)}</span>
             </div>
           ))}
@@ -973,7 +979,7 @@ function ExportPanel(props: {
           <InfoBlock title="downloadReady" value={props.latestExport.downloadReady ? 'YES' : 'NO'} />
           <InfoBlock title="fileName" value={props.latestExport.downloadFileName || '-'} />
           <InfoBlock title="manifest" value={formatRecord(props.latestExport.manifest)} />
-          <InfoBlock title="DOM scan" value={domClean ? '通过' : '命中禁止术语'} />
+          <InfoBlock title="domScan" value={domClean ? 'PASS' : 'BLOCKED'} />
         </div>
       ) : (
         <div className="notice info">{translate('auto.k1187')}</div>
@@ -1085,7 +1091,7 @@ function StateLine(props: { state: WorkState }) {
     return <span className="document-state-line success">{props.state.success}{props.state.traceId ? ` · ${props.state.traceId}` : ''}</span>;
   }
   if (props.state.traceId) {
-    return <span className="document-state-line">Trace ID：{props.state.traceId}</span>;
+    return <span className="document-state-line">{fieldLabel('traceId')}：{props.state.traceId}</span>;
   }
   return null;
 }
@@ -1155,6 +1161,14 @@ function formatDateTime(value: string) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;
   return date.toLocaleString('zh-CN', { hour12: false });
+}
+
+function reportSelectLabel(report: ReportSummary) {
+  return [
+    dictionaryLabel(report.status),
+    `${fieldLabel('executionRunId')} ${shortId(report.executionRunId)}`,
+    `${fieldLabel('generatedAt')} ${report.generatedAt ? formatDateTime(report.generatedAt) : report.createdAt ? formatDateTime(report.createdAt) : shortId(report.id)}`
+  ].join(' · ');
 }
 
 function shortId(value?: string) {

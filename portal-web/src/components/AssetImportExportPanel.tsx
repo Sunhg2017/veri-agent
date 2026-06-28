@@ -12,7 +12,7 @@ import type { CurrentUser } from '../api/auth';
 import { hasPermission } from '../permissions';
 import { dictionaryLabel, fieldLabel } from '../platform/dictionaries';
 import { translate } from '../platform/i18n';
-import { NativeSelect } from './ui';
+import { CheckboxControl, InputControl, SelectControl, TextAreaControl } from './ui';
 
 type WorkState = {
   loading: boolean;
@@ -153,7 +153,7 @@ export function AssetImportExportPanel(props: {
         <div className="asset-form-grid">
           <label className="field" htmlFor="asset-io-type">
             <span>{fieldLabel('assetType')}</span>
-            <NativeSelect
+            <SelectControl
               id="asset-io-type"
               value={draft.assetType}
               disabled={state.loading}
@@ -162,11 +162,11 @@ export function AssetImportExportPanel(props: {
               {assetTypeOptions.map((assetType) => (
                 <option key={assetType} value={assetType}>{dictionaryLabel(assetType)}</option>
               ))}
-            </NativeSelect>
+            </SelectControl>
           </label>
           <label className="field" htmlFor="asset-io-format">
             <span>{fieldLabel('format')}</span>
-            <NativeSelect
+            <SelectControl
               id="asset-io-format"
               value={draft.format}
               disabled={state.loading}
@@ -175,11 +175,11 @@ export function AssetImportExportPanel(props: {
               {formatOptions.map((format) => (
                 <option key={format} value={format}>{dictionaryLabel(format)}</option>
               ))}
-            </NativeSelect>
+            </SelectControl>
           </label>
           <label className="field" htmlFor="asset-io-project">
             <span>{fieldLabel('projectId')}</span>
-            <input
+            <InputControl
               id="asset-io-project"
               value={draft.projectId}
               disabled={state.loading}
@@ -188,9 +188,9 @@ export function AssetImportExportPanel(props: {
             />
           </label>
           <label className="toggle-field" htmlFor="asset-io-dry-run">
-            <input
+            <CheckboxControl
               id="asset-io-dry-run"
-              type="checkbox"
+
               checked={draft.dryRun}
               disabled={state.loading}
               onChange={(event) => setDraft((current) => ({ ...current, dryRun: event.target.checked }))}
@@ -200,7 +200,7 @@ export function AssetImportExportPanel(props: {
         </div>
         <label className="field" htmlFor="asset-io-content">
           <span>{fieldLabel('content')}</span>
-          <textarea
+          <TextAreaControl
             id="asset-io-content"
             className="compact-textarea schema-textarea"
             value={draft.content}

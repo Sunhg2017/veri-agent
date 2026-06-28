@@ -6,7 +6,7 @@ import { StateLine, type WorkState } from './TestDesignOverviewPanels';
 import { emptyRequirementText } from './TestDesignWorkbenchShared';
 import { dictionaryLabel } from '../platform/dictionaries';
 import { translate } from '../platform/i18n';
-import { NativeSelect } from './ui';
+import { CheckboxControl, InputControl, SelectControl } from './ui';
 
 export function TestDesignRequirementSelectionPanel(props: {
   signedIn: boolean;
@@ -46,7 +46,7 @@ export function TestDesignRequirementSelectionPanel(props: {
         <div className="asset-filter-bar">
           <label className="field">
             <span className="field-label">{translate('auto.k1389')}</span>
-            <input
+            <InputControl
               value={props.filters.projectId}
               onChange={(event) => props.onFiltersChange((current) => ({ ...current, projectId: event.target.value }))}
               placeholder="project UUID"
@@ -55,7 +55,7 @@ export function TestDesignRequirementSelectionPanel(props: {
           </label>
           <label className="field">
             <span className="field-label">{translate('auto.k0182')}</span>
-            <NativeSelect
+            <SelectControl
               value={props.filters.status}
               onChange={(event) => props.onFiltersChange((current) => ({ ...current, status: event.target.value }))}
               disabled={props.disabled}
@@ -64,11 +64,11 @@ export function TestDesignRequirementSelectionPanel(props: {
               <option value="APPROVED">{dictionaryLabel('APPROVED')}</option>
               <option value="REVIEWING">{dictionaryLabel('REVIEWING')}</option>
               <option value="DRAFT">{dictionaryLabel('DRAFT')}</option>
-            </NativeSelect>
+            </SelectControl>
           </label>
           <label className="field">
             <span className="field-label">{translate('auto.k1316')}</span>
-            <input
+            <InputControl
               value={props.filters.keyword}
               onChange={(event) => props.onFiltersChange((current) => ({ ...current, keyword: event.target.value }))}
               placeholder={translate('auto.k1589')}
@@ -98,9 +98,9 @@ export function TestDesignRequirementSelectionPanel(props: {
                 props.filteredRequirements.map((requirement) => (
                   <tr className={props.selectedRequirementIds.includes(requirement.id) ? 'selected-row' : ''} key={requirement.id}>
                     <td>
-                      <input
+                      <CheckboxControl
                         aria-label={translate('auto.k1590', { value0: requirement.title })}
-                        type="checkbox"
+
                         checked={props.selectedRequirementIds.includes(requirement.id)}
                         onChange={() => props.onToggleRequirement(requirement.id)}
                         disabled={props.disabled || !requirement.id}

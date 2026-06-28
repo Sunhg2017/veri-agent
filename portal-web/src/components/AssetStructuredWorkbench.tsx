@@ -46,10 +46,11 @@ import {
 } from '../api/assets';
 import { hasPermission } from '../permissions';
 import { AssetImportExportPanel } from './AssetImportExportPanel';
+import { AssetNavigationTabs } from './AssetNavigationTabs';
 import { AssetVersionHistoryPanel } from './AssetVersionHistoryPanel';
 import { dictionaryLabel, fieldLabel } from '../platform/dictionaries';
 import { translate } from '../platform/i18n';
-import { NativeSelect } from './ui';
+import { CheckboxControl, InputControl, SelectControl, TextAreaControl } from './ui';
 
 export type AssetNavigationKey = 'requirements' | 'apis' | 'pages' | 'flows' | 'cases' | 'trace';
 
@@ -523,34 +524,30 @@ export function AssetStructuredWorkbench(props: {
                 <h2>{translate('auto.k0005')}</h2>
               </div>
             </div>
-            <button className="secondary-button" type="button" disabled={disabled} onClick={refreshAssets}>
-              <RefreshCw size={16} />
-              {translate('auto.k0170')}</button>
+            <div className="panel-toolbar-actions">
+              <button className="secondary-button" type="button" disabled={disabled} onClick={refreshAssets}>
+                <RefreshCw size={16} />
+                {translate('auto.k0170')}
+              </button>
+              {props.activeTab === 'pages' && (
+                <button className="secondary-button" type="button" disabled={!props.signedIn || !canManageAssets || prototypeSyncState.loading} onClick={openPrototypeSyncDrawer}>
+                  <Save size={16} />
+                  {prototypeSyncDraft.dryRun ? translate('auto.k0464') : translate('auto.k0186')}
+                </button>
+              )}
+              <button className="primary-button" type="button" disabled={createDisabled} onClick={openCreateDrawer}>
+                <FilePlus2 size={16} />
+                {translate('auto.k0490', { value0: meta.shortName })}
+              </button>
+            </div>
           </div>
 
-          <div className="asset-tab-strip" aria-label={translate('auto.k0413')}>
-            {props.tabs.map((tab) => {
-              const Icon = tab.icon;
-              return (
-                <button
-                  className={`asset-tab ${props.activeTab === tab.key ? 'active' : ''}`}
-                  type="button"
-                  key={tab.key}
-                  disabled={!tab.enabled}
-                  onClick={() => props.onSelectTab(tab.key)}
-                  title={tab.label}
-                >
-                  <Icon size={15} />
-                  <span>{tab.label}</span>
-                </button>
-              );
-            })}
-          </div>
+          <AssetNavigationTabs activeKey={props.activeTab} ariaLabel={translate('auto.k0413')} tabs={props.tabs} onSelectTab={props.onSelectTab} />
 
           <form className="asset-filter-bar" onSubmit={(event) => event.preventDefault()}>
             <label className="field" htmlFor={`asset-${props.activeTab}-filter-project`}>
               <span>{fieldLabel('projectId')}</span>
-              <input
+              <InputControl
                 id={`asset-${props.activeTab}-filter-project`}
                 value={filters.projectId}
                 disabled={disabled}
@@ -560,7 +557,7 @@ export function AssetStructuredWorkbench(props: {
             </label>
             <label className="field" htmlFor={`asset-${props.activeTab}-filter-status`}>
               <span>{fieldLabel('status')}</span>
-              <NativeSelect
+              <SelectControl
                 id={`asset-${props.activeTab}-filter-status`}
                 value={filters.status}
                 disabled={disabled}
@@ -570,12 +567,12 @@ export function AssetStructuredWorkbench(props: {
                 {meta.statuses.map((status) => (
                   <option key={status} value={status}>{dictionaryLabel(status)}</option>
                 ))}
-              </NativeSelect>
+              </SelectControl>
             </label>
             {props.activeTab === 'pages' && (
               <label className="field" htmlFor="asset-page-filter-source">
                 <span>{fieldLabel('source')}</span>
-                <NativeSelect
+                <SelectControl
                   id="asset-page-filter-source"
                   value={filters.source}
                   disabled={disabled}
@@ -585,12 +582,12 @@ export function AssetStructuredWorkbench(props: {
                   {ASSET_PAGE_SOURCES.map((source) => (
                     <option key={source} value={source}>{dictionaryLabel(source)}</option>
                   ))}
-                </NativeSelect>
+                </SelectControl>
               </label>
             )}
             <label className="field" htmlFor={`asset-${props.activeTab}-filter-keyword`}>
               <span>{fieldLabel('keyword')}</span>
-              <input
+              <InputControl
                 id={`asset-${props.activeTab}-filter-keyword`}
                 value={filters.keyword}
                 disabled={disabled}
@@ -633,10 +630,10 @@ export function AssetStructuredWorkbench(props: {
                         {props.activeTab === 'pages' ? (
                           <div className="asset-source-cell">
                             <span>{item.urlPattern ?? '-'}</span>
-                            <em>{[item.sourceRef, item.sourceVersion].filter(Boolean).join(' · ') || item.source || '-'}</em>
+                            <em>{[item.sourceRef, item.sourceVersion].filter(Boolean).join(' · ') || dictionaryLabel(item.source)}</em>
                           </div>
                         ) : (
-                          item.priority ?? '-'
+                          dictionaryLabel(item.priority)
                         )}
                       </td>
                       <td>
@@ -663,21 +660,7 @@ export function AssetStructuredWorkbench(props: {
           <StateLine state={loadState} />
         </section>
 
-        <section className="panel module-panel asset-panel">
-          <div className="panel-toolbar">
-            <div className="section-heading compact">
-              <div className="section-icon">
-                <FilePlus2 size={20} />
-              </div>
-              <div>
-                <span className="eyebrow">{translate('auto.k0174')}</span>
-                <h2>{translate('auto.k0489')}{meta.name}</h2>
-              </div>
-            </div>
-            <button className="primary-button" type="button" disabled={createDisabled} onClick={openCreateDrawer}>
-              <FilePlus2 size={16} />
-              {translate('auto.k0490', { value0: meta.shortName })}</button>
-          </div>
+        <div className="asset-drawer-host">
           <Drawer
             className="asset-form-drawer"
             destroyOnHidden
@@ -703,37 +686,7 @@ export function AssetStructuredWorkbench(props: {
               submitLabel={translate('auto.k0490', { value0: meta.shortName })}
             />
           </Drawer>
-          <StateLine state={createState} />
-        </section>
-      </div>
-
-      <aside className="side-stack asset-side-stack">
-        <section className="panel insight-panel">
-          <h2>{translate('auto.k0426')}</h2>
-          <div className="document-health-grid">
-            <StatusMetric label={translate('auto.k0427')} value={health?.service ?? 'asset-service'} />
-            <StatusMetric label={translate('auto.k0182')} value={health?.status ?? (props.signedIn ? translate('auto.k0428') : translate('auto.k0429'))} pill />
-            <StatusMetric label={meta.shortName} value={String(items.length)} />
-            {meta.statuses.map((status) => (
-              <StatusMetric key={status} label={status} value={String(statusCounts[status] ?? 0)} />
-            ))}
-          </div>
-          {loadState.error && (
-            <div className="inline-error">
-              <strong>{translate('auto.k0148')}</strong>
-              <span>{loadState.error}</span>
-            </div>
-          )}
-        </section>
-
-        {props.activeTab === 'pages' && (
-          <section className="panel insight-panel">
-            <div className="panel-title-row">
-              <h2>{translate('auto.k0491')}</h2>
-              <button className="mini-button" type="button" disabled={!props.signedIn || !canManageAssets || prototypeSyncState.loading} onClick={openPrototypeSyncDrawer}>
-                <Save size={14} />
-                {prototypeSyncDraft.dryRun ? translate('auto.k0464') : translate('auto.k0186')}</button>
-            </div>
+          {props.activeTab === 'pages' && (
             <Drawer
               className="asset-form-drawer"
               destroyOnHidden
@@ -752,7 +705,7 @@ export function AssetStructuredWorkbench(props: {
               <div className="asset-form-grid">
                 <label className="field" htmlFor="asset-prototype-project">
                   <span>{fieldLabel('projectId')}</span>
-                  <input
+                  <InputControl
                     id="asset-prototype-project"
                     value={prototypeSyncDraft.projectId}
                     disabled={prototypeSyncState.loading}
@@ -762,7 +715,7 @@ export function AssetStructuredWorkbench(props: {
                 </label>
                 <label className="field" htmlFor="asset-prototype-source">
                   <span>{fieldLabel('source')}</span>
-                  <NativeSelect
+                  <SelectControl
                     id="asset-prototype-source"
                     value={prototypeSyncDraft.source}
                     disabled={prototypeSyncState.loading}
@@ -771,11 +724,11 @@ export function AssetStructuredWorkbench(props: {
                     <option value="FIGMA">{dictionaryLabel('FIGMA')}</option>
                     <option value="LANHU">{dictionaryLabel('LANHU')}</option>
                     <option value="AXURE">{dictionaryLabel('AXURE')}</option>
-                  </NativeSelect>
+                  </SelectControl>
                 </label>
                 <label className="field" htmlFor="asset-prototype-version">
                   <span>{fieldLabel('sourceVersion')}</span>
-                  <input
+                  <InputControl
                     id="asset-prototype-version"
                     value={prototypeSyncDraft.sourceVersion}
                     disabled={prototypeSyncState.loading}
@@ -784,9 +737,9 @@ export function AssetStructuredWorkbench(props: {
                   />
                 </label>
                 <label className="toggle-field" htmlFor="asset-prototype-dry-run">
-                  <input
+                  <CheckboxControl
                     id="asset-prototype-dry-run"
-                    type="checkbox"
+
                     checked={prototypeSyncDraft.dryRun}
                     disabled={prototypeSyncState.loading}
                     onChange={(event) => setPrototypeSyncDraft((current) => ({ ...current, dryRun: event.target.checked }))}
@@ -796,7 +749,7 @@ export function AssetStructuredWorkbench(props: {
               </div>
               <label className="field" htmlFor="asset-prototype-pages">
                 <span>{fieldLabel('pages')}</span>
-                <textarea
+                <TextAreaControl
                   id="asset-prototype-pages"
                   className="compact-textarea schema-textarea"
                   value={prototypeSyncDraft.pagesJson}
@@ -813,12 +766,41 @@ export function AssetStructuredWorkbench(props: {
                   <Save size={16} />
                   {prototypeSyncDraft.dryRun ? translate('auto.k0464') : translate('auto.k0186')}
                 </button>
+                <button className="secondary-button" type="button" disabled={prototypeSyncState.loading} onClick={() => setOpenDrawer(null)}>
+                  {translate('actions.cancel')}
+                </button>
               </div>
+              <StateLine state={prototypeSyncState} />
             </form>
             </Drawer>
+          )}
+        </div>
+      </div>
+
+      <aside className="side-stack asset-side-stack">
+        <section className="panel insight-panel">
+          <h2>{translate('auto.k0426')}</h2>
+          <div className="document-health-grid">
+            <StatusMetric label={translate('auto.k0427')} value={health?.service ?? 'asset-service'} />
+            <StatusMetric label={translate('auto.k0182')} value={health?.status ?? (props.signedIn ? translate('auto.k0428') : translate('auto.k0429'))} pill />
+            <StatusMetric label={meta.shortName} value={String(items.length)} />
+            {meta.statuses.map((status) => (
+              <StatusMetric key={status} label={dictionaryLabel(status)} value={String(statusCounts[status] ?? 0)} />
+            ))}
+          </div>
+          {loadState.error && (
+            <div className="inline-error">
+              <strong>{translate('auto.k0148')}</strong>
+              <span>{loadState.error}</span>
+            </div>
+          )}
+        </section>
+
+        {props.activeTab === 'pages' && (prototypeSyncResult || prototypeSyncState.error || prototypeSyncState.success || prototypeSyncState.loading) && (
+          <section className="panel insight-panel asset-operation-feedback">
             {prototypeSyncResult && (
               <div className="asset-import-result">
-                <strong>{prototypeSyncResult.source}</strong>
+                <strong>{dictionaryLabel(prototypeSyncResult.source)}</strong>
                 <span>{prototypeSyncResult.totalRows} {translate('auto.k0492')}{prototypeSyncResult.created} {translate('auto.k0467')}{prototypeSyncResult.updated} {translate('auto.k0468')}{prototypeSyncResult.skipped} {translate('auto.k0469')}{prototypeSyncResult.failed} {translate('auto.k0369')}</span>
               </div>
             )}
@@ -857,7 +839,7 @@ export function AssetStructuredWorkbench(props: {
                 </div>
                 <div>
                   <span>{props.activeTab === 'pages' ? 'urlPattern' : 'priority'}</span>
-                  <em>{props.activeTab === 'pages' ? selected.urlPattern ?? '-' : selected.priority ?? '-'}</em>
+                  <em>{props.activeTab === 'pages' ? selected.urlPattern ?? '-' : dictionaryLabel(selected.priority)}</em>
                 </div>
                 <div>
                   <span>{fieldLabel('createdAt')}</span>
@@ -871,7 +853,7 @@ export function AssetStructuredWorkbench(props: {
                   <>
                     <div>
                       <span>{fieldLabel('source')}</span>
-                      <em>{selected.source ?? '-'}</em>
+                      <em>{dictionaryLabel(selected.source)}</em>
                     </div>
                     <div>
                       <span>{fieldLabel('sourceRef')}</span>
@@ -982,7 +964,7 @@ function StructuredAssetForm(props: {
         {!props.compact && (
           <label className="field" htmlFor={`asset-${props.activeTab}-project`}>
             <span>{fieldLabel('projectId')}<b>*</b></span>
-            <input
+            <InputControl
               id={`asset-${props.activeTab}-project`}
               value={props.draft.projectId}
               disabled={props.disabled}
@@ -993,7 +975,7 @@ function StructuredAssetForm(props: {
         )}
         <label className="field" htmlFor={`asset-${props.activeTab}-name`}>
           <span>{translate('auto.k0177')}<b>*</b></span>
-          <input
+          <InputControl
             id={`asset-${props.activeTab}-name`}
             value={props.draft.name}
             disabled={props.disabled}
@@ -1005,7 +987,7 @@ function StructuredAssetForm(props: {
           <>
             <label className="field" htmlFor={`asset-${props.activeTab}-url`}>
               <span>{fieldLabel('urlPattern')}</span>
-              <input
+              <InputControl
                 id={`asset-${props.activeTab}-url`}
                 value={props.draft.urlPattern}
                 disabled={props.disabled}
@@ -1015,7 +997,7 @@ function StructuredAssetForm(props: {
             </label>
             <label className="field" htmlFor={`asset-${props.activeTab}-source`}>
               <span>{fieldLabel('source')}</span>
-              <NativeSelect
+              <SelectControl
                 id={`asset-${props.activeTab}-source`}
                 value={props.draft.source}
                 disabled={props.disabled}
@@ -1024,11 +1006,11 @@ function StructuredAssetForm(props: {
                 {ASSET_PAGE_SOURCES.map((source) => (
                   <option key={source} value={source}>{dictionaryLabel(source)}</option>
                 ))}
-              </NativeSelect>
+              </SelectControl>
             </label>
             <label className="field" htmlFor={`asset-${props.activeTab}-source-ref`}>
               <span>{fieldLabel('sourceRef')}</span>
-              <input
+              <InputControl
                 id={`asset-${props.activeTab}-source-ref`}
                 value={props.draft.sourceRef}
                 disabled={props.disabled}
@@ -1038,7 +1020,7 @@ function StructuredAssetForm(props: {
             </label>
             <label className="field" htmlFor={`asset-${props.activeTab}-source-version`}>
               <span>{fieldLabel('sourceVersion')}</span>
-              <input
+              <InputControl
                 id={`asset-${props.activeTab}-source-version`}
                 value={props.draft.sourceVersion}
                 disabled={props.disabled}
@@ -1048,7 +1030,7 @@ function StructuredAssetForm(props: {
             </label>
             <label className="field" htmlFor={`asset-${props.activeTab}-screenshot`}>
               <span>{fieldLabel('screenshotUrl')}</span>
-              <input
+              <InputControl
                 id={`asset-${props.activeTab}-screenshot`}
                 value={props.draft.screenshotUrl}
                 disabled={props.disabled}
@@ -1061,7 +1043,7 @@ function StructuredAssetForm(props: {
           <>
             <label className="field" htmlFor={`asset-${props.activeTab}-priority`}>
               <span>{fieldLabel('priority')}</span>
-              <NativeSelect
+              <SelectControl
                 id={`asset-${props.activeTab}-priority`}
                 value={props.draft.priority}
                 disabled={props.disabled}
@@ -1070,13 +1052,13 @@ function StructuredAssetForm(props: {
                 {ASSET_REQUIREMENT_PRIORITIES.map((priority) => (
                   <option key={priority} value={priority}>{dictionaryLabel(priority)}</option>
                 ))}
-              </NativeSelect>
+              </SelectControl>
             </label>
           </>
         )}
         <label className="field" htmlFor={`asset-${props.activeTab}-status`}>
           <span>{fieldLabel('status')}</span>
-          <NativeSelect
+          <SelectControl
             id={`asset-${props.activeTab}-status`}
             value={props.draft.status}
             disabled={props.disabled}
@@ -1085,13 +1067,13 @@ function StructuredAssetForm(props: {
             {statusOptions.map((status) => (
               <option key={status} value={status}>{dictionaryLabel(status)}</option>
             ))}
-          </NativeSelect>
+          </SelectControl>
         </label>
       </div>
       {props.activeTab === 'flows' && (
         <label className="field" htmlFor={`asset-${props.activeTab}-description`}>
           <span>{translate('auto.k0443')}</span>
-          <textarea
+          <TextAreaControl
             id={`asset-${props.activeTab}-description`}
             className="compact-textarea"
             value={props.draft.description}
@@ -1102,7 +1084,7 @@ function StructuredAssetForm(props: {
       )}
       <label className="field" htmlFor={`asset-${props.activeTab}-json`}>
         <span>{props.jsonLabel}</span>
-        <textarea
+        <TextAreaControl
           id={`asset-${props.activeTab}-json`}
           className="compact-textarea schema-textarea"
           value={props.draft.jsonText}
@@ -1402,7 +1384,7 @@ function StateLine(props: { state: WorkState }) {
     );
   }
   if (props.state.traceId) {
-    return <span className="document-state-line">Trace ID：{props.state.traceId}</span>;
+    return <span className="document-state-line">{fieldLabel('traceId')}：{props.state.traceId}</span>;
   }
   return null;
 }

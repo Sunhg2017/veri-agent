@@ -16,6 +16,7 @@ const smokeViewports = [
 const existingReportId = '11111111-1111-4111-8111-111111111111';
 const generatedReportId = '22222222-2222-4222-8222-222222222222';
 const executionRunId = '33333333-3333-4333-8333-333333333333';
+const existingReportOptionLabel = '失败 · 执行运行 ID 33333333...3333 · 生成时间 2026/6/17 08:00:00';
 const sensitiveSamples = [
   'secret://wp10/ui-smoke',
   'Authorization: Bearer ui-secret',
@@ -41,21 +42,24 @@ async function runWp10MainFlow(page: Page, assertResponsive: boolean) {
 
   await page.goto('/#reports');
 
-  await expect(page.getByRole('heading', { name: '报告诊断' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: '报告中心' })).toBeVisible();
   await expect(page.getByTestId('reports-workbench')).toBeVisible();
-  await expect(page.getByTestId('reports-list').getByRole('button', { name: 'FAILED 33333333...3333 FAILED' })).toBeVisible();
-  await expect(page.getByTestId('report-generate-panel')).toBeVisible();
+  await expect(page.getByTestId('reports-list').getByRole('button', { name: '失败 33333333...3333 失败 · 运行器失败 2026/6/17 08:00:00' })).toBeVisible();
   await expect(page.getByTestId('report-detail').getByText(existingReportId, { exact: true })).toBeVisible();
   await expect(page.getByTestId('report-diagnosis')
-    .locator('.report-summary-tile').filter({ hasText: 'primaryCategory' })
-    .getByText('RUNNER_FAILURE')).toBeVisible();
+    .locator('.report-summary-tile').filter({ hasText: '主分类' })
+    .getByText('运行器失败')).toBeVisible();
 
-  const generatePanel = page.getByTestId('report-generate-panel');
-  await generatePanel.getByLabel('projectId').fill('project-wp10-ui-smoke');
-  await generatePanel.getByLabel('executionRunId').fill(executionRunId);
-  await generatePanel.getByLabel('requestKey').fill('wp10-ui-request-1');
-  await generatePanel.getByLabel('reason').fill('browser smoke report generation');
-  await generatePanel.getByRole('button', { name: '生成报告' }).click();
+  const reportsList = page.getByTestId('reports-list');
+  await reportsList.getByRole('button', { name: '生成报告' }).click();
+  const generateDialog = page.getByRole('dialog', { name: '生成报告' });
+  const generateForm = generateDialog.locator('form.document-drawer-form').first();
+  await expect(generateDialog).toBeVisible();
+  await fieldControl(generateForm, '项目 ID').fill('project-wp10-ui-smoke');
+  await fieldControl(generateForm, '执行运行 ID').fill(executionRunId);
+  await fieldControl(generateForm, '请求键').fill('wp10-ui-request-1');
+  await fieldControl(generateForm, '原因').fill('browser smoke report generation');
+  await generateForm.getByRole('button', { name: '生成报告' }).click();
   await expect(page.getByText('报告快照已生成')).toBeVisible();
   await expect(page.getByTestId('report-detail').getByText(generatedReportId, { exact: true })).toBeVisible();
   expect(mock.generatePayload).toMatchObject({
@@ -67,33 +71,33 @@ async function runWp10MainFlow(page: Page, assertResponsive: boolean) {
 
   const diagnosisPanel = page.getByTestId('report-diagnosis');
   await diagnosisPanel.getByRole('button', { name: '触发诊断' }).click();
-  await expect(diagnosisPanel.locator('.report-summary-tile').filter({ hasText: 'status' }).getByText('AI_READY')).toBeVisible();
-  await expect(diagnosisPanel.locator('.report-summary-tile').filter({ hasText: 'primaryCategory' }).getByText('DEPENDENCY_BLOCKED')).toBeVisible();
-  await expect(diagnosisPanel.locator('.report-summary-tile').filter({ hasText: 'confidence' }).getByText('76%')).toBeVisible();
+  await expect(diagnosisPanel.locator('.report-summary-tile').filter({ hasText: '状态' }).getByText('AI 诊断就绪')).toBeVisible();
+  await expect(diagnosisPanel.locator('.report-summary-tile').filter({ hasText: '主分类' }).getByText('依赖阻断')).toBeVisible();
+  await expect(diagnosisPanel.locator('.report-summary-tile').filter({ hasText: '置信度' }).getByText('76%')).toBeVisible();
   expect(mock.diagnoseSeen).toBe(true);
 
   const defectPanel = page.getByTestId('report-defect-drafts');
   await defectPanel.getByRole('button', { name: '生成缺陷草稿' }).click();
   await expect(defectPanel.getByText('WP10 UI smoke 缺陷草稿')).toBeVisible();
-  await expect(defectPanel.getByText('externalSystemWriteAttempted:false')).toBeVisible();
+  await expectInfoBlock(page, defectPanel, '负载预览', /外部系统写入尝试:否/i);
   expect(mock.createDraftSeen).toBe(true);
   await defectPanel.getByRole('button', { name: '审阅草稿' }).click();
-  await expect(defectPanel.getByText('草稿状态已更新为 REVIEWED')).toBeVisible();
+  await expect(defectPanel.getByText('草稿状态已更新为 已审阅')).toBeVisible();
   expect(mock.reviewDraftStatus).toBe('REVIEWED');
 
   const comparePanel = page.getByTestId('report-compare-panel');
-  await selectAntdOption(page, comparePanel.getByLabel('baseline report'), existingReportId);
+  await selectAntdOption(page, comparePanel.getByLabel('基线报告'), existingReportOptionLabel);
   await comparePanel.getByRole('button', { name: '开始对比' }).click();
   await expect(comparePanel.getByText('发现 8 项聚合差异')).toBeVisible();
   await expect(comparePanel.getByText('summary.runStatus')).toBeVisible();
-  await expectInfoBlock(page, comparePanel, 'evidence count', '2 -> 3');
-  await expectInfoBlock(page, comparePanel, 'draft count', '0 -> 1');
+  await expectInfoBlock(page, comparePanel, '证据数量差异', '2 -> 3');
+  await expectInfoBlock(page, comparePanel, '缺陷草稿数差异', '0 -> 1');
 
   const exportPanel = page.getByTestId('report-export-panel');
   await exportPanel.getByRole('button', { name: '导出 JSON' }).click();
-  await expectInfoBlock(page, exportPanel, 'fieldSetVersion', 'wp10-export-fields-v1');
-  await expectInfoBlock(page, exportPanel, 'contentDigest', 'sha256:wp10-export-content');
-  await expectInfoBlock(page, exportPanel, 'DOM scan', 'clean');
+  await expectInfoBlock(page, exportPanel, '字段集版本', 'wp10-export-fields-v1');
+  await expectInfoBlock(page, exportPanel, '内容摘要', 'sha256:wp10-export-content');
+  await expectInfoBlock(page, exportPanel, 'DOM 扫描', '已通过');
   expect(mock.exportTypes).toContain('JSON');
   await exportPanel.getByRole('button', { name: '导出 Markdown' }).click();
   await expect(exportPanel.getByText('MARKDOWN 报告已生成')).toBeVisible();
@@ -124,15 +128,28 @@ async function expectNoHorizontalOverflow(page: Page, selector: string) {
 }
 
 async function selectAntdOption(page: Page, control: ReturnType<Page['getByLabel']>, optionName: string) {
-  await control.locator('xpath=./ancestor-or-self::*[contains(concat(" ", normalize-space(@class), " "), " ant-select ")][1]').locator('.ant-select-selector').click();
+  const selector = control.locator('.ant-select-selector');
+  if (await selector.count()) {
+    await selector.first().click();
+  } else {
+    await control.click();
+  }
   await page.locator('.ant-select-dropdown:not(.ant-select-dropdown-hidden) .ant-select-item-option-content', { hasText: optionName }).first().click();
 }
 
-async function expectInfoBlock(page: Page, panel: ReturnType<Page['getByTestId']>, title: string, value: string) {
+async function expectInfoBlock(page: Page, panel: ReturnType<Page['getByTestId']>, title: string, value: RegExp | string) {
   const block = panel.locator('.report-info-block').filter({
     has: page.locator('span').filter({ hasText: new RegExp(`^${escapeRegExp(title)}$`) })
   });
-  await expect(block.locator('strong')).toHaveText(value);
+  if (typeof value === 'string') {
+    await expect(block.locator('strong')).toHaveText(value);
+  } else {
+    await expect(block.locator('strong')).toContainText(value);
+  }
+}
+
+function fieldControl(form: ReturnType<Page['locator']>, label: string) {
+  return form.locator(`label.field:has(.field-label:text-is("${label}"))`).locator('.ui-input-control, input').first();
 }
 
 function escapeRegExp(value: string) {

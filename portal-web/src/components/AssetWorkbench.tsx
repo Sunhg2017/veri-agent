@@ -52,12 +52,13 @@ import {
 import { hasPermission } from '../permissions';
 import { AssetCaseWorkbench } from './AssetCaseWorkbench';
 import { AssetImportExportPanel } from './AssetImportExportPanel';
+import { AssetNavigationTabs } from './AssetNavigationTabs';
 import { AssetStructuredWorkbench, type AssetNavigationKey } from './AssetStructuredWorkbench';
 import { AssetTraceWorkbench } from './AssetTraceWorkbench';
 import { AssetVersionHistoryPanel } from './AssetVersionHistoryPanel';
 import { dictionaryLabel, fieldLabel } from '../platform/dictionaries';
 import { translate } from '../platform/i18n';
-import { NativeSelect } from './ui';
+import { InputControl, SelectControl, TextAreaControl } from './ui';
 
 type WorkState = {
   loading: boolean;
@@ -799,41 +800,43 @@ export function AssetWorkbench(props: { signedIn: boolean; currentUser: CurrentU
                 <h2>{translate('auto.k0005')}</h2>
               </div>
             </div>
-            <button
-              className="secondary-button"
-              type="button"
-              disabled={!props.signedIn || !canReadAssets || activeLoadState.loading}
-              onClick={activeTab === 'apis' ? refreshApis : refreshRequirements}
-            >
-              <RefreshCw size={16} />
-              {translate('auto.k0170')}</button>
+            <div className="panel-toolbar-actions">
+              <button
+                className="secondary-button"
+                type="button"
+                disabled={!props.signedIn || !canReadAssets || activeLoadState.loading}
+                onClick={activeTab === 'apis' ? refreshApis : refreshRequirements}
+              >
+                <RefreshCw size={16} />
+                {translate('auto.k0170')}
+              </button>
+              {activeTab === 'requirements' ? (
+                <button className="primary-button" type="button" disabled={createDisabled} onClick={openCreateRequirementDrawer}>
+                  <FilePlus2 size={16} />
+                  {translate('auto.k0651')}
+                </button>
+              ) : activeTab === 'apis' ? (
+                <button
+                  className="primary-button"
+                  type="button"
+                  disabled={apiCreateDisabled}
+                  onClick={openCreateApiDrawer}
+                >
+                  <FilePlus2 size={16} />
+                  {translate('auto.k0656')}
+                </button>
+              ) : null}
+            </div>
           </div>
 
-          <div className="asset-tab-strip" aria-label={translate('auto.k0413')}>
-            {assetTabs.map((tab) => {
-              const Icon = tab.icon;
-              return (
-                <button
-                  className={`asset-tab ${activeTab === tab.key ? 'active' : ''}`}
-                  type="button"
-                  key={tab.key}
-                  disabled={!tab.enabled}
-                  onClick={() => selectTab(tab.key)}
-                  title={tab.label}
-                >
-                  <Icon size={15} />
-                  <span>{tab.label}</span>
-                </button>
-              );
-            })}
-          </div>
+          <AssetNavigationTabs activeKey={activeTab} ariaLabel={translate('auto.k0413')} tabs={assetTabs} onSelectTab={selectTab} />
 
           {activeTab === 'requirements' ? (
             <>
           <form className="asset-filter-bar" onSubmit={(event) => event.preventDefault()}>
             <label className="field" htmlFor="asset-filter-project">
               <span>{fieldLabel('projectId')}</span>
-              <input
+              <InputControl
                 id="asset-filter-project"
                 value={filters.projectId}
                 disabled={disabled}
@@ -843,7 +846,7 @@ export function AssetWorkbench(props: { signedIn: boolean; currentUser: CurrentU
             </label>
             <label className="field" htmlFor="asset-filter-status">
               <span>{fieldLabel('status')}</span>
-              <NativeSelect
+              <SelectControl
                 id="asset-filter-status"
                 value={filters.status}
                 disabled={disabled}
@@ -853,11 +856,11 @@ export function AssetWorkbench(props: { signedIn: boolean; currentUser: CurrentU
                 {ASSET_REQUIREMENT_STATUSES.map((status) => (
                   <option key={status} value={status}>{dictionaryLabel(status)}</option>
                 ))}
-              </NativeSelect>
+              </SelectControl>
             </label>
             <label className="field" htmlFor="asset-filter-source">
               <span>{fieldLabel('source')}</span>
-              <NativeSelect
+              <SelectControl
                 id="asset-filter-source"
                 value={filters.source}
                 disabled={disabled}
@@ -867,11 +870,11 @@ export function AssetWorkbench(props: { signedIn: boolean; currentUser: CurrentU
                 {ASSET_REQUIREMENT_SOURCES.map((source) => (
                   <option key={source} value={source}>{dictionaryLabel(source)}</option>
                 ))}
-              </NativeSelect>
+              </SelectControl>
             </label>
             <label className="field" htmlFor="asset-filter-source-ref">
               <span>{fieldLabel('sourceRef')}</span>
-              <input
+              <InputControl
                 id="asset-filter-source-ref"
                 value={filters.sourceRef}
                 disabled={disabled}
@@ -881,7 +884,7 @@ export function AssetWorkbench(props: { signedIn: boolean; currentUser: CurrentU
             </label>
             <label className="field" htmlFor="asset-filter-keyword">
               <span>{fieldLabel('keyword')}</span>
-              <input
+              <InputControl
                 id="asset-filter-keyword"
                 value={filters.keyword}
                 disabled={disabled}
@@ -927,10 +930,10 @@ export function AssetWorkbench(props: { signedIn: boolean; currentUser: CurrentU
                       <td>
                         <AssetStatusPill value={requirement.status} />
                       </td>
-                      <td>{requirement.priority}</td>
+                      <td>{dictionaryLabel(requirement.priority)}</td>
                       <td>
                         <div className="asset-source-cell">
-                          <span>{requirement.source}</span>
+                          <span>{dictionaryLabel(requirement.source)}</span>
                           <em>{requirement.sourceRef ?? '-'}</em>
                         </div>
                       </td>
@@ -959,7 +962,7 @@ export function AssetWorkbench(props: { signedIn: boolean; currentUser: CurrentU
               <form className="asset-filter-bar api-filter-bar" onSubmit={(event) => event.preventDefault()}>
                 <label className="field" htmlFor="asset-api-filter-project">
                   <span>{fieldLabel('projectId')}</span>
-                  <input
+                  <InputControl
                     id="asset-api-filter-project"
                     value={apiFilters.projectId}
                     disabled={apiDisabled}
@@ -969,7 +972,7 @@ export function AssetWorkbench(props: { signedIn: boolean; currentUser: CurrentU
                 </label>
                 <label className="field" htmlFor="asset-api-filter-status">
                   <span>{fieldLabel('status')}</span>
-                  <NativeSelect
+                  <SelectControl
                     id="asset-api-filter-status"
                     value={apiFilters.status}
                     disabled={apiDisabled}
@@ -979,11 +982,11 @@ export function AssetWorkbench(props: { signedIn: boolean; currentUser: CurrentU
                     {ASSET_API_STATUSES.map((status) => (
                       <option key={status} value={status}>{dictionaryLabel(status)}</option>
                     ))}
-                  </NativeSelect>
+                  </SelectControl>
                 </label>
                 <label className="field" htmlFor="asset-api-filter-method">
                   <span>{fieldLabel('method')}</span>
-                  <NativeSelect
+                  <SelectControl
                     id="asset-api-filter-method"
                     value={apiFilters.method}
                     disabled={apiDisabled}
@@ -992,14 +995,14 @@ export function AssetWorkbench(props: { signedIn: boolean; currentUser: CurrentU
                     <option value="">{translate('auto.k0644')}</option>
                     {ASSET_API_METHODS.map((method) => (
                       <option key={method} value={method}>
-                        {method}
+                        {dictionaryLabel(method)}
                       </option>
                     ))}
-                  </NativeSelect>
+                  </SelectControl>
                 </label>
                 <label className="field" htmlFor="asset-api-filter-source">
                   <span>{fieldLabel('source')}</span>
-                  <input
+                  <InputControl
                     id="asset-api-filter-source"
                     value={apiFilters.source}
                     disabled={apiDisabled}
@@ -1009,7 +1012,7 @@ export function AssetWorkbench(props: { signedIn: boolean; currentUser: CurrentU
                 </label>
                 <label className="field" htmlFor="asset-api-filter-keyword">
                   <span>{fieldLabel('keyword')}</span>
-                  <input
+                  <InputControl
                     id="asset-api-filter-keyword"
                     value={apiFilters.keyword}
                     disabled={apiDisabled}
@@ -1051,7 +1054,7 @@ export function AssetWorkbench(props: { signedIn: boolean; currentUser: CurrentU
                           <td>{api.projectId ?? '-'}</td>
                           <td>
                             <span className="asset-method-path">
-                              <strong>{api.httpMethod}</strong>
+                              <strong>{dictionaryLabel(api.httpMethod)}</strong>
                               <em>{api.path}</em>
                             </span>
                           </td>
@@ -1060,7 +1063,7 @@ export function AssetWorkbench(props: { signedIn: boolean; currentUser: CurrentU
                           </td>
                           <td>
                             <div className="asset-source-cell">
-                              <span>{api.source ?? '-'}</span>
+                              <span>{dictionaryLabel(api.source)}</span>
                               <em>{api.sourceRef ?? '-'}</em>
                             </div>
                           </td>
@@ -1087,25 +1090,9 @@ export function AssetWorkbench(props: { signedIn: boolean; currentUser: CurrentU
           )}
         </section>
 
-        <section className="panel module-panel asset-panel">
+        <div className="asset-drawer-host">
           {activeTab === 'requirements' ? (
             <>
-          <div className="panel-toolbar">
-            <div className="section-heading compact">
-              <div className="section-icon">
-                <FilePlus2 size={20} />
-              </div>
-              <div>
-                <span className="eyebrow">{translate('auto.k0174')}</span>
-                <h2>{translate('auto.k0648')}</h2>
-              </div>
-            </div>
-            <button className="primary-button" type="button" disabled={createDisabled} onClick={openCreateRequirementDrawer}>
-              <FilePlus2 size={16} />
-              {translate('auto.k0651')}</button>
-          </div>
-
-          <StateLine state={createState} />
           <Drawer
             className="asset-form-drawer"
             destroyOnHidden
@@ -1124,7 +1111,7 @@ export function AssetWorkbench(props: { signedIn: boolean; currentUser: CurrentU
             <div className="asset-form-grid">
               <label className="field" htmlFor="asset-create-project">
                 <span>{fieldLabel('projectId')}<b>*</b></span>
-                <input
+                <InputControl
                   id="asset-create-project"
                   value={createDraft.projectId}
                   disabled={createDisabled}
@@ -1134,7 +1121,7 @@ export function AssetWorkbench(props: { signedIn: boolean; currentUser: CurrentU
               </label>
               <label className="field" htmlFor="asset-create-title">
                 <span>{translate('auto.k0440')}<b>*</b></span>
-                <input
+                <InputControl
                   id="asset-create-title"
                   value={createDraft.title}
                   disabled={createDisabled}
@@ -1144,7 +1131,7 @@ export function AssetWorkbench(props: { signedIn: boolean; currentUser: CurrentU
               </label>
               <label className="field" htmlFor="asset-create-priority">
                 <span>{fieldLabel('priority')}</span>
-                <NativeSelect
+                <SelectControl
                   id="asset-create-priority"
                   value={createDraft.priority}
                   disabled={createDisabled}
@@ -1153,11 +1140,11 @@ export function AssetWorkbench(props: { signedIn: boolean; currentUser: CurrentU
                   {ASSET_REQUIREMENT_PRIORITIES.map((priority) => (
                     <option key={priority} value={priority}>{dictionaryLabel(priority)}</option>
                   ))}
-                </NativeSelect>
+                </SelectControl>
               </label>
               <label className="field" htmlFor="asset-create-source">
                 <span>{fieldLabel('source')}</span>
-                <NativeSelect
+                <SelectControl
                   id="asset-create-source"
                   value={createDraft.source}
                   disabled={createDisabled}
@@ -1166,11 +1153,11 @@ export function AssetWorkbench(props: { signedIn: boolean; currentUser: CurrentU
                   {ASSET_REQUIREMENT_SOURCES.map((source) => (
                     <option key={source} value={source}>{dictionaryLabel(source)}</option>
                   ))}
-                </NativeSelect>
+                </SelectControl>
               </label>
               <label className="field" htmlFor="asset-create-source-ref">
                 <span>{fieldLabel('sourceRef')}</span>
-                <input
+                <InputControl
                   id="asset-create-source-ref"
                   value={createDraft.sourceRef}
                   disabled={createDisabled}
@@ -1180,7 +1167,7 @@ export function AssetWorkbench(props: { signedIn: boolean; currentUser: CurrentU
               </label>
               <label className="field" htmlFor="asset-create-source-url">
                 <span>{fieldLabel('sourceUrl')}</span>
-                <input
+                <InputControl
                   id="asset-create-source-url"
                   value={createDraft.sourceUrl}
                   disabled={createDisabled}
@@ -1191,7 +1178,7 @@ export function AssetWorkbench(props: { signedIn: boolean; currentUser: CurrentU
             </div>
             <label className="field" htmlFor="asset-create-description">
               <span>{translate('auto.k0443')}</span>
-              <textarea
+              <TextAreaControl
                 id="asset-create-description"
                 className="compact-textarea"
                 value={createDraft.description}
@@ -1201,7 +1188,7 @@ export function AssetWorkbench(props: { signedIn: boolean; currentUser: CurrentU
             </label>
             <label className="field" htmlFor="asset-create-acceptance">
               <span>{translate('auto.k0650')}</span>
-              <textarea
+              <TextAreaControl
                 id="asset-create-acceptance"
                 className="compact-textarea"
                 value={createDraft.acceptanceCriteria}
@@ -1211,7 +1198,7 @@ export function AssetWorkbench(props: { signedIn: boolean; currentUser: CurrentU
             </label>
             <label className="field" htmlFor="asset-create-tags">
               <span>{fieldLabel('tags')}</span>
-              <input
+              <InputControl
                 id="asset-create-tags"
                 value={createDraft.tags}
                 disabled={createDisabled}
@@ -1236,27 +1223,6 @@ export function AssetWorkbench(props: { signedIn: boolean; currentUser: CurrentU
             </>
           ) : (
             <>
-              <div className="panel-toolbar">
-                <div className="section-heading">
-                  <div className="section-icon">
-                    <FilePlus2 size={20} />
-                  </div>
-                  <div>
-                    <span className="eyebrow">{translate('auto.k0174')}</span>
-                    <h2>{translate('auto.k0652')}</h2>
-                  </div>
-                </div>
-                <button
-                  className="primary-button"
-                  type="button"
-                  disabled={apiCreateDisabled}
-                  onClick={openCreateApiDrawer}
-                >
-                  <FilePlus2 size={16} />
-                  {translate('auto.k0656')}</button>
-              </div>
-
-              <StateLine state={apiCreateState} />
               <Drawer
                 className="asset-form-drawer"
                 destroyOnHidden
@@ -1275,7 +1241,7 @@ export function AssetWorkbench(props: { signedIn: boolean; currentUser: CurrentU
                 <div className="asset-form-grid">
                   <label className="field" htmlFor="asset-api-create-project">
                     <span>{fieldLabel('projectId')}<b>*</b></span>
-                    <input
+                    <InputControl
                       id="asset-api-create-project"
                       value={apiCreateDraft.projectId}
                       disabled={apiCreateDisabled}
@@ -1285,7 +1251,7 @@ export function AssetWorkbench(props: { signedIn: boolean; currentUser: CurrentU
                   </label>
                   <label className="field" htmlFor="asset-api-create-summary">
                     <span>{translate('auto.k0177')}<b>*</b></span>
-                    <input
+                    <InputControl
                       id="asset-api-create-summary"
                       value={apiCreateDraft.summary}
                       disabled={apiCreateDisabled}
@@ -1295,7 +1261,7 @@ export function AssetWorkbench(props: { signedIn: boolean; currentUser: CurrentU
                   </label>
                   <label className="field" htmlFor="asset-api-create-method">
                     <span>{fieldLabel('method')}</span>
-                    <NativeSelect
+                    <SelectControl
                       id="asset-api-create-method"
                       value={apiCreateDraft.httpMethod}
                       disabled={apiCreateDisabled}
@@ -1303,14 +1269,14 @@ export function AssetWorkbench(props: { signedIn: boolean; currentUser: CurrentU
                     >
                       {ASSET_API_METHODS.map((method) => (
                         <option key={method} value={method}>
-                          {method}
+                          {dictionaryLabel(method)}
                         </option>
                       ))}
-                    </NativeSelect>
+                    </SelectControl>
                   </label>
                   <label className="field" htmlFor="asset-api-create-path">
                     <span>{fieldLabel('path')}<b>*</b></span>
-                    <input
+                    <InputControl
                       id="asset-api-create-path"
                       value={apiCreateDraft.path}
                       disabled={apiCreateDisabled}
@@ -1320,7 +1286,7 @@ export function AssetWorkbench(props: { signedIn: boolean; currentUser: CurrentU
                   </label>
                   <label className="field" htmlFor="asset-api-create-status">
                     <span>{fieldLabel('status')}</span>
-                    <NativeSelect
+                    <SelectControl
                       id="asset-api-create-status"
                       value={apiCreateDraft.status}
                       disabled={apiCreateDisabled}
@@ -1329,11 +1295,11 @@ export function AssetWorkbench(props: { signedIn: boolean; currentUser: CurrentU
                       {ASSET_API_STATUSES.map((status) => (
                         <option key={status} value={status}>{dictionaryLabel(status)}</option>
                       ))}
-                    </NativeSelect>
+                    </SelectControl>
                   </label>
                   <label className="field" htmlFor="asset-api-create-version">
                     <span>{fieldLabel('version')}</span>
-                    <input
+                    <InputControl
                       id="asset-api-create-version"
                       value={apiCreateDraft.version}
                       disabled={apiCreateDisabled}
@@ -1344,7 +1310,7 @@ export function AssetWorkbench(props: { signedIn: boolean; currentUser: CurrentU
                 </div>
                 <label className="field" htmlFor="asset-api-create-description">
                   <span>{translate('auto.k0443')}</span>
-                  <textarea
+                  <TextAreaControl
                     id="asset-api-create-description"
                     className="compact-textarea"
                     value={apiCreateDraft.description}
@@ -1355,7 +1321,7 @@ export function AssetWorkbench(props: { signedIn: boolean; currentUser: CurrentU
                 <div className="asset-schema-grid">
                   <label className="field" htmlFor="asset-api-create-request-schema">
                     <span>{fieldLabel('requestSchema')}</span>
-                    <textarea
+                    <TextAreaControl
                       id="asset-api-create-request-schema"
                       className="compact-textarea schema-textarea"
                       value={apiCreateDraft.requestSchema}
@@ -1365,7 +1331,7 @@ export function AssetWorkbench(props: { signedIn: boolean; currentUser: CurrentU
                   </label>
                   <label className="field" htmlFor="asset-api-create-response-schema">
                     <span>{fieldLabel('responseSchema')}</span>
-                    <textarea
+                    <TextAreaControl
                       id="asset-api-create-response-schema"
                       className="compact-textarea schema-textarea"
                       value={apiCreateDraft.responseSchema}
@@ -1395,7 +1361,7 @@ export function AssetWorkbench(props: { signedIn: boolean; currentUser: CurrentU
               </Drawer>
             </>
           )}
-        </section>
+        </div>
       </div>
 
       <aside className="side-stack asset-side-stack">
@@ -1407,16 +1373,16 @@ export function AssetWorkbench(props: { signedIn: boolean; currentUser: CurrentU
             {activeTab === 'requirements' ? (
               <>
                 <StatusMetric label={translate('auto.k0657')} value={String(requirements.length)} />
-                <StatusMetric label="DRAFT" value={String(statusCounts.DRAFT ?? 0)} />
-                <StatusMetric label="REVIEWING" value={String(statusCounts.REVIEWING ?? 0)} />
-                <StatusMetric label="APPROVED" value={String(statusCounts.APPROVED ?? 0)} />
+                <StatusMetric label={dictionaryLabel('DRAFT')} value={String(statusCounts.DRAFT ?? 0)} />
+                <StatusMetric label={dictionaryLabel('REVIEWING')} value={String(statusCounts.REVIEWING ?? 0)} />
+                <StatusMetric label={dictionaryLabel('APPROVED')} value={String(statusCounts.APPROVED ?? 0)} />
               </>
             ) : (
               <>
                 <StatusMetric label={translate('auto.k0658')} value={String(apis.length)} />
-                <StatusMetric label="ACTIVE" value={String(apiStatusCounts.ACTIVE ?? 0)} />
-                <StatusMetric label="DEPRECATED" value={String(apiStatusCounts.DEPRECATED ?? 0)} />
-                <StatusMetric label="REMOVED" value={String(apiStatusCounts.REMOVED ?? 0)} />
+                <StatusMetric label={dictionaryLabel('ACTIVE')} value={String(apiStatusCounts.ACTIVE ?? 0)} />
+                <StatusMetric label={dictionaryLabel('DEPRECATED')} value={String(apiStatusCounts.DEPRECATED ?? 0)} />
+                <StatusMetric label={dictionaryLabel('REMOVED')} value={String(apiStatusCounts.REMOVED ?? 0)} />
               </>
             )}
           </div>
@@ -1453,7 +1419,7 @@ export function AssetWorkbench(props: { signedIn: boolean; currentUser: CurrentU
                 </div>
                 <div>
                   <span>{fieldLabel('priority')}</span>
-                  <em>{selectedRequirement.priority}</em>
+                  <em>{dictionaryLabel(selectedRequirement.priority)}</em>
                 </div>
                 <div>
                   <span>{fieldLabel('version')}</span>
@@ -1473,7 +1439,7 @@ export function AssetWorkbench(props: { signedIn: boolean; currentUser: CurrentU
                 <strong>{translate('auto.k0660')}</strong>
                 <div>
                   <span>{fieldLabel('source')}</span>
-                  <em>{selectedRequirement.source}</em>
+                  <em>{dictionaryLabel(selectedRequirement.source)}</em>
                 </div>
                 <div>
                   <span>{fieldLabel('sourceRef')}</span>
@@ -1517,7 +1483,7 @@ export function AssetWorkbench(props: { signedIn: boolean; currentUser: CurrentU
               <form className="resource-edit-form asset-edit-form document-drawer-form" onSubmit={submitEdit}>
                 <label>
                   <span>{translate('auto.k0440')}</span>
-                  <input
+                  <InputControl
                     value={editDraft.title}
                     disabled={editDisabled}
                     onChange={(event) => setEditDraft((current) => ({ ...current, title: event.target.value }))}
@@ -1525,7 +1491,7 @@ export function AssetWorkbench(props: { signedIn: boolean; currentUser: CurrentU
                 </label>
                 <label>
                   <span>{fieldLabel('priority')}</span>
-                  <NativeSelect
+                  <SelectControl
                     value={editDraft.priority}
                     disabled={editDisabled}
                     onChange={(event) => setEditDraft((current) => ({ ...current, priority: event.target.value }))}
@@ -1533,11 +1499,11 @@ export function AssetWorkbench(props: { signedIn: boolean; currentUser: CurrentU
                     {ASSET_REQUIREMENT_PRIORITIES.map((priority) => (
                       <option key={priority} value={priority}>{dictionaryLabel(priority)}</option>
                     ))}
-                  </NativeSelect>
+                  </SelectControl>
                 </label>
                 <label>
                   <span>{translate('auto.k0443')}</span>
-                  <textarea
+                  <TextAreaControl
                     className="compact-textarea"
                     value={editDraft.description}
                     disabled={editDisabled}
@@ -1546,7 +1512,7 @@ export function AssetWorkbench(props: { signedIn: boolean; currentUser: CurrentU
                 </label>
                 <label>
                   <span>{fieldLabel('tags')}</span>
-                  <input
+                  <InputControl
                     value={editDraft.tags}
                     disabled={editDisabled}
                     onChange={(event) => setEditDraft((current) => ({ ...current, tags: event.target.value }))}
@@ -1645,7 +1611,7 @@ export function AssetWorkbench(props: { signedIn: boolean; currentUser: CurrentU
                     </div>
                     <div>
                       <span>{fieldLabel('method')}</span>
-                      <em>{selectedApi.httpMethod}</em>
+                      <em>{dictionaryLabel(selectedApi.httpMethod)}</em>
                     </div>
                     <div>
                       <span>{fieldLabel('path')}</span>
@@ -1669,7 +1635,7 @@ export function AssetWorkbench(props: { signedIn: boolean; currentUser: CurrentU
                     <strong>{translate('auto.k0660')}</strong>
                     <div>
                       <span>{fieldLabel('source')}</span>
-                      <em>{selectedApi.source ?? '-'}</em>
+                      <em>{dictionaryLabel(selectedApi.source)}</em>
                     </div>
                     <div>
                       <span>{fieldLabel('sourceRef')}</span>
@@ -1720,7 +1686,7 @@ export function AssetWorkbench(props: { signedIn: boolean; currentUser: CurrentU
                   <form className="resource-edit-form asset-edit-form document-drawer-form" onSubmit={submitEditApi}>
                     <label>
                       <span>{translate('auto.k0177')}</span>
-                      <input
+                      <InputControl
                         value={apiEditDraft.summary}
                         disabled={apiEditDisabled}
                         onChange={(event) => setApiEditDraft((current) => ({ ...current, summary: event.target.value }))}
@@ -1728,21 +1694,21 @@ export function AssetWorkbench(props: { signedIn: boolean; currentUser: CurrentU
                     </label>
                     <label>
                       <span>{fieldLabel('method')}</span>
-                      <NativeSelect
+                      <SelectControl
                         value={apiEditDraft.httpMethod}
                         disabled={apiEditDisabled}
                         onChange={(event) => setApiEditDraft((current) => ({ ...current, httpMethod: event.target.value }))}
                       >
                         {ASSET_API_METHODS.map((method) => (
                           <option key={method} value={method}>
-                            {method}
+                            {dictionaryLabel(method)}
                           </option>
                         ))}
-                      </NativeSelect>
+                      </SelectControl>
                     </label>
                     <label>
                       <span>{fieldLabel('path')}</span>
-                      <input
+                      <InputControl
                         value={apiEditDraft.path}
                         disabled={apiEditDisabled}
                         onChange={(event) => setApiEditDraft((current) => ({ ...current, path: event.target.value }))}
@@ -1750,7 +1716,7 @@ export function AssetWorkbench(props: { signedIn: boolean; currentUser: CurrentU
                     </label>
                     <label>
                       <span>{fieldLabel('status')}</span>
-                      <NativeSelect
+                      <SelectControl
                         value={apiEditDraft.status}
                         disabled={apiEditDisabled}
                         onChange={(event) => setApiEditDraft((current) => ({ ...current, status: event.target.value }))}
@@ -1758,11 +1724,11 @@ export function AssetWorkbench(props: { signedIn: boolean; currentUser: CurrentU
                         {apiStatusOptions(selectedApi.status).map((status) => (
                           <option key={status} value={status}>{dictionaryLabel(status)}</option>
                         ))}
-                      </NativeSelect>
+                      </SelectControl>
                     </label>
                     <label>
                       <span>{fieldLabel('version')}</span>
-                      <input
+                      <InputControl
                         value={apiEditDraft.version}
                         disabled={apiEditDisabled}
                         onChange={(event) => setApiEditDraft((current) => ({ ...current, version: event.target.value }))}
@@ -1770,7 +1736,7 @@ export function AssetWorkbench(props: { signedIn: boolean; currentUser: CurrentU
                     </label>
                     <label>
                       <span>{translate('auto.k0443')}</span>
-                      <textarea
+                      <TextAreaControl
                         className="compact-textarea"
                         value={apiEditDraft.description}
                         disabled={apiEditDisabled}
@@ -1779,7 +1745,7 @@ export function AssetWorkbench(props: { signedIn: boolean; currentUser: CurrentU
                     </label>
                     <label>
                       <span>{fieldLabel('requestSchema')}</span>
-                      <textarea
+                      <TextAreaControl
                         className="compact-textarea schema-textarea"
                         value={apiEditDraft.requestSchema}
                         disabled={apiEditDisabled}
@@ -1788,7 +1754,7 @@ export function AssetWorkbench(props: { signedIn: boolean; currentUser: CurrentU
                     </label>
                     <label>
                       <span>{fieldLabel('responseSchema')}</span>
-                      <textarea
+                      <TextAreaControl
                         className="compact-textarea schema-textarea"
                         value={apiEditDraft.responseSchema}
                         disabled={apiEditDisabled}
@@ -2105,7 +2071,7 @@ function StateLine(props: { state: WorkState }) {
     );
   }
   if (props.state.traceId) {
-    return <span className="document-state-line">Trace ID：{props.state.traceId}</span>;
+    return <span className="document-state-line">{fieldLabel('traceId')}：{props.state.traceId}</span>;
   }
   return null;
 }

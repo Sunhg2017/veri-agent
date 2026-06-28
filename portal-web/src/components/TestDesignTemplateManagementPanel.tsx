@@ -14,7 +14,7 @@ import {
 import { StateLine, type WorkState } from './TestDesignOverviewPanels';
 import { dictionaryLabel } from '../platform/dictionaries';
 import { translate } from '../platform/i18n';
-import { NativeSelect } from './ui';
+import { CheckboxControl, InputControl, NumberControl, SelectControl } from './ui';
 
 export function TestDesignTemplateManagementPanel(props: {
   canRead: boolean;
@@ -52,14 +52,14 @@ export function TestDesignTemplateManagementPanel(props: {
           <div className="test-design-template-toolbar">
             <label className="field">
               <span className="field-label">{translate('auto.k1633')}</span>
-              <NativeSelect value={props.selectedTemplateManageId} onChange={(event) => props.onSelectedTemplateManageIdChange(event.target.value)} disabled={props.state.loading}>
+              <SelectControl value={props.selectedTemplateManageId} onChange={(event) => props.onSelectedTemplateManageIdChange(event.target.value)} disabled={props.state.loading}>
                 <option value="">{translate('auto.k1634')}</option>
                 {props.templates.map((template) => (
                   <option key={template.id} value={template.id}>
                     {template.enabled ? '' : translate('auto.k1635')}{template.projectId ? translate('auto.k0176') : translate('auto.k1605')} · {template.name}
                   </option>
                 ))}
-              </NativeSelect>
+              </SelectControl>
             </label>
             <button
               className="btn btn-secondary btn-icon btn-sm"
@@ -76,79 +76,79 @@ export function TestDesignTemplateManagementPanel(props: {
           </div>
           <label className="field">
             <span className="field-label">{translate('auto.k0177')}</span>
-            <input value={draft.name} onChange={(event) => props.onTemplateDraftChange((current) => ({ ...current, name: event.target.value }))} disabled={!props.canPolicyManage || props.state.loading} />
+            <InputControl value={draft.name} onChange={(event) => props.onTemplateDraftChange((current) => ({ ...current, name: event.target.value }))} disabled={!props.canPolicyManage || props.state.loading} />
           </label>
           <label className="field">
             <span className="field-label">{translate('auto.k1636')}</span>
-            <input value={draft.projectId} onChange={(event) => props.onTemplateDraftChange((current) => ({ ...current, projectId: event.target.value }))} placeholder={translate('auto.k1637')} disabled={!props.canPolicyManage || props.state.loading || Boolean(props.selectedManagedTemplate)} />
+            <InputControl value={draft.projectId} onChange={(event) => props.onTemplateDraftChange((current) => ({ ...current, projectId: event.target.value }))} placeholder={translate('auto.k1637')} disabled={!props.canPolicyManage || props.state.loading || Boolean(props.selectedManagedTemplate)} />
           </label>
           <label className="field">
             <span className="field-label">{translate('auto.k0264')}</span>
-            <input value={draft.description} onChange={(event) => props.onTemplateDraftChange((current) => ({ ...current, description: event.target.value }))} disabled={!props.canPolicyManage || props.state.loading} />
+            <InputControl value={draft.description} onChange={(event) => props.onTemplateDraftChange((current) => ({ ...current, description: event.target.value }))} disabled={!props.canPolicyManage || props.state.loading} />
           </label>
           <div className="test-design-template-inline-grid">
             <label className="field">
               <span className="field-label">Prompt Key</span>
-              <input value={draft.promptKey} onChange={(event) => props.onTemplateDraftChange((current) => ({ ...current, promptKey: event.target.value }))} placeholder={props.health?.promptKey ?? translate('auto.k1638')} disabled={!props.canPolicyManage || props.state.loading} />
+              <InputControl value={draft.promptKey} onChange={(event) => props.onTemplateDraftChange((current) => ({ ...current, promptKey: event.target.value }))} placeholder={props.health?.promptKey ?? translate('auto.k1638')} disabled={!props.canPolicyManage || props.state.loading} />
             </label>
             <label className="field">
               <span className="field-label">{translate('auto.k0178')}</span>
-              <input value={draft.promptVersion} onChange={(event) => props.onTemplateDraftChange((current) => ({ ...current, promptVersion: event.target.value }))} placeholder={props.health?.promptVersion ?? translate('auto.k1638')} disabled={!props.canPolicyManage || props.state.loading} />
+              <InputControl value={draft.promptVersion} onChange={(event) => props.onTemplateDraftChange((current) => ({ ...current, promptVersion: event.target.value }))} placeholder={props.health?.promptVersion ?? translate('auto.k1638')} disabled={!props.canPolicyManage || props.state.loading} />
             </label>
           </div>
           <div className="test-design-template-inline-grid">
             <label className="field">
               <span className="field-label">{translate('auto.k1639')}</span>
-              <input value={draft.caseCountPerRequirement} type="number" min="1" max="6" onChange={(event) => props.onTemplateDraftChange((current) => ({ ...current, caseCountPerRequirement: event.target.value }))} disabled={!props.canPolicyManage || props.state.loading} />
+              <NumberControl value={draft.caseCountPerRequirement} min={1} max={6} onChange={(event) => props.onTemplateDraftChange((current) => ({ ...current, caseCountPerRequirement: event.target.value }))} disabled={!props.canPolicyManage || props.state.loading} />
             </label>
             <label className="field">
               <span className="field-label">{translate('auto.k1611')}</span>
-              <input value={draft.environmentKey} onChange={(event) => props.onTemplateDraftChange((current) => ({ ...current, environmentKey: event.target.value }))} disabled={!props.canPolicyManage || props.state.loading} />
+              <InputControl value={draft.environmentKey} onChange={(event) => props.onTemplateDraftChange((current) => ({ ...current, environmentKey: event.target.value }))} disabled={!props.canPolicyManage || props.state.loading} />
             </label>
           </div>
           <div className="test-design-template-inline-grid">
             <label className="field">
               <span className="field-label">{translate('auto.k1640')}</span>
-              <NativeSelect value={draft.generationStrategy} onChange={(event) => props.onTemplateDraftChange((current) => ({ ...current, generationStrategy: event.target.value }))} disabled={!props.canPolicyManage || props.state.loading}>
+              <SelectControl value={draft.generationStrategy} onChange={(event) => props.onTemplateDraftChange((current) => ({ ...current, generationStrategy: event.target.value }))} disabled={!props.canPolicyManage || props.state.loading}>
                 {TEST_DESIGN_GENERATION_STRATEGIES.map((strategy) => (
                   <option key={strategy} value={strategy}>{dictionaryLabel(strategy)}</option>
                 ))}
-              </NativeSelect>
+              </SelectControl>
             </label>
             <label className="field">
               <span className="field-label">{translate('auto.k1641')}</span>
-              <NativeSelect value={draft.coverageStrategy} onChange={(event) => props.onTemplateDraftChange((current) => ({ ...current, coverageStrategy: event.target.value }))} disabled={!props.canPolicyManage || props.state.loading}>
+              <SelectControl value={draft.coverageStrategy} onChange={(event) => props.onTemplateDraftChange((current) => ({ ...current, coverageStrategy: event.target.value }))} disabled={!props.canPolicyManage || props.state.loading}>
                 {TEST_DESIGN_COVERAGE_STRATEGIES.map((strategy) => (
                   <option key={strategy} value={strategy}>{dictionaryLabel(strategy)}</option>
                 ))}
-              </NativeSelect>
+              </SelectControl>
             </label>
           </div>
           <label className="field">
             <span className="field-label">{translate('auto.k1612')}</span>
-            <input value={draft.contextApiIds} onChange={(event) => props.onTemplateDraftChange((current) => ({ ...current, contextApiIds: event.target.value }))} disabled={!props.canPolicyManage || props.state.loading} />
+            <InputControl value={draft.contextApiIds} onChange={(event) => props.onTemplateDraftChange((current) => ({ ...current, contextApiIds: event.target.value }))} disabled={!props.canPolicyManage || props.state.loading} />
           </label>
           <label className="field">
             <span className="field-label">{translate('auto.k1614')}</span>
-            <input value={draft.contextPageIds} onChange={(event) => props.onTemplateDraftChange((current) => ({ ...current, contextPageIds: event.target.value }))} disabled={!props.canPolicyManage || props.state.loading} />
+            <InputControl value={draft.contextPageIds} onChange={(event) => props.onTemplateDraftChange((current) => ({ ...current, contextPageIds: event.target.value }))} disabled={!props.canPolicyManage || props.state.loading} />
           </label>
           <label className="field">
             <span className="field-label">{translate('auto.k1615')}</span>
-            <input value={draft.contextFlowIds} onChange={(event) => props.onTemplateDraftChange((current) => ({ ...current, contextFlowIds: event.target.value }))} disabled={!props.canPolicyManage || props.state.loading} />
+            <InputControl value={draft.contextFlowIds} onChange={(event) => props.onTemplateDraftChange((current) => ({ ...current, contextFlowIds: event.target.value }))} disabled={!props.canPolicyManage || props.state.loading} />
           </label>
           <div className="field">
             <span className="field-label">{translate('auto.k1315')}</span>
             <div className="test-design-checks">
               {TEST_DESIGN_COVERAGE_TYPES.map((type) => (
                 <label key={type}>
-                  <input type="checkbox" checked={draft.coverageTypes.includes(type)} onChange={() => props.onToggleCoverage(type)} disabled={!props.canPolicyManage || props.state.loading} />
+                  <CheckboxControl checked={draft.coverageTypes.includes(type)} onChange={() => props.onToggleCoverage(type)} disabled={!props.canPolicyManage || props.state.loading} />
                   <span>{dictionaryLabel(type)}</span>
                 </label>
               ))}
             </div>
           </div>
           <label className="test-design-template-enabled">
-            <input type="checkbox" checked={draft.enabled} onChange={(event) => props.onTemplateDraftChange((current) => ({ ...current, enabled: event.target.checked }))} disabled={!props.canPolicyManage || props.state.loading} />
+            <CheckboxControl checked={draft.enabled} onChange={(event) => props.onTemplateDraftChange((current) => ({ ...current, enabled: event.target.checked }))} disabled={!props.canPolicyManage || props.state.loading} />
             <span>{translate('auto.k0251')}</span>
           </label>
           <div className="toolbar-actions">
