@@ -1,4 +1,4 @@
-import { LockOutlined, UserOutlined } from '@ant-design/icons';
+import { CheckOutlined, LockOutlined, UserOutlined } from '@ant-design/icons';
 import { Alert, App as AntApp, Button, ConfigProvider, Form, Input, Modal, theme } from 'antd';
 import zhCN from 'antd/locale/zh_CN';
 import { useEffect, useState } from 'react';
@@ -183,7 +183,7 @@ function AppContent() {
   );
 }
 
-/** 分屏登录页：左侧品牌区 + 右侧表单 */
+/** 分屏登录页：左侧品牌区（业务流水线可视化）+ 右侧表单 */
 function LoginPage(props: {
   error: string;
   form: ReturnType<typeof Form.useForm<LoginForm>>[0];
@@ -196,12 +196,63 @@ function LoginPage(props: {
         <div className="auth-brand-inner">
           <div className="auth-brand-logo">
             <div className="auth-brand-mark">VA</div>
-            <span className="auth-brand-name">Veri Agent</span>
+            <div className="auth-brand-logo-text">
+              <span className="auth-brand-name">Veri Agent</span>
+              <span className="auth-brand-tag">AI Testing Platform</span>
+            </div>
           </div>
           <h1 className="auth-brand-title">AI 驱动的一体化测试平台</h1>
           <p className="auth-brand-desc">
-            覆盖需求输入、用例设计、接口自动化、UI E2E、执行编排与质量报告的全链路测试能力，让质量工程更高效。
+            从需求文档到质量报告，将用例设计、接口与 UI 自动化、执行编排与失败诊断整合为一条智能流水线。
           </p>
+          <div className="auth-showcase">
+            <div className="auth-pipeline-card">
+              <div className="auth-pipeline-head">
+                <span className="auth-pipeline-dots" aria-hidden="true"><i /><i /><i /></span>
+                <span className="auth-pipeline-name">智能回归流水线 · RUN #1284</span>
+                <span className="auth-pipeline-status"><i />运行中</span>
+              </div>
+              <div className="auth-pipeline-steps">
+                <div className="auth-pipeline-step is-done">
+                  <span className="auth-pipeline-node"><CheckOutlined /></span>
+                  <span className="auth-pipeline-label">需求解析</span>
+                </div>
+                <div className="auth-pipeline-step is-done">
+                  <span className="auth-pipeline-node"><CheckOutlined /></span>
+                  <span className="auth-pipeline-label">用例生成</span>
+                </div>
+                <div className="auth-pipeline-step is-running">
+                  <span className="auth-pipeline-node" />
+                  <span className="auth-pipeline-label">自动化执行</span>
+                </div>
+                <div className="auth-pipeline-step">
+                  <span className="auth-pipeline-node" />
+                  <span className="auth-pipeline-label">智能报告</span>
+                </div>
+              </div>
+              <div className="auth-pipeline-metrics">
+                <div className="auth-pipeline-metric">
+                  <strong>96.8%</strong>
+                  <span>通过率</span>
+                </div>
+                <div className="auth-pipeline-metric">
+                  <strong>1,248</strong>
+                  <span>执行用例</span>
+                </div>
+                <div className="auth-pipeline-metric">
+                  <strong>18m 32s</strong>
+                  <span>总耗时</span>
+                </div>
+              </div>
+            </div>
+            <div className="auth-diag-card">
+              <span className="auth-diag-pulse" aria-hidden="true" />
+              <div className="auth-diag-text">
+                <strong>AI 失败诊断</strong>
+                <span>已定位 3 个疑似根因</span>
+              </div>
+            </div>
+          </div>
           <ul className="auth-brand-points">
             <li>AI 用例生成与智能评审</li>
             <li>接口 / UI 自动化执行与编排</li>
@@ -209,10 +260,14 @@ function LoginPage(props: {
           </ul>
         </div>
       </div>
-      <div className="auth-panel">
-        <div className="auth-panel-inner">
-          <h2 className="auth-panel-title">欢迎登录</h2>
-          <p className="auth-panel-subtitle">{translate('auth.loginSubtitle')}</p>
+      <div className="auth-form-panel">
+        <div className="auth-form-inner">
+          <div className="auth-form-brand">
+            <div className="auth-brand-mark">VA</div>
+            <span className="auth-brand-name">Veri Agent</span>
+          </div>
+          <h2 className="auth-form-title">欢迎登录</h2>
+          <p className="auth-form-subtitle">{translate('auth.loginSubtitle')}</p>
           {props.error ? <Alert style={{ marginBottom: 20 }} message={props.error} type="error" showIcon /> : null}
           <Form form={props.form} layout="vertical" requiredMark={false} onFinish={props.onSubmit}>
             <Form.Item name="username" label={translate('auth.account')} rules={[{ required: true, message: translate('auth.usernamePlaceholder') }]}>
@@ -225,6 +280,7 @@ function LoginPage(props: {
               {translate('auth.login')}
             </Button>
           </Form>
+          <div className="auth-form-footer">Veri Agent · AI 驱动的一体化测试平台</div>
         </div>
       </div>
     </main>
