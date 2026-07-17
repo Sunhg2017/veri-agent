@@ -34,11 +34,14 @@ test('WP4 document input browser smoke covers upload, candidate review, publish 
     mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
     buffer: Buffer.from('wp4 document input browser smoke')
   });
+  // 等待文件注册到 input，避免提交时文件尚未挂载而降级为 JSON 导入
+  await expect(importDrawer.locator('#import-file')).toHaveValue(/wp4-smoke-upload\.docx$/);
   await importDrawer.getByRole('button', { name: '发起导入' }).click();
 
   await expect(page.getByText('导入任务已提交')).toBeVisible();
   await expect(page.getByText('wp4-smoke-upload.docx')).toBeVisible();
-  await expect(page.getByText('上传文件候选')).toBeVisible();
+  await page.getByRole('tab', { name: '候选资产' }).click();
+  await expect(page.locator('#candidate-title-cand-ui-1')).toHaveValue('上传文件候选');
   expect(mock.multipartUploadSeen).toBe(true);
 
   const candidateCard = page.locator('.document-candidate-card').filter({
@@ -63,12 +66,14 @@ test('WP4 document input browser smoke covers upload, candidate review, publish 
   await expect(page.getByText('候选需求已确认')).toBeVisible();
   await page.locator('#candidate-select-cand-ui-1').check();
 
+  await page.getByRole('tab', { name: '发布管理' }).click();
   await page.getByRole('button', { name: '试运行' }).click();
   await expect(page.getByText('发布预检', { exact: true })).toBeVisible();
   await expect(page.getByText(/已按\s*1 个候选项过滤/)).toBeVisible();
   await expect(page.getByText('CREATE · cand-ui-1')).toBeVisible();
   expect(mock.publishDryRunSeen).toBe(true);
 
+  await page.getByRole('tab', { name: '文档导入' }).click();
   await page.getByRole('button', { name: /requirement\.changed/ }).click();
   await expect(page.getByText('evt-ui-1')).toBeVisible();
   await page.getByRole('button', { name: '重放事件' }).click();
@@ -81,7 +86,18 @@ test('WP4 document input browser smoke covers upload, candidate review, publish 
 
 async function selectAntdFieldOption(page: Page, panel: ReturnType<Page['getByRole']>, fieldLabel: string, optionName: string) {
   await panel.getByRole('combobox', { name: new RegExp(fieldLabel) }).click();
-  await page.locator('.ant-select-dropdown:not(.ant-select-dropdown-hidden) .ant-select-item-option-content', { hasText: optionName }).first().click();
+  const optionLocator = page.locator('.ant-select-dropdown:not(.ant-select-dropdown-hidden) .ant-select-item-option-content', { hasText: optionName }).first();
+  // 通过搜索输入过滤选项，等待过滤渲染完成后回车选中首项，避免下拉动画导致点击偏移；
+  // 若 searchLabel 与展示文本不一致导致过滤后无匹配，则清空搜索回退为不过滤点击
+  await page.keyboard.type(optionName);
+  await page.waitForTimeout(200);
+  if (await optionLocator.count()) {
+    await page.keyboard.press('Enter');
+  } else {
+    await page.keyboard.press('ControlOrMeta+A');
+    await page.keyboard.press('Backspace');
+    await optionLocator.click();
+  }
 }
 
 class Wp4DocumentInputMock {

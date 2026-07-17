@@ -1,5 +1,5 @@
 import { LockOutlined, UserOutlined } from '@ant-design/icons';
-import { Alert, App as AntApp, Button, Card, ConfigProvider, Form, Input, Modal, Typography, theme } from 'antd';
+import { Alert, App as AntApp, Button, ConfigProvider, Form, Input, Modal, theme } from 'antd';
 import zhCN from 'antd/locale/zh_CN';
 import { useEffect, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
@@ -11,11 +11,12 @@ import {
   logout as logoutRequest
 } from './api/auth';
 import { ApiError, clearAuthToken, getAuthToken, setAuthToken, setRefreshToken, setSessionId } from './api/client';
-import { EnterpriseConsole } from './components/EnterpriseConsole';
+import { AppRoutes } from './app/router';
 import { queryClient } from './platform/queryClient';
 import { useAppSessionStore } from './platform/appStore';
 import { useThemeStore } from './platform/themeStore';
 import { translate } from './platform/i18n';
+import { lightThemeConfig } from './theme/themeConfig';
 
 type LoginForm = {
   password: string;
@@ -34,14 +35,11 @@ export function App() {
   return (
     <ConfigProvider
       locale={zhCN}
-      theme={{
-        algorithm: resolvedThemeMode === 'dark' ? theme.darkAlgorithm : theme.defaultAlgorithm,
-        token: {
-          borderRadius: 6,
-          colorPrimary: '#0f766e',
-          fontFamily: "'PingFang SC', 'Microsoft YaHei', 'Noto Sans SC', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif"
-        }
-      }}
+      theme={
+        resolvedThemeMode === 'dark'
+          ? { ...lightThemeConfig, algorithm: theme.darkAlgorithm }
+          : lightThemeConfig
+      }
     >
       <AntApp>
         <AppContent />
@@ -126,7 +124,7 @@ function AppContent() {
         try {
           await logoutRequest();
         } catch {
-          // Ignore logout endpoint failures; local session cleanup is authoritative for the UI.
+          // 忽略登出接口失败，本地会话清理为准
         } finally {
           clearSignedInState(setCurrentUser);
           void message.info(translate('auto.k0055'));
@@ -159,7 +157,7 @@ function AppContent() {
 
   return currentUser ? (
     <>
-      <EnterpriseConsole
+      <AppRoutes
         currentUser={currentUser}
         themeMode={resolvedThemeMode}
         onChangePassword={() => setPasswordModalOpen(true)}
@@ -185,6 +183,7 @@ function AppContent() {
   );
 }
 
+/** 分屏登录页：左侧品牌区 + 右侧表单 */
 function LoginPage(props: {
   error: string;
   form: ReturnType<typeof Form.useForm<LoginForm>>[0];
@@ -192,26 +191,42 @@ function LoginPage(props: {
   onSubmit: (values: LoginForm) => void;
 }) {
   return (
-    <main className="va-login-page" aria-label="Veri Agent">
-      <Card className="va-login-card">
-        <div className="va-login-brand">
-          <div className="va-login-mark">VA</div>
-          <Typography.Title level={2}>Veri Agent</Typography.Title>
-          <Typography.Text type="secondary">{translate('app.enterpriseEdition')}</Typography.Text>
+    <main className="auth-layout" aria-label="Veri Agent">
+      <div className="auth-brand">
+        <div className="auth-brand-inner">
+          <div className="auth-brand-logo">
+            <div className="auth-brand-mark">VA</div>
+            <span className="auth-brand-name">Veri Agent</span>
+          </div>
+          <h1 className="auth-brand-title">AI 驱动的一体化测试平台</h1>
+          <p className="auth-brand-desc">
+            覆盖需求输入、用例设计、接口自动化、UI E2E、执行编排与质量报告的全链路测试能力，让质量工程更高效。
+          </p>
+          <ul className="auth-brand-points">
+            <li>AI 用例生成与智能评审</li>
+            <li>接口 / UI 自动化执行与编排</li>
+            <li>全链路资产追溯与质量洞察</li>
+          </ul>
         </div>
-        {props.error ? <Alert className="va-login-alert" message={props.error} type="error" showIcon /> : null}
-        <Form form={props.form} layout="vertical" requiredMark={false} onFinish={props.onSubmit}>
-          <Form.Item name="username" label={translate('auth.account')} rules={[{ required: true, message: translate('auth.usernamePlaceholder') }]}>
-            <Input autoComplete="username" autoFocus prefix={<UserOutlined />} size="large" />
-          </Form.Item>
-          <Form.Item name="password" label={translate('auth.password')} rules={[{ required: true, message: translate('auth.passwordPlaceholder') }]}>
-            <Input.Password autoComplete="current-password" prefix={<LockOutlined />} size="large" />
-          </Form.Item>
-          <Button block htmlType="submit" loading={props.loading} size="large" type="primary">
-            {translate('auth.login')}
-          </Button>
-        </Form>
-      </Card>
+      </div>
+      <div className="auth-panel">
+        <div className="auth-panel-inner">
+          <h2 className="auth-panel-title">欢迎登录</h2>
+          <p className="auth-panel-subtitle">{translate('auth.loginSubtitle')}</p>
+          {props.error ? <Alert style={{ marginBottom: 20 }} message={props.error} type="error" showIcon /> : null}
+          <Form form={props.form} layout="vertical" requiredMark={false} onFinish={props.onSubmit}>
+            <Form.Item name="username" label={translate('auth.account')} rules={[{ required: true, message: translate('auth.usernamePlaceholder') }]}>
+              <Input autoComplete="username" autoFocus prefix={<UserOutlined />} size="large" />
+            </Form.Item>
+            <Form.Item name="password" label={translate('auth.password')} rules={[{ required: true, message: translate('auth.passwordPlaceholder') }]}>
+              <Input.Password autoComplete="current-password" prefix={<LockOutlined />} size="large" />
+            </Form.Item>
+            <Button block htmlType="submit" loading={props.loading} size="large" type="primary">
+              {translate('auth.login')}
+            </Button>
+          </Form>
+        </div>
+      </div>
     </main>
   );
 }
@@ -235,7 +250,7 @@ function PasswordModal(props: {
       title={props.force ? translate('auth.passwordInitialTitle') : translate('auth.passwordChangeTitle')}
       onCancel={props.onCancel}
     >
-      {props.force ? <Alert className="va-login-alert" message={translate('auth.initialPasswordNotice')} type="warning" showIcon /> : null}
+      {props.force ? <Alert style={{ marginBottom: 20 }} message={translate('auth.initialPasswordNotice')} type="warning" showIcon /> : null}
       <Form form={props.form} layout="vertical" requiredMark={false} onFinish={props.onSubmit}>
         <Form.Item name="oldPassword" label={translate('auth.currentPassword')} rules={[{ required: true, message: translate('auth.currentPassword') }]}>
           <Input.Password autoComplete="current-password" />
@@ -246,7 +261,7 @@ function PasswordModal(props: {
         <Form.Item name="confirmPassword" label={translate('auth.passwordConfirm')} rules={[{ required: true, message: translate('validation.passwordConfirmRequired') }]}>
           <Input.Password autoComplete="new-password" />
         </Form.Item>
-        <div className="va-modal-actions">
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
           {props.force ? <Button onClick={props.onLogout}>{translate('actions.logout')}</Button> : <Button onClick={props.onCancel}>{translate('actions.cancel')}</Button>}
           <Button htmlType="submit" loading={props.submitting} type="primary">{translate('auth.passwordSubmit')}</Button>
         </div>

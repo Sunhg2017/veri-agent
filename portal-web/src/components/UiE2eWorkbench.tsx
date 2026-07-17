@@ -11,8 +11,9 @@ import {
   ShieldCheck,
   Square
 } from 'lucide-react';
-import { Drawer } from 'antd';
+import { Drawer, Tabs } from 'antd';
 import { useCallback, useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import type { CurrentUser } from '../api/auth';
 import {
   archiveUiE2eScene,
@@ -121,6 +122,7 @@ import {
   type UiE2eSceneStepDraft
 } from '../uiE2eWorkbenchState';
 import { translate } from '../platform/i18n';
+import { PageHeader } from './PageHeader';
 import { CheckboxControl, InputControl, SelectControl, TextAreaControl } from './ui';
 
 type WorkState = {
@@ -176,6 +178,23 @@ const browserOptions = ['CHROMIUM', 'FIREFOX', 'WEBKIT'].map((value) => ({
   value
 }));
 
+/**
+ * UI E2E 子页面：用例场景 / 执行记录 / 稳定性治理，
+ * 通过顶部 Tabs + 嵌套路由切换，状态仍由本组件统一持有。
+ */
+const uiE2eSubPages = [
+  { key: 'cases', label: translate('nav.uiCases') },
+  { key: 'runs', label: translate('nav.uiRuns') },
+  { key: 'flaky', label: translate('nav.uiFlaky') }
+] as const;
+
+type UiE2eSubPage = (typeof uiE2eSubPages)[number]['key'];
+
+function resolveUiE2eSubPage(pathname: string): UiE2eSubPage {
+  const segment = pathname.replace(/^\/+/, '').split('/')[1] ?? '';
+  return (uiE2eSubPages.some((page) => page.key === segment) ? segment : 'cases') as UiE2eSubPage;
+}
+
 export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentUser | null }) {
   const canRead = hasPermission(props.currentUser, 'uiE2e:read');
   const canManage = canUseButton(props.currentUser, 'uiE2e:manage');
@@ -183,6 +202,11 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
   const canExecute = canUseButton(props.currentUser, 'uiE2e:execute');
   const canExport = canUseButton(props.currentUser, 'uiE2e:export');
   const canFlaky = canUseButton(props.currentUser, 'uiE2e:flaky');
+
+  const location = useLocation();
+  const navigate = useNavigate();
+  const activeSubPage = resolveUiE2eSubPage(location.pathname);
+  const subPageTabs = useMemo(() => uiE2eSubPages.map((page) => ({ key: page.key, label: page.label })), []);
 
   const [health, setHealth] = useState<UiE2eHealth | null>(null);
   const [scenes, setScenes] = useState<UiE2eSceneSummary[]>([]);
@@ -878,6 +902,14 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
 
   return (
     <div className="ui-e2e-workbench" data-testid="ui-e2e-workbench">
+      <PageHeader title="UI E2E" description={translate('auto.k0011')} />
+      <div className="module-tabs-card">
+        <Tabs
+          activeKey={activeSubPage}
+          items={subPageTabs}
+          onChange={(key) => navigate(`/ui-e2e/${key}`)}
+        />
+      </div>
       <section className="metrics-grid">
         <Metric icon={<CheckCircle2 size={20} />} label={translate('auto.k1882')} value={String(overview.approvedScenes)} desc={displayValueLabel(health?.runnerMode || translate('auto.k1118'))} tone="success" />
         <Metric icon={<FileText size={20} />} label={translate('auto.k1883')} value={String(overview.reviewingBundles)} desc={health?.artifactPolicy ? '产物策略已就绪' : translate('auto.k1118')} tone="info" />
@@ -889,6 +921,7 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
 
       <div className="ui-e2e-layout">
         <section className="ui-e2e-list-column">
+          {activeSubPage === 'runs' && (
           <Panel
             title={translate('auto.k1887')}
             desc={health ? `${health.service} · ${health.status}` : translate('auto.k1888')}
@@ -931,7 +964,10 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
             ))}
             <StateLine state={loadState} />
           </Panel>
+          )}
 
+          {activeSubPage === 'cases' && (
+          <>
           <Panel
             title={translate('auto.k1890')}
             desc={translate('auto.k1891')}
@@ -1362,7 +1398,10 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
               }}
             />
           </Panel>
+          </>
+          )}
 
+          {activeSubPage === 'runs' && (
           <Panel
             title={translate('auto.k1917')}
             desc={translate('auto.k1918')}
@@ -1783,7 +1822,9 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
               }}
             />
           </Panel>
+          )}
 
+          {activeSubPage === 'flaky' && (
           <Panel
             title={translate('auto.k1939')}
             desc={translate('auto.k1940')}
@@ -1915,11 +1956,17 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
               }}
             />
           </Panel>
+          )}
         </section>
 
         <section className="ui-e2e-detail-column">
+          {activeSubPage === 'cases' && (
+          <>
           <SceneDetailPanel detail={sceneDetail} activity={selectedSceneActivity} state={sceneActionState} />
           <BundleDetailPanel detail={bundleDetail} exported={bundleExport} state={bundleActionState} />
+          </>
+          )}
+          {activeSubPage === 'runs' && (
           <RunDetailPanel
             detail={runDetail}
             exported={runExport}
@@ -1930,7 +1977,10 @@ export function UiE2eWorkbench(props: { signedIn: boolean; currentUser: CurrentU
             onDownloadArtifact={(artifact) => void onDownloadArtifact(artifact)}
             onApplyFlakyPreset={(status, reasonCode, reasonSummary) => void onApplyRunFlakyPreset(status, reasonCode, reasonSummary)}
           />
+          )}
+          {activeSubPage === 'flaky' && (
           <FlakyDetailPanel item={flakyDetail} state={flakyActionState} />
+          )}
         </section>
       </div>
     </div>

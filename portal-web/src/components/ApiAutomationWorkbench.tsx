@@ -13,8 +13,9 @@ import {
   Send,
   Upload
 } from 'lucide-react';
-import { Drawer } from 'antd';
+import { Drawer, Tabs } from 'antd';
 import { useCallback, useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import type { CurrentUser } from '../api/auth';
 import {
   cancelApiAutomationRun,
@@ -48,6 +49,7 @@ import {
 import { canUseButton, hasPermission } from '../permissions';
 import { dictionaryLabel, displayValueLabel, fieldLabel } from '../platform/dictionaries';
 import { translate } from '../platform/i18n';
+import { PageHeader } from './PageHeader';
 import { CheckboxControl, InputControl, SelectControl, TextAreaControl } from './ui';
 
 const DIFF_STATUS_OPTIONS = ['ALL', 'NEW', 'CHANGED', 'MATCHED', 'CONFLICT', 'SKIPPED', 'UNKNOWN'] as const;
@@ -74,6 +76,23 @@ const initialDraft: SpecDraft = {
   content: ''
 };
 
+/**
+ * API 自动化子页面：用例管理 / 套件编排 / 执行记录，
+ * 通过顶部 Tabs + 嵌套路由切换，状态仍由本组件统一持有。
+ */
+const apiAutomationSubPages = [
+  { key: 'cases', label: translate('nav.apiCases') },
+  { key: 'suites', label: translate('nav.apiSuites') },
+  { key: 'runs', label: translate('nav.apiRuns') }
+] as const;
+
+type ApiAutomationSubPage = (typeof apiAutomationSubPages)[number]['key'];
+
+function resolveApiAutomationSubPage(pathname: string): ApiAutomationSubPage {
+  const segment = pathname.replace(/^\/+/, '').split('/')[1] ?? '';
+  return (apiAutomationSubPages.some((page) => page.key === segment) ? segment : 'cases') as ApiAutomationSubPage;
+}
+
 export function ApiAutomationWorkbench(props: { signedIn: boolean; currentUser: CurrentUser | null }) {
   const canRead = hasPermission(props.currentUser, 'apiAutomation:read');
   const canImport = canUseButton(props.currentUser, 'apiAutomation:import');
@@ -81,6 +100,12 @@ export function ApiAutomationWorkbench(props: { signedIn: boolean; currentUser: 
   const canReview = canUseButton(props.currentUser, 'apiAutomation:review');
   const canExecute = canUseButton(props.currentUser, 'apiAutomation:execute');
   const canExport = canUseButton(props.currentUser, 'apiAutomation:export');
+
+  const location = useLocation();
+  const navigate = useNavigate();
+  const activeSubPage = resolveApiAutomationSubPage(location.pathname);
+  const subPageTabs = useMemo(() => apiAutomationSubPages.map((page) => ({ key: page.key, label: page.label })), []);
+
   const [health, setHealth] = useState<ApiAutomationHealth | null>(null);
   const [specs, setSpecs] = useState<ApiAutomationSpec[]>([]);
   const [selectedSpecId, setSelectedSpecId] = useState('');
@@ -421,6 +446,15 @@ export function ApiAutomationWorkbench(props: { signedIn: boolean; currentUser: 
   }
 
   return (
+    <>
+      <PageHeader title={translate('auto.k0009')} description={translate('auto.k0010')} />
+      <div className="module-tabs-card">
+        <Tabs
+          activeKey={activeSubPage}
+          items={subPageTabs}
+          onChange={(key) => navigate(`/api-automation/${key}`)}
+        />
+      </div>
     <section className="api-automation-console">
       <div className="metric-grid">
         <MetricCard label={translate('auto.k0165')} value={String(specs.length)} icon={<FileText size={18} />} />
@@ -429,6 +463,7 @@ export function ApiAutomationWorkbench(props: { signedIn: boolean; currentUser: 
         <MetricCard label={translate('auto.k0146')} value={String(summary.failed)} icon={<AlertTriangle size={18} />} />
       </div>
 
+      {activeSubPage === 'cases' && (
       <section className="panel">
         <div className="panel-header">
           <div>
@@ -453,7 +488,9 @@ export function ApiAutomationWorkbench(props: { signedIn: boolean; currentUser: 
           </div>
         </div>
       </section>
+      )}
 
+      {activeSubPage === 'cases' && (
       <section className="api-automation-layout">
         <Drawer
           className="api-automation-import-drawer"
@@ -551,7 +588,9 @@ export function ApiAutomationWorkbench(props: { signedIn: boolean; currentUser: 
           </div>
         </section>
       </section>
+      )}
 
+      {activeSubPage === 'cases' && (
       <section className="panel">
         <div className="panel-header">
           <div>
@@ -628,13 +667,40 @@ export function ApiAutomationWorkbench(props: { signedIn: boolean; currentUser: 
           {runExportState.error && <div className="document-state-line error">{runExportState.error}</div>}
           {runExportState.success && <div className="document-state-line success">{runExportState.success}</div>}
           {lastSync && <SyncSummary sync={lastSync} />}
+          <EndpointTable
+            endpoints={filteredEndpoints(detail?.endpoints ?? [], diffStatusFilter)}
+            loading={detailState.loading}
+            selectedAssetApiIds={selectedAssetApiIds}
+            onToggleAssetApiId={toggleSelectedAssetApiId}
+          />
+        </div>
+      </section>
+      )}
+
+      {activeSubPage === 'suites' && (
+      <section className="panel">
+        <div className="panel-header">
+          <div>
+            <div className="panel-title">{translate('nav.apiSuites')}</div>
+            <div className="panel-desc">{translate('auto.k0210')}</div>
+          </div>
+        </div>
+        <div className="panel-body compact">
+          {generationState.error && <div className="document-state-line error">{generationState.error}</div>}
+          {generationState.success && <div className="document-state-line success">{generationState.success}</div>}
+          {scriptBundleState.error && <div className="document-state-line error">{scriptBundleState.error}</div>}
+          {scriptBundleState.success && <div className="document-state-line success">{scriptBundleState.success}</div>}
+          {runState.error && <div className="document-state-line error">{runState.error}</div>}
+          {runState.success && <div className="document-state-line success">{runState.success}</div>}
+          {runExportState.error && <div className="document-state-line error">{runExportState.error}</div>}
+          {runExportState.success && <div className="document-state-line success">{runExportState.success}</div>}
           <GenerationHistory
             tasks={generationHistory}
             selectedTaskId={lastGeneration?.task.id}
             loading={generationState.loading}
             onLoad={(taskId) => void onLoadGenerationTask(taskId)}
           />
-          {lastGeneration && (
+          {lastGeneration ? (
             <GenerationSummary
               generation={lastGeneration}
               health={health}
@@ -665,16 +731,55 @@ export function ApiAutomationWorkbench(props: { signedIn: boolean; currentUser: 
               onCancelRun={(run) => void onCancelRun(run)}
               onExportRun={(run) => void onExportRun(run)}
             />
+          ) : (
+            <div className="empty-state compact">
+              <ListChecks size={20} />
+              <div>
+                <strong>{translate('nav.apiSuites')}</strong>
+                <span>{translate('auto.k0185')}</span>
+              </div>
+            </div>
           )}
-          <EndpointTable
-            endpoints={filteredEndpoints(detail?.endpoints ?? [], diffStatusFilter)}
-            loading={detailState.loading}
-            selectedAssetApiIds={selectedAssetApiIds}
-            onToggleAssetApiId={toggleSelectedAssetApiId}
-          />
         </div>
       </section>
+      )}
+
+      {activeSubPage === 'runs' && (
+      <section className="panel">
+        <div className="panel-header">
+          <div>
+            <div className="panel-title">{translate('nav.apiRuns')}</div>
+            <div className="panel-desc">{lastRun ? lastRun.run.id : '-'}</div>
+          </div>
+        </div>
+        <div className="panel-body compact">
+          {runExportState.error && <div className="document-state-line error">{runExportState.error}</div>}
+          {runExportState.success && <div className="document-state-line success">{runExportState.success}</div>}
+          {lastRun ? (
+            <RunSummary
+              run={lastRun}
+              runExport={lastRunExport}
+              canExport={canExport}
+              canCancel={canExecute}
+              exportLoading={runExportState.loading}
+              runLoading={runState.loading}
+              onCancel={() => void onCancelRun(lastRun)}
+              onExport={() => void onExportRun(lastRun)}
+            />
+          ) : (
+            <div className="empty-state compact">
+              <Play size={20} />
+              <div>
+                <strong>{translate('nav.apiRuns')}</strong>
+                <span>{translate('auto.k0185')}</span>
+              </div>
+            </div>
+          )}
+        </div>
+      </section>
+      )}
     </section>
+    </>
   );
 
   function setDraftValue(key: keyof SpecDraft, value: string) {

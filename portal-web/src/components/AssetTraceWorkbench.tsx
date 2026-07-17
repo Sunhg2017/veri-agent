@@ -11,6 +11,7 @@ import {
   type LucideIcon
 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import type { CurrentUser } from '../api/auth';
 import {
   buildAssetTraceTopologyGraph,
@@ -134,6 +135,8 @@ export function AssetTraceWorkbench(props: {
   signedIn: boolean;
   tabs: readonly AssetNavigationTab[];
 }) {
+  const location = useLocation();
+  const navigate = useNavigate();
   const canReadAssets = hasPermission(props.currentUser, 'asset:read');
   const [health, setHealth] = useState<AssetHealth | null>(null);
   const [requirements, setRequirements] = useState<AssetRequirementView[]>([]);
@@ -144,20 +147,15 @@ export function AssetTraceWorkbench(props: {
   const [links, setLinks] = useState<TraceLinkView[]>([]);
   const [filters, setFilters] = useState<TraceFilters>(initialFilters);
   const [appliedFilters, setAppliedFilters] = useState<TraceFilters>(initialFilters);
-  const [selectedSubject, setSelectedSubject] = useState<SelectedSubject | null>(() => subjectFromHash());
+  const [selectedSubject, setSelectedSubject] = useState<SelectedSubject | null>(() => subjectFromPathname(location.pathname));
   const [loadState, setLoadState] = useState<WorkState>({ loading: false });
 
   useEffect(() => {
-    function syncFromHash() {
-      const nextSubject = subjectFromHash();
-      if (nextSubject) {
-        setSelectedSubject(nextSubject);
-      }
+    const nextSubject = subjectFromPathname(location.pathname);
+    if (nextSubject) {
+      setSelectedSubject(nextSubject);
     }
-
-    window.addEventListener('hashchange', syncFromHash);
-    return () => window.removeEventListener('hashchange', syncFromHash);
-  }, []);
+  }, [location.pathname]);
 
   const refreshTrace = useCallback(async () => {
     if (!props.signedIn || !canReadAssets) {
@@ -368,16 +366,16 @@ export function AssetTraceWorkbench(props: {
 
   function selectSubject(subject: SelectedSubject) {
     setSelectedSubject(subject);
-    const targetHash = `#asset-library/trace/${subject.type}/${encodeURIComponent(subject.id)}`;
-    if (window.location.hash !== targetHash) {
-      window.location.hash = targetHash;
+    const targetPath = `/asset-library/trace/${subject.type}/${encodeURIComponent(subject.id)}`;
+    if (location.pathname !== targetPath) {
+      navigate(targetPath);
     }
   }
 
   function openAsset(tab: AssetNavigationKey, id: string) {
-    const targetHash = `#asset-library/${tab}/${encodeURIComponent(id)}`;
-    if (window.location.hash !== targetHash) {
-      window.location.hash = targetHash;
+    const targetPath = `/asset-library/${tab}/${encodeURIComponent(id)}`;
+    if (location.pathname !== targetPath) {
+      navigate(targetPath);
     }
   }
 
@@ -976,8 +974,8 @@ function subjectExists(
   }
 }
 
-function subjectFromHash(): SelectedSubject | null {
-  const parts = window.location.hash.replace(/^#\/?/, '').split('/');
+function subjectFromPathname(pathname: string): SelectedSubject | null {
+  const parts = pathname.replace(/^\/+/, '').split('/');
   if (parts[0] !== 'asset-library' || parts[1] !== 'trace') {
     return null;
   }

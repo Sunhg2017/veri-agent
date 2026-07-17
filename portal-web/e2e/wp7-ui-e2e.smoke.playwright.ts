@@ -49,7 +49,6 @@ async function runWp7MainFlow(page: Page, assertResponsive: boolean) {
   await expect(page.locator('.metric-card').filter({ hasText: '待评审脚本包' }).getByText('1')).toBeVisible();
   await expect(page.locator('.metric-card').filter({ hasText: '活跃运行' }).getByText('1')).toBeVisible();
   await expect(page.locator('.metric-card').filter({ hasText: '访问白名单' }).getByText('开启 (2)')).toBeVisible();
-  await expect(page.locator('.notice.warning').filter({ hasText: '运行器默认关闭' })).toBeVisible();
 
   const scenePanel = page.locator('section.panel').filter({ has: page.getByRole('heading', { name: '场景筛选与创建' }) });
   await scenePanel.getByRole('button', { name: '创建场景' }).click();
@@ -95,6 +94,8 @@ async function runWp7MainFlow(page: Page, assertResponsive: boolean) {
   await bundlePanel.getByRole('button', { name: '批准', exact: true }).click();
   await expect(bundlePanel.locator('.document-state-line.success')).toContainText('脚本包已批准');
 
+  await page.getByRole('tab', { name: '执行记录' }).click();
+  await expect(page.locator('.notice.warning').filter({ hasText: '运行器默认关闭' })).toBeVisible();
   const runPanel = page.locator('section.panel').filter({ has: page.getByRole('heading', { name: '运行主链路' }) });
   const runFilterForm = runPanel.locator('form.ui-e2e-filter-grid').first();
   await runPanel.getByRole('button', { name: '创建运行' }).click();
@@ -121,6 +122,7 @@ async function runWp7MainFlow(page: Page, assertResponsive: boolean) {
   await expect(runPanel.locator('.document-state-line.success')).toContainText('运行脱敏摘要已导出');
   expect(mock.exportRunSeen).toBe(true);
 
+  await page.getByRole('tab', { name: '稳定性治理' }).click();
   const flakyPanel = page.locator('section.panel').filter({ has: page.getByRole('heading', { name: '不稳定用例治理' }) });
   await flakyPanel.getByRole('button', { name: '保存不稳定标记' }).click();
   const flakyDrawer = page.getByRole('dialog', { name: '保存不稳定标记' });
@@ -189,7 +191,18 @@ async function selectAntdOption(page: Page, control: Locator, optionName: string
   } else {
     await control.click();
   }
-  await page.locator('.ant-select-dropdown:not(.ant-select-dropdown-hidden) .ant-select-item-option-content', { hasText: optionName }).first().click();
+  const optionLocator = page.locator('.ant-select-dropdown:not(.ant-select-dropdown-hidden) .ant-select-item-option-content', { hasText: optionName }).first();
+  // 通过搜索输入过滤选项，等待过滤渲染完成后回车选中首项，避免下拉动画导致点击偏移；
+  // 若 searchLabel 与展示文本不一致导致过滤后无匹配，则清空搜索回退为不过滤点击
+  await page.keyboard.type(optionName);
+  await page.waitForTimeout(200);
+  if (await optionLocator.count()) {
+    await page.keyboard.press('Enter');
+  } else {
+    await page.keyboard.press('ControlOrMeta+A');
+    await page.keyboard.press('Backspace');
+    await optionLocator.click();
+  }
 }
 
 function escapeRegExp(value: string) {

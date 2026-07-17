@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import { Drawer } from 'antd';
 import { useCallback, useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import type { CurrentUser } from '../api/auth';
 import {
   ASSET_REQUIREMENT_PRIORITIES,
@@ -127,13 +128,15 @@ export function AssetCaseWorkbench(props: {
   signedIn: boolean;
   tabs: readonly AssetNavigationTab[];
 }) {
+  const location = useLocation();
+  const navigate = useNavigate();
   const canReadAssets = hasPermission(props.currentUser, 'asset:read');
   const canManageAssets = hasPermission(props.currentUser, 'asset:manage');
   const canReviewAssets = hasPermission(props.currentUser, 'asset:review');
   const [health, setHealth] = useState<AssetHealth | null>(null);
   const [items, setItems] = useState<AssetTestCaseView[]>([]);
   const [filters, setFilters] = useState<CaseFilters>(initialFilters);
-  const [selectedId, setSelectedId] = useState(caseIdFromHash);
+  const [selectedId, setSelectedId] = useState(() => caseIdFromPathname(location.pathname));
   const [selected, setSelected] = useState<AssetTestCaseView | null>(null);
   const [createDraft, setCreateDraft] = useState<CaseDraft>(initialCaseDraft);
   const [createSteps, setCreateSteps] = useState<StepDraft[]>(() => [emptyStep()]);
@@ -150,16 +153,11 @@ export function AssetCaseWorkbench(props: {
   const [openDrawer, setOpenDrawer] = useState<CaseDrawer>(null);
 
   useEffect(() => {
-    function syncFromHash() {
-      const parts = window.location.hash.replace(/^#\/?/, '').split('/');
-      if (parts[0] === 'asset-library' && parts[1] === 'cases') {
-        setSelectedId(parts[2] ? decodeURIComponent(parts[2]) : '');
-      }
+    const parts = location.pathname.replace(/^\/+/, '').split('/');
+    if (parts[0] === 'asset-library' && parts[1] === 'cases') {
+      setSelectedId(parts[2] ? decodeURIComponent(parts[2]) : '');
     }
-
-    window.addEventListener('hashchange', syncFromHash);
-    return () => window.removeEventListener('hashchange', syncFromHash);
-  }, []);
+  }, [location.pathname]);
 
   const refreshCases = useCallback(async () => {
     if (!props.signedIn || !canReadAssets) {
@@ -316,9 +314,9 @@ export function AssetCaseWorkbench(props: {
       return;
     }
     setSelectedId(itemId);
-    const targetHash = `#asset-library/cases/${encodeURIComponent(itemId)}`;
-    if (window.location.hash !== targetHash) {
-      window.location.hash = targetHash;
+    const targetPath = `/asset-library/cases/${encodeURIComponent(itemId)}`;
+    if (location.pathname !== targetPath) {
+      navigate(targetPath);
     }
   }
 
@@ -1093,8 +1091,8 @@ function StepEditor(props: {
   );
 }
 
-function caseIdFromHash() {
-  const parts = window.location.hash.replace(/^#\/?/, '').split('/');
+function caseIdFromPathname(pathname: string) {
+  const parts = pathname.replace(/^\/+/, '').split('/');
   if (parts[0] !== 'asset-library' || parts[1] !== 'cases') {
     return '';
   }

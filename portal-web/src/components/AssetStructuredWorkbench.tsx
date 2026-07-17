@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { Drawer } from 'antd';
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import type { CurrentUser } from '../api/auth';
 import {
   ASSET_FLOW_STATUSES,
@@ -154,12 +155,14 @@ export function AssetStructuredWorkbench(props: {
   signedIn: boolean;
   tabs: readonly AssetNavigationTab[];
 }) {
+  const location = useLocation();
+  const navigate = useNavigate();
   const canReadAssets = hasPermission(props.currentUser, 'asset:read');
   const canManageAssets = hasPermission(props.currentUser, 'asset:manage');
   const [health, setHealth] = useState<AssetHealth | null>(null);
   const [items, setItems] = useState<StructuredAssetView[]>([]);
   const [filters, setFilters] = useState<StructuredFilters>(initialFilters);
-  const [selectedId, setSelectedId] = useState(assetIdFromHash(props.activeTab));
+  const [selectedId, setSelectedId] = useState(assetIdFromPathname(location.pathname, props.activeTab));
   const [selected, setSelected] = useState<StructuredAssetView | null>(null);
   const [createDraft, setCreateDraft] = useState(() => initialDraft(props.activeTab));
   const [editDraft, setEditDraft] = useState(() => initialDraft(props.activeTab));
@@ -179,7 +182,7 @@ export function AssetStructuredWorkbench(props: {
   useEffect(() => {
     setItems([]);
     setSelected(null);
-    setSelectedId(assetIdFromHash(props.activeTab));
+    setSelectedId(assetIdFromPathname(location.pathname, props.activeTab));
     setFilters(initialFilters);
     setCreateDraft(initialDraft(props.activeTab));
     setEditDraft(initialDraft(props.activeTab));
@@ -195,16 +198,11 @@ export function AssetStructuredWorkbench(props: {
   }, [props.activeTab]);
 
   useEffect(() => {
-    function syncFromHash() {
-      const parts = window.location.hash.replace(/^#\/?/, '').split('/');
-      if (parts[0] === 'asset-library' && parts[1] === props.activeTab) {
-        setSelectedId(parts[2] ? decodeURIComponent(parts[2]) : '');
-      }
+    const parts = location.pathname.replace(/^\/+/, '').split('/');
+    if (parts[0] === 'asset-library' && parts[1] === props.activeTab) {
+      setSelectedId(parts[2] ? decodeURIComponent(parts[2]) : '');
     }
-
-    window.addEventListener('hashchange', syncFromHash);
-    return () => window.removeEventListener('hashchange', syncFromHash);
-  }, [props.activeTab]);
+  }, [location.pathname, props.activeTab]);
 
   const refreshAssets = useCallback(async () => {
     if (!props.signedIn || !canReadAssets) {
@@ -322,9 +320,9 @@ export function AssetStructuredWorkbench(props: {
       return;
     }
     setSelectedId(itemId);
-    const targetHash = `#asset-library/${props.activeTab}/${encodeURIComponent(itemId)}`;
-    if (window.location.hash !== targetHash) {
-      window.location.hash = targetHash;
+    const targetPath = `/asset-library/${props.activeTab}/${encodeURIComponent(itemId)}`;
+    if (location.pathname !== targetPath) {
+      navigate(targetPath);
     }
   }
 
@@ -1102,8 +1100,8 @@ function StructuredAssetForm(props: {
   );
 }
 
-function assetIdFromHash(tab: StructuredTabKey) {
-  const parts = window.location.hash.replace(/^#\/?/, '').split('/');
+function assetIdFromPathname(pathname: string, tab: StructuredTabKey) {
+  const parts = pathname.replace(/^\/+/, '').split('/');
   if (parts[0] !== 'asset-library' || parts[1] !== tab) {
     return '';
   }

@@ -14,8 +14,9 @@ import {
   ShieldCheck,
   Sparkles
 } from 'lucide-react';
-import { Drawer } from 'antd';
+import { Drawer, Tabs } from 'antd';
 import { useCallback, useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import type { CurrentUser } from '../api/auth';
 import {
   archiveReport,
@@ -43,6 +44,7 @@ import {
 import { canUseButton, hasPermission } from '../permissions';
 import { dictionaryLabel, displayValueLabel, fieldLabel } from '../platform/dictionaries';
 import { translate } from '../platform/i18n';
+import { PageHeader } from './PageHeader';
 import { CheckboxControl, InputControl, SelectControl } from './ui';
 
 type WorkState = {
@@ -87,12 +89,32 @@ const blockedDomTerms = [
   'token='
 ];
 
+/**
+ * 测试报告子页面：list（报告列表+详情）/ diagnosis（失败诊断）。
+ * 状态仍由本组件统一持有，通过顶部 Tabs + 嵌套路由切换渲染。
+ */
+const reportsSubPages = [
+  { key: 'list', label: translate('nav.rpList') },
+  { key: 'diagnosis', label: translate('nav.rpDiagnosis') }
+] as const;
+
+type ReportsSubPage = (typeof reportsSubPages)[number]['key'];
+
+function resolveReportsSubPage(pathname: string): ReportsSubPage {
+  const segment = pathname.replace(/^\/+/, '').split('/')[1] ?? '';
+  return (reportsSubPages.some((page) => page.key === segment) ? segment : 'list') as ReportsSubPage;
+}
+
 export function ReportsWorkbench(props: { signedIn: boolean; currentUser: CurrentUser | null }) {
   const canRead = hasPermission(props.currentUser, 'report:read');
   const canGenerate = canUseButton(props.currentUser, 'report:generate');
   const canDiagnose = canUseButton(props.currentUser, 'report:diagnose');
   const canExport = canUseButton(props.currentUser, 'report:export');
   const canManage = canUseButton(props.currentUser, 'report:manage');
+  const location = useLocation();
+  const navigate = useNavigate();
+  const activeSubPage = resolveReportsSubPage(location.pathname);
+  const subPageTabs = useMemo(() => reportsSubPages.map((page) => ({ key: page.key, label: page.label })), []);
 
   const [health, setHealth] = useState<ReportingHealth | null>(null);
   const [reports, setReports] = useState<ReportSummary[]>([]);
@@ -425,6 +447,15 @@ export function ReportsWorkbench(props: { signedIn: boolean; currentUser: Curren
 
   return (
     <div className="reports-workbench" data-testid="reports-workbench">
+      <PageHeader title={translate('auto.k2826')} description={translate('auto.k0016')} />
+      <div className="module-tabs-card">
+        <Tabs
+          activeKey={activeSubPage}
+          items={subPageTabs}
+          onChange={(key) => navigate(`/reports/${key}`)}
+        />
+      </div>
+      {activeSubPage === 'list' && (<>
       <section className="metrics-grid reports-metrics">
         <Metric icon={<CheckCircle2 size={20} />} label={translate('auto.k1117')} value={String(summary.ready)} desc={health?.schemaVersion || translate('auto.k1118')} tone="success" />
         <Metric icon={<RefreshCw size={20} />} label={translate('auto.k1119')} value={String(summary.generating)} desc={health?.generateEnabled ? translate('auto.k1120') : translate('auto.k1121')} tone="info" />
@@ -621,13 +652,6 @@ export function ReportsWorkbench(props: { signedIn: boolean; currentUser: Curren
                 }}
                 onCompare={() => void onCompareReport()}
               />
-              <DiagnosisPanel
-                detail={detail}
-                state={diagnosisState}
-                canDiagnose={canDiagnose}
-                diagnosis={detail.latestDiagnosis}
-                onDiagnose={() => void onDiagnoseReport()}
-              />
               <DefectDraftPanel
                 detail={detail}
                 state={defectState}
@@ -648,6 +672,27 @@ export function ReportsWorkbench(props: { signedIn: boolean; currentUser: Curren
           )}
         </section>
       </div>
+      </>)}
+
+      {activeSubPage === 'diagnosis' && (
+        !detail ? (
+          <Panel title={translate('nav.rpDiagnosis')} desc={translate('auto.k1149')} testId="report-diagnosis">
+            <div className="empty-state">
+              <FileText className="empty-state-icon" size={30} />
+              <strong>{detailState.loading ? translate('auto.k1150') : translate('auto.k1151')}</strong>
+              <span>{translate('auto.k1152')}</span>
+            </div>
+          </Panel>
+        ) : (
+          <DiagnosisPanel
+            detail={detail}
+            state={diagnosisState}
+            canDiagnose={canDiagnose}
+            diagnosis={detail.latestDiagnosis}
+            onDiagnose={() => void onDiagnoseReport()}
+          />
+        )
+      )}
     </div>
   );
 

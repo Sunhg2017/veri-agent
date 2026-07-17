@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import { Drawer } from 'antd';
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import type { CurrentUser } from '../api/auth';
 import {
   ASSET_API_METHODS,
@@ -186,12 +187,14 @@ export function AssetWorkbench(props: { signedIn: boolean; currentUser: CurrentU
   const canReadAssets = hasPermission(props.currentUser, 'asset:read');
   const canManageAssets = hasPermission(props.currentUser, 'asset:manage');
   const canReviewAssets = hasPermission(props.currentUser, 'asset:review');
-  const initialHash = assetLocationFromHash();
-  const [activeTab, setActiveTab] = useState<AssetTabKey>(initialHash.tab);
+  const location = useLocation();
+  const navigate = useNavigate();
+  const initialLocation = assetLocationFromPathname(location.pathname);
+  const [activeTab, setActiveTab] = useState<AssetTabKey>(initialLocation.tab);
   const [health, setHealth] = useState<AssetHealth | null>(null);
   const [requirements, setRequirements] = useState<AssetRequirementView[]>([]);
   const [filters, setFilters] = useState<RequirementFilters>(initialFilters);
-  const [selectedRequirementId, setSelectedRequirementId] = useState(initialHash.tab === 'requirements' ? initialHash.id : '');
+  const [selectedRequirementId, setSelectedRequirementId] = useState(initialLocation.tab === 'requirements' ? initialLocation.id : '');
   const [selectedRequirement, setSelectedRequirement] = useState<AssetRequirementView | null>(null);
   const [traceLinks, setTraceLinks] = useState<TraceLinkView[]>([]);
   const [createDraft, setCreateDraft] = useState<RequirementDraft>(initialRequirementDraft);
@@ -204,7 +207,7 @@ export function AssetWorkbench(props: { signedIn: boolean; currentUser: CurrentU
   const [requirementVersionState, setRequirementVersionState] = useState<WorkState>({ loading: false });
   const [apis, setApis] = useState<AssetApiView[]>([]);
   const [apiFilters, setApiFilters] = useState<ApiFilters>(initialApiFilters);
-  const [selectedApiId, setSelectedApiId] = useState(initialHash.tab === 'apis' ? initialHash.id : '');
+  const [selectedApiId, setSelectedApiId] = useState(initialLocation.tab === 'apis' ? initialLocation.id : '');
   const [selectedApi, setSelectedApi] = useState<AssetApiView | null>(null);
   const [apiCreateDraft, setApiCreateDraft] = useState<ApiDraft>(initialApiDraft);
   const [apiEditDraft, setApiEditDraft] = useState<ApiDraft>(initialApiDraft);
@@ -264,20 +267,15 @@ export function AssetWorkbench(props: { signedIn: boolean; currentUser: CurrentU
   }, [activeTab, refreshRequirements]);
 
   useEffect(() => {
-    function syncAssetFromHash() {
-      const nextLocation = assetLocationFromHash();
-      setActiveTab(nextLocation.tab);
-      if (nextLocation.tab === 'requirements') {
-        setSelectedRequirementId(nextLocation.id);
-      }
-      if (nextLocation.tab === 'apis') {
-        setSelectedApiId(nextLocation.id);
-      }
+    const nextLocation = assetLocationFromPathname(location.pathname);
+    setActiveTab(nextLocation.tab);
+    if (nextLocation.tab === 'requirements') {
+      setSelectedRequirementId(nextLocation.id);
     }
-
-    window.addEventListener('hashchange', syncAssetFromHash);
-    return () => window.removeEventListener('hashchange', syncAssetFromHash);
-  }, []);
+    if (nextLocation.tab === 'apis') {
+      setSelectedApiId(nextLocation.id);
+    }
+  }, [location.pathname]);
 
   useEffect(() => {
     if (activeTab === 'requirements' && !selectedRequirementId && requirements[0]?.id) {
@@ -504,11 +502,11 @@ export function AssetWorkbench(props: { signedIn: boolean; currentUser: CurrentU
     }
     setActiveTab(tabKey);
     const selectedId = tabKey === 'requirements' ? selectedRequirementId : tabKey === 'apis' ? selectedApiId : '';
-    const targetHash = selectedId
-      ? `#asset-library/${tabKey}/${encodeURIComponent(selectedId)}`
-      : `#asset-library/${tabKey}`;
-    if (window.location.hash !== targetHash) {
-      window.location.hash = targetHash;
+    const targetPath = selectedId
+      ? `/asset-library/${tabKey}/${encodeURIComponent(selectedId)}`
+      : `/asset-library/${tabKey}`;
+    if (location.pathname !== targetPath) {
+      navigate(targetPath);
     }
   }
 
@@ -518,9 +516,9 @@ export function AssetWorkbench(props: { signedIn: boolean; currentUser: CurrentU
     }
     setActiveTab('requirements');
     setSelectedRequirementId(requirementId);
-    const targetHash = `#asset-library/requirements/${encodeURIComponent(requirementId)}`;
-    if (window.location.hash !== targetHash) {
-      window.location.hash = targetHash;
+    const targetPath = `/asset-library/requirements/${encodeURIComponent(requirementId)}`;
+    if (location.pathname !== targetPath) {
+      navigate(targetPath);
     }
   }
 
@@ -530,9 +528,9 @@ export function AssetWorkbench(props: { signedIn: boolean; currentUser: CurrentU
     }
     setActiveTab('apis');
     setSelectedApiId(apiId);
-    const targetHash = `#asset-library/apis/${encodeURIComponent(apiId)}`;
-    if (window.location.hash !== targetHash) {
-      window.location.hash = targetHash;
+    const targetPath = `/asset-library/apis/${encodeURIComponent(apiId)}`;
+    if (location.pathname !== targetPath) {
+      navigate(targetPath);
     }
   }
 
@@ -1805,8 +1803,8 @@ export function AssetWorkbench(props: { signedIn: boolean; currentUser: CurrentU
   );
 }
 
-function assetLocationFromHash(): { tab: AssetTabKey; id: string } {
-  const parts = window.location.hash.replace(/^#\/?/, '').split('/');
+function assetLocationFromPathname(pathname: string): { tab: AssetTabKey; id: string } {
+  const parts = pathname.replace(/^\/+/, '').split('/');
   if (parts[0] !== 'asset-library') {
     return { tab: 'requirements', id: '' };
   }

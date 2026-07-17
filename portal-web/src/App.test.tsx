@@ -82,8 +82,9 @@ describe('App shell', () => {
       }
     });
     renderApp();
-    await waitFor(() => expect(screen.getByRole('navigation', { name: '功能菜单' })).toBeInTheDocument());
-    expect(screen.getByRole('heading', { name: '系统概览' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: '切换主题' })).toBeInTheDocument();
+    // 新控制台外壳：侧边栏菜单 + 面包屑（工作台 / 系统概览）+ 主题切换按钮
+    await waitFor(() => expect(screen.getByRole('menu')).toBeInTheDocument());
+    expect(screen.getAllByText('系统概览').length).toBeGreaterThan(0);
+    expect(screen.getByRole('button', { name: '主题' })).toBeInTheDocument();
   });
 });

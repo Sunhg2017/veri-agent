@@ -67,7 +67,7 @@ async function runWp6MainFlow(page: Page, assertResponsive: boolean) {
   await importDialog.getByLabel('OpenAPI').fill(openApiDocument);
   await importDialog.getByRole('button', { name: '导入' }).click();
 
-  await expect(page.getByText('OpenAPI 规格已导入')).toBeVisible();
+  await expect(page.getByText('OpenAPI 规格已导入').first()).toBeVisible();
   await expect(page.getByText('WP6 UI smoke spec', { exact: true }).first()).toBeVisible();
   await expect(page.getByText('/v1/orders/{id}')).toBeVisible();
   expect(mock.importPayload).toMatchObject({
@@ -95,6 +95,7 @@ async function runWp6MainFlow(page: Page, assertResponsive: boolean) {
   await page.getByLabel('WP3 用例 ID').fill('asset-case-smoke-1, asset-case-smoke-2');
   await page.getByRole('button', { name: '生成用例' }).click();
   await expect(page.getByText('生成：已完成 · API 2 · 用例 4').first()).toBeVisible();
+  await page.getByRole('tab', { name: '套件编排' }).click();
   await expect(page.getByText('4 条草稿')).toBeVisible();
   await expect(page.getByText('2 条最近记录')).toBeVisible();
   await expect(page.getByText('模型带兜底 · API 1 · 用例 2')).toBeVisible();
@@ -155,8 +156,9 @@ async function runWp6MainFlow(page: Page, assertResponsive: boolean) {
   if (assertResponsive) {
     await expectNoHorizontalOverflow(page, '.api-automation-console');
     await expect(page.locator('.api-automation-panel-actions').first()).toBeVisible();
-    await expect(page.locator('.api-path').filter({ hasText: '/v1/orders/{id}' }).first()).toBeVisible();
     await expect(page.locator('.api-automation-history-item').first()).toBeVisible();
+    await page.getByRole('tab', { name: '用例管理' }).click();
+    await expect(page.locator('.api-path').filter({ hasText: '/v1/orders/{id}' }).first()).toBeVisible();
   }
 }
 
@@ -175,7 +177,18 @@ async function selectAntdOption(page: Page, control: Locator, optionName: string
   } else {
     await control.click();
   }
-  await page.locator('.ant-select-dropdown:not(.ant-select-dropdown-hidden) .ant-select-item-option-content', { hasText: optionName }).first().click();
+  const optionLocator = page.locator('.ant-select-dropdown:not(.ant-select-dropdown-hidden) .ant-select-item-option-content', { hasText: optionName }).first();
+  // 通过搜索输入过滤选项，等待过滤渲染完成后回车选中首项，避免下拉动画导致点击偏移；
+  // 若 searchLabel 与展示文本不一致导致过滤后无匹配，则清空搜索回退为不过滤点击
+  await page.keyboard.type(optionName);
+  await page.waitForTimeout(200);
+  if (await optionLocator.count()) {
+    await page.keyboard.press('Enter');
+  } else {
+    await page.keyboard.press('ControlOrMeta+A');
+    await page.keyboard.press('Backspace');
+    await optionLocator.click();
+  }
 }
 
 class Wp6ApiAutomationMock {

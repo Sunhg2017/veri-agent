@@ -11,6 +11,8 @@ import {
   useState,
   type FormEvent
 } from 'react';
+import { Tabs } from 'antd';
+import { useLocation, useNavigate } from 'react-router-dom';
 import type { CurrentUser } from '../api/auth';
 import {
   fetchAssetRequirements,
@@ -317,6 +319,27 @@ import {
   type TestDesignStepDraft
 } from '../testDesignWorkbenchState';
 import { translate } from '../platform/i18n';
+import { PageHeader } from './PageHeader';
+
+/**
+ * 测试设计子页面：将原单一堆叠页拆分为 6 个功能子页，
+ * 通过顶部 Tabs + 嵌套路由切换，状态仍由本组件统一持有。
+ */
+const testDesignSubPages = [
+  { key: 'tasks', label: translate('nav.tdTasks') },
+  { key: 'candidates', label: translate('nav.tdCandidates') },
+  { key: 'publish', label: translate('nav.tdPublish') },
+  { key: 'quality', label: translate('nav.tdQuality') },
+  { key: 'policies', label: translate('nav.tdPolicies') },
+  { key: 'operations', label: translate('nav.tdOperations') }
+] as const;
+
+type TestDesignSubPage = (typeof testDesignSubPages)[number]['key'];
+
+function resolveTestDesignSubPage(pathname: string): TestDesignSubPage {
+  const segment = pathname.replace(/^\/+/, '').split('/')[1] ?? '';
+  return (testDesignSubPages.some((page) => page.key === segment) ? segment : 'tasks') as TestDesignSubPage;
+}
 
 export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: CurrentUser | null }) {
   const canRead = hasPermission(props.currentUser, 'testDesign:read');
@@ -325,6 +348,11 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
   const canPublish = canUseButton(props.currentUser, 'testDesign:publish');
   const canExport = canUseButton(props.currentUser, 'testDesign:export');
   const canPolicyManage = canUseButton(props.currentUser, 'testDesign:policy_manage');
+
+  const location = useLocation();
+  const navigate = useNavigate();
+  const activeSubPage = resolveTestDesignSubPage(location.pathname);
+  const subPageTabs = useMemo(() => testDesignSubPages.map((page) => ({ key: page.key, label: page.label })), []);
 
   const [health, setHealth] = useState<TestDesignHealth | null>(null);
   const [requirements, setRequirements] = useState<AssetRequirementView[]>([]);
@@ -3540,26 +3568,42 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
           onConfirm={() => void confirmPendingAction()}
         />
       )}
-      <div className="module-layout">
+      <PageHeader title={translate('auto.k2817')} description={translate('auto.k0008')} />
+      <div className="module-tabs-card">
+        <Tabs
+          activeKey={activeSubPage}
+          items={subPageTabs}
+          onChange={(key) => navigate(`/test-design/${key}`)}
+        />
+      </div>
+      <div className={activeSubPage === 'tasks' || activeSubPage === 'publish' ? 'module-layout' : undefined}>
       <div className="main-stack">
+        {activeSubPage === 'tasks' && (
         <div className="metrics-grid">
           <Metric icon={<Sparkles size={20} />} label={translate('auto.k1826')} value={health?.status ?? '-'} desc={selectedTask ? generationSourceText(selectedTaskSource) : health?.generationMode ?? translate('auto.k0169')} />
           <Metric icon={<FileText size={20} />} label={translate('auto.k1827')} value={String(candidates.length)} desc={translate('auto.k1828', { value0: statusCounts.CONFIRMED ?? 0, value1: statusCounts.FAILED ?? 0 })} />
           <Metric icon={<ClipboardCheck size={20} />} label={translate('auto.k1829')} value={String(selectedTask?.publishedCount ?? 0)} desc={selectedTask?.status ?? '-'} />
         </div>
+        )}
 
+        {activeSubPage === 'quality' && (
         <QualitySummaryPanel
           scopeLabel={qualitySummaryScope}
           selectedTaskId={selectedTaskId}
           summary={qualitySummary}
         />
+        )}
 
+        {activeSubPage === 'quality' && (
         <PromptTrendPanel
           state={promptTrendState}
           summary={promptTrendSummary}
           onRefresh={() => void refreshPromptTrend()}
         />
+        )}
 
+        {activeSubPage === 'operations' && (
+        <>
         <EvaluationCorpusOperationsPanel
           state={evaluationCorpusState}
           canPolicyManage={canPolicyManage}
@@ -3629,14 +3673,19 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
           onQueuedEventReplaySubmit={(event) => void replayQueuedEvents(event)}
           onPublishCompensationRunSubmit={(event) => void runPublishCompensation(event)}
         />
+        </>
+        )}
 
+        {activeSubPage === 'quality' && (
         <AuditSummaryPanel
           state={taskAuditState}
           summary={auditSummary}
           selectedTaskId={selectedTaskId}
           onRefresh={() => void refreshTaskAuditSummary(selectedTaskId)}
         />
+        )}
 
+        {activeSubPage === 'tasks' && (
         <TestDesignRequirementSelectionPanel
           signedIn={props.signedIn}
           canRead={canRead}
@@ -3651,7 +3700,9 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
           onSelectedRequirementIdsChange={setSelectedRequirementIds}
           onToggleRequirement={toggleRequirement}
         />
+        )}
 
+        {activeSubPage === 'policies' && (
         <TestDesignContextPolicyPanel
           disabled={disabled}
           canRead={canRead}
@@ -3673,7 +3724,9 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
           onReviewOverride={(overrideId, action) => void reviewContextPolicyOverride(overrideId, action)}
           onAddNote={() => void addContextPolicyNote()}
         />
+        )}
 
+        {activeSubPage === 'publish' && (
         <TestDesignConflictOperationsPanel
           canRead={canRead}
           canPublish={canPublish}
@@ -3701,7 +3754,9 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
           onSearchConflictCases={() => void searchConflictCases()}
           onResolveConflict={requestResolveConflict}
         />
+        )}
 
+        {activeSubPage === 'policies' && (
         <TestDesignTemplateManagementPanel
           canRead={canRead}
           canPolicyManage={canPolicyManage}
@@ -3720,7 +3775,10 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
           onToggleCoverage={toggleTemplateCoverage}
           onDisableTemplate={() => void disableTemplate()}
         />
+        )}
 
+        {activeSubPage === 'candidates' && (
+        <>
         <TestDesignReviewHistoryPanel
           canExport={canExport}
           state={reviewRecordState}
@@ -3788,9 +3846,14 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
           onInsertStepDraftAfter={insertStepDraftAfter}
           onRemoveStepDraft={removeStepDraft}
         />
+        </>
+        )}
       </div>
 
+      {(activeSubPage === 'tasks' || activeSubPage === 'publish') && (
       <aside className="side-stack">
+        {activeSubPage === 'tasks' && (
+        <>
         <TestDesignGenerationConfigPanel
           canGenerate={canGenerate}
           mutationState={mutationState}
@@ -3827,7 +3890,10 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
           selectedTask={selectedTask}
           taskDiagnostics={taskDiagnostics}
         />
+        </>
+        )}
 
+        {activeSubPage === 'publish' && (
         <TestDesignPublishPanel
           canRead={canRead}
           canExport={canExport}
@@ -3896,9 +3962,13 @@ export function TestDesignWorkbench(props: { signedIn: boolean; currentUser: Cur
           onSelectedConflictCaseIdsChange={setSelectedConflictCaseIds}
           onResolveConflict={requestResolveConflict}
         />
+        )}
 
+        {activeSubPage === 'tasks' && (
         <TestDesignScopePanel selectedRequirementTitles={selectedRequirementTitles} />
+        )}
       </aside>
+      )}
       </div>
     </>
   );

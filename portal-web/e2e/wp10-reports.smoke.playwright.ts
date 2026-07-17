@@ -46,10 +46,12 @@ async function runWp10MainFlow(page: Page, assertResponsive: boolean) {
   await expect(page.getByTestId('reports-workbench')).toBeVisible();
   await expect(page.getByTestId('reports-list').getByRole('button', { name: '失败 33333333...3333 失败 · 运行器失败 2026/6/17 08:00:00' })).toBeVisible();
   await expect(page.getByTestId('report-detail').getByText(existingReportId, { exact: true })).toBeVisible();
+  await page.getByRole('tab', { name: '失败诊断' }).click();
   await expect(page.getByTestId('report-diagnosis')
     .locator('.report-summary-tile').filter({ hasText: '主分类' })
     .getByText('运行器失败')).toBeVisible();
 
+  await page.getByRole('tab', { name: '测试报告' }).click();
   const reportsList = page.getByTestId('reports-list');
   await reportsList.getByRole('button', { name: '生成报告' }).click();
   const generateDialog = page.getByRole('dialog', { name: '生成报告' });
@@ -60,7 +62,7 @@ async function runWp10MainFlow(page: Page, assertResponsive: boolean) {
   await fieldControl(generateForm, '请求键').fill('wp10-ui-request-1');
   await fieldControl(generateForm, '原因').fill('browser smoke report generation');
   await generateForm.getByRole('button', { name: '生成报告' }).click();
-  await expect(page.getByText('报告快照已生成')).toBeVisible();
+  await expect(page.getByText('报告快照已生成').first()).toBeVisible();
   await expect(page.getByTestId('report-detail').getByText(generatedReportId, { exact: true })).toBeVisible();
   expect(mock.generatePayload).toMatchObject({
     projectId: 'project-wp10-ui-smoke',
@@ -69,6 +71,7 @@ async function runWp10MainFlow(page: Page, assertResponsive: boolean) {
     reason: 'browser smoke report generation'
   });
 
+  await page.getByRole('tab', { name: '失败诊断' }).click();
   const diagnosisPanel = page.getByTestId('report-diagnosis');
   await diagnosisPanel.getByRole('button', { name: '触发诊断' }).click();
   await expect(diagnosisPanel.locator('.report-summary-tile').filter({ hasText: '状态' }).getByText('AI 诊断就绪')).toBeVisible();
@@ -76,6 +79,7 @@ async function runWp10MainFlow(page: Page, assertResponsive: boolean) {
   await expect(diagnosisPanel.locator('.report-summary-tile').filter({ hasText: '置信度' }).getByText('76%')).toBeVisible();
   expect(mock.diagnoseSeen).toBe(true);
 
+  await page.getByRole('tab', { name: '测试报告' }).click();
   const defectPanel = page.getByTestId('report-defect-drafts');
   await defectPanel.getByRole('button', { name: '生成缺陷草稿' }).click();
   await expect(defectPanel.getByText('WP10 UI smoke 缺陷草稿')).toBeVisible();
@@ -134,7 +138,18 @@ async function selectAntdOption(page: Page, control: ReturnType<Page['getByLabel
   } else {
     await control.click();
   }
-  await page.locator('.ant-select-dropdown:not(.ant-select-dropdown-hidden) .ant-select-item-option-content', { hasText: optionName }).first().click();
+  const optionLocator = page.locator('.ant-select-dropdown:not(.ant-select-dropdown-hidden) .ant-select-item-option-content', { hasText: optionName }).first();
+  // 通过搜索输入过滤选项，等待过滤渲染完成后回车选中首项，避免下拉动画导致点击偏移；
+  // 若 searchLabel 与展示文本不一致导致过滤后无匹配，则清空搜索回退为不过滤点击
+  await page.keyboard.type(optionName);
+  await page.waitForTimeout(200);
+  if (await optionLocator.count()) {
+    await page.keyboard.press('Enter');
+  } else {
+    await page.keyboard.press('ControlOrMeta+A');
+    await page.keyboard.press('Backspace');
+    await optionLocator.click();
+  }
 }
 
 async function expectInfoBlock(page: Page, panel: ReturnType<Page['getByTestId']>, title: string, value: RegExp | string) {

@@ -13,8 +13,9 @@ import {
   Trash2,
   Webhook
 } from 'lucide-react';
-import { Drawer } from 'antd';
+import { Drawer, Tabs } from 'antd';
 import { useCallback, useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import type { CurrentUser } from '../api/auth';
 import { ApiError } from '../api/client';
 import {
@@ -66,6 +67,7 @@ import {
 import { canUseButton, hasPermission } from '../permissions';
 import { dictionaryLabel, displayValueLabel, fieldLabel } from '../platform/dictionaries';
 import { translate } from '../platform/i18n';
+import { PageHeader } from './PageHeader';
 import { InputControl, NumberControl, SelectControl } from './ui';
 
 type WorkState = {
@@ -115,11 +117,32 @@ const initialTriggerDraft: TriggerDraft = {
   secretRef: ''
 };
 
+/**
+ * 执行编排子页面：plans（计划与DAG）/ runs（执行记录）/ schedules（调度触发器）。
+ * 状态仍由本组件统一持有，通过顶部 Tabs + 嵌套路由切换渲染。
+ */
+const executionSubPages = [
+  { key: 'plans', label: translate('nav.exPlans') },
+  { key: 'runs', label: translate('nav.exRuns') },
+  { key: 'schedules', label: translate('nav.exSchedules') }
+] as const;
+
+type ExecutionSubPage = (typeof executionSubPages)[number]['key'];
+
+function resolveExecutionSubPage(pathname: string): ExecutionSubPage {
+  const segment = pathname.replace(/^\/+/, '').split('/')[1] ?? '';
+  return (executionSubPages.some((page) => page.key === segment) ? segment : 'plans') as ExecutionSubPage;
+}
+
 export function ExecutionWorkbench(props: { signedIn: boolean; currentUser: CurrentUser | null }) {
   const canRead = hasPermission(props.currentUser, 'execution:read');
   const canManage = canUseButton(props.currentUser, 'execution:manage');
   const canTrigger = canUseButton(props.currentUser, 'execution:trigger');
   const canExport = canUseButton(props.currentUser, 'execution:export');
+  const location = useLocation();
+  const navigate = useNavigate();
+  const activeSubPage = resolveExecutionSubPage(location.pathname);
+  const subPageTabs = useMemo(() => executionSubPages.map((page) => ({ key: page.key, label: page.label })), []);
   const [health, setHealth] = useState<ExecutionHealth | null>(null);
   const [plans, setPlans] = useState<ExecutionPlanSummary[]>([]);
   const [runs, setRuns] = useState<ExecutionRunSummary[]>([]);
@@ -635,6 +658,15 @@ export function ExecutionWorkbench(props: { signedIn: boolean; currentUser: Curr
 
   return (
     <section className="execution-workbench" data-testid="execution-workbench">
+      <PageHeader title={translate('auto.k0012')} description={translate('auto.k0013')} />
+      <div className="module-tabs-card">
+        <Tabs
+          activeKey={activeSubPage}
+          items={subPageTabs}
+          onChange={(key) => navigate(`/execution/${key}`)}
+        />
+      </div>
+      {activeSubPage === 'plans' && (<>
       <div className="metric-grid execution-metric-grid">
         <MetricCard label={translate('auto.k0854')} value={String(summary.ready)} icon={<CheckCircle2 size={18} />} />
         <MetricCard label={translate('auto.k0855')} value={String(summary.running)} icon={<Clock3 size={18} />} />
@@ -933,7 +965,9 @@ export function ExecutionWorkbench(props: { signedIn: boolean; currentUser: Curr
           {runActionState.success && <div className="document-state-line success">{runActionState.success}</div>}
         </div>
       </section>
+      </>)}
 
+      {activeSubPage === 'runs' && (
       <section className="execution-layout">
         <section className="panel" data-testid="execution-run-detail">
           <div className="panel-header">
@@ -957,6 +991,8 @@ export function ExecutionWorkbench(props: { signedIn: boolean; currentUser: Curr
             </div>
           </div>
           <div className="panel-body compact">
+            {runActionState.error && <div className="document-state-line error">{runActionState.error}</div>}
+            {runActionState.success && <div className="document-state-line success">{runActionState.success}</div>}
             <div className="execution-sync-summary">
               <span>{runDetail?.id ? shortId(runDetail.id) : '-'}</span>
               <span>{runDetail?.traceId ?? '-'}</span>
@@ -1089,7 +1125,10 @@ export function ExecutionWorkbench(props: { signedIn: boolean; currentUser: Curr
             </div>
           </div>
         </section>
+      </section>
+      )}
 
+      {activeSubPage === 'schedules' && (
         <section className="panel">
           <div className="panel-header">
             <div>
@@ -1215,7 +1254,7 @@ export function ExecutionWorkbench(props: { signedIn: boolean; currentUser: Curr
             </div>
           </div>
         </section>
-      </section>
+      )}
     </section>
   );
 

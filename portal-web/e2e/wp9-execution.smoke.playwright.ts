@@ -32,7 +32,6 @@ async function runWp9MainFlow(page: Page, assertResponsive: boolean) {
   await expect(page.getByRole('heading', { name: '执行编排' })).toBeVisible();
   await expect(page.locator('.execution-policy-item').filter({ hasText: '调度器' }).getByText('已启用')).toBeVisible();
   await expect(page.getByTestId('execution-plan-list').getByText('Baseline WP9 smoke plan')).toBeVisible();
-  await expect(page.getByTestId('execution-run-detail').getByText('执行运行失败').first()).toBeVisible();
 
   const planListPanel = page.getByTestId('execution-plan-list');
   await planListPanel.getByRole('button', { name: '新建计划' }).click();
@@ -108,6 +107,7 @@ async function runWp9MainFlow(page: Page, assertResponsive: boolean) {
     reason: 'browser smoke manual run'
   });
 
+  await page.getByRole('tab', { name: '执行记录' }).click();
   const runPanel = page.getByTestId('execution-run-detail');
   await expect(runPanel.getByText('trace-run-create')).toBeVisible();
   await expect(runPanel.getByText('运行中').first()).toBeVisible();
@@ -124,6 +124,7 @@ async function runWp9MainFlow(page: Page, assertResponsive: boolean) {
   await expect(runPanel.getByText('trace-run-retry')).toBeVisible();
   expect(mock.retrySeen).toBe(true);
 
+  await page.getByRole('tab', { name: '调度任务' }).click();
   const triggerPanel = page.locator('section.panel').filter({ hasText: '触发配置' });
   await triggerPanel.getByRole('button', { name: '新增' }).click();
   const triggerDialog = page.getByRole('dialog', { name: '新增' });
@@ -152,6 +153,7 @@ async function runWp9MainFlow(page: Page, assertResponsive: boolean) {
   expect(await triggerPanel.innerText()).not.toContain('secret://wp9/webhook-ui');
 
   if (assertResponsive) {
+    await page.getByRole('tab', { name: '执行计划' }).click();
     await expectNoHorizontalOverflow(page, '[data-testid="execution-workbench"]');
     await expect(page.locator('.execution-panel-actions').first()).toBeVisible();
     await expect(page.locator('.execution-node-card').filter({ hasText: 'api-smoke' }).first()).toBeVisible();
@@ -181,7 +183,18 @@ async function selectAntdOption(page: Page, control: ReturnType<Page['getByLabel
   } else {
     await control.click();
   }
-  await page.locator('.ant-select-dropdown:not(.ant-select-dropdown-hidden) .ant-select-item-option-content', { hasText: optionName }).first().click();
+  const optionLocator = page.locator('.ant-select-dropdown:not(.ant-select-dropdown-hidden) .ant-select-item-option-content', { hasText: optionName }).first();
+  // 通过搜索输入过滤选项，等待过滤渲染完成后回车选中首项，避免下拉动画导致点击偏移；
+  // 若 searchLabel 与展示文本不一致导致过滤后无匹配，则清空搜索回退为不过滤点击
+  await page.keyboard.type(optionName);
+  await page.waitForTimeout(200);
+  if (await optionLocator.count()) {
+    await page.keyboard.press('Enter');
+  } else {
+    await page.keyboard.press('ControlOrMeta+A');
+    await page.keyboard.press('Backspace');
+    await optionLocator.click();
+  }
 }
 
 class Wp9ExecutionMock {

@@ -16,8 +16,9 @@ import {
   Webhook,
   XCircle
 } from 'lucide-react';
-import { Drawer } from 'antd';
+import { Drawer, Tabs } from 'antd';
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import type { CurrentUser } from '../api/auth';
 import {
   batchDocumentCandidateAction,
@@ -63,6 +64,7 @@ import {
 import { hasPermission } from '../permissions';
 import { dictionaryLabel, fieldLabel } from '../platform/dictionaries';
 import { translate } from '../platform/i18n';
+import { PageHeader } from './PageHeader';
 import { CheckboxControl, InputControl, SelectControl, TextAreaControl } from './ui';
 
 type WorkState = {
@@ -197,7 +199,29 @@ const WEBHOOK_STATUS_OPTIONS = [
   { label: dictionaryLabel('REPLAYED'), value: 'REPLAYED' }
 ];
 
+/**
+ * 文档输入子页面：文档导入 / 候选资产 / 发布管理，
+ * 通过顶部 Tabs + 嵌套路由切换，状态仍由本组件统一持有。
+ */
+const documentInputSubPages = [
+  { key: 'import', label: translate('nav.diImport') },
+  { key: 'candidates', label: translate('nav.diCandidates') },
+  { key: 'publish', label: translate('nav.diPublish') }
+] as const;
+
+type DocumentInputSubPage = (typeof documentInputSubPages)[number]['key'];
+
+function resolveDocumentInputSubPage(pathname: string): DocumentInputSubPage {
+  const segment = pathname.replace(/^\/+/, '').split('/')[1] ?? '';
+  return (documentInputSubPages.some((page) => page.key === segment) ? segment : 'import') as DocumentInputSubPage;
+}
+
 export function DocumentInputConsole(props: { signedIn: boolean; currentUser: CurrentUser | null }) {
+  const location = useLocation();
+  const navigate = useNavigate();
+  const activeSubPage = resolveDocumentInputSubPage(location.pathname);
+  const subPageTabs = useMemo(() => documentInputSubPages.map((page) => ({ key: page.key, label: page.label })), []);
+
   const [health, setHealth] = useState<DocumentInputHealth | null>(null);
   const [sources, setSources] = useState<DocumentSourceView[]>([]);
   const [sourceHealth, setSourceHealth] = useState<Record<string, DocumentSourceHealthView>>({});
@@ -939,7 +963,17 @@ export function DocumentInputConsole(props: { signedIn: boolean; currentUser: Cu
   const importPayloadReady = importDraft.content.trim().length > 0 || importFile !== null;
 
   return (
-    <section className="document-input-layout">
+    <>
+      <PageHeader title={translate('auto.k0003')} description={translate('auto.k0004')} />
+      <div className="module-tabs-card">
+        <Tabs
+          activeKey={activeSubPage}
+          items={subPageTabs}
+          onChange={(key) => navigate(`/document-input/${key}`)}
+        />
+      </div>
+    <section className={activeSubPage === 'import' ? 'document-input-layout' : 'document-main-stack'}>
+      {activeSubPage === 'import' && (
       <div className="document-main-stack">
         <section className="panel module-panel document-panel">
           <div className="panel-toolbar">
@@ -1405,8 +1439,10 @@ export function DocumentInputConsole(props: { signedIn: boolean; currentUser: Cu
           </form>
         </section>
       </div>
+      )}
 
-      <aside className="side-stack document-side-stack">
+      <aside className={activeSubPage === 'import' ? 'side-stack document-side-stack' : 'document-main-stack'}>
+        {activeSubPage === 'import' && (
         <section className="panel insight-panel">
           <h2>{translate('auto.k0759')}</h2>
           <div className="document-health-grid">
@@ -1443,7 +1479,9 @@ export function DocumentInputConsole(props: { signedIn: boolean; currentUser: Cu
           )}
           {loadState.traceId && <div className="panel-trace">{fieldLabel('traceId')}：{loadState.traceId}</div>}
         </section>
+        )}
 
+        {(activeSubPage === 'candidates' || activeSubPage === 'publish') && (
         <section className="panel insight-panel document-history-panel">
           <div className="panel-title-row">
             <h2>{translate('auto.k0774')}</h2>
@@ -1480,7 +1518,9 @@ export function DocumentInputConsole(props: { signedIn: boolean; currentUser: Cu
             )}
           </div>
         </section>
+        )}
 
+        {activeSubPage === 'publish' && (
         <section className="panel insight-panel">
           <div className="panel-title-row">
             <h2>{translate('auto.k0778')}</h2>
@@ -1573,7 +1613,9 @@ export function DocumentInputConsole(props: { signedIn: boolean; currentUser: Cu
             </div>
           )}
         </section>
+        )}
 
+        {activeSubPage === 'candidates' && (
         <section className="panel insight-panel document-candidate-panel">
           <div className="panel-title-row">
             <h2>{translate('auto.k0795')}</h2>
@@ -1790,7 +1832,9 @@ export function DocumentInputConsole(props: { signedIn: boolean; currentUser: Cu
           </div>
           <StateLine state={candidateState} />
         </section>
+        )}
 
+        {activeSubPage === 'import' && (
         <section className="panel insight-panel document-webhook-panel">
           <div className="panel-title-row">
             <h2>{translate('auto.k0812')}</h2>
@@ -1930,8 +1974,10 @@ export function DocumentInputConsole(props: { signedIn: boolean; currentUser: Cu
           <StateLine state={eventDetailState} />
           <StateLine state={replayState} />
         </section>
+        )}
       </aside>
     </section>
+    </>
   );
 
   function updateCandidateDraft(candidateId: string, patch: Partial<CandidateDraft>) {

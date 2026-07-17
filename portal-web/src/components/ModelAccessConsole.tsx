@@ -23,6 +23,7 @@ import {
   type LucideIcon
 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import type { CurrentUser } from '../api/auth';
 import {
   INVOCATION_STATUSES,
@@ -90,6 +91,14 @@ type WorkState = {
 };
 
 type TabKey = 'providers' | 'prompts' | 'playground' | 'quality' | 'policies' | 'logs';
+
+const tabKeys: readonly TabKey[] = ['providers', 'prompts', 'playground', 'quality', 'policies', 'logs'];
+
+/** 从路由路径解析当前子页，非法路径回退到 providers。 */
+function resolveModelAccessTab(pathname: string): TabKey {
+  const segment = pathname.replace(/^\/+/, '').split('/')[1] ?? '';
+  return (tabKeys.includes(segment as TabKey) ? segment : 'providers') as TabKey;
+}
 type ModelAccessDrawer = 'provider' | 'prompt' | 'policy' | 'playground' | null;
 
 type ProviderDraft = {
@@ -290,7 +299,9 @@ export function ModelAccessConsole(props: { signedIn: boolean; currentUser: Curr
   const canManagePolicies = canUseButton(props.currentUser, 'modelAccess:policy_manage');
   const canExport = canUseButton(props.currentUser, 'modelAccess:export');
 
-  const [activeTab, setActiveTab] = useState<TabKey>('providers');
+  const location = useLocation();
+    const navigate = useNavigate();
+    const activeTab = resolveModelAccessTab(location.pathname);
   const [health, setHealth] = useState<ModelAccessHealth | null>(null);
   const [providers, setProviders] = useState<ModelProviderConfig[]>([]);
   const [prompts, setPrompts] = useState<PromptTemplate[]>([]);
@@ -796,6 +807,13 @@ export function ModelAccessConsole(props: { signedIn: boolean; currentUser: Curr
     }
   }
 
+  function selectTab(tabKey: TabKey) {
+    const targetPath = `/model-access/${tabKey}`;
+    if (location.pathname !== targetPath) {
+      navigate(targetPath);
+    }
+  }
+
   function editProvider(provider: ModelProviderConfig) {
     setEditingProviderId(provider.id);
     setProviderDraft({
@@ -810,7 +828,7 @@ export function ModelAccessConsole(props: { signedIn: boolean; currentUser: Curr
       inputCostPer1kTokens: String(provider.inputCostPer1kTokens),
       outputCostPer1kTokens: String(provider.outputCostPer1kTokens)
     });
-    setActiveTab('providers');
+    selectTab('providers');
     setOpenDrawer('provider');
   }
 
@@ -827,7 +845,7 @@ export function ModelAccessConsole(props: { signedIn: boolean; currentUser: Curr
       routingGroup: policy.routingGroup ?? '',
       reason: policy.reason ?? ''
     });
-    setActiveTab('policies');
+    selectTab('policies');
     setOpenDrawer('policy');
     setPolicyState({ loading: false });
   }
@@ -865,7 +883,7 @@ export function ModelAccessConsole(props: { signedIn: boolean; currentUser: Curr
             </div>
           </div>
 
-          <AssetNavigationTabs activeKey={activeTab} ariaLabel={translate('auto.k0413')} tabs={tabs} onSelectTab={setActiveTab} />
+          <AssetNavigationTabs activeKey={activeTab} ariaLabel={translate('auto.k0413')} tabs={tabs} onSelectTab={selectTab} />
 
           <StateLine state={loadState} />
 

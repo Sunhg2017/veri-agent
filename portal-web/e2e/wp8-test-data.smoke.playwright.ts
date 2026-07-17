@@ -37,10 +37,9 @@ async function runWp8MainFlow(page: Page, assertResponsive: boolean) {
   await expect(page.getByRole('heading', { name: '测试数据' })).toBeVisible();
   await expect(page.getByTestId('test-data-workbench')).toBeVisible();
   await expect(page.locator('.test-data-policy-item').filter({ hasText: '脱敏导出' }).getByText('已启用')).toBeVisible();
-  await expect(page.getByRole('tab', { name: '数据集' })).toBeVisible();
-  await expect(page.getByRole('tab', { name: '账号池' })).toBeVisible();
-  await expect(page.getByRole('tab', { name: '租借' })).toBeVisible();
-  await expect(page.getByRole('tab', { name: '清理任务' })).toBeVisible();
+  await expect(page.getByRole('tab', { name: '数据账号' })).toBeVisible();
+  await expect(page.getByRole('tab', { name: '租约管理' })).toBeVisible();
+  await expect(page.getByRole('tab', { name: '数据清理' })).toBeVisible();
   await expect(page.locator('body')).not.toContainText(rawSecretRef);
 
   const dataSetPanel = page.locator('section.panel').filter({ hasText: '数据集列表' }).first();
@@ -82,7 +81,6 @@ async function runWp8MainFlow(page: Page, assertResponsive: boolean) {
   await expect(page.locator('body')).not.toContainText('secret://');
   await expect(page.locator('body')).not.toContainText('must-not-render');
 
-  await page.getByRole('tab', { name: '账号池' }).click();
   const poolPanel = page.locator('section.panel').filter({ hasText: '账号池与账号摘要' }).first();
   await poolPanel.getByRole('button', { name: '创建账号池' }).click();
   const poolDialog = page.getByRole('dialog', { name: '创建账号池' });
@@ -111,7 +109,7 @@ async function runWp8MainFlow(page: Page, assertResponsive: boolean) {
   expect(await page.locator('body').innerText()).not.toContain(rawSecretRef);
   expect(await page.locator('body').innerText()).not.toContain('must-not-render');
 
-  await page.getByRole('tab', { name: '租借' }).click();
+  await page.getByRole('tab', { name: '租约管理' }).click();
   const leaseRecordPanel = page.locator('section.panel').filter({ hasText: '租借记录' }).first();
   await leaseRecordPanel.getByRole('button', { name: '申请租借' }).click();
   const leaseDialog = page.getByRole('dialog', { name: '申请租借' });
@@ -160,7 +158,7 @@ async function runWp8MainFlow(page: Page, assertResponsive: boolean) {
   await expect(leaseExportPanel).not.toContainText(rawReleaseReason);
   await expect(leaseExportPanel).not.toContainText(rawHealthSummary);
 
-  await page.getByRole('tab', { name: '清理任务' }).click();
+  await page.getByRole('tab', { name: '数据清理' }).click();
   await expect(page.getByText('cleanupEnabled=false')).toBeVisible();
   const taskListPanel = page.locator('section.panel').filter({ hasText: '任务列表' }).first();
   await taskListPanel.getByRole('button', { name: '创建清理任务' }).click();
@@ -172,7 +170,7 @@ async function runWp8MainFlow(page: Page, assertResponsive: boolean) {
   await taskDialog.getByRole('textbox', { name: '结果摘要 JSON' }).fill('{"deleted":0,"authorization":"Bearer raw"}');
   await taskDialog.getByRole('button', { name: '创建清理任务' }).click();
   await expect(page.locator('.test-data-list-item').filter({ hasText: 'cleanup-ui-smoke' }).first()).toBeVisible();
-  await expect(page.getByText('trace-task-detail')).toBeVisible();
+  await expect(page.getByText('trace-task-detail').first()).toBeVisible();
   expect(mock.taskPayload).toMatchObject({
     projectId: 'project-wp8-ui-smoke',
     dataSetId: 'ds-ui-created',
@@ -192,7 +190,7 @@ async function runWp8MainFlow(page: Page, assertResponsive: boolean) {
 
   if (assertResponsive) {
     await expectNoHorizontalOverflow(page, '[data-testid="test-data-workbench"]');
-    await expect(page.getByRole('tab', { name: '清理任务' })).toBeVisible();
+    await expect(page.getByRole('tab', { name: '数据清理' })).toBeVisible();
     await expect(page.locator('.test-data-list-item').filter({ hasText: 'cleanup-ui-smoke-retry' }).first()).toBeVisible();
   }
 }

@@ -15,7 +15,8 @@ import {
   Trash2,
   Upload
 } from 'lucide-react';
-import { Drawer } from 'antd';
+import { Drawer, Tabs } from 'antd';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { useCallback, useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react';
 import type { CurrentUser } from '../api/auth';
 import { ApiError } from '../api/client';
@@ -63,6 +64,7 @@ import {
 import { canUseButton, hasPermission } from '../permissions';
 import { dictionaryLabel, displayValueLabel, fieldLabel } from '../platform/dictionaries';
 import { translate } from '../platform/i18n';
+import { PageHeader } from './PageHeader';
 import { InputControl, NumberControl, SelectControl, TextAreaControl } from './ui';
 
 type WorkState = {
@@ -151,12 +153,22 @@ type TaskDraft = {
   retryRequestKey: string;
 };
 
-const tabs: Array<{ key: TabKey; label: string; icon: ReactNode }> = [
-  { key: 'data-sets', label: translate('auto.k1202'), icon: <DatabaseZap size={15} /> },
-  { key: 'account-pools', label: translate('auto.k1203'), icon: <KeyRound size={15} /> },
-  { key: 'leases', label: translate('auto.k1204'), icon: <Clock3 size={15} /> },
-  { key: 'tasks', label: translate('auto.k1205'), icon: <ListChecks size={15} /> }
-];
+/**
+ * 测试数据子页面：accounts（数据集+账号池）/ leases（租约）/ cleanup（清理任务）。
+ * 原内部 Tab 改为顶部 Tabs + 嵌套路由，状态仍由本组件统一持有。
+ */
+const testDataSubPages = [
+  { key: 'accounts', label: translate('nav.tdaAccounts') },
+  { key: 'leases', label: translate('nav.tdaLeases') },
+  { key: 'cleanup', label: translate('nav.tdaCleanup') }
+] as const;
+
+type TestDataSubPage = (typeof testDataSubPages)[number]['key'];
+
+function resolveTestDataSubPage(pathname: string): TestDataSubPage {
+  const segment = pathname.replace(/^\/+/, '').split('/')[1] ?? '';
+  return (testDataSubPages.some((page) => page.key === segment) ? segment : 'accounts') as TestDataSubPage;
+}
 
 const initialDataSetDraft: DataSetDraft = {
   projectId: '',
@@ -239,7 +251,10 @@ export function TestDataWorkbench(props: { signedIn: boolean; currentUser: Curre
   const canLease = canUseButton(props.currentUser, 'testData:lease');
   const canCleanup = canUseButton(props.currentUser, 'testData:cleanup');
   const canExport = canUseButton(props.currentUser, 'testData:export');
-  const [activeTab, setActiveTab] = useState<TabKey>('data-sets');
+  const location = useLocation();
+  const navigate = useNavigate();
+  const activeSubPage = resolveTestDataSubPage(location.pathname);
+  const subPageTabs = useMemo(() => testDataSubPages.map((page) => ({ key: page.key, label: page.label })), []);
   const [health, setHealth] = useState<TestDataHealth | null>(null);
   const [dataSets, setDataSets] = useState<TestDataSetSummary[]>([]);
   const [accountPools, setAccountPools] = useState<TestAccountPoolSummary[]>([]);
@@ -842,6 +857,7 @@ export function TestDataWorkbench(props: { signedIn: boolean; currentUser: Curre
 
   return (
     <section className="test-data-workbench" data-testid="test-data-workbench">
+      <PageHeader title={translate('auto.k0014')} description={translate('auto.k0015')} />
       <div className="metric-grid test-data-metric-grid">
         <MetricCard label={translate('auto.k1202')} value={String(dataSets.length)} icon={<DatabaseZap size={18} />} />
         <MetricCard label={translate('auto.k1252')} value={String(summary.available)} icon={<KeyRound size={18} />} />
@@ -872,26 +888,18 @@ export function TestDataWorkbench(props: { signedIn: boolean; currentUser: Curre
         </div>
       </section>
 
-      <div className="test-data-tabs" role="tablist" aria-label={translate('auto.k1262')}>
-        {tabs.map((tab) => (
-          <button
-            key={tab.key}
-            className={activeTab === tab.key ? 'test-data-tab active' : 'test-data-tab'}
-            type="button"
-            onClick={() => setActiveTab(tab.key)}
-            role="tab"
-            aria-selected={activeTab === tab.key}
-          >
-            {tab.icon}
-            {tab.label}
-          </button>
-        ))}
+      <div className="module-tabs-card">
+        <Tabs
+          activeKey={activeSubPage}
+          items={subPageTabs}
+          onChange={(key) => navigate(`/test-data/${key}`)}
+        />
       </div>
 
-      {activeTab === 'data-sets' && renderDataSets()}
-      {activeTab === 'account-pools' && renderAccountPools()}
-      {activeTab === 'leases' && renderLeases()}
-      {activeTab === 'tasks' && renderTasks()}
+      {activeSubPage === 'accounts' && renderDataSets()}
+      {activeSubPage === 'accounts' && renderAccountPools()}
+      {activeSubPage === 'leases' && renderLeases()}
+      {activeSubPage === 'cleanup' && renderTasks()}
     </section>
   );
 
