@@ -266,7 +266,6 @@ function LoginPage(props: {
             <span className="auth-brand-name">Veri Agent</span>
           </div>
           <h2 className="auth-form-title">欢迎登录</h2>
-          <p className="auth-form-subtitle">{translate('auth.loginSubtitle')}</p>
           {props.error ? <Alert style={{ marginBottom: 20 }} message={props.error} type="error" showIcon /> : null}
           <Form form={props.form} layout="vertical" requiredMark={false} onFinish={props.onSubmit}>
             <Form.Item name="username" label={translate('auth.account')} rules={[{ required: true, message: translate('auth.usernamePlaceholder') }]}>
