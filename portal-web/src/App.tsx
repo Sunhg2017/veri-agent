@@ -192,8 +192,8 @@ function LoginPage(props: {
 }) {
   return (
     <main className="auth-layout" aria-label="Veri Agent">
-      <div className="auth-brand">
-        <div className="auth-brand-inner">
+      <div className="auth-layout-inner">
+        <div className="auth-brand">
           <div className="auth-brand-logo">
             <div className="auth-brand-mark">VA</div>
             <div className="auth-brand-logo-text">
@@ -259,9 +259,8 @@ function LoginPage(props: {
             <li>全链路资产追溯与质量洞察</li>
           </ul>
         </div>
-      </div>
-      <div className="auth-form-panel">
-        <div className="auth-form-inner">
+        <div className="auth-form-card">
+          <div className="auth-form-inner">
           <div className="auth-form-brand">
             <div className="auth-brand-mark">VA</div>
             <span className="auth-brand-name">Veri Agent</span>
@@ -280,7 +279,8 @@ function LoginPage(props: {
               {translate('auth.login')}
             </Button>
           </Form>
-          <div className="auth-form-footer">Veri Agent · AI 驱动的一体化测试平台</div>
+            <div className="auth-form-footer">Veri Agent · AI 驱动的一体化测试平台</div>
+          </div>
         </div>
       </div>
     </main>

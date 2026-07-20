@@ -25,32 +25,24 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* ---------- 登录页（分屏设计：品牌区业务可视化 + 表单区） ---------- */
+/* ---------- 登录页（全屏品牌背景 + 居中容器 + 悬浮表单卡片） ---------- */
 
 .auth-layout {
   display: flex;
-  min-height: 100vh;
-  background: #ffffff;
-}
-
-/* 品牌区：深色渐变 + 网格纹理 + 漂移光斑 */
-.auth-brand {
-  flex: 1.15;
-  display: flex;
-  flex-direction: column;
+  align-items: center;
   justify-content: center;
-  padding: 56px 64px;
+  min-height: 100vh;
+  padding: 48px 32px;
   background:
     radial-gradient(ellipse 60% 45% at 85% 8%, rgba(91, 140, 255, 0.35) 0%, transparent 70%),
     radial-gradient(ellipse 55% 50% at 8% 92%, rgba(64, 150, 255, 0.28) 0%, transparent 70%),
     linear-gradient(150deg, #0a1a4f 0%, #1d39c4 52%, #2f54eb 100%);
-  color: #ffffff;
   position: relative;
-  overflow: hidden;
+  overflow: hidden auto;
 }
 
 /* 网格纹理 */
-.auth-brand::before {
+.auth-layout::before {
   content: '';
   position: absolute;
   inset: 0;
@@ -59,10 +51,11 @@ body {
     linear-gradient(90deg, rgba(255, 255, 255, 0.045) 1px, transparent 1px);
   background-size: 44px 44px;
   mask-image: radial-gradient(ellipse 80% 70% at 50% 40%, #000 30%, transparent 75%);
+  pointer-events: none;
 }
 
 /* 漂移光斑 */
-.auth-brand::after {
+.auth-layout::after {
   content: '';
   position: absolute;
   right: -140px;
@@ -72,6 +65,7 @@ body {
   border-radius: 50%;
   background: radial-gradient(circle, rgba(255, 255, 255, 0.12) 0%, transparent 65%);
   animation: auth-drift 14s ease-in-out infinite;
+  pointer-events: none;
 }
 
 @keyframes auth-drift {
@@ -79,10 +73,40 @@ body {
   50% { transform: translate(-36px, 44px) scale(1.08); }
 }
 
-.auth-brand-inner {
+/* 居中容器：限制内容总宽，超宽屏下两侧对称留白，比例协调 */
+.auth-layout-inner {
   position: relative;
   z-index: 1;
-  max-width: 560px;
+  width: 100%;
+  max-width: 1240px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 64px;
+}
+
+/* 品牌内容区 */
+.auth-brand {
+  flex: 1;
+  min-width: 0;
+  max-width: 600px;
+  color: #ffffff;
+  animation: auth-rise 0.7s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* 入场动效：轻微上浮淡入，弱化生硬感 */
+@keyframes auth-rise {
+  from { opacity: 0; transform: translateY(16px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .auth-brand,
+  .auth-form-card,
+  .auth-diag-card,
+  .auth-layout::after {
+    animation: none;
+  }
 }
 
 .auth-brand-logo {
@@ -454,22 +478,19 @@ body {
   flex-shrink: 0;
 }
 
-/* 表单区（类名 auth-form-panel，避开 styles.css 遗留 .auth-panel 冲突） */
-.auth-form-panel {
-  width: 520px;
+/* 悬浮表单卡片：浮于品牌背景之上，消除分栏硬切 */
+.auth-form-card {
+  width: 430px;
   flex-shrink: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 48px;
-  background:
-    radial-gradient(ellipse 70% 40% at 50% 0%, #f4f7ff 0%, transparent 70%),
-    #ffffff;
+  padding: 42px 44px 36px;
+  background: #ffffff;
+  border-radius: 20px;
+  box-shadow: 0 32px 64px rgba(6, 20, 71, 0.38), 0 4px 12px rgba(6, 20, 71, 0.12);
+  animation: auth-rise 0.7s cubic-bezier(0.22, 1, 0.36, 1) 0.12s both;
 }
 
 .auth-form-inner {
   width: 100%;
-  max-width: 360px;
 }
 
 /* 窄屏品牌头（宽屏隐藏） */
@@ -477,7 +498,7 @@ body {
   display: none;
   align-items: center;
   gap: 12px;
-  margin-bottom: 36px;
+  margin-bottom: 32px;
 }
 
 .auth-form-brand .auth-brand-mark {
@@ -505,26 +526,26 @@ body {
 }
 
 /* 表单控件细节 */
-.auth-form-panel .ant-form-item-label > label {
+.auth-form-card .ant-form-item-label > label {
   font-weight: 500;
   color: #4e5969;
 }
 
-.auth-form-panel .ant-input-affix-wrapper,
-.auth-form-panel .ant-input {
+.auth-form-card .ant-input-affix-wrapper,
+.auth-form-card .ant-input {
   border-radius: 8px;
 }
 
-.auth-form-panel .ant-input-affix-wrapper {
+.auth-form-card .ant-input-affix-wrapper {
   padding: 9px 14px;
 }
 
-.auth-form-panel .ant-input-affix-wrapper:focus,
-.auth-form-panel .ant-input-affix-wrapper-focused {
+.auth-form-card .ant-input-affix-wrapper:focus,
+.auth-form-card .ant-input-affix-wrapper-focused {
   box-shadow: 0 0 0 3px rgba(47, 84, 235, 0.12);
 }
 
-.auth-form-panel .ant-btn-primary {
+.auth-form-card .ant-btn-primary {
   height: 44px;
   border-radius: 8px;
   font-size: 15px;
@@ -534,14 +555,14 @@ body {
   box-shadow: 0 8px 18px rgba(47, 84, 235, 0.28);
 }
 
-.auth-form-panel .ant-btn-primary:hover:not(:disabled) {
+.auth-form-card .ant-btn-primary:hover:not(:disabled) {
   background: linear-gradient(135deg, #1d39c4, #2f54eb);
   box-shadow: 0 10px 22px rgba(47, 84, 235, 0.36);
 }
 
 .auth-form-footer {
-  margin-top: 56px;
-  padding-top: 20px;
+  margin-top: 44px;
+  padding-top: 18px;
   border-top: 1px solid #f0f0f1;
   font-size: 12px;
   color: #a9aeb8;
@@ -549,13 +570,31 @@ body {
   letter-spacing: 0.3px;
 }
 
+/* 中屏：收窄间距 */
+@media (max-width: 1180px) {
+  .auth-layout-inner {
+    gap: 40px;
+  }
+  .auth-brand {
+    max-width: 520px;
+  }
+}
+
+/* 窄屏：隐藏品牌区，表单卡片居中悬浮 */
 @media (max-width: 900px) {
+  .auth-layout {
+    padding: 32px 20px;
+  }
+  .auth-layout-inner {
+    justify-content: center;
+  }
   .auth-brand {
     display: none;
   }
-  .auth-form-panel {
+  .auth-form-card {
     width: 100%;
-    padding: 40px 24px;
+    max-width: 440px;
+    padding: 36px 28px 28px;
   }
   .auth-form-brand {
     display: flex;
