@@ -328,10 +328,15 @@ public class ModelProviderManagementService {
                 throw new BusinessException(ErrorCode.BAD_REQUEST, "OpenAI-compatible 供应商必须配置 baseUrl");
             }
             validateExternalProviderBaseUrl(provider.baseUrl());
-            if (!StringUtils.hasText(provider.apiKeyRef()) || !provider.apiKeyRef().startsWith("env:")) {
-                throw new BusinessException(ErrorCode.BAD_REQUEST, "OpenAI-compatible 供应商 apiKeyRef 必须使用 env:VARIABLE_NAME");
+            if (!StringUtils.hasText(provider.apiKeyRef()) || !isSupportedApiKeyRef(provider.apiKeyRef())) {
+                throw new BusinessException(ErrorCode.BAD_REQUEST, ModelAccessMessages.OPENAI_API_KEY_REQUIRED);
             }
         }
+    }
+
+    /** apiKeyRef 支持两种引用：env: 环境变量或 secret:// 密钥库引用（密钥管理页维护） */
+    private boolean isSupportedApiKeyRef(String apiKeyRef) {
+        return apiKeyRef.startsWith("env:") || apiKeyRef.startsWith("secret://");
     }
 
     private void validateExternalProviderBaseUrl(String baseUrl) {

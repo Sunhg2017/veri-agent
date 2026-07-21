@@ -69,6 +69,7 @@ const systemChildren: NavNode[] = [
   { key: 'applications', label: translate('auto.k0029'), path: '/system/applications', pageKey: 'applications' },
   { key: 'environments', label: translate('auto.k0031'), path: '/system/environments', pageKey: 'environments' },
   { key: 'integrations', label: translate('auto.k0033'), path: '/system/integrations', pageKey: 'integrations' },
+  { key: 'secrets', label: '密钥管理', path: '/system/secrets', pageKey: 'secrets' },
   { key: 'audit', label: translate('auto.k0035'), path: '/system/audit', pageKey: 'audit' },
   { key: 'settings', label: translate('auto.k0037'), path: '/system/settings', pageKey: 'settings' }
 ];

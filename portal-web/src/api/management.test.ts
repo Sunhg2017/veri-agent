@@ -12,6 +12,7 @@ import {
   fetchRole,
   fetchManagementData,
   fetchEnvironmentConnectivityCheck,
+  listSecrets,
   rotateSecretReference,
   runEnvironmentConnectivityCheck,
   updateRole
@@ -216,5 +217,20 @@ describe('management API helpers', () => {
       method: 'POST',
       body: JSON.stringify({ secretRef: 'secret://wp1/example' })
     });
+  });
+
+  it('builds secret list query string with pagination and search', async () => {
+    requestJsonMock.mockResolvedValue({
+      code: 'OK',
+      message: 'ok',
+      trace_id: 'trace-secret-list',
+      data: { items: [], page: 1, page_size: 10, total: 0 }
+    });
+
+    await listSecrets({ index: 1, size: 10, search: 'model' });
+    expect(requestJsonMock).toHaveBeenLastCalledWith('/api/v1/management/secrets?index=1&size=10&search=model');
+
+    await listSecrets();
+    expect(requestJsonMock).toHaveBeenLastCalledWith('/api/v1/management/secrets');
   });
 });

@@ -1393,8 +1393,8 @@ function ProviderTab(props: {
           </label>
           <label className="field">
             <span>{translate('auto.k2614')}</span>
-            <InputControl value={props.draft.apiKeyRef} placeholder="env:MODEL_API_KEY" disabled={!props.canManage} onChange={(event) => props.onChangeDraft('apiKeyRef', event.target.value)} />
-            <small>{translate('auto.k0974')}</small>
+            <InputControl value={props.draft.apiKeyRef} placeholder="env:MODEL_API_KEY 或 secret://model/xxx" disabled={!props.canManage} onChange={(event) => props.onChangeDraft('apiKeyRef', event.target.value)} />
+            <small>仅保存引用值；secret:// 引用可在 系统管理 → 密钥管理 中维护。</small>
           </label>
           <label className="field">
             <span>{translate('auto.k0419')}</span>
@@ -2430,8 +2430,8 @@ function validateProviderDraft(draft: ProviderDraft) {
     if (!/^https?:\/\/.+/i.test(draft.baseUrl.trim())) {
       return translate('auto.k1069');
     }
-    if (!/^env:[A-Z0-9_]+$/i.test(draft.apiKeyRef.trim())) {
-      return translate('auto.k1070');
+    if (!/^(env:[A-Z0-9_]+|secret:\/\/\S+)$/i.test(draft.apiKeyRef.trim())) {
+      return 'OpenAI-compatible 供应商 apiKeyRef 需使用 env:VARIABLE_NAME 或 secret:// 引用';
     }
   }
   return '';

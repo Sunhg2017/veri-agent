@@ -19,6 +19,7 @@ export type PageKey =
   | 'applications'
   | 'environments'
   | 'integrations'
+  | 'secrets'
   | 'audit'
   | 'settings';
 
@@ -203,6 +204,7 @@ export const pageReadPermissions: Partial<Record<PageKey, Permission>> = {
   applications: 'application:read',
   environments: 'environment:read',
   integrations: 'config:read',
+  secrets: 'secret:read',
   audit: 'audit:read',
   settings: 'config:read'
 };

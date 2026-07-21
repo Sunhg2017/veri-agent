@@ -765,6 +765,30 @@ export function changeSettingStatus(settingKey: string, status: string): Promise
   });
 }
 
+export interface SecretListQuery {
+  /** 分页页码，从 0 开始（对齐后端 BasePageRequest.index） */
+  index?: number;
+  /** 每页条数，1-100 */
+  size?: number;
+  /** 搜索关键字（secretRef 模糊匹配） */
+  search?: string;
+}
+
+export function listSecrets(query: SecretListQuery = {}): Promise<ApiResponse<PageResponse<SecretReferenceView>>> {
+  const params = new URLSearchParams();
+  if (query.index !== undefined) {
+    params.set('index', String(query.index));
+  }
+  if (query.size !== undefined) {
+    params.set('size', String(query.size));
+  }
+  if (query.search) {
+    params.set('search', query.search);
+  }
+  const qs = params.toString();
+  return requestJson<PageResponse<SecretReferenceView>>(`${endpoints.secrets}${qs ? `?${qs}` : ''}`);
+}
+
 export function createSecretReference(payload: CreateSecretReferencePayload): Promise<ApiResponse<SecretReferenceView>> {
   return requestJson<SecretReferenceView>(endpoints.secrets, {
     method: 'POST',

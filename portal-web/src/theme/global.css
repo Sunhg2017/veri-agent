@@ -706,7 +706,8 @@ body {
 }
 
 .console-content-inner {
-  max-width: 1600px;
+  /* 宽屏下充分利用可用空间（企业级数据控制台流式布局），仅保留内容区两侧 padding */
+  width: 100%;
   margin: 0 auto;
 }
 

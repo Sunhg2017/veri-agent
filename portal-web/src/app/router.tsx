@@ -89,6 +89,7 @@ export function AppRoutes(props: {
         <Route path="system/applications" element={<SystemPageRoute page="applications" />} />
         <Route path="system/environments" element={<SystemPageRoute page="environments" />} />
         <Route path="system/integrations" element={<SystemPageRoute page="integrations" />} />
+        <Route path="system/secrets" element={<SystemPageRoute page="secrets" />} />
         <Route path="system/audit" element={<SystemPageRoute page="audit" />} />
         <Route path="system/settings" element={<SystemPageRoute page="settings" />} />
         {/* 旧路径兼容重定向 */}

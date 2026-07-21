@@ -6,13 +6,19 @@ import com.songhg.veri.agent.modelaccess.application.view.ProviderCallResult;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.songhg.veri.agent.common.error.BusinessException;
 import com.songhg.veri.agent.common.error.ErrorCode;
+import com.songhg.veri.agent.common.secret.ResolvedSecret;
+import com.songhg.veri.agent.common.secret.SecretProvider;
+import com.songhg.veri.agent.common.secret.SecretResolveContext;
 import com.songhg.veri.agent.modelaccess.domain.ModelProviderConfig;
 import com.songhg.veri.agent.modelaccess.domain.ProviderType;
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.http.MediaType;
@@ -26,11 +32,32 @@ import org.springframework.web.client.RestClientResponseException;
 @Component
 public class OpenAiCompatibleModelProviderClient implements ModelProviderClient {
 
+    /** 模型供应商密钥用途约定：密钥管理页创建 MODEL_API_KEY 用途的 secret:// 引用后可被此处解析 */
+    static final String API_KEY_SECRET_PURPOSE = "MODEL_API_KEY";
+    static final String API_KEY_CALLER_SERVICE = "wp2-model-access";
+    static final String API_KEY_SCOPE_TYPE = "CONFIG";
+    static final String SECRET_REF_PREFIX = "secret://";
+    static final String ENV_REF_PREFIX = "env:";
+
     private final RestClient.Builder restClientBuilder;
+    private final List<SecretProvider> secretProviders;
     private final ConcurrentMap<ClientKey, RestClient> clients = new ConcurrentHashMap<>();
 
-    public OpenAiCompatibleModelProviderClient(RestClient.Builder restClientBuilder) {
+    @Autowired
+    public OpenAiCompatibleModelProviderClient(RestClient.Builder restClientBuilder, ObjectProvider<SecretProvider> secretProviders) {
         this.restClientBuilder = restClientBuilder;
+        this.secretProviders = secretProviders == null ? List.of() : secretProviders.orderedStream().toList();
+    }
+
+    /** 测试用便捷构造：无密钥提供方时 secret:// 引用解析会明确报错 */
+    OpenAiCompatibleModelProviderClient(RestClient.Builder restClientBuilder) {
+        this(restClientBuilder, (ObjectProvider<SecretProvider>) null);
+    }
+
+    /** 测试用便捷构造：直接注入密钥提供方列表 */
+    OpenAiCompatibleModelProviderClient(RestClient.Builder restClientBuilder, List<SecretProvider> secretProviders) {
+        this.restClientBuilder = restClientBuilder;
+        this.secretProviders = secretProviders == null ? List.of() : List.copyOf(secretProviders);
     }
 
     @Override
@@ -43,7 +70,7 @@ public class OpenAiCompatibleModelProviderClient implements ModelProviderClient 
         if (!StringUtils.hasText(provider.baseUrl())) {
             throw new BusinessException(ErrorCode.MODEL_PROVIDER_UNAVAILABLE, "OpenAI-compatible 供应商缺少 baseUrl");
         }
-        String apiKey = resolveApiKey(provider.apiKeyRef());
+        String apiKey = resolveApiKey(provider);
         Map<String, Object> payload = Map.of(
                 "model", request.modelName(),
                 "messages", List.of(
@@ -93,16 +120,44 @@ public class OpenAiCompatibleModelProviderClient implements ModelProviderClient 
                 .build());
     }
 
-    protected String resolveApiKey(String apiKeyRef) {
-        if (!StringUtils.hasText(apiKeyRef) || !apiKeyRef.startsWith("env:")) {
-            throw new BusinessException(ErrorCode.MODEL_PROVIDER_UNAVAILABLE, "apiKeyRef 必须使用 env:VARIABLE_NAME 引用");
+    /**
+     * 解析供应商 API Key：env: 前缀走环境变量；secret:// 前缀委托密钥提供方解密，
+     * 作用域固定为 CONFIG + 供应商 ID，保证密钥与供应商一一绑定。
+     */
+    protected String resolveApiKey(ModelProviderConfig provider) {
+        String apiKeyRef = provider.apiKeyRef();
+        if (!StringUtils.hasText(apiKeyRef)) {
+            throw new BusinessException(ErrorCode.MODEL_PROVIDER_UNAVAILABLE, "apiKeyRef 必须使用 env:VARIABLE_NAME 或 secret:// 引用");
         }
-        String envName = apiKeyRef.substring("env:".length());
+        if (apiKeyRef.startsWith(SECRET_REF_PREFIX)) {
+            return resolveApiKeyFromSecretStore(provider, apiKeyRef);
+        }
+        if (!apiKeyRef.startsWith(ENV_REF_PREFIX)) {
+            throw new BusinessException(ErrorCode.MODEL_PROVIDER_UNAVAILABLE, "apiKeyRef 必须使用 env:VARIABLE_NAME 或 secret:// 引用");
+        }
+        String envName = apiKeyRef.substring(ENV_REF_PREFIX.length());
         String apiKey = System.getenv(envName);
         if (!StringUtils.hasText(apiKey)) {
             throw new BusinessException(ErrorCode.MODEL_PROVIDER_UNAVAILABLE, "apiKeyRef 指向的环境变量不存在");
         }
         return apiKey;
+    }
+
+    private String resolveApiKeyFromSecretStore(ModelProviderConfig provider, String apiKeyRef) {
+        SecretResolveContext context = new SecretResolveContext(
+                API_KEY_SECRET_PURPOSE,
+                API_KEY_CALLER_SERVICE,
+                API_KEY_SCOPE_TYPE,
+                provider.id() == null ? null : provider.id().toString()
+        );
+        for (SecretProvider secretProvider : secretProviders) {
+            Optional<ResolvedSecret> resolved = secretProvider.resolve(apiKeyRef, context);
+            if (resolved.isPresent() && StringUtils.hasText(resolved.get().value())) {
+                return resolved.get().value();
+            }
+        }
+        // 未命中时不回退任何明文配置，避免绕过密钥库审计
+        throw new BusinessException(ErrorCode.MODEL_PROVIDER_UNAVAILABLE, "apiKeyRef 指向的密钥未维护、已撤销或作用域不匹配");
     }
 
     private int estimateTokens(String content) {

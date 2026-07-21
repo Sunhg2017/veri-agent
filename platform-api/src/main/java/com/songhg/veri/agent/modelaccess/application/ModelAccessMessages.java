@@ -22,7 +22,7 @@ final class ModelAccessMessages {
     static final String NEGATIVE_COST = "模型供应商 token 成本不能为负数";
     static final String OPENAI_BASE_URL_REQUIRED = "OpenAI-compatible 供应商必须配置 baseUrl";
     static final String OPENAI_INVALID_BASE_URL = "OpenAI-compatible 供应商 baseUrl 格式无效";
-    static final String OPENAI_API_KEY_REQUIRED = "OpenAI-compatible 供应商 apiKeyRef 必须使用 env:VARIABLE_NAME";
+    static final String OPENAI_API_KEY_REQUIRED = "OpenAI-compatible 供应商 apiKeyRef 必须使用 env:VARIABLE_NAME 或 secret:// 引用";
     static final String PROVIDER_UNAVAILABLE = "模型供应商调用失败";
     static final String HIGH_RISK_PROMPT_NEEDS_APPROVAL = "高风险 Prompt 需审批通过后才能激活";
     static final String LOW_RISK_NO_REVIEW = "低风险 Prompt 不需要审批";

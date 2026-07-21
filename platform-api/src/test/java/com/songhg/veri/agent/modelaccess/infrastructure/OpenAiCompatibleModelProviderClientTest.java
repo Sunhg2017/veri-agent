@@ -1,5 +1,8 @@
 package com.songhg.veri.agent.modelaccess.infrastructure;
 
+import com.songhg.veri.agent.common.error.BusinessException;
+import com.songhg.veri.agent.common.secret.ResolvedSecret;
+import com.songhg.veri.agent.common.secret.SecretResolveContext;
 import com.songhg.veri.agent.modelaccess.application.command.ProviderCallRequest;
 import com.songhg.veri.agent.modelaccess.application.view.ProviderCallResult;
 import com.songhg.veri.agent.modelaccess.domain.ModelProviderConfig;
@@ -11,11 +14,15 @@ import java.math.BigDecimal;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
+import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.Test;
 import org.springframework.web.client.RestClient;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class OpenAiCompatibleModelProviderClientTest {
 
@@ -25,7 +32,7 @@ class OpenAiCompatibleModelProviderClientTest {
         try {
             OpenAiCompatibleModelProviderClient client = new OpenAiCompatibleModelProviderClient(RestClient.builder()) {
                 @Override
-                protected String resolveApiKey(String apiKeyRef) {
+                protected String resolveApiKey(ModelProviderConfig provider) {
                     return "test-api-key";
                 }
             };
@@ -57,6 +64,65 @@ class OpenAiCompatibleModelProviderClientTest {
         }
     }
 
+
+    @Test
+    void resolvesSecretRefThroughSecretProviderWithProviderScope() {
+        AtomicReference<SecretResolveContext> captured = new AtomicReference<>();
+        OpenAiCompatibleModelProviderClient client = new OpenAiCompatibleModelProviderClient(
+                RestClient.builder(),
+                List.of((secretRef, context) -> {
+                    captured.set(context);
+                    return "secret://model/api-key".equals(secretRef)
+                            ? Optional.of(new ResolvedSecret(secretRef, "sk-live-key", "local", "v1"))
+                            : Optional.empty();
+                })
+        );
+        ModelProviderConfig provider = providerWithApiKeyRef("secret://model/api-key");
+
+        assertThat(client.resolveApiKey(provider)).isEqualTo("sk-live-key");
+        assertThat(captured.get().purpose()).isEqualTo("MODEL_API_KEY");
+        assertThat(captured.get().callerService()).isEqualTo("wp2-model-access");
+        assertThat(captured.get().scopeType()).isEqualTo("CONFIG");
+        assertThat(captured.get().scopeId()).isEqualTo(provider.id().toString());
+    }
+
+    @Test
+    void rejectsSecretRefWhenNoSecretProviderResolves() {
+        OpenAiCompatibleModelProviderClient client = new OpenAiCompatibleModelProviderClient(RestClient.builder());
+
+        assertThatThrownBy(() -> client.resolveApiKey(providerWithApiKeyRef("secret://model/missing")))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("apiKeyRef 指向的密钥未维护");
+    }
+
+    @Test
+    void rejectsUnsupportedApiKeyRefPrefix() {
+        OpenAiCompatibleModelProviderClient client = new OpenAiCompatibleModelProviderClient(RestClient.builder());
+
+        assertThatThrownBy(() -> client.resolveApiKey(providerWithApiKeyRef("plain-secret")))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("env:VARIABLE_NAME 或 secret://");
+    }
+
+    private ModelProviderConfig providerWithApiKeyRef(String apiKeyRef) {
+        Instant now = Instant.now();
+        return new ModelProviderConfig(
+                UUID.randomUUID(),
+                "secret-ref-provider",
+                ProviderType.OPENAI_COMPATIBLE,
+                "default",
+                "CHAT",
+                "http://127.0.0.1:9",
+                apiKeyRef,
+                ProviderStatus.ENABLED,
+                1,
+                1000,
+                BigDecimal.ZERO,
+                BigDecimal.ZERO,
+                now,
+                now
+        );
+    }
 
     private HttpServer startOpenAiCompatibleServer() throws IOException {
         HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);

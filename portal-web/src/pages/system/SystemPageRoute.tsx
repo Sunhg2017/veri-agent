@@ -9,6 +9,7 @@ import { IntegrationsPage } from './IntegrationsPage';
 import { OrganizationsPage } from './OrganizationsPage';
 import { ProjectsPage } from './ProjectsPage';
 import { RolesPage } from './RolesPage';
+import { SecretsPage } from './SecretsPage';
 import { SettingsPage } from './SettingsPage';
 import { UsersPage } from './UsersPage';
 
@@ -50,6 +51,8 @@ export function SystemPageRoute(props: { page: PageKey }) {
       return <EnvironmentsPage {...pageProps} />;
     case 'integrations':
       return <IntegrationsPage {...pageProps} />;
+    case 'secrets':
+      return <SecretsPage {...pageProps} />;
     case 'audit':
       return <AuditPage {...pageProps} />;
     case 'settings':
